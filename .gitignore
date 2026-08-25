@@ -1,0 +1,31 @@
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ---- Xcode: ユーザー固有の状態（ウィンドウ位置、ブレークポイント等）----
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# ---- Xcode: ビルド成果物 ----
+build/
+DerivedData/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# ---- Swift Package Manager ----
+.build/
+# Package.resolved は依存バージョンの固定に必要なのでコミットする
+
+# ---- 開発環境（このマシン固有の絶対パスを含む）----
+# 再生成: xcode-build-server config -project PomodoroMac/PomodoroMac.xcodeproj -scheme PomodoroMac
+buildServer.json
+.sourcekit-lsp/
+
+# ---- 作業用 ----
+_to_delete/
