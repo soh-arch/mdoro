@@ -12,7 +12,7 @@ description: 仕様書と Decision Record に基づいて PomodoroCore / Mac / i
 1. `CLAUDE.md`
 2. `docs/CONTEXT.md`
 3. **タスクに関連する `accepted` 状態の Decision Record**（`docs/decisions/`）
-4. `Pomodoro仕様書_v2.md` の該当章
+4. `docs/SPEC.md` の該当章
 
 `proposed` のレコードに基づいて実装しない。
 

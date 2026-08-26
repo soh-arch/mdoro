@@ -12,6 +12,7 @@
 		4640E046303CAE7A00475D34 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4640E045303CAE7A00475D34 /* WidgetKit.framework */; };
 		4640E048303CAE7A00475D34 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4640E047303CAE7A00475D34 /* SwiftUI.framework */; };
 		4640E057303CAE7B00475D34 /* PomodoroWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4640E044303CAE7A00475D34 /* PomodoroWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4671DC29303EA7AF00BAC370 /* PomodoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4671DC28303EA7AF00BAC370 /* PomodoroCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -200,6 +201,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4640E048303CAE7A00475D34 /* SwiftUI.framework in Frameworks */,
+				4671DC29303EA7AF00BAC370 /* PomodoroCore in Frameworks */,
 				4640E046303CAE7A00475D34 /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -406,6 +408,7 @@
 			);
 			name = PomodoroWidgetExtension;
 			packageProductDependencies = (
+				4671DC28303EA7AF00BAC370 /* PomodoroCore */,
 			);
 			productName = PomodoroWidgetExtension;
 			productReference = 4640E044303CAE7A00475D34 /* PomodoroWidgetExtension.appex */;
@@ -745,7 +748,7 @@
 				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroMac/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -789,7 +792,7 @@
 				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PRINTING = NO;
 				ENABLE_RESOURCE_ACCESS_USB = NO;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroMac/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -1203,6 +1206,10 @@
 			productName = PomodoroCore;
 		};
 		4640E03E303CAE1A00475D34 /* PomodoroCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PomodoroCore;
+		};
+		4671DC28303EA7AF00BAC370 /* PomodoroCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PomodoroCore;
 		};

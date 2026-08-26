@@ -2,7 +2,7 @@
 
 このファイルは**今の状態だけ**を書く。経緯は書かない。経緯が必要なら `docs/decisions/` を参照する。
 
-- 要件の正本: `Pomodoro仕様書_v2.md`（v2.6.1、231要件）
+- 要件の正本: `SPEC.md`（v2.6.1、231要件）
 - 運用の正本: `CLAUDE.md`
 - 判断と意図の正本: `docs/decisions/`
 - ビルド手順・環境: `docs/DEVELOPMENT.md`
@@ -117,9 +117,8 @@ Git に入っていないため、失われると復元できない。
 | OPEN-002 | 集中表示ビューのタイポグラフィ（数字書体・等幅の可否・ウェイト）。配色は解決済み |
 | OPEN-003 | 診断ログの保持期間とローテーション方針 |
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 |
-| OPEN-007 | 無償 Personal Team で Time Sensitive Notifications capability を有効化できるか |
+| OPEN-007 | REQ-NTF-005 の Time Sensitive 通知が実機で届くか。**Xcode 26.6 の Capability 一覧に 「Time Sensitive Notifications」は存在しなかった**（2026-08-26 確認）。capability 追加ではなく `UNNotificationInterruptionLevel.timeSensitive` の指定で実装し、**工程7で実機検証する** |
 | OPEN-008 | `MenuBarExtra` の label で残り時間を毎秒更新した場合の安定性。不安定なら `NSStatusItem` へ |
-| OPEN-010 | 仕様書ファイル（124KB）の置き場所。ルートのままか `docs/spec/` へ移すか |
 
 ---
 

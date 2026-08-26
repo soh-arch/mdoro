@@ -9,7 +9,7 @@ description: 実装の成果物を独立コンテキストで検証する。要�
 
 ## 見るもの
 
-1. `Pomodoro仕様書_v2.md` の該当条文
+1. `docs/SPEC.md` の該当条文
 2. `docs/CONTEXT.md`（とくに §2 実装で壊しやすい6箇所）
 3. `accepted` の Decision Record
 4. 変更されたコードとテスト
