@@ -124,6 +124,7 @@ v2.4 の改訂内容に対する再レビューで、新設した 4.6 マトリ�
 | **修正** | 0.8 節が廃止済みの `NOTES.md` を参照していたのを `decisions/0010-extension-window.md` へ |
 | **変更** | 9.3 の `logFilePath` を `logFolderPath` + `logFileName` に分割。サンドボックスではファイル単位の許可で REQ-LOG-004 の原子的書き込みができないため（`decisions/0015-log-folder-scoped-access.md`）。REQ-LOG-004 に出典を追記 |
 | **追加** | REQ-LOG-005 に「キューを永続化すること」を明記。`committedAt` が立った後にキューを失うと記録が復旧不能になるため |
+| **追加** | 9.3 に `pauseResumeHotKey`（既定 **未設定**）と `launchAtLogin` を追加。REQ-UIX-033 に「既定では割り当てない」「任意の組み合わせを設定できる」「アクセシビリティ権限を要求しない」を明記（`decisions/0016-standard-settings-and-hotkeys.md`） |
 | **明確化** | REQ-PER-003(c) の猶予復元が `WORK` に限ることを明記。休憩は REQ-TIM-044 が猶予を否定しており、未確定のまま猶予内で復元した休憩の扱いが (c) の字面と衝突していた |
 | **明確化** | REQ-LOG-003 に「当該見出し」の判定方法を明記し、REQ-LOG-022 の「改名」から日付が読める見出しを除外。曜日だけ書き換えられた見出しに対して両条文が逆の指示を出していた（`decisions/0014-log-day-heading-matching.md`） |
 
@@ -635,7 +636,7 @@ v1.0 の「StandBy モード」を実現可能な形式に再定義する。
 | **REQ-UIX-035** | **MUST** | 未接続・再接続中は、メニューバーのテンプレート画像を専用の形状（斜線付きアイコン等）に変えて示すこと。色を使えないため（REQ-COL-022）、接続状態は形状で表現する。これにより Mac 側でも REQ-UIX-004 を満たす。 |
 | **REQ-UIX-031** | **MUST** | メニューバーのドロップダウンからは「一時停止 / 再開」「次のセッションを開始」「プリセット切替」「メインウィンドウを開く」のみを提供すること。中断・リセット・プリセット編集・設定変更は、誤操作防止のためメインウィンドウでのみ可能とすること。 |
 | **REQ-UIX-032** | **SHOULD** | メニューバーの表示密度を `menuBarDisplayMode`（9.3）で選択できること。`timeAndType`（既定）/ `timeAndTask` / `timeOnly` / `iconOnly` の4値とする。 |
-| **REQ-UIX-033** | **SHOULD** | グローバルキーボードショートカットで「一時停止 / 再開」を実行できること。 |
+| **REQ-UIX-033** | **SHOULD** | グローバルキーボードショートカットで「一時停止 / 再開」を実行できること。**既定では割り当てず、ユーザーが任意の組み合わせを設定できること。**修飾キーを含まない割り当ては受け付けないこと。他アプリに専有されていて登録できなかった場合は、その旨を設定画面に示すこと（`decisions/0016-standard-settings-and-hotkeys.md`）。**アクセシビリティ権限を要求しない手段で実装すること。** |
 | **REQ-UIX-034** | **MAY** | Mac 側にも常時最前面表示のフローティングウィンドウ（コンパクトな残り時間表示）を提供する。 |
 
 **背景・理由:** 視界に入る情報を極限まで減らし、かつ必要な時に一目で残り時間がわかることで、過集中を邪魔しない UI/UX を構築するため。
@@ -892,6 +893,8 @@ v1.0 の「StandBy モード」を実現可能な形式に再定義する。
 | `logDailySummary` | Bool | false | — | 前日の日次サマリ行を出力するか（REQ-LOG-014） |
 | `enterFocusViewOnRotate` | Bool | true | — | 横向きで集中表示へ遷移するか |
 | `menuBarDisplayMode` | Enum | `timeAndType` | `timeAndType` / `timeAndTask` / `timeOnly` / `iconOnly` | メニューバーの表示密度（REQ-UIX-032） |
+| `pauseResumeHotKey` | HotKeyBinding? | **未設定** | 修飾キーを1つ以上含むこと | 「一時停止 / 再開」のグローバルショートカット（REQ-UIX-033）。既定では割り当てない |
+| `launchAtLogin` | Bool | false | — | ログイン時に起動するか |
 
 **有効なプリセットの識別子は `PresetContext.activePresetId`（10.3）が唯一の正であり、本表には含めない。**
 

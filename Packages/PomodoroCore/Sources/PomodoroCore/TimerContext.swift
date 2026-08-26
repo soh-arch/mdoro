@@ -156,6 +156,10 @@ public struct AppSettings: Equatable, Sendable, Codable {
     public var logDailySummary: Bool
     public var enterFocusViewOnRotate: Bool
     public var menuBarDisplayMode: MenuBarDisplayMode
+    // REQ-UIX-033: 既定は無効。nil のあいだはホットキーを登録しない (Decision 0016)。
+    public var pauseResumeHotKey: HotKeyBinding?
+    // 標準的な常駐アプリの設定項目 (Decision 0016)。
+    public var launchAtLogin: Bool
 
     public init(
         appearance: AppearancePreference = .system,
@@ -169,7 +173,9 @@ public struct AppSettings: Equatable, Sendable, Codable {
         logTaskAsLink: Bool = false,
         logDailySummary: Bool = false,
         enterFocusViewOnRotate: Bool = true,
-        menuBarDisplayMode: MenuBarDisplayMode = .timeAndType
+        menuBarDisplayMode: MenuBarDisplayMode = .timeAndType,
+        pauseResumeHotKey: HotKeyBinding? = nil,
+        launchAtLogin: Bool = false
     ) {
         self.appearance = appearance
         self.focusViewDimmed = focusViewDimmed
@@ -183,6 +189,8 @@ public struct AppSettings: Equatable, Sendable, Codable {
         self.logDailySummary = logDailySummary
         self.enterFocusViewOnRotate = enterFocusViewOnRotate
         self.menuBarDisplayMode = menuBarDisplayMode
+        self.pauseResumeHotKey = pauseResumeHotKey
+        self.launchAtLogin = launchAtLogin
     }
 
     public static let `default` = AppSettings()
@@ -219,6 +227,8 @@ public struct AppSettings: Equatable, Sendable, Codable {
         logDailySummary = try c.decodeIfPresent(Bool.self, forKey: .logDailySummary) ?? d.logDailySummary
         enterFocusViewOnRotate = try c.decodeIfPresent(Bool.self, forKey: .enterFocusViewOnRotate) ?? d.enterFocusViewOnRotate
         menuBarDisplayMode = try c.decodeIfPresent(MenuBarDisplayMode.self, forKey: .menuBarDisplayMode) ?? d.menuBarDisplayMode
+        pauseResumeHotKey = try c.decodeIfPresent(HotKeyBinding.self, forKey: .pauseResumeHotKey)
+        launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
     }
 
     // REQ-CFG-018 / 9.3: 範囲外の値は適用しない。

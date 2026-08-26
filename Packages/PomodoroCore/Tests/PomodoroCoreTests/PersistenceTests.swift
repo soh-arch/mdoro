@@ -366,3 +366,41 @@ private extension JSONDecoder {
         let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d
     }
 }
+
+@Suite("ホットキーの割り当て (REQ-UIX-033)")
+struct HotKeyBindingTests {
+
+    // 修飾キーなしは受け付けない。単独キーを奪うと文字入力ができなくなる。
+    @Test func modifierIsRequired() {
+        let command = NSEventModifierFlagsCommand
+        #expect(HotKeyBinding(keyCode: 35, modifierFlags: command, displayName: "⌘P").hasModifier)
+        #expect(!HotKeyBinding(keyCode: 35, modifierFlags: 0, displayName: "P").hasModifier)
+        // Caps Lock などの修飾は割り当てに使えない。
+        #expect(!HotKeyBinding(keyCode: 35, modifierFlags: 1 << 16, displayName: "P").hasModifier)
+    }
+
+    // REQ-UIX-033 / Decision 0016: 既定は未設定。何も登録しない。
+    @Test func defaultIsUnassigned() {
+        #expect(AppSettings.default.pauseResumeHotKey == nil)
+        #expect(AppSettings.default.launchAtLogin == false)
+    }
+
+    @Test func bindingSurvivesPersistence() throws {
+        var settings = AppSettings.default
+        settings.pauseResumeHotKey = HotKeyBinding(
+            keyCode: 35, modifierFlags: NSEventModifierFlagsControl | NSEventModifierFlagsOption,
+            displayName: "⌃⌥P"
+        )
+        settings.launchAtLogin = true
+
+        let data = try JSONEncoder().encode(settings)
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
+        #expect(decoded.pauseResumeHotKey?.displayName == "⌃⌥P")
+        #expect(decoded.launchAtLogin)
+    }
+}
+
+// NSEvent.ModifierFlags の rawValue（AppKit に依存せず値だけを使う）。
+private let NSEventModifierFlagsControl: UInt = 1 << 18
+private let NSEventModifierFlagsOption: UInt = 1 << 19
+private let NSEventModifierFlagsCommand: UInt = 1 << 20

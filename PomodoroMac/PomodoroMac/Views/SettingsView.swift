@@ -142,6 +142,25 @@ struct SettingsView: View {
             Section("タスク") {
                 Toggle("完了済みタスクを一覧に表示する", isOn: model.settings.showCompletedTasks)
             }
+            // REQ-UIX-033: 既定は未設定。任意のキーを割り当てられる。
+            Section("ショートカット") {
+                HStack {
+                    Text("一時停止 / 再開")
+                    Spacer()
+                    HotKeyRecorderView(
+                        binding: model.settings.pauseResumeHotKey,
+                        isActive: self.model.hotKeyIsActive
+                    )
+                }
+                Text("他のアプリで使われている組み合わせは登録できません。修飾キーを含めて指定してください。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("起動") {
+                Toggle("ログイン時に起動する", isOn: model.settings.launchAtLogin)
+            }
+
             Section("延長") {
                 Text("延長できるのは終了5分前から終了1分後までです。区切りを意識しているときだけ延ばせるようにしています。")
                     .font(.footnote)

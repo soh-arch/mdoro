@@ -28,6 +28,8 @@ final class AppModel {
     // REQ-UIX-004 / 035: 接続状態。実際の接続管理は工程5（第3章・第12章）が入れる。
     // それまでは iPhone が繋がることはないので、正直に「未接続」を出す。
     private(set) var connection: ConnectionStatus = .disconnected
+    // REQ-UIX-033: 割り当ててあるのに他アプリに取られている場合を UI で区別する。
+    private(set) var hotKeyIsActive = false
 
     // REQ-ERR-004 / REQ-LOG-005: 書き込みに失敗し続けていることを UI に出す。
     private(set) var logWriteFailed = false
@@ -45,6 +47,7 @@ final class AppModel {
     private let store: any StateStore
     private let notifications = NotificationScheduler()
     private let idleSleepGuard = IdleSleepGuard()
+    private let hotKeys = HotKeyCenter()
     private let logQueue: LogWriteQueue
     private var bookmarks = VaultBookmarks.load()
 
@@ -91,6 +94,7 @@ final class AppModel {
         startWatchingTaskFile()
         startTicking()
         syncSideEffectsToState()
+        updateHotKey()
     }
 
     // REQ-TIM-001: 表示のためのカウントダウンであって、時間の正本ではない。
@@ -110,6 +114,7 @@ final class AppModel {
         tickTask = nil
         stopWatchingTaskFile()
         idleSleepGuard.end()
+        hotKeys.unregister()
     }
 
     private func tick() {
@@ -218,7 +223,30 @@ final class AppModel {
             reloadTasksFromDisk()
             startWatchingTaskFile()
         }
+        if settings.pauseResumeHotKey != previous.pauseResumeHotKey {
+            updateHotKey()
+        }
+        if settings.launchAtLogin != previous.launchAtLogin {
+            // 失敗したら設定を元に戻す。UI が実態と食い違わないようにする。
+            if !LoginItem.setEnabled(settings.launchAtLogin) {
+                settings.launchAtLogin = previous.launchAtLogin
+            }
+        }
         persist()
+    }
+
+    // REQ-UIX-033: 「一時停止 / 再開」だけをグローバルに割り当てる。
+    // 中断・リセットは誤爆すると取り返しがつかないので、メインウィンドウに留める（REQ-UIX-031 と同じ理由）。
+    private func updateHotKey() {
+        hotKeys.update(binding: settings.pauseResumeHotKey) { [weak self] in
+            guard let self else { return }
+            switch timer.runState {
+            case .running: send(.pause)
+            case .paused: send(.resume)
+            default: break
+            }
+        }
+        hotKeyIsActive = hotKeys.isRegistered
     }
 
     // MARK: - ログ
