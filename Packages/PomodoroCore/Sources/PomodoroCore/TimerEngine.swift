@@ -4,8 +4,10 @@ import Foundation
 // `reduce` / `tick` が副作用(周回数・確定・延長など)を計算する。
 // 実際のログ書き込み・通知・ファイル入出力は行わず、Effect として呼び出し側に委譲する。
 public enum TimerEngine {
-    // REQ-TIM-043: 延長猶予はプリセット非依存の固定値。
-    public static let extensionGraceSeconds: TimeInterval = 5 * 60
+    // REQ-TIM-043: FINISHED の猶予はプリセット非依存の固定値。REQ-TIM-046 の受付ウィンドウと一致させる。
+    public static let extensionGraceSeconds: TimeInterval = 60
+    // REQ-TIM-046: RUNNING / PAUSED で延長を受け付ける残り時間の上限。
+    public static let extensionWindowSeconds: TimeInterval = 5 * 60
 
     public struct Reduction: Equatable {
         public let context: TimerContext
@@ -15,6 +17,23 @@ public enum TimerEngine {
 
     public static func canAccept(_ action: TimerAction, in runState: RunState) -> Bool {
         StateTransitionMatrix.canAccept(action, in: runState)
+    }
+
+    // REQ-TIM-046: 延長受付ウィンドウ。RUNNING / PAUSED は残り 5 分以下、FINISHED は終了から 1 分以内。
+    // 「押した時点」ではなく「区切りを意識している時点」でのみ延長できるようにするための制約 (Decision 0010)。
+    public static func isWithinExtensionWindow(_ context: TimerContext, now: Date) -> Bool {
+        switch context.runState {
+        case .running:
+            guard let endAt = context.sessionEndAt else { return false }
+            return endAt.timeIntervalSince(now) <= extensionWindowSeconds
+        case .paused:
+            return TimeInterval(context.remainingSeconds ?? 0) <= extensionWindowSeconds
+        case .finished:
+            guard let finishedAt = context.finishedAt else { return false }
+            return now.timeIntervalSince(finishedAt) <= extensionGraceSeconds
+        default:
+            return false
+        }
     }
 
     // MARK: - 時間経過による自動遷移
@@ -150,13 +169,15 @@ public enum TimerEngine {
             guard ctx.sessionType == .work else { return fail(.invalidStateForAction) }
             guard let activePreset = pr.activePreset else { return fail(.presetNotFound) }
             let extendSeconds = activePreset.extendSeconds
+            // REQ-TIM-046: 受付ウィンドウ外の延長は受理しない。
+            guard isWithinExtensionWindow(ctx, now: now) else { return fail(.extendWindowClosed) }
             switch ctx.runState {
             case .running:
                 ctx.sessionEndAt = (ctx.sessionEndAt ?? now).addingTimeInterval(TimeInterval(extendSeconds))
             case .paused:
                 ctx.remainingSeconds = (ctx.remainingSeconds ?? 0) + extendSeconds
             case .finished:
-                // tick() が猶予超過を既に確定させているため、ここに到達するのは猶予内のみ。
+                // 猶予超過は tick() が先に確定させ、受付ウィンドウは上のガードが担保する。
                 // REQ-TIM-042: 加算済みの周回数を取り消したうえで RUNNING へ戻す。
                 ctx.loopCount = max(0, ctx.loopCount - 1)
                 ctx.nextSessionType = standardNextSessionType(after: .work, loopCount: ctx.loopCount, longBreakInterval: activePreset.longBreakInterval)

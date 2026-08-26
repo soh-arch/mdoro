@@ -21,7 +21,7 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
     public var autoAdvance: Bool
     public var notificationSound: NotificationSound
     public var timeSensitiveNotifications: Bool
-    public var preNotifySeconds: Int
+    public var preNotifications: [PreNotification]
     public var isBuiltInDefault: Bool
 
     public init(
@@ -36,7 +36,7 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
         autoAdvance: Bool = false,
         notificationSound: NotificationSound = .default,
         timeSensitiveNotifications: Bool = false,
-        preNotifySeconds: Int = 0,
+        preNotifications: [PreNotification] = [],
         isBuiltInDefault: Bool = false
     ) {
         self.id = id
@@ -50,7 +50,7 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
         self.autoAdvance = autoAdvance
         self.notificationSound = notificationSound
         self.timeSensitiveNotifications = timeSensitiveNotifications
-        self.preNotifySeconds = preNotifySeconds
+        self.preNotifications = preNotifications
         self.isBuiltInDefault = isBuiltInDefault
     }
 
@@ -65,7 +65,7 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
             longBreakInterval: 4,
             extendSeconds: 5 * 60,
             autoAdvance: false,
-            preNotifySeconds: 0,
+            preNotifications: [],
             isBuiltInDefault: true
         )
     }
@@ -79,7 +79,9 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
         guard (60...(60 * 60)).contains(longBreakSeconds) else { return false }
         guard (2...12).contains(longBreakInterval) else { return false }
         guard (60...(30 * 60)).contains(extendSeconds) else { return false }
-        guard (0...(5 * 60)).contains(preNotifySeconds) else { return false }
+        // REQ-NTF-020: トリガは 0〜2 個。各トリガの値域は PreNotification 側で検証する。
+        guard preNotifications.count <= 2 else { return false }
+        guard preNotifications.allSatisfy({ $0.isWithinValidRanges }) else { return false }
         return true
     }
 }

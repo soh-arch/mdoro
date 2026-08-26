@@ -206,7 +206,7 @@ struct ExtendAndFinishedTests {
         let finished = TimerEngine.tick(context: started.context, presets: presets, now: endAt).context
         #expect(finished.loopCount == 1)
 
-        let extendTime = endAt.addingTimeInterval(60) // 猶予内
+        let extendTime = endAt.addingTimeInterval(30) // 猶予内 (REQ-TIM-043: 1分)
         let extended = try TimerEngine.reduce(action: .extend, context: finished, presets: presets, now: extendTime).get()
 
         #expect(extended.context.runState == .running)
@@ -224,7 +224,7 @@ struct ExtendAndFinishedTests {
         let finished = TimerEngine.tick(context: started.context, presets: presets, now: endAt).context
         #expect(finished.loopCount == 1)
 
-        let abortTime = endAt.addingTimeInterval(60)
+        let abortTime = endAt.addingTimeInterval(30)
         let aborted = try TimerEngine.reduce(action: .abort, context: finished, presets: presets, now: abortTime).get()
 
         #expect(aborted.context.loopCount == 0, "REQ-TIM-036: FINISHED からの abort も1減らす")
@@ -385,7 +385,9 @@ struct SettingsApplicationTests {
         let afterUpdate = try TimerEngine.reduce(action: .updatePreset(updated), context: started.context, presets: presets, now: referenceDate.addingTimeInterval(5)).get()
 
         let beforeExtend = afterUpdate.context.sessionEndAt!
-        let extended = try TimerEngine.reduce(action: .extend, context: afterUpdate.context, presets: afterUpdate.presets, now: referenceDate.addingTimeInterval(10)).get()
+        // REQ-TIM-046: 延長は残り5分以下でしか受け付けないため、受付ウィンドウ内まで進める。
+        let withinWindow = beforeExtend.addingTimeInterval(-60)
+        let extended = try TimerEngine.reduce(action: .extend, context: afterUpdate.context, presets: afterUpdate.presets, now: withinWindow).get()
 
         #expect(extended.context.sessionEndAt == beforeExtend.addingTimeInterval(10 * 60), "REQ-CFG-015: B群は実行中セッションにも即座に適用される")
     }
@@ -502,6 +504,173 @@ struct ReviewFixTests {
         let (secondContext, secondEffects) = TimerEngine.finalize(context: firstContext, presets: presets, settings: .default, now: endAt.addingTimeInterval(60), outcome: .aborted)
         #expect(secondEffects.isEmpty, "committedAt が設定済みのコンテキストを再確定してはならない")
         #expect(secondContext == firstContext)
+    }
+}
+
+// MARK: - 延長受付ウィンドウ (REQ-TIM-046)
+
+@Suite("延長受付ウィンドウ (REQ-TIM-046)")
+struct ExtensionWindowTests {
+    @Test func runningOutsideWindowIsRejectedAndInsideIsAccepted() throws {
+        let preset = makePreset(work: 25 * 60)
+        let presets = makePresetContext(preset)
+        let idle = TimerContext.idle(now: referenceDate)
+        let started = try TimerEngine.reduce(action: .startWork(presetId: preset.id, taskSnapshot: nil), context: idle, presets: presets, now: referenceDate).get()
+        let endAt = started.context.sessionEndAt!
+
+        // 残り 5 分ちょうどより前は受け付けない。
+        let tooEarly = endAt.addingTimeInterval(-(TimerEngine.extensionWindowSeconds + 1))
+        guard case let .failure(failure) = TimerEngine.reduce(action: .extend, context: started.context, presets: presets, now: tooEarly) else {
+            Issue.record("REQ-TIM-046: 残り5分より前の延長は拒否されるべき")
+            return
+        }
+        #expect(failure.error == .extendWindowClosed)
+
+        // 残り 5 分ちょうどは境界として受け付ける。
+        let boundary = endAt.addingTimeInterval(-TimerEngine.extensionWindowSeconds)
+        let accepted = try TimerEngine.reduce(action: .extend, context: started.context, presets: presets, now: boundary).get()
+        #expect(accepted.context.sessionEndAt == endAt.addingTimeInterval(TimeInterval(preset.extendSeconds)),
+                "REQ-TIM-040: 加算の起点は現在時刻ではなく終了予定時刻")
+    }
+
+    @Test func extendAnchorIsSessionEndNotPressTime() throws {
+        let preset = makePreset(work: 25 * 60, extend: 5 * 60)
+        let presets = makePresetContext(preset)
+        let idle = TimerContext.idle(now: referenceDate)
+        let started = try TimerEngine.reduce(action: .startWork(presetId: preset.id, taskSnapshot: nil), context: idle, presets: presets, now: referenceDate).get()
+        let endAt = started.context.sessionEndAt!
+        let finished = TimerEngine.tick(context: started.context, presets: presets, now: endAt).context
+
+        // 終了後 10 秒でも 55 秒でも、新しい終了時刻は同じ。
+        let early = try TimerEngine.reduce(action: .extend, context: finished, presets: presets, now: endAt.addingTimeInterval(10)).get()
+        let late = try TimerEngine.reduce(action: .extend, context: finished, presets: presets, now: endAt.addingTimeInterval(55)).get()
+        #expect(early.context.sessionEndAt == endAt.addingTimeInterval(5 * 60))
+        #expect(early.context.sessionEndAt == late.context.sessionEndAt, "REQ-TIM-040: 押した時刻で結果が変わってはならない")
+    }
+
+    @Test func pausedOutsideWindowIsRejected() throws {
+        let preset = makePreset(work: 25 * 60)
+        let presets = makePresetContext(preset)
+        let idle = TimerContext.idle(now: referenceDate)
+        let started = try TimerEngine.reduce(action: .startWork(presetId: preset.id, taskSnapshot: nil), context: idle, presets: presets, now: referenceDate).get()
+        let paused = try TimerEngine.reduce(action: .pause, context: started.context, presets: presets, now: referenceDate.addingTimeInterval(60)).get()
+        #expect(paused.context.remainingSeconds ?? 0 > Int(TimerEngine.extensionWindowSeconds))
+
+        guard case let .failure(failure) = TimerEngine.reduce(action: .extend, context: paused.context, presets: presets, now: referenceDate.addingTimeInterval(61)) else {
+            Issue.record("REQ-TIM-046: 残り5分を超える PAUSED の延長は拒否されるべき")
+            return
+        }
+        #expect(failure.error == .extendWindowClosed)
+
+        var nearEnd = paused.context
+        nearEnd.remainingSeconds = 120
+        let accepted = try TimerEngine.reduce(action: .extend, context: nearEnd, presets: presets, now: referenceDate.addingTimeInterval(61)).get()
+        #expect(accepted.context.remainingSeconds == 120 + preset.extendSeconds, "REQ-TIM-040: PAUSED では remainingSeconds に加算する")
+    }
+
+    @Test func finishedWindowIsOneMinute() throws {
+        #expect(TimerEngine.extensionGraceSeconds == 60, "REQ-TIM-043: 猶予は1分")
+        let preset = makePreset()
+        let presets = makePresetContext(preset)
+        let idle = TimerContext.idle(now: referenceDate)
+        let started = try TimerEngine.reduce(action: .startWork(presetId: preset.id, taskSnapshot: nil), context: idle, presets: presets, now: referenceDate).get()
+        let endAt = started.context.sessionEndAt!
+        let finished = TimerEngine.tick(context: started.context, presets: presets, now: endAt).context
+
+        #expect(TimerEngine.isWithinExtensionWindow(finished, now: endAt.addingTimeInterval(60)))
+        #expect(!TimerEngine.isWithinExtensionWindow(finished, now: endAt.addingTimeInterval(61)))
+    }
+}
+
+// MARK: - 予告通知 (REQ-NTF-020〜023)
+
+@Suite("予告通知のトリガ (REQ-NTF-020〜023)")
+struct PreNotificationTests {
+    private let start = referenceDate
+    private var end: Date { referenceDate.addingTimeInterval(25 * 60) }
+
+    @Test func validRangesFollowTheApprovedGrid() {
+        // REQ-NTF-020: 残り時間は 1〜15 分を1分刻み、経過割合は 50〜95% を5刻み。
+        #expect(PreNotification.beforeEnd(seconds: 60).isWithinValidRanges)
+        #expect(PreNotification.beforeEnd(seconds: 15 * 60).isWithinValidRanges)
+        #expect(!PreNotification.beforeEnd(seconds: 30).isWithinValidRanges)
+        #expect(!PreNotification.beforeEnd(seconds: 16 * 60).isWithinValidRanges)
+        #expect(!PreNotification.beforeEnd(seconds: 90).isWithinValidRanges, "60 の倍数以外は不可")
+
+        #expect(PreNotification.atElapsedPercent(50).isWithinValidRanges)
+        #expect(PreNotification.atElapsedPercent(95).isWithinValidRanges)
+        #expect(!PreNotification.atElapsedPercent(45).isWithinValidRanges)
+        #expect(!PreNotification.atElapsedPercent(100).isWithinValidRanges)
+        #expect(!PreNotification.atElapsedPercent(82).isWithinValidRanges, "5 の倍数以外は不可")
+    }
+
+    @Test func presetRejectsMoreThanTwoTriggersOrOutOfRangeValues() {
+        var preset = makePreset()
+        preset.preNotifications = [.beforeEnd(seconds: 300), .atElapsedPercent(80)]
+        #expect(preset.isWithinValidRanges())
+
+        preset.preNotifications = [.beforeEnd(seconds: 300), .atElapsedPercent(80), .atElapsedPercent(90)]
+        #expect(!preset.isWithinValidRanges(), "REQ-NTF-020: トリガは最大2個")
+
+        preset.preNotifications = [.atElapsedPercent(82)]
+        #expect(!preset.isWithinValidRanges())
+    }
+
+    @Test func triggerBeforeSessionStartIsDropped() {
+        // REQ-NTF-021: 25分のセッションに「30分前」は成立しない。
+        let dates = PreNotificationSchedule.fireDates(
+            for: [.beforeEnd(seconds: 30 * 60)],
+            sessionStartedAt: start, sessionEndAt: end, now: start
+        )
+        #expect(dates.isEmpty)
+    }
+
+    @Test func elapsedPercentFollowsTheExtendedDuration() {
+        // REQ-NTF-022: 延長後は新しい終了時刻を基準に計算し直す。
+        let before = PreNotificationSchedule.fireDates(
+            for: [.atElapsedPercent(80)], sessionStartedAt: start, sessionEndAt: end, now: start
+        )
+        #expect(before == [start.addingTimeInterval(20 * 60)])
+
+        let extendedEnd = end.addingTimeInterval(5 * 60)
+        let after = PreNotificationSchedule.fireDates(
+            for: [.atElapsedPercent(80)], sessionStartedAt: start, sessionEndAt: extendedEnd, now: start
+        )
+        #expect(after == [start.addingTimeInterval(24 * 60)])
+    }
+
+    @Test func alreadyElapsedTriggerIsNotRescheduled() {
+        // REQ-NTF-022: 既に発火済みのトリガを再発火させない。
+        let dates = PreNotificationSchedule.fireDates(
+            for: [.atElapsedPercent(50), .beforeEnd(seconds: 60)],
+            sessionStartedAt: start, sessionEndAt: end,
+            now: start.addingTimeInterval(20 * 60)
+        )
+        #expect(dates == [end.addingTimeInterval(-60)])
+    }
+
+    @Test func closeTriggersCollapseToTheLaterOne() {
+        // REQ-NTF-023: 60秒以内に接近する場合は後者のみ。
+        // 25分の80% = 20分経過 = 残り5分。「残り5分前」と一致するため後者だけが残る。
+        let dates = PreNotificationSchedule.fireDates(
+            for: [.atElapsedPercent(80), .beforeEnd(seconds: 5 * 60)],
+            sessionStartedAt: start, sessionEndAt: end, now: start
+        )
+        #expect(dates.count == 1)
+        #expect(dates == [start.addingTimeInterval(20 * 60)])
+
+        // 十分に離れていれば2件とも残る。
+        let spread = PreNotificationSchedule.fireDates(
+            for: [.atElapsedPercent(50), .beforeEnd(seconds: 60)],
+            sessionStartedAt: start, sessionEndAt: end, now: start
+        )
+        #expect(spread.count == 2)
+    }
+
+    @Test func codableRoundTripKeepsTheTriggerShape() throws {
+        let triggers: [PreNotification] = [.beforeEnd(seconds: 600), .atElapsedPercent(85)]
+        let data = try JSONEncoder().encode(triggers)
+        #expect(try JSONDecoder().decode([PreNotification].self, from: data) == triggers)
     }
 }
 

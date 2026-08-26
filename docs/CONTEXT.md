@@ -2,7 +2,7 @@
 
 このファイルは**今の状態だけ**を書く。経緯は書かない。経緯が必要なら `docs/decisions/` を参照する。
 
-- 要件の正本: `Pomodoro仕様書_v2.md`（v2.6、231要件）
+- 要件の正本: `Pomodoro仕様書_v2.md`（v2.6.1、231要件）
 - 運用の正本: `CLAUDE.md`
 - 判断と意図の正本: `docs/decisions/`
 - ビルド手順・環境: `docs/DEVELOPMENT.md`
@@ -119,7 +119,6 @@ Git に入っていないため、失われると復元できない。
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 |
 | OPEN-007 | 無償 Personal Team で Time Sensitive Notifications capability を有効化できるか |
 | OPEN-008 | `MenuBarExtra` の label で残り時間を毎秒更新した場合の安定性。不安定なら `NSStatusItem` へ |
-| OPEN-009 | REQ-NTF-020〜023 の数値の刻み（残り1〜15分、経過50〜95%を5刻み）は旧PMが決めたもの。**人間の確認が取れていない** |
 | OPEN-010 | 仕様書ファイル（124KB）の置き場所。ルートのままか `docs/spec/` へ移すか |
 
 ---
@@ -130,26 +129,24 @@ Git に入っていないため、失われると復元できない。
 
 ### 完了
 
-- `PomodoroCore` の状態機械（仕様書 第4章・9.5・10.3 相当）を実装済み。コミット `aa64471`
+- `PomodoroCore` の状態機械（仕様書 第4章・9.5・10.3 相当）
   - `TimerEngine` / `TimerContext` / `PresetContext` / `Preset` / `Effect` / `TimerAction` /
-    `SessionType` / `StateTransitionMatrix`
+    `SessionType` / `StateTransitionMatrix` / `PreNotification`
   - ファイル I/O・ネットワーク・UI は含まない。ログ確定は `Effect.commitLog` として呼び出し側へ渡す
-- **`swift test` 34テスト全通過**（7スイート、2026-08-26 実行）
+- **v2.6 への追従完了。** REQ-TIM-043（猶予1分）/ REQ-TIM-046（延長受付ウィンドウ）/
+  `extendWindowClosed` / `Preset.preNotifications`（REQ-NTF-020〜023 の発火時刻決定を含む）
+- **`swift test` 45テスト全通過**（9スイート、2026-08-26 実行）
 - 開発体制の移行（[0011](decisions/0011-claude-code-as-orchestrator.md)）
+- 予告通知の数値の刻みを確定（[0012](decisions/0012-prenotification-value-grid.md)）
 
 ### 未着手
 
-- **実装が仕様 v2.6 に追いついていない。** コードは v2.5 相当（[0010](decisions/0010-extension-window.md) が未反映）
-
-  | 仕様 | 現在のコード |
-  | :---- | :---- |
-  | REQ-TIM-046（新設）延長受付ウィンドウ | 存在しない。`extend` は `RUNNING`/`PAUSED`/`FINISHED` で常に受理される（`StateTransitionMatrix.swift:21`） |
-  | REQ-TIM-043 猶予 **1分** | `extensionGraceSeconds = 5 * 60` のまま（`TimerEngine.swift:8`） |
-  | `error.code: extendWindowClosed` | 存在しない |
-  | `Preset.preNotifications`（最大2トリガ） | `preNotifySeconds: Int`（0〜300 で検証）のまま（`Preset.swift:24,82`） |
-  | REQ-NTF-020〜023 予告通知 | 未実装（通知機能そのものが未着手） |
-
-  なお **REQ-TIM-040 の起点固定（`sessionEndAt` 基準の加算）は既に実装済み**である（`TimerEngine.swift:155,163`）。
-
-- 通信層（Bonjour / WebSocket）、ファイル監視、ログ書き込み、Mac UI、iOS UI、Live Activity — すべて未着手
-- 色のコントラストと ΔE の自動検証（REQ-COL-020）を `PomodoroCore` のテストとして追加する
+- **通信層**（Bonjour / WebSocket、第3章・第10章）— 未着手。**Info.plist / entitlements を先に通すこと**（§3）
+- **ファイル監視とタスクパース**（第6章）— 未着手
+- **ログ書き込み**（第7章）— 未着手。`TimerEngine` は `Effect.commitLog` を返すのみ
+- **通知のスケジュール層**（第5章）— 未着手。
+  発火時刻の決定（`PreNotificationSchedule`）だけが `PomodoroCore` にある
+- **Mac UI**（第8.4章）、**iOS UI と集中表示ビュー**（8.1・8.2）、**Live Activity**（8.3）— 未着手
+- **色トークンの定義**（8.5）— 未着手。
+  コントラストと ΔE の自動検証（REQ-COL-020）を `PomodoroCore` のテストとして追加する
+- **永続化**（第11章）、**ペアリングと認証**（第12章）— 未着手

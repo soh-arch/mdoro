@@ -58,6 +58,7 @@ public struct LogEntry: Equatable, Sendable {
 // REQ-TIM-030 他: 受理されなかった操作やドメイン制約違反を表す。
 public enum TimerError: Error, Equatable, Sendable {
     case invalidStateForAction
+    case extendWindowClosed
     case settingOutOfRange
     case presetNotFound
     case presetLimitReached
