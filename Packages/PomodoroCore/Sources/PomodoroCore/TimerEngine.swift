@@ -36,6 +36,121 @@ public enum TimerEngine {
         }
     }
 
+    // MARK: - PENDING_DECISION
+
+    // REQ-PER-008 / 009: PENDING_DECISION へ入るときは、発火時刻を過ぎた通知を取り消し、
+    // Live Activity を終了させる。再スケジュールは行わない。
+    static let pendingDecisionEffects: [Effect] = [.cancelScheduledNotifications, .endLiveActivity]
+
+    static func enterPendingDecision(
+        _ context: TimerContext,
+        reason: PendingDecision.Reason,
+        endedAt: Date,
+        now: Date
+    ) -> TimerContext {
+        var ctx = context
+        let elapsed = computeElapsedSeconds(context: ctx, endedAt: endedAt)
+        ctx.runState = .pendingDecision
+        ctx.pendingDecision = PendingDecision(reason: reason, endedAt: endedAt, elapsedSeconds: elapsed)
+        ctx.lastUpdatedAt = now
+        return ctx
+    }
+
+    // MARK: - 起動時の復元 (REQ-PER-002 / 003)
+
+    // 永続化された状態から復元する。tick() と分けているのは、`tick()` が
+    // 「アプリが動き続けている前提」で猶予超過を完了として確定させるのに対し、
+    // 復元時は不在中に終わっていたセッションを無条件に完了扱いしてはならないため (REQ-PER-003(d))。
+    // 同じ経路を使うと、閉じている間に過ぎたセッションが黙って実績になる。
+    public static func restore(
+        context: TimerContext,
+        presets: PresetContext,
+        settings: AppSettings = .default,
+        now: Date
+    ) -> Reduction {
+        var ctx = context
+        let interval = presets.activePreset?.longBreakInterval ?? 4
+
+        switch ctx.runState {
+        case .idle, .pendingDecision:
+            // 既に判断待ちのものはそのまま引き継ぐ。日跨ぎの自動確定は tick() が扱う (REQ-PER-004)。
+            return Reduction(context: ctx, presets: presets, effects: [])
+
+        case .paused:
+            // 一時停止は終了時刻を持たない。放置しすぎた場合の判定は resume 時の
+            // REQ-TIM-033 と同じ規則で、ここでも先に確認へ倒す。
+            guard let pausedAt = ctx.pausedAt,
+                  now.timeIntervalSince(pausedAt) >= Double(settings.idleResetHours) * 3600 else {
+                return Reduction(context: ctx, presets: presets, effects: [])
+            }
+            ctx = enterPendingDecision(ctx, reason: .pausedTooLong, endedAt: pausedAt, now: now)
+            return Reduction(context: ctx, presets: presets, effects: pendingDecisionEffects)
+
+        case .running, .finished:
+            break
+        }
+
+        // (a) 確定済み → 完了しているものとして IDLE で復元し、ログを再度書かない。
+        //     休憩は REQ-TIM-044 により通常この経路を通る。
+        if ctx.committedAt != nil {
+            ctx.runState = .idle
+            ctx.pendingDecision = nil
+            ctx.lastUpdatedAt = now
+            return Reduction(context: ctx, presets: presets, effects: [])
+        }
+
+        guard let endAt = ctx.sessionEndAt else {
+            // 終了時刻を持たない未確定セッションは復元しようがない。IDLE へ落として続行する。
+            ctx.runState = .idle
+            ctx.lastUpdatedAt = now
+            return Reduction(context: ctx, presets: presets, effects: [])
+        }
+
+        // (b) 未確定かつ終了時刻が未来 → そのまま RUNNING で復元する。
+        if now < endAt {
+            ctx.runState = .running
+            ctx.finishedAt = nil
+            ctx.lastUpdatedAt = now
+            return Reduction(context: ctx, presets: presets, effects: [])
+        }
+
+        // ここから先は「不在中に終了時刻を過ぎていた」場合。
+        // FINISHED への到達そのものは tick() と同じ規則で反映する。
+        if ctx.runState == .running {
+            ctx.finishedAt = endAt
+            ctx.runState = .finished
+            if ctx.sessionType == .work {
+                let next = standardNextSessionType(after: .work, loopCount: ctx.loopCount, longBreakInterval: interval)
+                ctx.loopCount += 1
+                ctx.nextSessionType = next
+            } else {
+                ctx.nextSessionType = .work
+            }
+        }
+        let finishedAt = ctx.finishedAt ?? endAt
+        ctx.lastUpdatedAt = now
+
+        // (c) 猶予内 → FINISHED のまま復元する。残り猶予は finishedAt から UI が算出する。
+        //     ただし休憩には猶予がなく到達と同時に確定する (REQ-TIM-044) ため、WORK に限る。
+        //     猶予を過ぎていない休憩は、待たせる理由がないのでここで確定させる。
+        if now.timeIntervalSince(finishedAt) <= extensionGraceSeconds {
+            if ctx.sessionType == .work {
+                return Reduction(context: ctx, presets: presets, effects: [])
+            }
+            let (finalized, effs) = finalize(context: ctx, presets: presets, settings: settings, now: now, outcome: .completed)
+            return Reduction(context: finalized, presets: presets, effects: effs)
+        }
+
+        // (d) 猶予超過 → 判断を仰ぐ。応答まで周回数を加算せずログも記録しない。
+        //     FINISHED 到達時に加算した周回数はここで戻す (REQ-TIM-042 と同じ理由)。
+        if ctx.sessionType == .work {
+            ctx.loopCount = max(0, ctx.loopCount - 1)
+            ctx.nextSessionType = standardNextSessionType(after: .work, loopCount: ctx.loopCount, longBreakInterval: interval)
+        }
+        ctx = enterPendingDecision(ctx, reason: .restoredAfterEnd, endedAt: finishedAt, now: now)
+        return Reduction(context: ctx, presets: presets, effects: pendingDecisionEffects)
+    }
+
     // MARK: - 時間経過による自動遷移
 
     // REQ-TIM-010/020/043/044: 終了時刻到達・延長猶予満了を、明示的な操作なしに反映する。
@@ -67,6 +182,20 @@ public enum TimerEngine {
                 ctx = finalized
                 effects.append(contentsOf: effs)
             }
+        }
+
+        // REQ-PER-004: 復元時の確認が未応答のまま論理日が変われば、discard (中断扱い) として確定する。
+        // 放置された実時間はログに含めない (REQ-TIM-005) ため、終了時刻は異常検知時点を使う。
+        if ctx.runState == .pendingDecision, ctx.committedAt == nil,
+           let pending = ctx.pendingDecision, pending.reason == .restoredAfterEnd,
+           LogicalDay.date(for: now, dayStartHour: settings.logicalDayStartHour) != ctx.logicalDate {
+            ctx.nextSessionType = (ctx.sessionType == .work) ? .shortBreak : .work
+            let (finalized, effs) = finalize(
+                context: ctx, presets: presets, settings: settings, now: now,
+                outcome: .aborted, endedAtOverride: pending.endedAt
+            )
+            ctx = finalized
+            effects.append(contentsOf: effs)
         }
 
         if ctx.runState == .finished, ctx.sessionType == .work, ctx.committedAt == nil,
@@ -134,10 +263,8 @@ public enum TimerEngine {
             let idleSeconds = now.timeIntervalSince(pausedAt)
             if idleSeconds >= Double(settings.idleResetHours) * 3600 {
                 // REQ-TIM-033: 放置しすぎた一時停止は自動再開せず、確認を要求する。
-                let elapsed = computeElapsedSeconds(context: ctx, endedAt: pausedAt)
-                ctx.runState = .pendingDecision
-                ctx.pendingDecision = PendingDecision(reason: .pausedTooLong, endedAt: pausedAt, elapsedSeconds: elapsed)
-                ctx.lastUpdatedAt = now
+                ctx = enterPendingDecision(ctx, reason: .pausedTooLong, endedAt: pausedAt, now: now)
+                effects.append(contentsOf: pendingDecisionEffects)
             } else {
                 ctx.accumulatedPausedSeconds += Int(idleSeconds)
                 ctx.sessionEndAt = now.addingTimeInterval(TimeInterval(ctx.remainingSeconds ?? 0))
@@ -240,8 +367,17 @@ public enum TimerEngine {
                 effects.append(contentsOf: effs)
             }
 
-        case .selectTask, .clearTaskSelection, .reloadTasks, .updateSettings:
-            // タスク一覧・アプリ全体設定 (第6章 / 9.3) の永続化は今回のスコープ外。
+        case let .updateSettings(updated):
+            // REQ-PER-004: `logicalDayStartHour` の設定変更に起因する logicalDate の変化では
+            // PENDING_DECISION の自動確定を発火させてはならない。境界そのものが動いただけで、
+            // 日をまたいだわけではないため、比較の基準を新しい境界へ張り替える。
+            if updated.logicalDayStartHour != settings.logicalDayStartHour {
+                ctx.logicalDate = LogicalDay.date(for: now, dayStartHour: updated.logicalDayStartHour)
+                ctx.lastUpdatedAt = now
+            }
+
+        case .selectTask, .clearTaskSelection, .reloadTasks:
+            // タスク一覧 (第6章) の保持は TaskContext の担当。
             // 状態遷移マトリクス上は常に受理されることのみをここで保証する。
             break
 

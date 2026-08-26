@@ -1,0 +1,55 @@
+import Foundation
+
+public enum StateStoreError: Error, Equatable, Sendable {
+    // 読めたが解釈できない。**黙って初期状態へ戻さない。** 上書きするとユーザーの実績が消える。
+    case corrupted
+    // このビルドより新しいスキーマ。ダウングレード時に読み書きして壊さないための防壁。
+    case unsupportedSchemaVersion(found: Int, supported: Int)
+    case ioFailed(String)
+}
+
+// REQ-PER-001 / 002: 永続化と復元の窓口。実体の差し替えでテストできるようにする。
+public protocol StateStore: Sendable {
+    // 保存が存在しない場合は nil を返す。壊れている場合は throw する（nil と区別する）。
+    func load() throws -> PersistedState?
+    func save(_ state: PersistedState) throws
+}
+
+public extension StateStore {
+    // REQ-PER-002 / 003: 読み込みと復元判定をまとめた起動時の入り口。
+    // 保存が無ければ初期状態、あれば REQ-PER-003 の判定を通した状態を返す。
+    func loadAndRestore(now: Date, settings: AppSettings = .default) throws -> TimerEngine.Reduction {
+        guard let saved = try load() else {
+            let initial = PersistedState.initial(now: now, settings: settings)
+            return TimerEngine.Reduction(context: initial.timer, presets: initial.presets, effects: [])
+        }
+        return TimerEngine.restore(
+            context: saved.timer,
+            presets: saved.presets,
+            settings: saved.settings,
+            now: now
+        )
+    }
+}
+
+// テストと、永続化を持たない実行経路のための実体。
+public final class InMemoryStateStore: StateStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: PersistedState?
+    public private(set) var saveCount = 0
+
+    public init(initial: PersistedState? = nil) {
+        self.stored = initial
+    }
+
+    public func load() throws -> PersistedState? {
+        lock.lock(); defer { lock.unlock() }
+        return stored
+    }
+
+    public func save(_ state: PersistedState) throws {
+        lock.lock(); defer { lock.unlock() }
+        stored = state
+        saveCount += 1
+    }
+}

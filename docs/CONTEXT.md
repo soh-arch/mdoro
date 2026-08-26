@@ -141,6 +141,9 @@ Git に入っていないため、失われると復元できない。
 - **工程1 完了**: 色トークン（8.5.3 全トークン・ライト/ダーク）、役割マッピング（8.5.4）、
   コントラストと ΔE の自動検証（REQ-COL-020）、絶対輝度の段差の検証（REQ-COL-021）
   — `Sources/PomodoroCore/Color/`。SwiftUI への橋渡しは `#if canImport(SwiftUI)` で同居
+- **工程2 完了**: 復元判定（REQ-PER-003 (a)〜(d)）、日跨ぎの自動確定（REQ-PER-004）、
+  PENDING_DECISION 遷移時の通知取り消しと Live Activity 終了（REQ-PER-008 / 009）、
+  状態の永続化（REQ-PER-001 / 002）— `Sources/PomodoroCore/Persistence/`
 
 ### 開発工程（2026-08-26 承認）
 
@@ -180,4 +183,7 @@ Mac 側だけで実用になる。ファイル安全性とログ形式という�
 - **通知のスケジュール層**（第5章）— 未着手。
   発火時刻の決定（`PreNotificationSchedule`）だけが `PomodoroCore` にある
 - **Mac UI**（第8.4章）、**iOS UI と集中表示ビュー**（8.1・8.2）、**Live Activity**（8.3）— 未着手
-- **永続化**（第11章）、**ペアリングと認証**（第12章）— 未着手
+- **ペアリングと認証**（第12章）— 未着手
+- REQ-PER-010 / 011（iPhone が最後の `stateSnapshot` を永続化し、取得時刻を併記する）は
+  `stateSnapshot` 型そのものが第10章の通信仕様に属するため、**工程5で実装する**
+- REQ-PER-006（`RUNNING` 中の Mac のアイドルスリープ抑止）はアプリのライフサイクルに属するため、**工程4で実装する**
