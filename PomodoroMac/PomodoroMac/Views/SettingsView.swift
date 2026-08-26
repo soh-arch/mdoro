@@ -78,7 +78,9 @@ struct SettingsView: View {
     }
 
     private func chooseLogFile() {
-        guard let url = openPanel(message: "実績ログの出力先を選んでください", allowsNew: true) else { return }
+        // REQ-LOG-002: ファイルが存在しない場合は新規作成する。
+        // NSOpenPanel では**まだ存在しないファイルを選べない**ため、出力先の指定には保存パネルを使う。
+        guard let url = savePanel() else { return }
         do {
             try model.setLogFile(url)
             logFileError = nil
@@ -88,13 +90,24 @@ struct SettingsView: View {
         }
     }
 
-    private func openPanel(message: String, allowsNew: Bool = false) -> URL? {
+    private func openPanel(message: String) -> URL? {
         let panel = NSOpenPanel()
         panel.message = message
         panel.allowedContentTypes = [UTType(filenameExtension: "md")].compactMap { $0 }
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = allowsNew
+        panel.canCreateDirectories = false
+        return panel.runModal() == .OK ? panel.url : nil
+    }
+
+    private func savePanel() -> URL? {
+        let panel = NSSavePanel()
+        panel.message = "実績ログの出力先を選んでください"
+        panel.allowedContentTypes = [UTType(filenameExtension: "md")].compactMap { $0 }
+        panel.nameFieldStringValue = "PomodoroLog.md"
+        panel.canCreateDirectories = true
+        // 既存ファイルを選んだ場合も追記するだけなので、上書き警告は出さない。
+        panel.isExtensionHidden = false
         return panel.runModal() == .OK ? panel.url : nil
     }
 

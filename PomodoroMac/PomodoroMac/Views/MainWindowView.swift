@@ -1,12 +1,13 @@
 import SwiftUI
-import Combine
 import PomodoroCore
 
 // REQ-UIX-001: メインウィンドウでは全機能（設定、タスク選択、タイマー操作）を提供する。
 struct MainWindowView: View {
     @Environment(\.colorScheme) private var systemScheme
     @Environment(AppModel.self) private var model
-    @State private var now = Date()
+
+    // 時計はモデルが進める。ビュー側の Timer は発火せず表示が固まった。
+    private var now: Date { model.displayNow }
 
     private var theme: Theme { Theme(appearance: model.settings.appearance, systemScheme: systemScheme) }
     private var preset: Preset { model.presets.activePreset ?? Preset.standard() }
@@ -39,7 +40,6 @@ struct MainWindowView: View {
         .environment(\.theme, theme)
         // REQ-COL-003: 設定でライト固定・ダーク固定も選べる。
         .preferredColorScheme(preferredScheme)
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now = $0 }
     }
 
     private var preferredScheme: SwiftUI.ColorScheme? {
@@ -117,8 +117,10 @@ struct MainWindowView: View {
             Text(status.label)
             if model.logWriteFailed {
                 Divider().frame(height: 12)
-                Label("ログを書き込めていません", systemImage: "exclamationmark.triangle")
+                Label(model.lastLogError ?? "ログを書き込めていません", systemImage: "exclamationmark.triangle")
                     .foregroundStyle(theme.color(.warning, .text))
+                    .textSelection(.enabled)
+                    .help(model.lastLogError ?? "")
             }
             Spacer()
         }

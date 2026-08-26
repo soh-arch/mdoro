@@ -54,6 +54,19 @@
 6. **設定変更で実行中の `sessionEndAt` を変えない。**
    長さの変更は「延長」操作に一本化。事前スケジュール済みのローカル通知との整合が崩れるため。
 
+### ビューに Timer を置くと表示が止まる
+
+`MainWindowView` / メニューバーのラベルに `Timer.publish(...).autoconnect()` を `.onReceive` で
+張ったところ**発火せず、残り時間の表示が固まった**（実機で確認）。
+時計は `AppModel.displayNow` が進める。**ビュー側で時間を持たない。**
+状態の正本が Mac にある以上（3原則の2つ目）、表示用の現在時刻もモデルが配る。
+
+### SF Symbol 名は実在を検証する
+
+存在しない名前を `Image(systemName:)` に渡しても**エラーにならず、何も描かれない。**
+`timer.slash`（実在しない）を指定してメニューバー項目が消えた。
+`PomodoroCore` の `SymbolNameTests` が全名称の実在を検証している。名前を増やしたらそこに足す。
+
 ### 似た名前の2つのタスク名スナップショット
 
 - `TaskContext.selectedTaskSnapshot` — **再読み込みのたびに最新へ更新される**（現在選ばれているものの表示名）
@@ -130,6 +143,7 @@ Git に入っていないため、失われると復元できない。
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 |
 | OPEN-007 | REQ-NTF-005 の Time Sensitive 通知が実機で届くか。**Xcode 26.6 の Capability 一覧に 「Time Sensitive Notifications」は存在しなかった**（2026-08-26 確認）。capability 追加ではなく `UNNotificationInterruptionLevel.timeSensitive` の指定で実装し、**工程7で実機検証する** |
 | OPEN-011 | `--border-strong` が WCAG 1.4.11 の 3.0 を満たすのは `--bg` 上のみ（ライト 3.10 / ダーク 3.30）。`--surface-raised` 上では 2.91 / 2.68 に落ちる。仕様書は `-strong` の保証面を規定していない。**工程4では顕在化しなかった**（設定画面の入力欄はシステム標準のコントロールを使い、`-strong` を自前で描いていない）。枠を自前で描く場面が来たら判断が要る |
+| OPEN-014 | **サンドボックスでは実績ログを原子的に書けない。** REQ-LOG-004 は一時ファイル経由の書き込みを、REQ-PLT-004 は一時ファイルをログと同一ディレクトリに置くことを求めるが、**ファイル単位のセキュリティスコープ付きブックマークでは同じフォルダに一時ファイルを作れない**（実機で確認: `You don't have permission to save the file ".PomodoroLog.md.<uuid>.tmp" in the folder`）。解決には**フォルダへのアクセス許可**が要る。推奨は「ログの保存先はフォルダを選ばせ、ファイル名は設定で持つ」。ユーザーの操作が変わるため人間の判断が要る |
 | OPEN-013 | REQ-UIX-033（一時停止/再開のグローバルショートカット、SHOULD）で**どのキーに割り当てるか**。仕様書に記載がなく、常駐アプリが OS 全体のキーを奪うため他アプリと衝突しうる。実装手段は `RegisterEventHotKey`（アクセシビリティ権限不要）を想定 |
 
 ---

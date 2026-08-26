@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 import PomodoroCore
 
 @main
@@ -7,10 +6,6 @@ struct PomodoroMacApp: App {
     static let mainWindowId = "main"
 
     @State private var model = AppModel()
-    // メニューバーのラベルだけは毎秒描き直す必要がある（REQ-UIX-030）。
-    @State private var now = Date()
-
-    private let ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some Scene {
         Window("Pomodoro", id: Self.mainWindowId) {
@@ -24,8 +19,7 @@ struct PomodoroMacApp: App {
         MenuBarExtra {
             MenuBarMenuContent(model: model)
         } label: {
-            MenuBarLabelView(model: model, now: now)
-                .onReceive(ticker) { now = $0 }
+            MenuBarLabelView(model: model)
         }
 
         Settings {

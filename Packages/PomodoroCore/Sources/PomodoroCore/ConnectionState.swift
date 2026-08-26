@@ -16,11 +16,15 @@ public enum ConnectionStatus: String, Equatable, Sendable, Codable, CaseIterable
     }
 
     // REQ-UIX-035 / REQ-COL-022: メニューバーでは色を使えないため、**形状**で区別する。
+    //
+    // 名前は必ず `ConnectionStatusTests` で存在を検証すること。
+    // **存在しない SF Symbol 名を渡すと、何も描かれないまま静かに失敗する。**
+    // 実際に `timer.slash`（存在しない）を指定してメニューバー項目が丸ごと消えた。
     public var menuBarSymbolName: String {
         switch self {
         case .connected: return "timer"
-        case .reconnecting: return "timer.circle"
-        case .disconnected: return "timer.slash"
+        case .reconnecting: return "clock.badge.questionmark"
+        case .disconnected: return "clock.badge.xmark"
         }
     }
 

@@ -7,7 +7,9 @@ import PomodoroCore
 // コントラストを保証できないため（REQ-COL-022）。状態は**形（テンプレート画像）とテキスト**で示す。
 struct MenuBarLabelView: View {
     let model: AppModel
-    let now: Date
+
+    // メニューバーの時計もモデルが進める（MainWindowView と同じ理由）。
+    private var now: Date { model.displayNow }
 
     var body: some View {
         HStack(spacing: 4) {

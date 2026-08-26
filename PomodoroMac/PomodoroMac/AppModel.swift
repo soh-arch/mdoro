@@ -21,12 +21,18 @@ final class AppModel {
         didSet { onSettingsChanged(from: oldValue) }
     }
 
+    // 表示用の現在時刻。**ビュー側に Timer を持たせない。**
+    // ビューに Timer.publish を置いたところ発火せず、メインウィンドウの残り時間が固まった。
+    private(set) var displayNow = Date()
+
     // REQ-UIX-004 / 035: 接続状態。実際の接続管理は工程5（第3章・第12章）が入れる。
     // それまでは iPhone が繋がることはないので、正直に「未接続」を出す。
     private(set) var connection: ConnectionStatus = .disconnected
 
     // REQ-ERR-004 / REQ-LOG-005: 書き込みに失敗し続けていることを UI に出す。
     private(set) var logWriteFailed = false
+    // REQ-ERR-004: 失敗の理由を UI に出す。原因が分からないまま記録だけ消えるのが最悪。
+    private(set) var lastLogError: String?
     // 直近の再読み込みで選択が自動追従したこと（REQ-TSK-032）を控えめに知らせる。
     private(set) var didFollowTaskSelection = false
 
@@ -98,6 +104,8 @@ final class AppModel {
 
     private func tick() {
         let now = Date()
+        // 残り時間の表示はここで進める。状態が変わらなくても毎秒更新する。
+        displayNow = now
         let previousState = timer.runState
         let previousType = timer.sessionType
         let result = TimerEngine.tick(context: timer, presets: presets, settings: settings, now: now)
@@ -210,21 +218,33 @@ final class AppModel {
     }
 
     func flushLogQueue() {
-        guard let bookmark = bookmarks.logFile else { return }
+        guard logQueue.pendingCount > 0 else { return }
         let options = LogFormatter.Options(taskAsLink: settings.logTaskAsLink)
 
-        let result = try? VaultFileAccess.withAccess(to: bookmark) { logURL -> LogWriteQueue.FlushResult in
-            // REQ-LOG-021 / 第1原則: Task.md を書き込み先にしない。書き込みのたびに確かめる。
-            let taskURL = bookmarks.taskFile.flatMap { try? VaultFileAccess.resolve($0).url }
-            let writer = LogWriter(fileURL: logURL, taskFileURL: taskURL, options: options)
-            return logQueue.flush { try writer.append($0) }
+        guard let bookmark = bookmarks.logFile else {
+            // 出力先が未設定でも記録は捨てず、キューへ残す。設定された時点で書き出す。
+            logWriteFailed = true
+            lastLogError = "実績ログの出力先が設定されていません"
+            return
         }
 
-        guard let result else { return }
-        logWriteFailed = result.pending > 0
-        // REQ-ERR-004: 3回失敗した時点で通知する。
-        if result.shouldNotify {
-            notifications.notifyLogWriteFailure()
+        do {
+            let result = try VaultFileAccess.withAccess(to: bookmark) { logURL -> LogWriteQueue.FlushResult in
+                // REQ-LOG-021 / 第1原則: Task.md を書き込み先にしない。書き込みのたびに確かめる。
+                let taskURL = bookmarks.taskFile.flatMap { try? VaultFileAccess.resolve($0).url }
+                let writer = LogWriter(fileURL: logURL, taskFileURL: taskURL, options: options)
+                return logQueue.flush { try writer.append($0) }
+            }
+            logWriteFailed = result.pending > 0
+            lastLogError = result.lastError.map { String(describing: $0) }
+            // REQ-ERR-004: 3回失敗した時点で通知する。
+            if result.shouldNotify {
+                notifications.notifyLogWriteFailure()
+            }
+        } catch {
+            // **黙って失敗しない。** ここを握り潰すと、記録が残らないことに誰も気づけない。
+            logWriteFailed = true
+            lastLogError = String(describing: error)
         }
     }
 
@@ -298,15 +318,28 @@ final class AppModel {
     }
 
     // REQ-LOG-021: Task.md と同一のファイルは選べない。
+    // REQ-LOG-002: ファイルが存在しない場合は新規作成する。
     func setLogFile(_ url: URL) throws {
         let taskURL = bookmarks.taskFile.flatMap { try? VaultFileAccess.resolve($0).url }
         try LogWriter.validate(logFileURL: url, taskFileURL: taskURL)
+
+        // **ブックマークは存在しないファイルに対しては作れない。**
+        // 保存パネルで新しい名前を指定された場合はここで実体を作る。
+        // 保存パネルがそのパスへの書き込みを許可しているため、この時点なら作成できる。
+        if !FileManager.default.fileExists(atPath: url.path) {
+            guard FileManager.default.createFile(atPath: url.path, contents: Data()) else {
+                throw LogWriteError.invalidFilePath
+            }
+        }
+
         guard let data = try? VaultFileAccess.readWriteBookmark(for: url) else {
             throw VaultFileAccess.AccessError.bookmarkCreationFailed
         }
         bookmarks.logFile = data
         bookmarks.save()
         settings.logFilePath = url.path
+        // 失敗して溜まっていたぶんがあれば、ここで書き出す (REQ-LOG-005)。
+        flushLogQueue()
     }
 
     // MARK: - 永続化
