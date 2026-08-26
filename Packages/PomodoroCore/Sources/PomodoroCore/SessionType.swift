@@ -1,7 +1,7 @@
 import Foundation
 
 // REQ-TIM: 4.1 状態モデル — セッション種別
-public enum SessionType: String, Equatable, Sendable, Codable {
+public enum SessionType: String, Equatable, Sendable, Codable, CaseIterable {
     case work = "WORK"
     case shortBreak = "SHORT_BREAK"
     case longBreak = "LONG_BREAK"

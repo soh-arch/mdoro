@@ -119,6 +119,7 @@ Git に入っていないため、失われると復元できない。
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 |
 | OPEN-007 | REQ-NTF-005 の Time Sensitive 通知が実機で届くか。**Xcode 26.6 の Capability 一覧に 「Time Sensitive Notifications」は存在しなかった**（2026-08-26 確認）。capability 追加ではなく `UNNotificationInterruptionLevel.timeSensitive` の指定で実装し、**工程7で実機検証する** |
 | OPEN-008 | `MenuBarExtra` の label で残り時間を毎秒更新した場合の安定性。不安定なら `NSStatusItem` へ |
+| OPEN-011 | `--border-strong` が WCAG 1.4.11 の 3.0 を満たすのは `--bg` 上のみ（ライト 3.10 / ダーク 3.30）。`--surface-raised` 上では 2.91 / 2.68 に落ちる。仕様書は `-strong` の保証面を規定していない。**モーダル・ポップオーバー内の入力欄の枠**をどう扱うか（トークン追加 / 面ごとの切替 / 現状容認）。工程4で判断が要る |
 
 ---
 
@@ -137,6 +138,9 @@ Git に入っていないため、失われると復元できない。
 - **`swift test` 45テスト全通過**（9スイート、2026-08-26 実行）
 - 開発体制の移行（[0011](decisions/0011-claude-code-as-orchestrator.md)）
 - 予告通知の数値の刻みを確定（[0012](decisions/0012-prenotification-value-grid.md)）
+- **工程1 完了**: 色トークン（8.5.3 全トークン・ライト/ダーク）、役割マッピング（8.5.4）、
+  コントラストと ΔE の自動検証（REQ-COL-020）、絶対輝度の段差の検証（REQ-COL-021）
+  — `Sources/PomodoroCore/Color/`。SwiftUI への橋渡しは `#if canImport(SwiftUI)` で同居
 
 ### 開発工程（2026-08-26 承認）
 
@@ -176,6 +180,4 @@ Mac 側だけで実用になる。ファイル安全性とログ形式という�
 - **通知のスケジュール層**（第5章）— 未着手。
   発火時刻の決定（`PreNotificationSchedule`）だけが `PomodoroCore` にある
 - **Mac UI**（第8.4章）、**iOS UI と集中表示ビュー**（8.1・8.2）、**Live Activity**（8.3）— 未着手
-- **色トークンの定義**（8.5）— 未着手。
-  コントラストと ΔE の自動検証（REQ-COL-020）を `PomodoroCore` のテストとして追加する
 - **永続化**（第11章）、**ペアリングと認証**（第12章）— 未着手
