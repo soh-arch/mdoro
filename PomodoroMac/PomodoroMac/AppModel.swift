@@ -31,6 +31,12 @@ final class AppModel {
     // REQ-UIX-033: 割り当ててあるのに他アプリに取られている場合を UI で区別する。
     private(set) var pauseResumeHotKeyIsActive = false
     private(set) var showWindowHotKeyIsActive = false
+    // REQ-SEC-001: ペアリング中に Mac 画面へ表示する6桁コード。
+    private(set) var pairingCode: String?
+    private(set) var pairingRemainingSeconds = 0
+    // REQ-SEC-004: 別のクライアントからの接続要求。ユーザーの承認を待つ。
+    private(set) var pendingConnectionRequest: String?
+    private(set) var serverStartError: String?
 
     // REQ-ERR-004 / REQ-LOG-005: 書き込みに失敗し続けていることを UI に出す。
     private(set) var logWriteFailed = false
@@ -49,6 +55,9 @@ final class AppModel {
     private let notifications = NotificationScheduler()
     private let idleSleepGuard = IdleSleepGuard()
     private let hotKeys = HotKeyCenter()
+    private let server = PomodoroServer()
+    private var infoServer: InfoHTTPServer?
+    private var authenticator = Authenticator(issuedTokens: DeviceTokenStore.load())
     private let logQueue: LogWriteQueue
     private var bookmarks = VaultBookmarks.load()
 
@@ -96,6 +105,7 @@ final class AppModel {
         startTicking()
         syncSideEffectsToState()
         updateHotKey()
+        Task { await startServer() }
     }
 
     // REQ-TIM-001: 表示のためのカウントダウンであって、時間の正本ではない。
@@ -120,12 +130,15 @@ final class AppModel {
         stopWatchingTaskFile()
         idleSleepGuard.end()
         hotKeys.unregisterAll()
+        server.stop()
+        infoServer?.stop()
     }
 
     private func tick() {
         let now = Date()
         // 残り時間の表示はここで進める。状態が変わらなくても毎秒更新する。
         displayNow = now
+        updatePairingCountdown(now: now)
         let previousState = timer.runState
         let previousType = timer.sessionType
         let result = TimerEngine.tick(context: timer, presets: presets, settings: settings, now: now)
@@ -133,6 +146,7 @@ final class AppModel {
 
         timer = result.context
         apply(effects: result.effects)
+        broadcastState()
 
         // REQ-NTF-001: 終了時刻への到達を検知して通知する。
         if previousState == .running, timer.runState == .finished {
@@ -145,6 +159,16 @@ final class AppModel {
         }
         syncSideEffectsToState()
         persist()
+    }
+
+    // REQ-SEC-003: 3分で失効する。画面の残り時間も一緒に進める。
+    private func updatePairingCountdown(now: Date) {
+        guard let session = authenticator.pairing else {
+            if pairingCode != nil { pairingCode = nil; pairingRemainingSeconds = 0 }
+            return
+        }
+        pairingRemainingSeconds = session.remainingSeconds(now: now)
+        if session.isExpired(now: now) { endPairing() }
     }
 
     // MARK: - 操作
@@ -162,6 +186,7 @@ final class AppModel {
             apply(effects: reduction.effects)
             syncSideEffectsToState()
             persist()
+            broadcastState()
             return nil
         case let .failure(failure):
             // REQ-LOG-018: 拒否されても、直前の tick が確定させたログは失わない。
@@ -264,6 +289,154 @@ final class AppModel {
 
     // ウィンドウを前面に出す処理は Scene 側が握っているため、呼び出し口だけ持つ。
     var onShowWindowRequested: (() -> Void)?
+
+    // MARK: - 通信 (第3章 / 第10章)
+
+    private func startServer() async {
+        do {
+            let websocketPort = try await server.start(callbacks: serverCallbacks())
+            // REQ-COM-002 / 003: Bonjour で広告し、`GET /info` でサーバー情報を返す。
+            let info = InfoHTTPServer(info: serverInfo(websocketPort: websocketPort))
+            try await info.start()
+            info.advertise(serviceName: Host.current().localizedName ?? "Pomodoro", websocketPort: websocketPort)
+            infoServer = info
+            websocketPortForInfo = websocketPort
+            serverStartError = nil
+        } catch {
+            // REQ-SEC-005 / REQ-ERR-008: 待ち受けられない事実を隠さない。
+            serverStartError = String(describing: error)
+        }
+    }
+
+    private var websocketPortForInfo: UInt16 = 0
+
+    private func serverInfo(websocketPort: UInt16) -> ServerInfo {
+        ServerInfo(
+            serverName: Host.current().localizedName ?? "Mac",
+            protocolVersion: PomodoroProtocol.version,
+            isPairingMode: pairingCode != nil,
+            websocketPort: websocketPort
+        )
+    }
+
+    // ペアリングの開始・終了で `/info` の内容が変わる。押し込み忘れると、
+    // iPhone 側が「ペアリング中かどうか」を誤って表示する。
+    private func refreshServerInfo() {
+        infoServer?.update(serverInfo(websocketPort: websocketPortForInfo))
+    }
+
+    private func serverCallbacks() -> PomodoroServer.Callbacks {
+        PomodoroServer.Callbacks(
+            authenticate: { [weak self] hello in
+                guard let self else { return .reject(.connectionRejectedByUser) }
+                let decision = authenticator.authenticate(hello, now: Date())
+                if case let .accept(token) = decision {
+                    DeviceTokenStore.save(authenticator.issuedTokens)
+                    _ = token
+                    pairingCode = nil
+                    refreshServerInfo()
+                } else if case let .needsUserApproval(name) = decision {
+                    pendingConnectionRequest = name
+                }
+                return decision
+            },
+            handleCommand: { [weak self] command in
+                self?.apply(command)
+            },
+            provideSnapshot: { [weak self] in
+                self?.snapshot() ?? StateSnapshot(
+                    timer: .idle(now: Date()), task: TaskContext(), settings: .default,
+                    presets: .initial(), connection: ConnectionState()
+                )
+            },
+            provideTaskList: { [weak self] in self?.taskListPayload() },
+            connectionChanged: { [weak self] state in
+                guard let self else { return }
+                connection = state.isConnected ? .connected : .disconnected
+                authenticator.connectedClientName = state.isConnected ? state.peerDeviceName : nil
+            }
+        )
+    }
+
+    // 受け取ったコマンドは翻訳して状態機械へ渡す。可否は状態機械が決める（REQ-ERR-016）。
+    private func apply(_ command: CommandPayload) {
+        let translated = CommandTranslation.action(
+            for: command,
+            activePresetId: presets.activePresetId,
+            selectedTaskSnapshot: tasks.selectedTaskSnapshot
+        )
+        switch translated {
+        case let .success(action):
+            if let error = send(action) {
+                server.broadcast(.error(ProtocolErrorPayload(
+                    code: ProtocolErrorCode(error),
+                    message: String(describing: error),
+                    relatedRequestId: command.clientRequestId
+                )))
+            }
+        case let .failure(failure):
+            server.broadcast(.error(ProtocolErrorPayload(
+                code: failure.errorCode,
+                message: String(describing: failure),
+                relatedRequestId: command.clientRequestId
+            )))
+        }
+    }
+
+    private func snapshot() -> StateSnapshot {
+        StateSnapshot(
+            timer: timer, task: tasks, settings: settings, presets: presets,
+            connection: ConnectionState(
+                isConnected: connection == .connected,
+                lastHeartbeatAt: server.lastHeartbeatAt,
+                peerDeviceName: server.connectedDeviceName
+            )
+        )
+    }
+
+    private func taskListPayload() -> TaskListPayload {
+        TaskListPayload(
+            sections: tasks.grouped(showCompleted: settings.showCompletedTasks)
+                .map { TaskListSection(name: $0.name, items: $0.items) },
+            parsedAt: Date(),
+            sourcePath: settings.taskFilePath,
+            itemCount: tasks.items.count,
+            isTruncated: tasks.wasTruncated,
+            parseError: tasks.loadFailed ? "Task.md を読み込めませんでした" : nil
+        )
+    }
+
+    // REQ-COM-006: 状態が変化したときだけ送る。残り時間は毎秒送らない。
+    private func broadcastState() {
+        server.broadcast(.stateSnapshot(snapshot()))
+    }
+
+    // MARK: - ペアリング (REQ-SEC-001 / 003)
+
+    func beginPairing() {
+        let code = PairingSession.generateCode()
+        authenticator.beginPairing(code: code, now: Date())
+        pairingCode = code
+        pairingRemainingSeconds = Int(PairingSession.validity)
+        refreshServerInfo()
+    }
+
+    func endPairing() {
+        authenticator.endPairing()
+        pairingCode = nil
+        pairingRemainingSeconds = 0
+        refreshServerInfo()
+    }
+
+    // REQ-SEC-004: ユーザーが承認した場合のみ既存接続を切断して新接続を受け入れる。
+    // 60秒で自動的にタイムアウトし、既定は拒否（サーバー側が計る）。
+    func respondToConnectionRequest(approved: Bool) {
+        pendingConnectionRequest = nil
+        // 承認するなら、認証器の「接続中」を先に空けておく。
+        // ここを空けないと、再認証がまた needsUserApproval を返して堂々巡りになる。
+        if approved { authenticator.connectedClientName = nil }
+        server.resolvePendingApproval(approved: approved)
+    }
 
     // MARK: - ログ
 

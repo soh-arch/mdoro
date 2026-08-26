@@ -69,6 +69,13 @@
 **出力先はフォルダを選ばせ、フォルダのブックマークを持つ**（[0015](decisions/0015-log-folder-scoped-access.md)）。
 `Task.md` 側は読むだけなので、ファイル単位のままでよい。
 
+### ネットワークのコールバックから MainActor を読まない
+
+`NWListener` / `NWConnection` のハンドラは自前のキューで走る。
+そこから `MainActor.assumeIsolated` を呼ぶと**トラップして落ちる**（実際に落とした）。
+`/info` の応答のようにネットワーク側で組み立てる値は、
+**MainActor 側から押し込んでおき、ハンドラはロック越しに読むだけ**にする。
+
 ### SF Symbol 名は実在を検証する
 
 存在しない名前を `Image(systemName:)` に渡しても**エラーにならず、何も描かれない。**
@@ -153,7 +160,7 @@ Git に入っていないため、失われると復元できない。
 | ID | 内容 |
 | :-- | :---- |
 | OPEN-002 | 集中表示ビューのタイポグラフィ（数字書体・等幅の可否・ウェイト）。配色は解決済み |
-| OPEN-003 | 診断ログの保持期間とローテーション方針 |
+| OPEN-003 | 診断ログ（REQ-ERR-010、SHOULD）の保持期間とローテーション方針。**工程5では実装していない。** 保持期間を決めないと、書き出し口だけ作っても際限なく溜まる |
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 |
 | OPEN-007 | REQ-NTF-005 の Time Sensitive 通知が実機で届くか。**Xcode 26.6 の Capability 一覧に 「Time Sensitive Notifications」は存在しなかった**（2026-08-26 確認）。capability 追加ではなく `UNNotificationInterruptionLevel.timeSensitive` の指定で実装し、**工程7で実機検証する** |
 | OPEN-011 | `--border-strong` が WCAG 1.4.11 の 3.0 を満たすのは `--bg` 上のみ（ライト 3.10 / ダーク 3.30）。`--surface-raised` 上では 2.91 / 2.68 に落ちる。仕様書は `-strong` の保証面を規定していない。**工程4では顕在化しなかった**（設定画面の入力欄はシステム標準のコントロールを使い、`-strong` を自前で描いていない）。枠を自前で描く場面が来たら判断が要る |
@@ -188,6 +195,13 @@ Git に入っていないため、失われると復元できない。
 - 通知音をシステムサウンドに確定（[0017](decisions/0017-system-notification-sounds.md)）、
   グローバルショートカット2種（一時停止/再開・ウィンドウ前面）、ログイン時起動
   （[0016](decisions/0016-standard-settings-and-hotkeys.md)）
+- **工程5 完了（通信層・Mac 側）**: プロトコル（第10章）、時刻同期（REQ-COM-007〜009）、
+  再接続バックオフとハートビート（REQ-COM-004 / 005）、Bonjour 広告と `GET /info`（REQ-COM-002 / 003）、
+  WebSocket サーバー、ペアリングと認証（REQ-SEC-001〜004）
+  — `Sources/PomodoroCore/Protocol/`, `PomodoroMac/Server/`
+  - **工程6（iOS クライアント）に残るもの**: REQ-COM-004 の再接続実行、REQ-COM-009 / 010 の
+    オフセット適用と単調時計、REQ-COM-011〜013 の切断中の表示、REQ-ERR-005（複数サーバーの選択）、
+    REQ-ERR-008 / 014（Wi-Fi・ローカルネットワーク許可の案内）、REQ-PER-010 / 011
 - **工程4 完了（Mac UI）**: メニューバー常駐と表示密度（REQ-UIX-030〜032, 035）、
   メインウィンドウ（REQ-UIX-001〜009, 036）、設定画面とプリセット編集（9.2 / 9.3 / REQ-PRS）、
   Mac 側通知（REQ-NTF-001, 004〜007, 020〜023）、アイドルスリープ抑止（REQ-PER-006）、
@@ -246,14 +260,12 @@ Mac 側だけで実用になる。ファイル安全性とログ形式という�
 
 ### 未着手
 
-- **通信層**（Bonjour / WebSocket、第3章・第10章）— 未着手。**Info.plist / entitlements を先に通すこと**（§3）
 - **通知のスケジュール層**（第5章）— 未着手。
   発火時刻の決定（`PreNotificationSchedule`）だけが `PomodoroCore` にある
 - **iOS UI と集中表示ビュー**（8.1・8.2）、**Live Activity**（8.3）— 未着手
 - REQ-UIX-034（Mac のフローティングウィンドウ、MAY）— 見送り
 - **REQ-LOG-014（前日の日次サマリ、SHOULD）— 実装しない**（2026-08-26 決定）。
   設定 UI からも外した。将来必要になれば、前日ぶんの集計にログの読み戻しが要る
-- **ペアリングと認証**（第12章）— 未着手
 - REQ-PER-010 / 011（iPhone が最後の `stateSnapshot` を永続化し、取得時刻を併記する）は
   `stateSnapshot` 型そのものが第10章の通信仕様に属するため、**工程5で実装する**
 - REQ-PER-006（`RUNNING` 中の Mac のアイドルスリープ抑止）はアプリのライフサイクルに属するため、**工程4で実装する**

@@ -14,6 +14,11 @@ struct MainWindowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            // REQ-SEC-004: 接続要求の確認。タイマーの操作より前に出す。
+            if let requester = model.pendingConnectionRequest {
+                ConnectionRequestBanner(deviceName: requester)
+            }
+
             // REQ-UIX-036: PENDING_DECISION の確認 UI。ほかの操作より前に出す。
             if model.timer.runState == .pendingDecision, let pending = model.timer.pendingDecision {
                 PendingDecisionView(pending: pending)

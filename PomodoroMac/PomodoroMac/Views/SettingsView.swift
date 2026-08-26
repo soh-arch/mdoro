@@ -161,6 +161,8 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            PairingSection()
+
             Section("起動") {
                 Toggle("ログイン時に起動する", isOn: model.settings.launchAtLogin)
             }
