@@ -125,17 +125,86 @@ public struct PendingDecision: Equatable, Sendable, Codable {
     }
 }
 
-// REQ-CFG: 9.3 アプリ全体に属する項目のうち、タイマー計算に必要なもののみ抜粋。
+// REQ-COL-003: 外観。system / light / dark の3択。
+public enum AppearancePreference: String, Equatable, Sendable, Codable, CaseIterable {
+    case system, light, dark
+}
+
+// REQ-UIX-032: メニューバーの表示密度。
+public enum MenuBarDisplayMode: String, Equatable, Sendable, Codable, CaseIterable {
+    case timeAndType, timeAndTask, timeOnly, iconOnly
+}
+
+// REQ-CFG: 9.3 アプリ全体に属する項目（プリセット非依存）。
+//
+// ファイルパスや論理日境界は作業スタイルによって変わるものではないため、プリセットに含めない。
+// 有効なプリセットの識別子は `PresetContext.activePresetId` が唯一の正であり、ここには持たない。
 public struct AppSettings: Equatable, Sendable, Codable {
+    public var appearance: AppearancePreference
+    public var focusViewDimmed: Bool
     public var logicalDayStartHour: Int
     public var idleResetHours: Int
+    // パスそのものは持たず、セキュリティスコープ付きブックマークを Mac 側が保持する (REQ-PLT-003)。
+    // ここには表示用のパスだけを置く。
+    public var taskFilePath: String?
+    public var logFilePath: String?
+    public var showCompletedTasks: Bool
+    public var logTaskAsLink: Bool
+    public var logDailySummary: Bool
+    public var enterFocusViewOnRotate: Bool
+    public var menuBarDisplayMode: MenuBarDisplayMode
 
-    public init(logicalDayStartHour: Int = 4, idleResetHours: Int = 12) {
+    public init(
+        appearance: AppearancePreference = .system,
+        focusViewDimmed: Bool = false,
+        logicalDayStartHour: Int = 4,
+        idleResetHours: Int = 12,
+        taskFilePath: String? = nil,
+        logFilePath: String? = nil,
+        showCompletedTasks: Bool = false,
+        logTaskAsLink: Bool = false,
+        logDailySummary: Bool = false,
+        enterFocusViewOnRotate: Bool = true,
+        menuBarDisplayMode: MenuBarDisplayMode = .timeAndType
+    ) {
+        self.appearance = appearance
+        self.focusViewDimmed = focusViewDimmed
         self.logicalDayStartHour = logicalDayStartHour
         self.idleResetHours = idleResetHours
+        self.taskFilePath = taskFilePath
+        self.logFilePath = logFilePath
+        self.showCompletedTasks = showCompletedTasks
+        self.logTaskAsLink = logTaskAsLink
+        self.logDailySummary = logDailySummary
+        self.enterFocusViewOnRotate = enterFocusViewOnRotate
+        self.menuBarDisplayMode = menuBarDisplayMode
     }
 
     public static let `default` = AppSettings()
+
+    // 設定項目を増やしたときに、古い保存ファイルが読めなくなるのを避ける。
+    // 欠けている項目は既定値で補う。REQ-PER-002 の「起動時に復元する」が
+    // 設定追加のたびに壊れると、ユーザーはセッションごと失う。
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = AppSettings.default
+        appearance = try c.decodeIfPresent(AppearancePreference.self, forKey: .appearance) ?? d.appearance
+        focusViewDimmed = try c.decodeIfPresent(Bool.self, forKey: .focusViewDimmed) ?? d.focusViewDimmed
+        logicalDayStartHour = try c.decodeIfPresent(Int.self, forKey: .logicalDayStartHour) ?? d.logicalDayStartHour
+        idleResetHours = try c.decodeIfPresent(Int.self, forKey: .idleResetHours) ?? d.idleResetHours
+        taskFilePath = try c.decodeIfPresent(String.self, forKey: .taskFilePath)
+        logFilePath = try c.decodeIfPresent(String.self, forKey: .logFilePath)
+        showCompletedTasks = try c.decodeIfPresent(Bool.self, forKey: .showCompletedTasks) ?? d.showCompletedTasks
+        logTaskAsLink = try c.decodeIfPresent(Bool.self, forKey: .logTaskAsLink) ?? d.logTaskAsLink
+        logDailySummary = try c.decodeIfPresent(Bool.self, forKey: .logDailySummary) ?? d.logDailySummary
+        enterFocusViewOnRotate = try c.decodeIfPresent(Bool.self, forKey: .enterFocusViewOnRotate) ?? d.enterFocusViewOnRotate
+        menuBarDisplayMode = try c.decodeIfPresent(MenuBarDisplayMode.self, forKey: .menuBarDisplayMode) ?? d.menuBarDisplayMode
+    }
+
+    // REQ-CFG-018 / 9.3: 範囲外の値は適用しない。
+    public func isWithinValidRanges() -> Bool {
+        (0...12).contains(logicalDayStartHour) && (1...48).contains(idleResetHours)
+    }
 }
 
 // REQ-TIM-023: 論理日は logicalDayStartHour を境界として定義する。
