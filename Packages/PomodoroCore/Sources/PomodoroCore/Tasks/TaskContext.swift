@@ -9,7 +9,7 @@ public enum SelectedTaskState: String, Equatable, Sendable, Codable {
 }
 
 // REQ-TSK: 6章 / 10.3 TaskContext
-public struct TaskContext: Equatable, Sendable {
+public struct TaskContext: Equatable, Sendable, Codable {
     public var items: [TaskItem]
     public var wasTruncated: Bool
     public var selectedTaskId: String?
