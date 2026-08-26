@@ -210,11 +210,9 @@ struct LogFileEditorTests {
         #expect(result.contains("- 前日の行"))
     }
 
-    // **暫定の挙動**。REQ-LOG-003 と REQ-LOG-022 が衝突しており、人間の判断待ち（OPEN-012）。
-    // 003 は「当該見出しが存在すれば既存節へ」、022 は「改名されていたら再作成して末尾へ」と言う。
-    // ここは 003 側を採っている。判断が出たら、このテストごと差し替える。
+    // Decision 0014: 曜日部分を書き換えられていても、日付が読めれば同じ日として扱う。
+    // 見出しを2つ作って記録を分断しない。REQ-LOG-022 の「改名」には当たらない。
     @Test func renamedHeadingIsMatchedByItsDate() throws {
-        // 曜日部分を手で書き換えられていても、日付が読めれば同じ日として扱う。
         let existing = "## 2026-08-24 (Mon)\n\n- 既存の行\n"
         let result = try insert(into: existing)
         #expect(result.components(separatedBy: "## ").count == 2, "見出しを二重に作らない")

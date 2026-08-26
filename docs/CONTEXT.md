@@ -127,7 +127,6 @@ Git に入っていないため、失われると復元できない。
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 |
 | OPEN-007 | REQ-NTF-005 の Time Sensitive 通知が実機で届くか。**Xcode 26.6 の Capability 一覧に 「Time Sensitive Notifications」は存在しなかった**（2026-08-26 確認）。capability 追加ではなく `UNNotificationInterruptionLevel.timeSensitive` の指定で実装し、**工程7で実機検証する** |
 | OPEN-008 | `MenuBarExtra` の label で残り時間を毎秒更新した場合の安定性。不安定なら `NSStatusItem` へ |
-| OPEN-012 | **REQ-LOG-003 と REQ-LOG-022 が衝突している。** 当日の見出しが `## 2026-08-24 (Mon)` のように**曜日だけ書き換えられていた**場合、003 は「当該見出しが存在する」として既存節へ追記し、022 は「改名されていたら再作成してファイル末尾へ」と指示する。ログ行がファイルのどこに入るかが変わるため、実装で決めずに人間の判断を仰ぐ。**現在の実装は 003 側**（日付が一致すれば同じ日として既存節へ追記）で、`LogTests.renamedHeadingIsMatchedByItsDate` がその挙動を固定している |
 | OPEN-011 | `--border-strong` が WCAG 1.4.11 の 3.0 を満たすのは `--bg` 上のみ（ライト 3.10 / ダーク 3.30）。`--surface-raised` 上では 2.91 / 2.68 に落ちる。仕様書は `-strong` の保証面を規定していない。**モーダル・ポップオーバー内の入力欄の枠**をどう扱うか（トークン追加 / 面ごとの切替 / 現状容認）。工程4で判断が要る |
 
 ---
