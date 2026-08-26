@@ -54,6 +54,14 @@
 6. **設定変更で実行中の `sessionEndAt` を変えない。**
    長さの変更は「延長」操作に一本化。事前スケジュール済みのローカル通知との整合が崩れるため。
 
+### 似た名前の2つのタスク名スナップショット
+
+- `TaskContext.selectedTaskSnapshot` — **再読み込みのたびに最新へ更新される**（現在選ばれているものの表示名）
+- `TimerContext.sessionTaskSnapshot` — **セッション開始時に凍結される**（ログに記録するもの）
+
+ログ行を組むときに前者を読むと、上の6箇所の5番目が破れる。
+`LogEntry` を組み立てるのは `TimerEngine` 側だけにし、**UI 層が `TaskContext` から直接ログ行を作らないこと。**
+
 ### 色の役の取り違え
 
 各色相は `subtle` / `line` / `graphic` / `solid` / `text` の5役を持つ。**役を取り違えるとコントラスト保証が消える。**
@@ -119,6 +127,7 @@ Git に入っていないため、失われると復元できない。
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 |
 | OPEN-007 | REQ-NTF-005 の Time Sensitive 通知が実機で届くか。**Xcode 26.6 の Capability 一覧に 「Time Sensitive Notifications」は存在しなかった**（2026-08-26 確認）。capability 追加ではなく `UNNotificationInterruptionLevel.timeSensitive` の指定で実装し、**工程7で実機検証する** |
 | OPEN-008 | `MenuBarExtra` の label で残り時間を毎秒更新した場合の安定性。不安定なら `NSStatusItem` へ |
+| OPEN-012 | **REQ-LOG-003 と REQ-LOG-022 が衝突している。** 当日の見出しが `## 2026-08-24 (Mon)` のように**曜日だけ書き換えられていた**場合、003 は「当該見出しが存在する」として既存節へ追記し、022 は「改名されていたら再作成してファイル末尾へ」と指示する。ログ行がファイルのどこに入るかが変わるため、実装で決めずに人間の判断を仰ぐ。**現在の実装は 003 側**（日付が一致すれば同じ日として既存節へ追記）で、`LogTests.renamedHeadingIsMatchedByItsDate` がその挙動を固定している |
 | OPEN-011 | `--border-strong` が WCAG 1.4.11 の 3.0 を満たすのは `--bg` 上のみ（ライト 3.10 / ダーク 3.30）。`--surface-raised` 上では 2.91 / 2.68 に落ちる。仕様書は `-strong` の保証面を規定していない。**モーダル・ポップオーバー内の入力欄の枠**をどう扱うか（トークン追加 / 面ごとの切替 / 現状容認）。工程4で判断が要る |
 
 ---
@@ -144,6 +153,19 @@ Git に入っていないため、失われると復元できない。
 - **工程2 完了**: 復元判定（REQ-PER-003 (a)〜(d)）、日跨ぎの自動確定（REQ-PER-004）、
   PENDING_DECISION 遷移時の通知取り消しと Live Activity 終了（REQ-PER-008 / 009）、
   状態の永続化（REQ-PER-001 / 002）— `Sources/PomodoroCore/Persistence/`
+- **工程3（ドメイン層）完了**: タスクのパースと ID（REQ-TSK-010〜015, 020〜023）、
+  選択状態と追従（REQ-TSK-030〜036）、ファイル監視（REQ-TSK-002 / REQ-PLT-006）、
+  ログの整形と挿入（REQ-LOG-001〜004, 010〜013, 016〜019, 022, 023）、
+  再試行キュー（REQ-LOG-005 / REQ-ERR-004）、読み込みの頑健性（REQ-ERR-001〜003）
+  — `Sources/PomodoroCore/Tasks/`, `Sources/PomodoroCore/Log/`
+  - **工程3で完了していない第6章・第7章の要件**（いずれも UI・通信・アプリ層に属する）
+    | 要件ID | 内容 | 実装する工程 |
+    | :-- | :---- | :-- |
+    | REQ-PLT-003 / 005 | 読み取り専用ブックマークとスコープの対呼び出し。ファイル選択 UI が要る | 工程4 |
+    | REQ-TSK-004 / 005 / 016 / 024 | 一覧の閲覧・選択、パス選択、0件時の案内、ブロックIDの案内 | 工程4 |
+    | REQ-LOG-014 / 020 / 021 | 日次サマリ、同時編集の注意書き、パスのバリデーション UI | 工程4 |
+    | REQ-TSK-037 | `taskList` メッセージへの打ち切り情報の同梱（値は `TaskParseResult` にある） | 工程5 |
+    | REQ-LOG-015 | Dataview 形式での出力（MAY） | 見送り |
 
 ### 開発工程（2026-08-26 承認）
 
@@ -178,8 +200,6 @@ Mac 側だけで実用になる。ファイル安全性とログ形式という�
 ### 未着手
 
 - **通信層**（Bonjour / WebSocket、第3章・第10章）— 未着手。**Info.plist / entitlements を先に通すこと**（§3）
-- **ファイル監視とタスクパース**（第6章）— 未着手
-- **ログ書き込み**（第7章）— 未着手。`TimerEngine` は `Effect.commitLog` を返すのみ
 - **通知のスケジュール層**（第5章）— 未着手。
   発火時刻の決定（`PreNotificationSchedule`）だけが `PomodoroCore` にある
 - **Mac UI**（第8.4章）、**iOS UI と集中表示ビュー**（8.1・8.2）、**Live Activity**（8.3）— 未着手

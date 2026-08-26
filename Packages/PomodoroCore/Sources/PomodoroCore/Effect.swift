@@ -70,6 +70,8 @@ public enum TimerError: Error, Equatable, Sendable {
     case presetNameConflict
     case cannotDeleteLastPreset
     case cannotDeleteActivePreset
+    // REQ-TSK-036: selectTask で現在の一覧に存在しない stableId を受信した。
+    case taskNotFound
 }
 
 // REQ-LOG-018: reduce が操作を拒否した場合でも、直前の tick() が確定させた commitLog を
