@@ -61,6 +61,14 @@
 時計は `AppModel.displayNow` が進める。**ビュー側で時間を持たない。**
 状態の正本が Mac にある以上（3原則の2つ目）、表示用の現在時刻もモデルが配る。
 
+### サンドボックスの許可はファイル単位では足りない
+
+ログの原子的書き込み（REQ-LOG-004 / REQ-PLT-004）は、ログ本体と**同じフォルダに一時ファイルを作る**。
+ファイル単位のセキュリティスコープ付きブックマークではこれができない
+（`You don't have permission to save the file ".PomodoroLog.md.<uuid>.tmp" in the folder`）。
+**出力先はフォルダを選ばせ、フォルダのブックマークを持つ**（[0015](decisions/0015-log-folder-scoped-access.md)）。
+`Task.md` 側は読むだけなので、ファイル単位のままでよい。
+
 ### SF Symbol 名は実在を検証する
 
 存在しない名前を `Image(systemName:)` に渡しても**エラーにならず、何も描かれない。**
@@ -143,7 +151,6 @@ Git に入っていないため、失われると復元できない。
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 |
 | OPEN-007 | REQ-NTF-005 の Time Sensitive 通知が実機で届くか。**Xcode 26.6 の Capability 一覧に 「Time Sensitive Notifications」は存在しなかった**（2026-08-26 確認）。capability 追加ではなく `UNNotificationInterruptionLevel.timeSensitive` の指定で実装し、**工程7で実機検証する** |
 | OPEN-011 | `--border-strong` が WCAG 1.4.11 の 3.0 を満たすのは `--bg` 上のみ（ライト 3.10 / ダーク 3.30）。`--surface-raised` 上では 2.91 / 2.68 に落ちる。仕様書は `-strong` の保証面を規定していない。**工程4では顕在化しなかった**（設定画面の入力欄はシステム標準のコントロールを使い、`-strong` を自前で描いていない）。枠を自前で描く場面が来たら判断が要る |
-| OPEN-014 | **サンドボックスでは実績ログを原子的に書けない。** REQ-LOG-004 は一時ファイル経由の書き込みを、REQ-PLT-004 は一時ファイルをログと同一ディレクトリに置くことを求めるが、**ファイル単位のセキュリティスコープ付きブックマークでは同じフォルダに一時ファイルを作れない**（実機で確認: `You don't have permission to save the file ".PomodoroLog.md.<uuid>.tmp" in the folder`）。解決には**フォルダへのアクセス許可**が要る。推奨は「ログの保存先はフォルダを選ばせ、ファイル名は設定で持つ」。ユーザーの操作が変わるため人間の判断が要る |
 | OPEN-013 | REQ-UIX-033（一時停止/再開のグローバルショートカット、SHOULD）で**どのキーに割り当てるか**。仕様書に記載がなく、常駐アプリが OS 全体のキーを奪うため他アプリと衝突しうる。実装手段は `RegisterEventHotKey`（アクセシビリティ権限不要）を想定 |
 
 ---

@@ -10,14 +10,14 @@ public enum Effect: Equatable, Sendable {
     case endLiveActivity
 }
 
-public enum LogOutcome: String, Equatable, Sendable {
+public enum LogOutcome: String, Equatable, Sendable, Codable {
     case completed
     case skipped
     case aborted
 }
 
 // REQ-LOG-010 / 011 / 012 / 016 / 017 / 023: ログ1行に必要な情報。
-public struct LogEntry: Equatable, Sendable {
+public struct LogEntry: Equatable, Sendable, Codable {
     public let sessionType: SessionType
     public let startedAt: Date
     public let endedAt: Date

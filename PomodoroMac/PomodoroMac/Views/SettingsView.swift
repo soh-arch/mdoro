@@ -39,8 +39,24 @@ struct SettingsView: View {
             }
 
             Section("実績ログの出力先") {
-                filePathRow(path: self.model.settings.logFilePath, placeholder: "未設定") {
-                    chooseLogFile()
+                // Decision 0015: フォルダを選ばせ、ファイル名は設定で持つ。
+                // 原子的な書き込み (REQ-LOG-004) に、同じフォルダへの書き込み許可が要るため。
+                filePathRow(path: self.model.settings.logFolderPath, placeholder: "フォルダ未設定") {
+                    chooseLogFolder()
+                }
+                HStack {
+                    Text("ファイル名")
+                    Spacer()
+                    TextField("", text: model.settings.logFileName)
+                        .labelsHidden()
+                        .frame(width: 200)
+                        .multilineTextAlignment(.trailing)
+                }
+                if let path = self.model.settings.logFilePath {
+                    Text("出力先: \(path)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
                 }
                 if let logFileError {
                     Text(logFileError).font(.footnote).foregroundStyle(.red)
@@ -77,16 +93,14 @@ struct SettingsView: View {
         logFileError = nil
     }
 
-    private func chooseLogFile() {
-        // REQ-LOG-002: ファイルが存在しない場合は新規作成する。
-        // NSOpenPanel では**まだ存在しないファイルを選べない**ため、出力先の指定には保存パネルを使う。
-        guard let url = savePanel() else { return }
+    private func chooseLogFolder() {
+        guard let url = folderPanel() else { return }
         do {
-            try model.setLogFile(url)
+            try model.setLogFolder(url)
             logFileError = nil
         } catch {
             // REQ-LOG-021: Task.md と同一のファイルは指定できない。
-            logFileError = "このファイルは選べません。Task.md と同じファイル、または存在しないフォルダです。"
+            logFileError = "このフォルダは選べません。Task.md と同じファイルを指すか、書き込めない場所です。"
         }
     }
 
@@ -100,14 +114,16 @@ struct SettingsView: View {
         return panel.runModal() == .OK ? panel.url : nil
     }
 
-    private func savePanel() -> URL? {
-        let panel = NSSavePanel()
-        panel.message = "実績ログの出力先を選んでください"
-        panel.allowedContentTypes = [UTType(filenameExtension: "md")].compactMap { $0 }
-        panel.nameFieldStringValue = "PomodoroLog.md"
+    // Decision 0015: フォルダを選ばせる。
+    // 選んだフォルダへの書き込み許可がないと、原子的書き込みの一時ファイルを作れない。
+    private func folderPanel() -> URL? {
+        let panel = NSOpenPanel()
+        panel.message = "実績ログを保存するフォルダを選んでください"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
-        // 既存ファイルを選んだ場合も追記するだけなので、上書き警告は出さない。
-        panel.isExtensionHidden = false
+        panel.prompt = "このフォルダを使う"
         return panel.runModal() == .OK ? panel.url : nil
     }
 

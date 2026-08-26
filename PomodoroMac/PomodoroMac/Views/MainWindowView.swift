@@ -115,6 +115,15 @@ struct MainWindowView: View {
             let status = model.connection
             Image(systemName: status.symbolName)
             Text(status.label)
+            if model.pendingLogCount > 0 {
+                Divider().frame(height: 12)
+                Text("未書き込み \(model.pendingLogCount) 件")
+                    .foregroundStyle(theme.color(.warning, .text))
+            }
+            if let at = model.lastLogWriteAt {
+                Divider().frame(height: 12)
+                Text("最終書き込み \(at.formatted(date: .omitted, time: .standard))")
+            }
             if model.logWriteFailed {
                 Divider().frame(height: 12)
                 Label(model.lastLogError ?? "ログを書き込めていません", systemImage: "exclamationmark.triangle")

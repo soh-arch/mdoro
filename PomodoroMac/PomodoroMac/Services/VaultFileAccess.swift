@@ -87,7 +87,9 @@ enum VaultFileAccess {
 // ブックマークの保管。パスは表示用に AppSettings が持つが、実際に到達できるのはこちらだけ。
 struct VaultBookmarks: Codable, Equatable, Sendable {
     var taskFile: Data?
-    var logFile: Data?
+    // Decision 0015: ログ側は**フォルダ**のブックマーク。
+    // ファイル単位の許可では、原子的書き込みに要る一時ファイルを同じ場所に作れない。
+    var logFolder: Data?
 
     static let storageKey = "vaultBookmarks"
 

@@ -114,7 +114,16 @@ public final class LogWriteQueue: @unchecked Sendable {
     private var consecutiveFailures = 0
     private var didNotify = false
 
-    public init() {}
+    public init(entries: [LogEntry] = []) {
+        queue = entries
+    }
+
+    // 未書き込みのぶん。**プロセスをまたいで失わないよう永続化する** (REQ-LOG-005)。
+    // committedAt は既に立っているので、ここで落とすと二度と書き直されない。
+    public var pendingEntries: [LogEntry] {
+        lock.lock(); defer { lock.unlock() }
+        return queue
+    }
 
     public var pendingCount: Int {
         lock.lock(); defer { lock.unlock() }

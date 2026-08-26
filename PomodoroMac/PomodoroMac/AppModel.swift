@@ -33,6 +33,10 @@ final class AppModel {
     private(set) var logWriteFailed = false
     // REQ-ERR-004: 失敗の理由を UI に出す。原因が分からないまま記録だけ消えるのが最悪。
     private(set) var lastLogError: String?
+    // 書けていない件数。0 でないまま放置されると記録が失われる。
+    private(set) var pendingLogCount = 0
+    // 直近に書き込めた時刻。書けているのかどうかを UI から確かめられるようにする。
+    private(set) var lastLogWriteAt: Date?
     // 直近の再読み込みで選択が自動追従したこと（REQ-TSK-032）を控えめに知らせる。
     private(set) var didFollowTaskSelection = false
 
@@ -41,7 +45,7 @@ final class AppModel {
     private let store: any StateStore
     private let notifications = NotificationScheduler()
     private let idleSleepGuard = IdleSleepGuard()
-    private let logQueue = LogWriteQueue()
+    private let logQueue: LogWriteQueue
     private var bookmarks = VaultBookmarks.load()
 
     private var watcher: FileWatcher?
@@ -62,6 +66,10 @@ final class AppModel {
             selectedTaskId: saved?.selectedTaskId,
             selectedTaskSnapshot: saved?.selectedTaskSnapshot
         )
+        // REQ-LOG-005: 書き込めていないログを引き継ぐ。committedAt は既に立っているため、
+        // ここで捨てると、そのセッションの記録は二度と書かれない。
+        self.logQueue = LogWriteQueue(entries: saved?.pendingLogEntries ?? [])
+        self.pendingLogCount = self.logQueue.pendingCount
 
         // REQ-PER-003(d): 復元で判断待ちになった場合、通知の取り消しなどの副作用も実行する。
         apply(effects: restored?.effects ?? [])
@@ -77,6 +85,8 @@ final class AppModel {
 
     func start() {
         Task { await notifications.requestAuthorization() }
+        // 前回書けなかったぶんを、出力先が使えるなら真っ先に書き出す。
+        flushLogQueue()
         reloadTasksFromDisk()
         startWatchingTaskFile()
         startTicking()
@@ -203,6 +213,7 @@ final class AppModel {
         }
         // REQ-PER-004: logicalDayStartHour の変更で PENDING_DECISION を自動確定させない。
         send(.updateSettings(settings))
+        // ファイル名が変われば、次の書き込みから新しいファイルへ向く。
         if settings.taskFilePath != previous.taskFilePath {
             reloadTasksFromDisk()
             startWatchingTaskFile()
@@ -214,6 +225,7 @@ final class AppModel {
 
     private func enqueueLog(_ entry: LogEntry) {
         logQueue.enqueue(entry)
+        pendingLogCount = logQueue.pendingCount
         flushLogQueue()
     }
 
@@ -221,7 +233,7 @@ final class AppModel {
         guard logQueue.pendingCount > 0 else { return }
         let options = LogFormatter.Options(taskAsLink: settings.logTaskAsLink)
 
-        guard let bookmark = bookmarks.logFile else {
+        guard let bookmark = bookmarks.logFolder else {
             // 出力先が未設定でも記録は捨てず、キューへ残す。設定された時点で書き出す。
             logWriteFailed = true
             lastLogError = "実績ログの出力先が設定されていません"
@@ -229,13 +241,20 @@ final class AppModel {
         }
 
         do {
-            let result = try VaultFileAccess.withAccess(to: bookmark) { logURL -> LogWriteQueue.FlushResult in
+            let fileName = settings.logFileName
+            let result = try VaultFileAccess.withAccess(to: bookmark) { folderURL -> LogWriteQueue.FlushResult in
+                let logURL = folderURL.appendingPathComponent(fileName)
                 // REQ-LOG-021 / 第1原則: Task.md を書き込み先にしない。書き込みのたびに確かめる。
                 let taskURL = bookmarks.taskFile.flatMap { try? VaultFileAccess.resolve($0).url }
                 let writer = LogWriter(fileURL: logURL, taskFileURL: taskURL, options: options)
                 return logQueue.flush { try writer.append($0) }
             }
             logWriteFailed = result.pending > 0
+            pendingLogCount = result.pending
+            if result.written > 0 {
+                lastLogWriteAt = Date()
+                persist()
+            }
             lastLogError = result.lastError.map { String(describing: $0) }
             // REQ-ERR-004: 3回失敗した時点で通知する。
             if result.shouldNotify {
@@ -317,27 +336,21 @@ final class AppModel {
         settings.taskFilePath = url.path
     }
 
-    // REQ-LOG-021: Task.md と同一のファイルは選べない。
-    // REQ-LOG-002: ファイルが存在しない場合は新規作成する。
-    func setLogFile(_ url: URL) throws {
+    // Decision 0015: 出力先は**フォルダ**を選ばせる。
+    // 一時ファイル経由の原子的書き込み (REQ-LOG-004 / REQ-PLT-004) には、
+    // ログ本体だけでなく**同じフォルダへの書き込み許可**が要る。
+    func setLogFolder(_ url: URL) throws {
+        // REQ-LOG-021: Task.md と同一のファイルは選べない。
         let taskURL = bookmarks.taskFile.flatMap { try? VaultFileAccess.resolve($0).url }
-        try LogWriter.validate(logFileURL: url, taskFileURL: taskURL)
-
-        // **ブックマークは存在しないファイルに対しては作れない。**
-        // 保存パネルで新しい名前を指定された場合はここで実体を作る。
-        // 保存パネルがそのパスへの書き込みを許可しているため、この時点なら作成できる。
-        if !FileManager.default.fileExists(atPath: url.path) {
-            guard FileManager.default.createFile(atPath: url.path, contents: Data()) else {
-                throw LogWriteError.invalidFilePath
-            }
-        }
+        let candidate = url.appendingPathComponent(settings.logFileName)
+        try LogWriter.validate(logFileURL: candidate, taskFileURL: taskURL)
 
         guard let data = try? VaultFileAccess.readWriteBookmark(for: url) else {
             throw VaultFileAccess.AccessError.bookmarkCreationFailed
         }
-        bookmarks.logFile = data
+        bookmarks.logFolder = data
         bookmarks.save()
-        settings.logFilePath = url.path
+        settings.logFolderPath = url.path
         // 失敗して溜まっていたぶんがあれば、ここで書き出す (REQ-LOG-005)。
         flushLogQueue()
     }
@@ -353,6 +366,7 @@ final class AppModel {
                 settings: settings,
                 selectedTaskId: tasks.selectedTaskId,
                 selectedTaskSnapshot: tasks.selectedTaskSnapshot,
+                pendingLogEntries: logQueue.pendingEntries,
                 savedAt: Date()
             )
         )

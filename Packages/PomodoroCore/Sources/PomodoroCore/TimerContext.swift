@@ -147,7 +147,10 @@ public struct AppSettings: Equatable, Sendable, Codable {
     // パスそのものは持たず、セキュリティスコープ付きブックマークを Mac 側が保持する (REQ-PLT-003)。
     // ここには表示用のパスだけを置く。
     public var taskFilePath: String?
-    public var logFilePath: String?
+    // REQ-LOG-001 / Decision 0015: 出力先は**フォルダ**とファイル名に分けて持つ。
+    // サンドボックスでは、ファイル単位の許可では原子的書き込みに要る一時ファイルを同じ場所に作れない。
+    public var logFolderPath: String?
+    public var logFileName: String
     public var showCompletedTasks: Bool
     public var logTaskAsLink: Bool
     public var logDailySummary: Bool
@@ -160,7 +163,8 @@ public struct AppSettings: Equatable, Sendable, Codable {
         logicalDayStartHour: Int = 4,
         idleResetHours: Int = 12,
         taskFilePath: String? = nil,
-        logFilePath: String? = nil,
+        logFolderPath: String? = nil,
+        logFileName: String = AppSettings.defaultLogFileName,
         showCompletedTasks: Bool = false,
         logTaskAsLink: Bool = false,
         logDailySummary: Bool = false,
@@ -172,7 +176,8 @@ public struct AppSettings: Equatable, Sendable, Codable {
         self.logicalDayStartHour = logicalDayStartHour
         self.idleResetHours = idleResetHours
         self.taskFilePath = taskFilePath
-        self.logFilePath = logFilePath
+        self.logFolderPath = logFolderPath
+        self.logFileName = logFileName
         self.showCompletedTasks = showCompletedTasks
         self.logTaskAsLink = logTaskAsLink
         self.logDailySummary = logDailySummary
@@ -181,6 +186,20 @@ public struct AppSettings: Equatable, Sendable, Codable {
     }
 
     public static let `default` = AppSettings()
+    // REQ-LOG-001: 既定名。
+    public static let defaultLogFileName = "PomodoroLog.md"
+
+    // 9.3 の `logFilePath` に相当する値。フォルダとファイル名から組み立てる。
+    public var logFilePath: String? {
+        guard let logFolderPath else { return nil }
+        return (logFolderPath as NSString).appendingPathComponent(logFileName)
+    }
+
+    // ファイル名として成立しているか。パス区切りを含む値は受け付けない。
+    public static func isValidLogFileName(_ name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && !trimmed.contains("/") && !trimmed.hasPrefix(".")
+    }
 
     // 設定項目を増やしたときに、古い保存ファイルが読めなくなるのを避ける。
     // 欠けている項目は既定値で補う。REQ-PER-002 の「起動時に復元する」が
@@ -193,7 +212,8 @@ public struct AppSettings: Equatable, Sendable, Codable {
         logicalDayStartHour = try c.decodeIfPresent(Int.self, forKey: .logicalDayStartHour) ?? d.logicalDayStartHour
         idleResetHours = try c.decodeIfPresent(Int.self, forKey: .idleResetHours) ?? d.idleResetHours
         taskFilePath = try c.decodeIfPresent(String.self, forKey: .taskFilePath)
-        logFilePath = try c.decodeIfPresent(String.self, forKey: .logFilePath)
+        logFolderPath = try c.decodeIfPresent(String.self, forKey: .logFolderPath)
+        logFileName = try c.decodeIfPresent(String.self, forKey: .logFileName) ?? d.logFileName
         showCompletedTasks = try c.decodeIfPresent(Bool.self, forKey: .showCompletedTasks) ?? d.showCompletedTasks
         logTaskAsLink = try c.decodeIfPresent(Bool.self, forKey: .logTaskAsLink) ?? d.logTaskAsLink
         logDailySummary = try c.decodeIfPresent(Bool.self, forKey: .logDailySummary) ?? d.logDailySummary
@@ -203,7 +223,9 @@ public struct AppSettings: Equatable, Sendable, Codable {
 
     // REQ-CFG-018 / 9.3: 範囲外の値は適用しない。
     public func isWithinValidRanges() -> Bool {
-        (0...12).contains(logicalDayStartHour) && (1...48).contains(idleResetHours)
+        (0...12).contains(logicalDayStartHour)
+            && (1...48).contains(idleResetHours)
+            && AppSettings.isValidLogFileName(logFileName)
     }
 }
 

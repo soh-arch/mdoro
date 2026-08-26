@@ -303,3 +303,66 @@ struct StateStoreTests {
         #expect(restored.presets.activePreset?.name == "標準")
     }
 }
+
+@Suite("未書き込みログの永続化 (REQ-LOG-005)")
+struct PendingLogPersistenceTests {
+
+    private func entry(_ start: Date) -> LogEntry {
+        LogEntry(
+            sessionType: .work, startedAt: start, endedAt: start.addingTimeInterval(1500),
+            elapsedSeconds: 1500, outcome: .completed, presetName: "標準",
+            presetEditedDuringSession: false, taskSnapshot: "タスク", extendedSeconds: 0,
+            loopCountAfterCompletion: 1, longBreakInterval: 4, logicalDate: reference
+        )
+    }
+
+    // 確定時に committedAt が立つため（REQ-LOG-019）、キューを失うと記録は二度と書かれない。
+    @Test func pendingEntriesSurviveARestart() throws {
+        let queue = LogWriteQueue()
+        queue.enqueue(entry(reference))
+        queue.enqueue(entry(reference.addingTimeInterval(1800)))
+        _ = queue.flush { _ in throw LogWriteError.writeFailed("disk") }
+        #expect(queue.pendingCount == 2)
+
+        let store = InMemoryStateStore()
+        try store.save(PersistedState(
+            timer: .idle(now: reference), presets: .initial(),
+            pendingLogEntries: queue.pendingEntries, savedAt: reference
+        ))
+
+        // 再起動を模して読み直す。
+        let reloaded = try #require(try store.load())
+        #expect(reloaded.pendingLogEntries.count == 2)
+
+        let revived = LogWriteQueue(entries: reloaded.pendingLogEntries)
+        var written: [Date] = []
+        let result = revived.flush { written.append($0.startedAt) }
+        #expect(result.written == 2)
+        #expect(written == [reference, reference.addingTimeInterval(1800)], "順序も保つ")
+    }
+
+    // 項目を増やす前に保存されたファイルも読めること。
+    @Test func stateSavedBeforeThisFieldExistedStillLoads() throws {
+        let json = """
+        {"schemaVersion":1,
+         "timer":\(String(data: try JSONEncoder.iso.encode(TimerContext.idle(now: reference)), encoding: .utf8)!),
+         "presets":\(String(data: try JSONEncoder.iso.encode(PresetContext.initial()), encoding: .utf8)!),
+         "savedAt":"2023-11-14T22:13:20Z"}
+        """
+        let decoded = try JSONDecoder.iso.decode(PersistedState.self, from: Data(json.utf8))
+        #expect(decoded.pendingLogEntries.isEmpty)
+        #expect(decoded.settings == .default)
+    }
+}
+
+private extension JSONEncoder {
+    static var iso: JSONEncoder {
+        let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; return e
+    }
+}
+
+private extension JSONDecoder {
+    static var iso: JSONDecoder {
+        let d = JSONDecoder(); d.dateDecodingStrategy = .iso8601; return d
+    }
+}
