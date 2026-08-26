@@ -253,7 +253,9 @@ public enum TimerEngine {
             ctx = startSession(type: type, preset: preset, settings: settings, now: now, context: ctx, taskSnapshot: nil)
 
         case .pause:
-            ctx.remainingSeconds = max(0, Int((ctx.sessionEndAt ?? now).timeIntervalSince(now)))
+            // 表示に合わせて切り上げる。表示側が切り上げ、ここが切り捨てだと、
+            // 一時停止した瞬間に残り時間が1秒減って見える。
+            ctx.remainingSeconds = max(0, Int((ctx.sessionEndAt ?? now).timeIntervalSince(now).rounded(.up)))
             ctx.pausedAt = now
             ctx.runState = .paused
             ctx.lastUpdatedAt = now

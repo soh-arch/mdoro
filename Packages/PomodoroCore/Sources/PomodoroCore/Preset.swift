@@ -1,12 +1,39 @@
 import Foundation
 
 // REQ-CFG: 9.2 プリセットに含まれる項目 / 10.3 Preset
-public enum NotificationSound: String, Equatable, Sendable, Codable {
+// REQ-NTF-006: 通知音を数種類から選べ、無音（触覚のみ）も選べること。
+//
+// Decision 0017: 音源は macOS のシステムサウンドを流用する。
+// 独自音源を作るほどの必然性がなく、ユーザーが既に聞き慣れた音のほうが用途に合う。
+public enum NotificationSound: String, Equatable, Sendable, Codable, CaseIterable {
     case `default`
     case chime
     case bell
     case wood
     case silent
+
+    // `/System/Library/Sounds` にあるファイル名。`default` は OS の既定音、`silent` は鳴らさない。
+    public var systemSoundFileName: String? {
+        switch self {
+        case .default: return nil
+        case .chime: return "Glass.aiff"
+        case .bell: return "Submarine.aiff"
+        case .wood: return "Tink.aiff"
+        case .silent: return nil
+        }
+    }
+
+    public var isSilent: Bool { self == .silent }
+
+    public var displayName: String {
+        switch self {
+        case .default: return "既定"
+        case .chime: return "チャイム"
+        case .bell: return "ベル"
+        case .wood: return "ウッド"
+        case .silent: return "無音"
+        }
+    }
 }
 
 public struct Preset: Equatable, Sendable, Codable, Identifiable {

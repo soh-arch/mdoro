@@ -67,10 +67,6 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                 // REQ-LOG-013
                 Toggle("ログのタスク名をリンク記法にする", isOn: model.settings.logTaskAsLink)
-                // REQ-LOG-014
-                Toggle("前日の日次サマリ行を出力する", isOn: model.settings.logDailySummary)
-                    .disabled(true)
-                    .help("未実装です")
             }
         }
         .formStyle(.grouped)
@@ -142,14 +138,22 @@ struct SettingsView: View {
             Section("タスク") {
                 Toggle("完了済みタスクを一覧に表示する", isOn: model.settings.showCompletedTasks)
             }
-            // REQ-UIX-033: 既定は未設定。任意のキーを割り当てられる。
+            // REQ-UIX-033 / Decision 0016: 既定は未設定。任意のキーを割り当てられる。
             Section("ショートカット") {
                 HStack {
                     Text("一時停止 / 再開")
                     Spacer()
                     HotKeyRecorderView(
                         binding: model.settings.pauseResumeHotKey,
-                        isActive: self.model.hotKeyIsActive
+                        isActive: self.model.pauseResumeHotKeyIsActive
+                    )
+                }
+                HStack {
+                    Text("ウィンドウを前面に出す")
+                    Spacer()
+                    HotKeyRecorderView(
+                        binding: model.settings.showWindowHotKey,
+                        isActive: self.model.showWindowHotKeyIsActive
                     )
                 }
                 Text("他のアプリで使われている組み合わせは登録できません。修飾キーを含めて指定してください。")

@@ -6,12 +6,20 @@ struct PomodoroMacApp: App {
     static let mainWindowId = "main"
 
     @State private var model = AppModel()
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
         Window("Pomodoro", id: Self.mainWindowId) {
             MainWindowView()
                 .environment(model)
-                .task { model.start() }
+                .task {
+                    // ウィンドウを開く手段は Scene 側にしかないので、ここで渡す。
+                    model.onShowWindowRequested = {
+                        NSApplication.shared.activate(ignoringOtherApps: true)
+                        openWindow(id: Self.mainWindowId)
+                    }
+                    model.start()
+                }
         }
         .defaultSize(width: 480, height: 620)
 

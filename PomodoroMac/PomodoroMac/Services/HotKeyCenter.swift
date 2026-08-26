@@ -9,40 +9,52 @@ import PomodoroCore
 // 「このアプリにコンピュータの制御を許可しますか」を出すのは釣り合わない。
 @MainActor
 final class HotKeyCenter {
-    private var hotKeyRef: EventHotKeyRef?
+    // 割り当てられる操作。増やすときは id が重ならないようにする。
+    enum Slot: UInt32, CaseIterable {
+        case pauseResume = 1
+        case showWindow = 2
+    }
+
+    private var refs: [Slot: EventHotKeyRef] = [:]
+    private var handlers: [Slot: () -> Void] = [:]
     private var handlerRef: EventHandlerRef?
-    private var onPress: (() -> Void)?
 
     private static let signature: OSType = 0x504F_4D44 // 'POMD'
 
-    func update(binding: HotKeyBinding?, onPress: @escaping () -> Void) {
-        unregister()
+    func update(_ slot: Slot, binding: HotKeyBinding?, onPress: @escaping () -> Void) {
+        unregister(slot)
         // 既定は無効。割り当てが無ければ何も登録しない。
         guard let binding, binding.hasModifier else { return }
-        self.onPress = onPress
+        handlers[slot] = onPress
         installHandlerIfNeeded()
 
         var ref: EventHotKeyRef?
         let status = RegisterEventHotKey(
             UInt32(binding.keyCode),
             Self.carbonModifiers(from: binding.modifierFlags),
-            EventHotKeyID(signature: Self.signature, id: 1),
+            EventHotKeyID(signature: Self.signature, id: slot.rawValue),
             GetApplicationEventTarget(),
             0,
             &ref
         )
         // 他アプリが同じ組み合わせを押さえている場合はここで失敗する。
         // 黙って無効になるので、呼び出し側が結果を見て UI に出す。
-        hotKeyRef = (status == noErr) ? ref : nil
+        if status == noErr, let ref {
+            refs[slot] = ref
+        }
     }
 
-    var isRegistered: Bool { hotKeyRef != nil }
+    func isRegistered(_ slot: Slot) -> Bool { refs[slot] != nil }
 
-    func unregister() {
-        if let hotKeyRef {
-            UnregisterEventHotKey(hotKeyRef)
-            self.hotKeyRef = nil
+    func unregister(_ slot: Slot) {
+        if let ref = refs.removeValue(forKey: slot) {
+            UnregisterEventHotKey(ref)
         }
+        handlers[slot] = nil
+    }
+
+    func unregisterAll() {
+        for slot in Slot.allCases { unregister(slot) }
     }
 
     private func installHandlerIfNeeded() {
@@ -54,10 +66,15 @@ final class HotKeyCenter {
         let context = Unmanaged.passUnretained(self).toOpaque()
         InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, _, userData in
-                guard let userData else { return noErr }
+            { _, event, userData in
+                guard let userData, let event else { return noErr }
+                var id = EventHotKeyID()
+                GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                                  EventParamType(typeEventHotKeyID), nil,
+                                  MemoryLayout<EventHotKeyID>.size, nil, &id)
                 let center = Unmanaged<HotKeyCenter>.fromOpaque(userData).takeUnretainedValue()
-                DispatchQueue.main.async { center.onPress?() }
+                guard let slot = Slot(rawValue: id.id) else { return noErr }
+                DispatchQueue.main.async { center.handlers[slot]?() }
                 return noErr
             },
             1, &spec, context, &handlerRef

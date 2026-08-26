@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import PomodoroCore
 
 // REQ-PRS / 9.2: プリセットの編集。
@@ -106,12 +107,17 @@ struct PresetEditorView: View {
             }
 
             Section {
-                Picker("通知音", selection: binding(preset, \.notificationSound)) {
-                    Text("既定").tag(NotificationSound.default)
-                    Text("無音").tag(NotificationSound.silent)
+                HStack {
+                    Picker("通知音", selection: binding(preset, \.notificationSound)) {
+                        ForEach(NotificationSound.allCases, id: \.self) { sound in
+                            Text(sound.displayName).tag(sound)
+                        }
+                    }
+                    // 選ぶ前に聞けないと、名前だけでは違いが分からない。
+                    Button("試聴") { preview(preset.notificationSound) }
+                        .disabled(preset.notificationSound.isSilent)
                 }
-                // OPEN-001: 音源が未決のため、選べるのは「既定」と「無音」だけ。
-                groupNote("通知音の種類は未定です。いまは既定音と無音のみ選べます。")
+                groupNote("macOS のシステムサウンドを使います。無音を選ぶと音は鳴りません。")
                 Toggle("集中モード中も通知する", isOn: binding(preset, \.timeSensitiveNotifications))
                 preNotificationEditor(preset)
             } header: {
@@ -177,6 +183,15 @@ struct PresetEditorView: View {
         return !PreNotificationSchedule.fireDates(
             for: [trigger], sessionStartedAt: start, sessionEndAt: end, now: start
         ).isEmpty
+    }
+
+    private func preview(_ sound: NotificationSound) {
+        guard !sound.isSilent else { return }
+        guard let fileName = sound.systemSoundFileName else {
+            NSSound.beep()
+            return
+        }
+        NSSound(named: NSSound.Name((fileName as NSString).deletingPathExtension))?.play()
     }
 
     // REQ-UIX-009: 適用タイミング（9.5 の A / B / C 群）を視覚的に区別するための注記。

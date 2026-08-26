@@ -158,6 +158,8 @@ public struct AppSettings: Equatable, Sendable, Codable {
     public var menuBarDisplayMode: MenuBarDisplayMode
     // REQ-UIX-033: 既定は無効。nil のあいだはホットキーを登録しない (Decision 0016)。
     public var pauseResumeHotKey: HotKeyBinding?
+    // メインウィンドウを前面に出すホットキー。既定は未設定 (Decision 0016)。
+    public var showWindowHotKey: HotKeyBinding?
     // 標準的な常駐アプリの設定項目 (Decision 0016)。
     public var launchAtLogin: Bool
 
@@ -175,6 +177,7 @@ public struct AppSettings: Equatable, Sendable, Codable {
         enterFocusViewOnRotate: Bool = true,
         menuBarDisplayMode: MenuBarDisplayMode = .timeAndType,
         pauseResumeHotKey: HotKeyBinding? = nil,
+        showWindowHotKey: HotKeyBinding? = nil,
         launchAtLogin: Bool = false
     ) {
         self.appearance = appearance
@@ -190,6 +193,7 @@ public struct AppSettings: Equatable, Sendable, Codable {
         self.enterFocusViewOnRotate = enterFocusViewOnRotate
         self.menuBarDisplayMode = menuBarDisplayMode
         self.pauseResumeHotKey = pauseResumeHotKey
+        self.showWindowHotKey = showWindowHotKey
         self.launchAtLogin = launchAtLogin
     }
 
@@ -228,6 +232,7 @@ public struct AppSettings: Equatable, Sendable, Codable {
         enterFocusViewOnRotate = try c.decodeIfPresent(Bool.self, forKey: .enterFocusViewOnRotate) ?? d.enterFocusViewOnRotate
         menuBarDisplayMode = try c.decodeIfPresent(MenuBarDisplayMode.self, forKey: .menuBarDisplayMode) ?? d.menuBarDisplayMode
         pauseResumeHotKey = try c.decodeIfPresent(HotKeyBinding.self, forKey: .pauseResumeHotKey)
+        showWindowHotKey = try c.decodeIfPresent(HotKeyBinding.self, forKey: .showWindowHotKey)
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
     }
 

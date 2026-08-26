@@ -116,10 +116,11 @@ final class NotificationScheduler {
         content.interruptionLevel = timeSensitive ? .timeSensitive : .active
     }
 
-    // OPEN-001: どの音を鳴らすかは未決。ここは「無音を選べる」ことだけを先に満たしておく。
-    // 音源が決まるまで、無音以外はすべてシステム既定音を鳴らす。
+    // REQ-NTF-006 / Decision 0017: 音源は macOS のシステムサウンドを流用する。
     private static func sound(for sound: NotificationSound) -> UNNotificationSound? {
-        sound == .silent ? nil : .default
+        if sound.isSilent { return nil }
+        guard let fileName = sound.systemSoundFileName else { return .default }
+        return UNNotificationSound(named: UNNotificationSoundName(fileName))
     }
 
     static func label(for type: SessionType) -> String {

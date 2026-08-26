@@ -78,3 +78,53 @@ struct ShortSessionTests {
         #expect(!hasCommitLog(aborted.effects), "正味 30 秒なので記録しない")
     }
 }
+
+// 表示の一貫性。一時停止で残り時間が飛ぶと、動いているものが信用できなくなる。
+@Suite("一時停止で残り時間が変わらない")
+struct PauseRoundingTests {
+
+    private func presets() -> PresetContext {
+        let p = Preset(id: "p", name: "標準", workSeconds: 25 * 60, shortBreakSeconds: 5 * 60,
+                       longBreakSeconds: 15 * 60, longBreakInterval: 4, extendSeconds: 5 * 60)
+        return PresetContext(presets: [p], activePresetId: p.id)
+    }
+
+    // 表示は切り上げ。一時停止が切り捨てだと、押した瞬間に1秒減って見える。
+    @Test func pauseKeepsTheDisplayedSecond() throws {
+        let ctx = presets()
+        for offsetMilliseconds in [0, 1, 250, 500, 999] {
+            let started = try TimerEngine.reduce(
+                action: .startWork(presetId: "p", taskSnapshot: nil),
+                context: .idle(now: t0), presets: ctx, now: t0
+            ).get().context
+            let endAt = started.sessionEndAt!
+
+            let pauseAt = t0.addingTimeInterval(10 + Double(offsetMilliseconds) / 1000)
+            let displayedWhileRunning = Int(endAt.timeIntervalSince(pauseAt).rounded(.up))
+
+            let paused = try TimerEngine.reduce(
+                action: .pause, context: started, presets: ctx, now: pauseAt
+            ).get().context
+
+            #expect(paused.remainingSeconds == displayedWhileRunning,
+                    "+\(offsetMilliseconds)ms で一時停止したとき、表示が \(displayedWhileRunning) から動いてはならない")
+        }
+    }
+
+    // 再開しても縮まない。切り上げたぶん、終了時刻はわずかに後ろへずれるだけ。
+    @Test func resumeDoesNotShortenTheSession() throws {
+        let ctx = presets()
+        let started = try TimerEngine.reduce(
+            action: .startWork(presetId: "p", taskSnapshot: nil),
+            context: .idle(now: t0), presets: ctx, now: t0
+        ).get().context
+        let paused = try TimerEngine.reduce(
+            action: .pause, context: started, presets: ctx, now: t0.addingTimeInterval(10.4)
+        ).get().context
+        let resumeAt = t0.addingTimeInterval(60)
+        let resumed = try TimerEngine.reduce(action: .resume, context: paused, presets: ctx, now: resumeAt).get().context
+
+        let remaining = resumed.sessionEndAt!.timeIntervalSince(resumeAt)
+        #expect(remaining >= Double(paused.remainingSeconds!))
+    }
+}

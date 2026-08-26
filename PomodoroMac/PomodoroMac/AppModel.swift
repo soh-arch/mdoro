@@ -29,7 +29,8 @@ final class AppModel {
     // それまでは iPhone が繋がることはないので、正直に「未接続」を出す。
     private(set) var connection: ConnectionStatus = .disconnected
     // REQ-UIX-033: 割り当ててあるのに他アプリに取られている場合を UI で区別する。
-    private(set) var hotKeyIsActive = false
+    private(set) var pauseResumeHotKeyIsActive = false
+    private(set) var showWindowHotKeyIsActive = false
 
     // REQ-ERR-004 / REQ-LOG-005: 書き込みに失敗し続けていることを UI に出す。
     private(set) var logWriteFailed = false
@@ -99,11 +100,15 @@ final class AppModel {
 
     // REQ-TIM-001: 表示のためのカウントダウンであって、時間の正本ではない。
     // 残り時間は毎回 `sessionEndAt` から算出する（3原則の3つ目）。
+    // 1秒ちょうどで回すと、Task.sleep のずれが積もって表示が1秒飛ぶことがある。
+    // 表示の粒度より細かく回し、秒の切り替わりを取りこぼさないようにする。
+    private static let tickInterval = Duration.milliseconds(250)
+
     private func startTicking() {
         tickTask?.cancel()
         tickTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: AppModel.tickInterval)
                 await self?.tick()
             }
         }
@@ -114,7 +119,7 @@ final class AppModel {
         tickTask = nil
         stopWatchingTaskFile()
         idleSleepGuard.end()
-        hotKeys.unregister()
+        hotKeys.unregisterAll()
     }
 
     private func tick() {
@@ -147,6 +152,9 @@ final class AppModel {
     @discardableResult
     func send(_ action: TimerAction) -> TimerError? {
         let now = Date()
+        // 操作した瞬間の時刻で描き直す。次の tick まで古い時刻のままだと、
+        // 開始直後に「25:01」のように長さより大きい値が出る。
+        displayNow = now
         switch TimerEngine.reduce(action: action, context: timer, presets: presets, settings: settings, now: now) {
         case let .success(reduction):
             timer = reduction.context
@@ -223,7 +231,8 @@ final class AppModel {
             reloadTasksFromDisk()
             startWatchingTaskFile()
         }
-        if settings.pauseResumeHotKey != previous.pauseResumeHotKey {
+        if settings.pauseResumeHotKey != previous.pauseResumeHotKey
+            || settings.showWindowHotKey != previous.showWindowHotKey {
             updateHotKey()
         }
         if settings.launchAtLogin != previous.launchAtLogin {
@@ -238,7 +247,7 @@ final class AppModel {
     // REQ-UIX-033: 「一時停止 / 再開」だけをグローバルに割り当てる。
     // 中断・リセットは誤爆すると取り返しがつかないので、メインウィンドウに留める（REQ-UIX-031 と同じ理由）。
     private func updateHotKey() {
-        hotKeys.update(binding: settings.pauseResumeHotKey) { [weak self] in
+        hotKeys.update(.pauseResume, binding: settings.pauseResumeHotKey) { [weak self] in
             guard let self else { return }
             switch timer.runState {
             case .running: send(.pause)
@@ -246,8 +255,15 @@ final class AppModel {
             default: break
             }
         }
-        hotKeyIsActive = hotKeys.isRegistered
+        hotKeys.update(.showWindow, binding: settings.showWindowHotKey) { [weak self] in
+            self?.onShowWindowRequested?()
+        }
+        pauseResumeHotKeyIsActive = hotKeys.isRegistered(.pauseResume)
+        showWindowHotKeyIsActive = hotKeys.isRegistered(.showWindow)
     }
+
+    // ウィンドウを前面に出す処理は Scene 側が握っているため、呼び出し口だけ持つ。
+    var onShowWindowRequested: (() -> Void)?
 
     // MARK: - ログ
 

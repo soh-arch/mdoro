@@ -12,7 +12,7 @@ Obsidian の `Task.md` を読み取り専用で参照し、実績を `PomodoroLo
 
 | 知りたいこと | 参照先 |
 | :---- | :---- |
-| 要件（何を作るか） | `docs/SPEC.md`（v2.6.1、231要件）**唯一の正** |
+| 要件（何を作るか） | `docs/SPEC.md`（v2.6.1、232要件）**唯一の正** |
 | 現在有効な方針・制約・未決事項・作業状態 | `docs/CONTEXT.md` |
 | なぜそう決めたか | `docs/decisions/` |
 | ビルド手順・プロジェクト構成・環境 | `docs/DEVELOPMENT.md` |
