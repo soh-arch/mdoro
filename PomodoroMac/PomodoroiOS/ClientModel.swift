@@ -215,6 +215,24 @@ final class ClientModel {
         client.send(command: action, params: params)
     }
 
+    // MARK: - ペアリングの解除
+
+    // 覚えている Mac の名前。解除できるかの判定にも使う。
+    var pairedServerName: String? {
+        guard let name = client.serverName ?? servers.first?.name else { return nil }
+        return TokenKeychain.load(serverName: name) == nil ? nil : name
+    }
+
+    // **端末の登録を捨てる。** 次につなぐときは、また6桁のコードから始まる。
+    // 失うのはトークンだけで、タイマーの状態は Mac 側にある（3原則の2つ目）。
+    func forgetPairedMac() {
+        if let name = pairedServerName { TokenKeychain.delete(serverName: name) }
+        client.disconnect()
+        hasLiveSnapshot = false
+        liveActivity.end()
+        browser.start()
+    }
+
     // MARK: - 外観（この端末だけの設定）
 
     private static let appearanceKey = "appearance"

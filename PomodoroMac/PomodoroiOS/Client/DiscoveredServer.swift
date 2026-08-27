@@ -39,7 +39,7 @@ final class ServerBrowser {
         }
 
         browser.browseResultsChangedHandler = { [weak self] results, _ in
-            let found = results.compactMap { Self.server(from: $0) }
+            let found = Self.deduplicated(results.compactMap { Self.server(from: $0) })
             Task { @MainActor in
                 self?.servers = found
                 self?.onChange?(found)
@@ -52,6 +52,37 @@ final class ServerBrowser {
     func stop() {
         browser?.cancel()
         browser = nil
+    }
+
+    // **同じ Mac が「Lychee」「Lychee (2)」「Lychee (3)」と3つ見えることがある。**
+    //
+    // これは履歴ではない。Bonjour の広告である。アプリのプロセスが不意に終わると
+    // 登録がすぐには消えず、次に起動したプロセスは名前が衝突するので
+    // macOS が `(2)`, `(3)` と付け直す。**古いほうが番号が小さい。**
+    //
+    // 番号を外した名前で束ね、**いちばん新しい（番号の大きい）ものだけを残す。**
+    // 選び間違えても接続に失敗するだけで、古い広告は時間が経てば消える。
+    nonisolated static func deduplicated(_ servers: [DiscoveredServer]) -> [DiscoveredServer] {
+        var newest: [String: (suffix: Int, server: DiscoveredServer)] = [:]
+        var order: [String] = []
+        for server in servers {
+            let (base, suffix) = splitDuplicateSuffix(server.name)
+            if newest[base] == nil { order.append(base) }
+            if let existing = newest[base], existing.suffix >= suffix { continue }
+            newest[base] = (suffix, DiscoveredServer(
+                id: server.id, name: base, endpoint: server.endpoint, websocketPort: server.websocketPort
+            ))
+        }
+        return order.compactMap { newest[$0]?.server }
+    }
+
+    // 「Lychee (3)」→ ("Lychee", 3)、「Lychee」→ ("Lychee", 1)
+    nonisolated static func splitDuplicateSuffix(_ name: String) -> (base: String, suffix: Int) {
+        guard name.hasSuffix(")"), let open = name.lastIndex(of: "(") else { return (name, 1) }
+        let inside = name[name.index(after: open)..<name.index(before: name.endIndex)]
+        guard let number = Int(inside), number > 1 else { return (name, 1) }
+        let base = name[name.startIndex..<open].trimmingCharacters(in: .whitespaces)
+        return (base.isEmpty ? name : base, number)
     }
 
     nonisolated private static func server(from result: NWBrowser.Result) -> DiscoveredServer? {

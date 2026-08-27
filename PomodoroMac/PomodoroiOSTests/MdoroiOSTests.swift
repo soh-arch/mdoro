@@ -1,19 +1,36 @@
-//
-//  MdoroiOSTests.swift
-//  MdoroiOSTests
-//
-//  Created by Sohta Uchiyama on 8/25/26.
-//
-
 import Testing
+import Network
 @testable import MdoroiOS
 
-struct MdoroiOSTests {
+// **同じ Mac が「Lychee」「Lychee (2)」と重なって見える問題**（2026-08-28、実機で報告）。
+// 履歴ではなく、消えきっていない Bonjour の広告である。
+@Suite("探索結果の重複まとめ")
+struct ServerBrowserDeduplicationTests {
 
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
-        // Swift Testing Documentation
-        // https://developer.apple.com/documentation/testing
+    private func server(_ name: String) -> DiscoveredServer {
+        DiscoveredServer(
+            id: name, name: name,
+            endpoint: .service(name: name, type: "_mdoro._tcp", domain: "local.", interface: nil),
+            websocketPort: nil
+        )
     }
 
+    @Test func keepsOnlyTheNewestOfTheSameName() {
+        let result = ServerBrowser.deduplicated([server("Lychee"), server("Lychee (2)"), server("Lychee (3)")])
+        #expect(result.count == 1)
+        // 番号は表示しない。利用者にとっては1台である。
+        #expect(result.first?.name == "Lychee")
+        // **いちばん新しい登録**（番号が最大）を残す。
+        #expect(result.first?.id == "Lychee (3)")
+    }
+
+    @Test func differentMacsAreNotMerged() {
+        #expect(ServerBrowser.deduplicated([server("Lychee"), server("Mango")]).count == 2)
+    }
+
+    @Test func aNameThatMerelyEndsWithParenthesesIsNotASuffix() {
+        #expect(ServerBrowser.splitDuplicateSuffix("Mac (work)").base == "Mac (work)")
+        #expect(ServerBrowser.splitDuplicateSuffix("Mac (1)").base == "Mac (1)")
+        #expect(ServerBrowser.splitDuplicateSuffix("Mac (2)").base == "Mac")
+    }
 }

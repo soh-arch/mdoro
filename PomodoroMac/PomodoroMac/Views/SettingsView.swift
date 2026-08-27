@@ -12,6 +12,7 @@ enum SettingsTab: String, Hashable, CaseIterable {
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var systemScheme
+    private var theme: Theme { Theme(appearance: model.settings.appearance, systemScheme: systemScheme) }
     @State private var logFileError: String?
     @State private var diagnosticsError: String?
 
@@ -32,6 +33,18 @@ struct SettingsView: View {
                 .tabItem { Label("Display", systemImage: "paintpalette") }.tag(SettingsTab.display)
         }
         .frame(width: 560, height: 460)
+        // 設定ウィンドウは別の Scene なので、テーマを自分で配る（REQ-COL-002）。
+        .environment(\.theme, theme)
+        // REQ-COL-003: ライト固定・ダーク固定はこちらの窓にも効かせる。
+        .preferredColorScheme(preferredScheme)
+    }
+
+    private var preferredScheme: SwiftUI.ColorScheme? {
+        switch model.settings.appearance {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
     }
 
     // MARK: - 接続

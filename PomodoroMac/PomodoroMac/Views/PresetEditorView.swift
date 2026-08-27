@@ -6,6 +6,7 @@ import MdoroCore
 // REQ-UIX-009: 「次のセッションから適用される」項目と「即座に適用される」項目を視覚的に区別する（9.5）。
 struct PresetEditorView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.theme) private var theme
     @State private var selectedId: String?
     @State private var errorMessage: String?
 
@@ -81,9 +82,11 @@ struct PresetEditorView: View {
             }
 
             Section {
-                minuteStepper("Focus", binding(preset, \.workSeconds), range: 1...180)
-                minuteStepper("Short Break", binding(preset, \.shortBreakSeconds), range: 1...60)
-                minuteStepper("Long Break", binding(preset, \.longBreakSeconds), range: 1...60)
+                // REQ-COL-011: セッション種別には `-text` を用いてよい（帯は使わない）。
+                // REQ-COL-010: 色だけで区別しない — 名前が併記されているので満たす。
+                minuteStepper("Focus", binding(preset, \.workSeconds), range: 1...180, role: .sessionFocus)
+                minuteStepper("Short Break", binding(preset, \.shortBreakSeconds), range: 1...60, role: .sessionShortBreak)
+                minuteStepper("Long Break", binding(preset, \.longBreakSeconds), range: 1...60, role: .sessionLongBreak)
             } header: {
                 Text("Session lengths")
             } footer: {
@@ -92,9 +95,10 @@ struct PresetEditorView: View {
             }
 
             Section {
-                Stepper(value: binding(preset, \.longBreakInterval), in: 2...12) {
-                    Text("Long break every \(preset.longBreakInterval) loops")
-                }
+                // 数値の入力は「ラベル・数値・増減・単位」の並びに揃える（REQ-UIX-047）。
+                // `loops` は `min` と同じ位置に来る単位である。
+                countStepper("Long break every", binding(preset, \.longBreakInterval),
+                             range: 2...12, unit: "loops")
                 minuteStepper("Each extension", binding(preset, \.extendSeconds), range: 1...30)
                 // REQ-TIM-011（SHOULD）は未実装であり、`autoAdvance` を読むコードは存在しない。
                 // **実装していない機能の操作盤を出さない**（Decision 0026、旧 OPEN-023）。
@@ -107,17 +111,24 @@ struct PresetEditorView: View {
             }
 
             Section {
-                HStack {
-                    // Decision 0020: 音色の選択は Mac 専用。共通設定と誤解させない。
-                    Picker("Mac notification sound", selection: binding(preset, \.notificationSound)) {
-                        ForEach(NotificationSound.allCases, id: \.self) { sound in
-                            Text(sound.displayName).tag(sound)
+                // Picker と Button を素の HStack に並べると、Form の中で上端に張り付く。
+                // `LabeledContent` に入れると、ラベルと操作が行の中心で揃う。
+                LabeledContent {
+                    HStack {
+                        // Decision 0020: 音色の選択は Mac 専用。共通設定と誤解させない。
+                        Picker("", selection: binding(preset, \.notificationSound)) {
+                            ForEach(NotificationSound.allCases, id: \.self) { sound in
+                                Text(sound.displayName).tag(sound)
+                            }
                         }
+                        .labelsHidden()
+                        .fixedSize()
+                        // Decision 0019: 音源を直接鳴らさず、本番と同じ通知を1件送る。
+                        Button("Send a test") { model.sendNotificationSoundTest(preset) }
+                            .help("Sends one notification with this setting")
                     }
-                    // Decision 0019: 音源を直接鳴らさず、本番と同じ通知を1件送る。
-                    // 既定音も試聴でき、通知が届かない状態もここで露見する。
-                    Button("Send a test") { model.sendNotificationSoundTest(preset) }
-                        .help("Sends one notification with this setting")
+                } label: {
+                    Text("Mac notification sound")
                 }
                 groupNote("Chosen from the macOS system sounds. **This choice only affects the Mac.** iPhone uses the iOS default sound. Silent applies to both.")
                 // 鳴らない理由がアプリの外にあるなら、アプリが言う。
@@ -214,10 +225,13 @@ struct PresetEditorView: View {
         )
     }
 
-    private func minuteStepper(_ title: String, _ seconds: Binding<Int>, range: ClosedRange<Int>) -> some View {
+    private func minuteStepper(
+        _ title: String, _ seconds: Binding<Int>, range: ClosedRange<Int>, role: ColorRole? = nil
+    ) -> some View {
         // REQ-CFG-011 / 012: UI は分単位、内部は秒。直接入力とステッパーの両方を出す。
         HStack {
             Text(title)
+                .foregroundStyle(role.map { theme.color($0, .text) } ?? theme.textPrimary)
             Spacer()
             TextField("", value: Binding(
                 get: { seconds.wrappedValue / 60 },
@@ -232,6 +246,29 @@ struct PresetEditorView: View {
             }
             .labelsHidden()
             Text("min").foregroundStyle(.secondary)
+        }
+    }
+
+    // 分ではない数値（周回など）。並びは minuteStepper と同じにする。
+    private func countStepper(
+        _ title: String, _ value: Binding<Int>, range: ClosedRange<Int>, unit: String
+    ) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            TextField("", value: Binding(
+                get: { value.wrappedValue },
+                set: { value.wrappedValue = min(max($0, range.lowerBound), range.upperBound) }
+            ), format: .number)
+            .frame(width: 52)
+            .multilineTextAlignment(.trailing)
+            Stepper("") {
+                value.wrappedValue = min(value.wrappedValue + 1, range.upperBound)
+            } onDecrement: {
+                value.wrappedValue = max(value.wrappedValue - 1, range.lowerBound)
+            }
+            .labelsHidden()
+            Text(unit).foregroundStyle(.secondary)
         }
     }
 

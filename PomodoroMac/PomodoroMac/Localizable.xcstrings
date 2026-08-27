@@ -102,6 +102,12 @@
     "Clear selection" : {
 
     },
+    "Confirm reset" : {
+
+    },
+    "Confirm stop" : {
+
+    },
     "Connection" : {
 
     },
@@ -205,6 +211,9 @@
     "min" : {
 
     },
+    "More in the main window" : {
+
+    },
     "Name" : {
 
     },
@@ -250,6 +259,9 @@
     "Remove" : {
 
     },
+    "Reset loop count…" : {
+
+    },
     "Reset the loop count after %lld hours idle" : {
 
     },
@@ -266,6 +278,9 @@
 
     },
     "Session lengths" : {
+
+    },
+    "Settings…" : {
 
     },
     "Shortcuts" : {
@@ -295,6 +310,9 @@
     "Start pairing" : {
 
     },
+    "Start the next session" : {
+
+    },
     "Startup" : {
 
     },
@@ -304,7 +322,13 @@
     "Stop pairing" : {
 
     },
+    "Stop…" : {
+
+    },
     "System" : {
+
+    },
+    "Task" : {
 
     },
     "Task file (read-only)" : {

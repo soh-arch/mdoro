@@ -44,9 +44,12 @@ struct MainScreen: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { isAppearancePresented = true } label: {
-                        Label("Appearance", systemImage: "gearshape")
+                        Label("Settings", systemImage: "gearshape")
                     }
                 }
+                // iOS 26 は隣り合うツールバー項目を1つの枠にまとめる。
+                // **役割が違うので、分けて見せる。**
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 ToolbarItem(placement: .topBarTrailing) {
                     // REQ-UIX-013: 通常画面からの明示操作で集中表示ビューへ。
                     Button {
@@ -68,7 +71,7 @@ struct MainScreen: View {
             FocusView()
         }
         .sheet(isPresented: $isAppearancePresented) {
-            AppearanceSheet().environment(\.theme, theme)
+            DeviceSettingsSheet().environment(\.theme, theme)
         }
     }
 
@@ -225,18 +228,19 @@ struct SessionHeader: View {
     }
 }
 
-// REQ-COL-003 / Decision 0027: 外観の3択。**この端末にだけ効く。**
-// Mac の設定とは独立しているので、そのことを画面に書いておく
-// （通知音で一度、共通設定に見えるものが片方にしか効かない問題を踏んでいる。Decision 0020）。
-struct AppearanceSheet: View {
+// この端末の設定。**Mac の設定ではない。**
+// 外観（Decision 0027）と、ペアリングの解除だけを置く。
+struct DeviceSettingsSheet: View {
     @Environment(ClientModel.self) private var model
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
+    @State private var isConfirmingForget = false
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
+                    // **ラベル行を出さない。** 出すと選べる項目が4つあるように見える。
                     Picker("Appearance", selection: Binding(
                         get: { model.appearance },
                         set: { model.setAppearance($0) }
@@ -246,15 +250,34 @@ struct AppearanceSheet: View {
                         Text("Dark").tag(AppearancePreference.dark)
                     }
                     .pickerStyle(.inline)
+                    .labelsHidden()
+                } header: {
+                    Text("Appearance")
                 } footer: {
-                    Text("This setting applies to this iPhone only. The Mac keeps its own.")
+                    Text("Applies to this iPhone only. The Mac keeps its own.")
+                }
+
+                if let paired = model.pairedServerName {
+                    Section {
+                        Button("Forget \(paired)", role: .destructive) { isConfirmingForget = true }
+                    } header: {
+                        Text("Pairing")
+                    } footer: {
+                        Text("Removes this device's registration. Pairing again takes a six-digit code.")
+                    }
                 }
             }
-            .navigationTitle("Appearance")
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                }
+            }
+            .confirmationDialog("Forget this Mac?", isPresented: $isConfirmingForget, titleVisibility: .visible) {
+                Button("Forget", role: .destructive) {
+                    model.forgetPairedMac()
+                    dismiss()
                 }
             }
         }

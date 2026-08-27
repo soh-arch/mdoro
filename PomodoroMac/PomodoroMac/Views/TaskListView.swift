@@ -30,7 +30,7 @@ struct TaskListView: View {
                        role: .warning)
             }
 
-            List(selection: selectionBinding) {
+            List {
                 ForEach(sections) { section in
                     Section(section.name) {
                         ForEach(section.items) { item in
@@ -40,9 +40,6 @@ struct TaskListView: View {
                 }
             }
             .listStyle(.inset)
-            // REQ-COL-002 / REQ-UIX-044: 選択の塗りも役割名から引く。
-            // OS 既定のアクセント青は、このアプリのどのトークンでもない。
-            .tint(theme.color(.accentPrimary, .solid))
             .frame(minHeight: 160)
         }
     }
@@ -80,13 +77,6 @@ struct TaskListView: View {
         }
     }
 
-    private var selectionBinding: Binding<String?> {
-        Binding(
-            get: { model.tasks.selectedTaskId },
-            set: { if let id = $0 { model.selectTask(id: id) } }
-        )
-    }
-
     @ViewBuilder
     private func row(_ item: TaskItem) -> some View {
         HStack(spacing: 6) {
@@ -108,7 +98,22 @@ struct TaskListView: View {
             }
             Spacer()
         }
-        .tag(item.stableId)
+        // REQ-COL-002 / REQ-UIX-044 / 8.6.3: 選択は `-subtle` の地で示す。
+        //
+        // **`List(selection:)` の塗りは `.tint` では変わらない。** macOS のリストは
+        // システムのハイライト色を使う。役割名から引くには、自分で描くしかない
+        // （2026-08-28、実機で確認。前回 `.tint` を当てて直らなかった）。
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(item.stableId == model.tasks.selectedTaskId
+                      ? theme.color(.accentPrimary, .subtle)
+                      : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { model.selectTask(id: item.stableId) }
+        .listRowSeparator(.hidden)
     }
 
     private func notice(_ title: String, detail: String, role: ColorRole) -> some View {
