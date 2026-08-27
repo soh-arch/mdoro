@@ -31,6 +31,14 @@ struct ConnectionBanner: View {
                     .foregroundStyle(theme.color(.warning, .text))
             }
 
+            // Live Activity が出せない理由は隠さない。正常なら何も出さない。
+            if let problem = model.liveActivityProblem {
+                Text("ライブアクティビティ: \(problem)")
+                    .font(.caption)
+                    .foregroundStyle(theme.color(.warning, .text))
+                    .textSelection(.enabled)
+            }
+
             if !model.isConnected {
                 notice
             }

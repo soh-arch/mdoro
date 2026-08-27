@@ -25,6 +25,9 @@ final class ClientModel {
     private(set) var displayNow = Date()
     // REQ-NTF-011: 通知から起動した直後は、同期が取れるまで断定的に表示しない。
     private(set) var isAwaitingFirstSync = false
+    // 問題があるときだけ理由を返す。正常時は nil。
+    // **失敗を黙らせないこと。** 実機で「何も出ない」に何度も苦しめられた。
+    var liveActivityProblem: String? { liveActivity.isHealthy ? nil : liveActivity.diagnostic }
 
     // 集中表示ビューを出しているか（REQ-UIX-013）。
     var isFocusViewPresented = false

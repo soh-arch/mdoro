@@ -17,9 +17,11 @@ REQ-NTF-006（SHOULD）は「通知音を数種類から選択でき、無音（
 
 **macOS / iOS のシステムサウンドを流用する。独自音源は同梱しない。**
 
-- `chime` → `Glass.aiff`、`bell` → `Submarine.aiff`、`wood` → `Tink.aiff`
+- `chime` → `Glass.aiff`、`bell` → `Submarine.aiff`、`wood` → `Pop.aiff`
+  - 当初 `wood` に当てた `Tink.aiff` は **0.56 秒の極めて小さなチック音**で、実機で「鳴らない」と報告された。通知音として成立しないため差し替えた（2026-08-27）
 - `default` は OS の既定通知音、`silent` は音を鳴らさない
 - **設定画面で選択した音を試聴できるようにする。** 名前だけでは違いが分からない
+  - ただし `default` は OS が持つ音でファイルとして指せないため、**試聴の対象外**とする。忠実に試聴できないものを試聴できるように見せない
 
 ## 理由・設計意図
 
@@ -37,8 +39,8 @@ REQ-NTF-006（SHOULD）は「通知音を数種類から選択でき、無音（
 - 要件: REQ-NTF-006（音源をシステムサウンドに確定、試聴を追加）
 - コード: `PomodoroCore/Preset.swift` の `NotificationSound`（`systemSoundFileName` / `displayName`）、
   `PomodoroMac/Services/NotificationScheduler.swift`、`Views/PresetEditorView.swift`
-- iOS 側（工程7）でも同じ列挙を使う。**iOS のシステムサウンド名は macOS と異なるため、
-  工程7で対応表を確認すること**
+- iOS 側（工程7）でも同じ列挙を使う。**iOS には `/System/Library/Sounds` が存在せず、
+  この対応表は macOS 専用であることが判明した**（2026-08-27 確認）。iPhone 側の扱いは OPEN-016
 - 仕様書 v2.6.1 の 0.9 節に記録。OPEN-001 を解決済みとする
 
 ## 出典と確度

@@ -115,7 +115,8 @@ struct PresetEditorView: View {
                     }
                     // 選ぶ前に聞けないと、名前だけでは違いが分からない。
                     Button("試聴") { preview(preset.notificationSound) }
-                        .disabled(preset.notificationSound.isSilent)
+                        .disabled(!preset.notificationSound.isPreviewable)
+                        .help(preset.notificationSound.isPreviewable ? "" : "システムの通知音のため試聴できません")
                 }
                 groupNote("macOS のシステムサウンドを使います。無音を選ぶと音は鳴りません。")
                 Toggle("集中モード中も通知する", isOn: binding(preset, \.timeSensitiveNotifications))
@@ -186,11 +187,7 @@ struct PresetEditorView: View {
     }
 
     private func preview(_ sound: NotificationSound) {
-        guard !sound.isSilent else { return }
-        guard let fileName = sound.systemSoundFileName else {
-            NSSound.beep()
-            return
-        }
+        guard let fileName = sound.systemSoundFileName else { return }
         NSSound(named: NSSound.Name((fileName as NSString).deletingPathExtension))?.play()
     }
 

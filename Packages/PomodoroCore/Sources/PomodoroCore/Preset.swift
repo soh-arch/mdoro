@@ -18,12 +18,17 @@ public enum NotificationSound: String, Equatable, Sendable, Codable, CaseIterabl
         case .default: return nil
         case .chime: return "Glass.aiff"
         case .bell: return "Submarine.aiff"
-        case .wood: return "Tink.aiff"
+        // Tink は 0.56 秒の極めて小さなチック音で、通知音として実質聞こえない（実機で確認）。
+        case .wood: return "Pop.aiff"
         case .silent: return nil
         }
     }
 
     public var isSilent: Bool { self == .silent }
+
+    // 既定音は OS が持つ音で、ファイルとして指せない。忠実に試聴できないものを
+    // 試聴できるように見せない。
+    public var isPreviewable: Bool { systemSoundFileName != nil }
 
     public var displayName: String {
         switch self {

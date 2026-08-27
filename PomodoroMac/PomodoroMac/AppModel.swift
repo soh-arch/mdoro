@@ -360,6 +360,44 @@ final class AppModel {
 
     // 受け取ったコマンドは翻訳して状態機械へ渡す。可否は状態機械が決める（REQ-ERR-016）。
     private func apply(_ command: CommandPayload) {
+        // タスクと設定は状態機械の管轄外（`TimerEngine` は break するだけ）。
+        // ここで受け止めないと、iPhone からの選択が**黙って捨てられる**。
+        switch command.action {
+        case .selectTask:
+            guard let stableId = command.params?.stableId else {
+                reject(.invalidStateForAction, "stableId がありません", command)
+                return
+            }
+            // REQ-TSK-036: 現在の一覧に存在しない stableId は受け付けず、選択も変えない。
+            guard tasks.item(id: stableId) != nil else {
+                reject(.taskNotFound, "そのタスクは見つかりません", command)
+                return
+            }
+            selectTask(id: stableId)
+            return
+
+        case .clearTaskSelection:
+            clearTaskSelection()
+            return
+
+        case .reloadTasks:
+            reloadTasksFromDisk()
+            return
+
+        case .updateSettings:
+            guard let updated = command.params?.settings else {
+                reject(.invalidStateForAction, "settings がありません", command)
+                return
+            }
+            // didSet が検証・永続化・状態機械への反映をまとめて行う。
+            settings = updated
+            broadcastState()
+            return
+
+        default:
+            break
+        }
+
         let translated = CommandTranslation.action(
             for: command,
             activePresetId: presets.activePresetId,
@@ -381,6 +419,12 @@ final class AppModel {
                 relatedRequestId: command.clientRequestId
             )))
         }
+    }
+
+    private func reject(_ code: ProtocolErrorCode, _ message: String, _ command: CommandPayload) {
+        server.broadcast(.error(ProtocolErrorPayload(
+            code: code, message: message, relatedRequestId: command.clientRequestId
+        )))
     }
 
     private func snapshot() -> StateSnapshot {
@@ -501,6 +545,10 @@ final class AppModel {
         tasks = outcome.context
         didFollowTaskSelection = outcome.didFollow
         persist()
+        // REQ-TSK-002: 変更を検知したら iPhone へ最新リストを配信する。
+        // ここを忘れると、Mac 側で Task.md を編集しても iPhone は古い一覧のままになる。
+        server.broadcast(.taskList(taskListPayload()))
+        broadcastState()
     }
 
     func selectTask(id: String) {
@@ -508,11 +556,13 @@ final class AppModel {
         guard (try? updated.select(id: id)) != nil else { return }
         tasks = updated
         send(.selectTask(snapshot: updated.selectedTaskSnapshot))
+        broadcastState()
     }
 
     func clearTaskSelection() {
         tasks.clearSelection()
         send(.clearTaskSelection)
+        broadcastState()
     }
 
     func acknowledgeTaskFollow() { didFollowTaskSelection = false }
