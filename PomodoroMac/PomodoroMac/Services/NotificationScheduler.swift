@@ -19,6 +19,30 @@ final class NotificationScheduler {
         _ = try? await center.requestAuthorization(options: [.alert, .sound])
     }
 
+    // 鳴らないときに「アプリが壊れている」と思わせない。
+    // **macOS 側でバナーや音が切られていることは、こちらからしか見えない。**
+    func currentPermission() async -> NotificationPermission {
+        let settings = await center.notificationSettings()
+        return NotificationPermission(
+            isAuthorized: settings.authorizationStatus == .authorized
+                || settings.authorizationStatus == .provisional,
+            alertsEnabled: settings.alertSetting != .disabled,
+            soundEnabled: settings.soundSetting != .disabled,
+            status: Self.name(for: settings.authorizationStatus)
+        )
+    }
+
+    private static func name(for status: UNAuthorizationStatus) -> String {
+        switch status {
+        case .authorized: return "authorized"
+        case .provisional: return "provisional"
+        case .denied: return "denied"
+        case .notDetermined: return "notDetermined"
+        case .ephemeral: return "ephemeral"
+        @unknown default: return "unknown"
+        }
+    }
+
     // REQ-NTF-004: 終了したセッション種別・選択中タスク名・次に行うべきセッション種別を含める。
     func notifySessionFinished(
         type: SessionType,
@@ -129,5 +153,22 @@ final class NotificationScheduler {
         case .shortBreak: return "短い休憩"
         case .longBreak: return "長い休憩"
         }
+    }
+}
+
+
+// REQ-NTF-001 / 006: OS 側で通知がどう扱われているか。
+struct NotificationPermission: Equatable, Sendable {
+    var isAuthorized: Bool
+    var alertsEnabled: Bool
+    var soundEnabled: Bool
+    var status: String
+
+    // 音が鳴らない理由を、鳴らない側で説明できるようにする。
+    var problem: String? {
+        if !isAuthorized { return "macOS の「通知」設定でこのアプリの通知が許可されていません（\(status)）。" }
+        if !alertsEnabled { return "macOS の「通知」設定でバナーが切られています。" }
+        if !soundEnabled { return "macOS の「通知」設定で通知音が切られています。アプリ側でどの音を選んでも鳴りません。" }
+        return nil
     }
 }

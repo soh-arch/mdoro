@@ -102,6 +102,18 @@ Widget 拡張の `IPHONEOS_DEPLOYMENT_TARGET` が端末の iOS より新しい�
 
 **外の世界に触れる操作の失敗は、必ず画面か通知に出す。** 正常時は黙ってよい。
 
+### 前面にいるあいだ、通知は出ない
+
+macOS も iOS も、**アプリが最前面のあいだは `UNUserNotificationCenterDelegate.willPresent` が
+無ければ通知を出さない。** バナーも音も出ない。設定も権限も正しいので、原因が見えない。
+
+iPhone 側には工程7で置いたが **Mac 側に無く**、「Focus が終わっても Mac だけ鳴らない」
+になっていた（2026-08-27、実機で報告）。**片方のプラットフォームで踏んだ穴は、
+もう片方も見に行くこと。**
+
+音が鳴らない原因は OS 設定側にもありうる（通知そのものの不許可・バナー切り・通知音切り）。
+`UNUserNotificationCenter.notificationSettings()` で読めるので、**読んで画面に出す。**
+
 ### staleDate は「経過時間」ではなく「保証の期限」
 
 `staleDate` は**次に状態を確認できる保証がない時刻**であって、

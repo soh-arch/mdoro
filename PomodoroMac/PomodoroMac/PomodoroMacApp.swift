@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 import PomodoroCore
 
 @main
@@ -6,6 +7,7 @@ struct PomodoroMacApp: App {
     static let mainWindowId = "main"
 
     @State private var model = AppModel()
+    @State private var notificationDelegate = NotificationDelegate()
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
@@ -18,6 +20,7 @@ struct PomodoroMacApp: App {
                         NSApplication.shared.activate(ignoringOtherApps: true)
                         openWindow(id: Self.mainWindowId)
                     }
+                    UNUserNotificationCenter.current().delegate = notificationDelegate
                     model.start()
                 }
         }
@@ -33,5 +36,20 @@ struct PomodoroMacApp: App {
         Settings {
             SettingsView().environment(model)
         }
+    }
+}
+
+
+// REQ-NTF-001: アプリを前面に出したままでも区切りは知らせる。
+//
+// **macOS はアプリが最前面のあいだ、この委譲が無いと通知を出さない。** バナーも音も出ない。
+// iPhone 側には最初から置いていたが Mac 側に無く、
+// 「Focus が終わっても Mac だけ鳴らない」の原因になっていた（2026-08-27、実機で報告）。
+final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .sound]
     }
 }

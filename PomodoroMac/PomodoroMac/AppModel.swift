@@ -37,6 +37,8 @@ final class AppModel {
     // REQ-SEC-004: 別のクライアントからの接続要求。ユーザーの承認を待つ。
     private(set) var pendingConnectionRequest: String?
     private(set) var serverStartError: String?
+    // REQ-NTF-001: 通知が OS 側で切られていたら、それを画面に出す。
+    private(set) var notificationPermission: NotificationPermission?
 
     // REQ-ERR-004 / REQ-LOG-005: 書き込みに失敗し続けていることを UI に出す。
     private(set) var logWriteFailed = false
@@ -101,7 +103,10 @@ final class AppModel {
     func start() {
         diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
         diagnostics.write("app.start")
-        Task { await notifications.requestAuthorization() }
+        Task {
+            await notifications.requestAuthorization()
+            await refreshNotificationPermission()
+        }
         // 前回書けなかったぶんを、出力先が使えるなら真っ先に書き出す。
         flushLogQueue()
         reloadTasksFromDisk()
@@ -110,6 +115,17 @@ final class AppModel {
         syncSideEffectsToState()
         updateHotKey()
         Task { await startServer() }
+    }
+
+    func refreshNotificationPermission() async {
+        let permission = await notifications.currentPermission()
+        guard permission != notificationPermission else { return }
+        notificationPermission = permission
+        diagnostics.write("notify.permission", level: permission.problem == nil ? .info : .warn, [
+            DiagnosticField("status", permission.status),
+            DiagnosticField("alert", permission.alertsEnabled),
+            DiagnosticField("sound", permission.soundEnabled),
+        ])
     }
 
     // REQ-TIM-001: 表示のためのカウントダウンであって、時間の正本ではない。
@@ -164,12 +180,19 @@ final class AppModel {
 
         // REQ-NTF-001: 終了時刻への到達を検知して通知する。
         if previousState == .running, timer.runState == .finished {
+            let preset = presets.activePreset ?? Preset.standard()
             notifications.notifySessionFinished(
                 type: previousType,
                 nextType: timer.nextSessionType,
                 taskName: timer.sessionTaskSnapshot,
-                preset: presets.activePreset ?? Preset.standard()
+                preset: preset
             )
+            // 「鳴らなかった」を後から追えるように、出したことを残す。
+            diagnostics.write("notify.finished", [
+                DiagnosticField("type", previousType.rawValue),
+                DiagnosticField("sound", preset.notificationSound.rawValue),
+                DiagnosticField("timeSensitive", preset.timeSensitiveNotifications),
+            ])
         }
         syncSideEffectsToState()
         persist()

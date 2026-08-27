@@ -22,6 +22,8 @@ struct PresetEditorView: View {
                 Text("プリセットを選んでください").foregroundStyle(.secondary).padding()
             }
         }
+        // 設定は macOS 側でいつでも変えられる。開くたびに見に行く。
+        .task { await model.refreshNotificationPermission() }
     }
 
     private var list: some View {
@@ -119,6 +121,10 @@ struct PresetEditorView: View {
                         .help(preset.notificationSound.isPreviewable ? "" : "システムの通知音のため試聴できません")
                 }
                 groupNote("macOS のシステムサウンドを使います。無音を選ぶと音は鳴りません。")
+                // 鳴らない理由がアプリの外にあるなら、アプリが言う。
+                if let problem = model.notificationPermission?.problem {
+                    Text(problem).font(.footnote).foregroundStyle(.orange)
+                }
                 Toggle("集中モード中も通知する", isOn: binding(preset, \.timeSensitiveNotifications))
                 preNotificationEditor(preset)
             } header: {
