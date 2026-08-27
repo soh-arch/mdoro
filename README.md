@@ -72,20 +72,25 @@ Any Markdown file. Mdoro reads **standard checkbox list items** and nothing else
 ```
 
 - `- [ ]`, `* [ ]` and `+ [ ]` are all tasks. Anything else in the file is ignored.
-- `##` headings group tasks. Tasks above the first heading land in `(Uncategorized)`.
+- Headings group tasks — any level, `#` through `######`. Tasks above the first
+  heading land in `(Uncategorized)`.
 - Indentation makes sub-tasks. The first indent width found in the file is one level.
 - Any character other than a space in the box means done. Done tasks are hidden by default.
 - **A trailing block ID (`^abc123`) keeps your selection when you reword a task.**
   It is optional, and it is the only tool-specific syntax Mdoro understands.
+- Fenced code blocks are skipped, so a checklist inside one is not read as tasks.
+- The first 1,000 tasks are loaded, and only the first 5MB of the file is read.
+  Mdoro says so on screen when it hits either limit rather than quietly showing you less.
 
 Tool-specific task markers (`TODO`, `DOING`, `id::`) are **not** read. If a file
-works in Obsidian, Logseq, or a plain editor, it works here - because Mdoro only
+works in Obsidian, Logseq, or a plain editor, it works here — because Mdoro only
 relies on what all of them share.
 
 ## On the iPhone
 
-The lock screen carries the session, so the phone can stay face down. Tapping the
-timer opens a full-screen view that is only a clock, a task and one control.
+The lock screen carries the session, so the phone can stay face down. While a
+session is running, the full-screen button opens a view stripped down to the
+clock, the task and the controls that still apply.
 
 <p align="center">
   <img src="docs/images/ios-lock-screen.jpg" width="205" alt="The lock screen showing the running Focus session, the selected task and the loop count">
@@ -134,7 +139,7 @@ be pasted in public:
 
 - **Task names, note contents, file paths, server names, device names and IP
   addresses are never written to it.** Tasks appear as the last four characters of
-  an internal id, files as a four-character digest of their path.
+  an internal id, files as a four-digit digest of their path (`#a1b2`).
 - Redaction happens when the line is written, not when the log is exported. There
   is no unredacted copy anywhere.
 - It is capped at 2MB × 2 generations and never leaves your Mac unless you export
@@ -143,7 +148,7 @@ be pasted in public:
 ## Documentation
 
 The specification, the decision records and the working notes live in `docs/` and
-are **written in Japanese** - they are the author's working language. The code
+are **written in Japanese** — they are the author's working language. The code
 comments are Japanese for the same reason. Everything the app itself says is English.
 
 - `docs/SPEC.md` — the requirements, and the only normative document
