@@ -231,7 +231,6 @@ Git に入っていないため、失われると復元できない。
 | ID | 内容 |
 | :-- | :---- |
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 |
-| OPEN-016 | **iOS の通知音**。`/System/Library/Sounds` は iOS に存在せず（ランタイムで確認）、`UNNotificationSound(named:)` はアプリバンドルと `Library/Sounds` しか見ないため、[0017](decisions/0017-system-notification-sounds.md) の対応表（Glass / Submarine / Tink）を iOS で使えない。現在は無音以外すべて OS 既定音。選択肢は「iPhone では既定音のみ（Mac だけ4種）」か「音源をバンドルに同梱する」（0017 の『独自音源を同梱しない』と衝突） |
 | OPEN-011 | `--border-strong` が WCAG 1.4.11 の 3.0 を満たすのは `--bg` 上のみ（ライト 3.10 / ダーク 3.30）。`--surface-raised` 上では 2.91 / 2.68 に落ちる。仕様書は `-strong` の保証面を規定していない。**工程4では顕在化しなかった**（設定画面の入力欄はシステム標準のコントロールを使い、`-strong` を自前で描いていない）。枠を自前で描く場面が来たら判断が要る |
 
 ---

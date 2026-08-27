@@ -132,25 +132,35 @@ struct MainScreen: View {
     @ViewBuilder
     private var presetRow: some View {
         let presets = model.snapshot?.presets.presets ?? []
-        HStack(spacing: 8) {
-            Text("プリセット").font(.footnote).foregroundStyle(theme.textTertiary)
-            if presets.count >= 2 {
-                Menu("\(preset.name)（\(Format.presetShape(preset))）") {
-                    ForEach(presets) { candidate in
-                        Button("\(candidate.name)（\(Format.presetShape(candidate))）") {
-                            model.send(.selectPreset, params: CommandParams(presetId: candidate.id))
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text("プリセット").font(.footnote).foregroundStyle(theme.textTertiary)
+                if presets.count >= 2 {
+                    Menu("\(preset.name)（\(Format.presetShape(preset))）") {
+                        ForEach(presets) { candidate in
+                            Button("\(candidate.name)（\(Format.presetShape(candidate))）") {
+                                model.send(.selectPreset, params: CommandParams(presetId: candidate.id))
+                            }
                         }
                     }
+                    .disabled(!model.isConnected)
+                } else {
+                    // REQ-PRS-013: 1件のときは切替 UI を出さない。追加は Mac 側で行う。
+                    Text("\(preset.name)（\(Format.presetShape(preset))）")
+                        .foregroundStyle(theme.textPrimary)
                 }
-                .disabled(!model.isConnected)
-            } else {
-                // REQ-PRS-013: 1件のときは切替 UI を出さない。追加は Mac 側で行う。
-                Text("\(preset.name)（\(Format.presetShape(preset))）")
-                    .foregroundStyle(theme.textPrimary)
+                Spacer()
             }
-            Spacer()
+            .font(.callout)
+
+            // Decision 0020: 音色の選択は Mac 専用で、iPhone には効かない。
+            // 共通の設定に見えるので、効かない側に書いておく。
+            if preset.notificationSound != .silent {
+                Text("iPhone は iOS の既定音で鳴ります（音色の選択は Mac のみ）")
+                    .font(.caption2)
+                    .foregroundStyle(theme.textTertiary)
+            }
         }
-        .font(.callout)
     }
 }
 

@@ -119,10 +119,11 @@ final class NotificationScheduler {
         content.interruptionLevel = preset.timeSensitiveNotifications ? .timeSensitive : .active
     }
 
-    // **iOS には macOS の `/System/Library/Sounds` が存在しない**（実機ランタイムで確認）。
-    // `UNNotificationSound(named:)` はアプリバンドルと Library/Sounds を見るため、
-    // Decision 0017 の対応表（Glass / Submarine / Tink）はそのままでは使えない。
-    // 音源が決まるまで、無音以外は OS の既定音を鳴らす。
+    // REQ-NTF-006 / Decision 0020: **iPhone は OS の既定音のみ。**
+    // iOS に `/System/Library/Sounds` は無く（実機ランタイムで確認）、
+    // `UNNotificationSound(named:)` はアプリバンドルと Library/Sounds しか見ないため、
+    // 0017 の対応表（Glass / Submarine / Pop）は macOS 専用である。
+    // 鳴らす／鳴らさないの判断だけは共通なので、無音はここでも効く。
     private static func sound(for sound: NotificationSound) -> UNNotificationSound? {
         sound.isSilent ? nil : .default
     }

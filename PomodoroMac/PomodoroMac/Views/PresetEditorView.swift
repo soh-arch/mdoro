@@ -110,7 +110,8 @@ struct PresetEditorView: View {
 
             Section {
                 HStack {
-                    Picker("通知音", selection: binding(preset, \.notificationSound)) {
+                    // Decision 0020: 音色の選択は Mac 専用。共通設定と誤解させない。
+                    Picker("Mac の通知音", selection: binding(preset, \.notificationSound)) {
                         ForEach(NotificationSound.allCases, id: \.self) { sound in
                             Text(sound.displayName).tag(sound)
                         }
@@ -120,7 +121,7 @@ struct PresetEditorView: View {
                     Button("テスト通知") { model.sendNotificationSoundTest(preset) }
                         .help("この設定で通知を1件送ります")
                 }
-                groupNote("macOS のシステムサウンドを使います。無音を選ぶと音は鳴りません。")
+                groupNote("macOS のシステムサウンドから選びます。**この選択が効くのは Mac だけです。** iPhone は iOS の既定音で鳴ります。無音を選んだときは、どちらの端末でも鳴りません。")
                 // 鳴らない理由がアプリの外にあるなら、アプリが言う。
                 if let problem = model.notificationPermission?.problem {
                     Text(problem).font(.footnote).foregroundStyle(.orange)
