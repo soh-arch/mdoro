@@ -29,3 +29,6 @@ buildServer.json
 
 # ---- 作業用 ----
 _to_delete/
+
+# ---- 公開しない私的なリンク ----
+docs/PRIVATE-LINKS.md

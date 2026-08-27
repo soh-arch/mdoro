@@ -43,7 +43,7 @@ Pomodoro_Timer/                        # プロジェクトルート
 
 ## ビルド・テスト
 
-プロジェクトルート: `/Users/sohta/Documents/Development/Pomodoro_Timer`
+プロジェクトルート: このリポジトリのルート
 Xcode プロジェクト: `./PomodoroMac/PomodoroMac.xcodeproj`
 
 ### 共有パッケージ
@@ -98,7 +98,7 @@ xcrun simctl list devices available
   両プラットフォームの `AppIcon.appiconset` を書き出す（iOS のライト・ダーク・ティントと macOS の10寸法）。
   描画は AppKit の SVG 対応に任せてあり、外部ツールは要らない。
   **PNG を手で置き換えず、SVG を直して回す**（色リテラルをビューに書かないのと同じ理由）。
-- セットアップ手順書: https://claude.ai/code/artifact/79598e4c-33c6-49c6-aaeb-aa64e2cc6f3b
+- セットアップ手順書のリンクは `docs/PRIVATE-LINKS.md`（Git に入れていない）。
 
 Apple プラットフォームの制約（ATS、ローカルネットワーク許可、Live Activity、ファイル監視など）は
 `docs/CONTEXT.md` §3 にまとめてある。**再調査しない。**

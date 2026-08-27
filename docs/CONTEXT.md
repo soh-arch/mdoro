@@ -290,9 +290,9 @@ iPhone 側に `.preferredColorScheme` が無く（Mac 側にはあった）、
 Git に入っていないため、失われると復元できない。
 
 - **カラーシステムのリファレンス**（トークン一覧・コントラスト実測・色覚シミュレーション付き）
-  https://claude.ai/code/artifact/ff49365a-63a3-4942-b4cc-4c1a10ac7383
 - **Xcode セットアップ手順書**
-  https://claude.ai/code/artifact/79598e4c-33c6-49c6-aaeb-aa64e2cc6f3b
+
+**URL は `docs/PRIVATE-LINKS.md` にある**（Git に入れていない）。私的なリンクを公開リポジトリに載せないため。
 
 ---
 

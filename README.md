@@ -41,7 +41,7 @@ The window is optional. The menu bar carries the session, and the controls sit
 behind it, ordered by what they cost you if you hit them by mistake.
 
 <p align="center">
-  <img src="docs/images/mac-menubar.png" width="210" alt="The Mdoro menu bar item showing a running Focus session, with its menu open: pause, start next, skip, task, display, stop, reset loop count, settings">
+  <img src="docs/images/mac-menubar.png" width="420" alt="The Mdoro menu bar item showing a running Focus session, with its menu open: pause, start next, skip, task, display, stop, reset loop count, settings">
 </p>
 
 Pause, start and skip are one click. Stopping a session and resetting the loop
