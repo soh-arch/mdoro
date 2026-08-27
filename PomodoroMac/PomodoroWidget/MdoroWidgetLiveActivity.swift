@@ -55,8 +55,8 @@ struct MdoroWidgetLiveActivity: Widget {
     private func sessionLabel(_ type: SessionType) -> String {
         switch type {
         case .work: return String(localized: "Focus")
-        case .shortBreak: return String(localized: "短い休憩")
-        case .longBreak: return String(localized: "長い休憩")
+        case .shortBreak: return String(localized: "Short Break")
+        case .longBreak: return String(localized: "Long Break")
         }
     }
 
@@ -104,9 +104,9 @@ private struct StatusNotice: View {
 
     var body: some View {
         if isStale {
-            notice("情報が古い可能性があります", "exclamationmark.triangle")
+            notice("This may be out of date", "exclamationmark.triangle")
         } else if !isConnected {
-            notice("Mac との接続が切れています", ConnectionStatus.disconnected.symbolName)
+            notice("Disconnected from your Mac", ConnectionStatus.disconnected.symbolName)
         }
     }
 
@@ -124,9 +124,9 @@ private struct Controls: View {
     var body: some View {
         HStack(spacing: 12) {
             if state.isPaused {
-                Button(intent: ResumeSessionIntent()) { Label("再開", systemImage: "play.fill") }
+                Button(intent: ResumeSessionIntent()) { Label("Resume", systemImage: "play.fill") }
             } else {
-                Button(intent: PauseSessionIntent()) { Label("一時停止", systemImage: "pause.fill") }
+                Button(intent: PauseSessionIntent()) { Label("Pause", systemImage: "pause.fill") }
             }
         }
         .font(.system(size: WidgetFontSize.label))
@@ -176,8 +176,8 @@ private struct LockScreenView: View {
     private var label: String {
         switch context.state.sessionType {
         case .work: return String(localized: "Focus")
-        case .shortBreak: return String(localized: "短い休憩")
-        case .longBreak: return String(localized: "長い休憩")
+        case .shortBreak: return String(localized: "Short Break")
+        case .longBreak: return String(localized: "Long Break")
         }
     }
 }

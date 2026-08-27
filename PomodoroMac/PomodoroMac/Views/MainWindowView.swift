@@ -71,22 +71,22 @@ struct MainWindowView: View {
         HStack(spacing: 10) {
             switch state {
             case .idle:
-                Button("Focus を開始") { model.send(.startWork(presetId: preset.id, taskSnapshot: model.tasks.selectedTaskSnapshot)) }
+                Button("Start Focus") { model.send(.startWork(presetId: preset.id, taskSnapshot: model.tasks.selectedTaskSnapshot)) }
                     .buttonStyle(.borderedProminent)
-                Button("休憩を開始") { model.send(.startBreak(type: model.timer.nextSessionType == .work ? .shortBreak : model.timer.nextSessionType, presetId: preset.id)) }
+                Button("Start Break") { model.send(.startBreak(type: model.timer.nextSessionType == .work ? .shortBreak : model.timer.nextSessionType, presetId: preset.id)) }
             case .running:
-                Button("一時停止") { model.send(.pause) }.buttonStyle(.borderedProminent)
+                Button("Pause") { model.send(.pause) }.buttonStyle(.borderedProminent)
                 extendButton
-                Button("スキップ") { model.send(.skip) }
-                Button("中断") { model.send(.abort) }
+                Button("Skip") { model.send(.skip) }
+                Button("Stop") { model.send(.abort) }
             case .paused:
-                Button("再開") { model.send(.resume) }.buttonStyle(.borderedProminent)
+                Button("Resume") { model.send(.resume) }.buttonStyle(.borderedProminent)
                 extendButton
-                Button("中断") { model.send(.abort) }
+                Button("Stop") { model.send(.abort) }
             case .finished:
-                Button("次を開始") { startNext() }.buttonStyle(.borderedProminent)
+                Button("Start Next") { startNext() }.buttonStyle(.borderedProminent)
                 extendButton
-                Button("中断") { model.send(.abort) }
+                Button("Stop") { model.send(.abort) }
             case .pendingDecision:
                 EmptyView()
             }
@@ -99,9 +99,9 @@ struct MainWindowView: View {
     @ViewBuilder
     private var extendButton: some View {
         if model.timer.sessionType == .work {
-            Button("延長 +\(preset.extendSeconds / 60)分") { model.send(.extend) }
+            Button("Extend +\(preset.extendSeconds / 60) min") { model.send(.extend) }
                 .disabled(!TimerEngine.isWithinExtensionWindow(model.timer, now: now))
-                .help("延長できるのは終了5分前から終了1分後までです")
+                .help("You can extend from 5 minutes before the end until 1 minute after")
         }
     }
 
@@ -122,16 +122,16 @@ struct MainWindowView: View {
             Text(status.label)
             if model.pendingLogCount > 0 {
                 Divider().frame(height: 12)
-                Text("未書き込み \(model.pendingLogCount) 件")
+                Text("\(model.pendingLogCount) not yet written")
                     .foregroundStyle(theme.color(.warning, .text))
             }
             if let at = model.lastLogWriteAt {
                 Divider().frame(height: 12)
-                Text("最終書き込み \(at.formatted(date: .omitted, time: .standard))")
+                Text("Last written \(at.formatted(date: .omitted, time: .standard))")
             }
             if model.logWriteFailed {
                 Divider().frame(height: 12)
-                Label(model.lastLogError ?? "ログを書き込めていません", systemImage: "exclamationmark.triangle")
+                Label(model.lastLogError ?? "The session log is not being written", systemImage: "exclamationmark.triangle")
                     .foregroundStyle(theme.color(.warning, .text))
                     .textSelection(.enabled)
                     .help(model.lastLogError ?? "")
@@ -159,11 +159,11 @@ struct PendingDecisionView: View {
                 .foregroundStyle(theme.textSecondary)
             HStack(spacing: 10) {
                 if pending.reason == .pausedTooLong {
-                    Button("再開する") { model.send(.confirmRestoredSession(.continueSession)) }
+                    Button("Resume it") { model.send(.confirmRestoredSession(.continueSession)) }
                         .buttonStyle(.borderedProminent)
                 }
-                Button("完了として記録") { model.send(.confirmRestoredSession(.complete)) }
-                Button("中断として記録") { model.send(.confirmRestoredSession(.discard)) }
+                Button("Record as completed") { model.send(.confirmRestoredSession(.complete)) }
+                Button("Record as stopped") { model.send(.confirmRestoredSession(.discard)) }
             }
         }
         .padding(14)
@@ -175,14 +175,14 @@ struct PendingDecisionView: View {
     }
 
     private var title: String {
-        pending.reason == .restoredAfterEnd ? "セッションは終了していました" : "長時間の一時停止を検出しました"
+        pending.reason == .restoredAfterEnd ? "The session had already ended" : "A long pause was detected"
     }
 
     private var detail: String {
         let minutes = pending.elapsedSeconds / 60
         let time = pending.endedAt.formatted(date: .abbreviated, time: .shortened)
         return pending.reason == .restoredAfterEnd
-            ? "\(time) に終了しています（実経過 \(minutes) 分）。完了として記録しますか？"
-            : "\(time) から停止したままです（実経過 \(minutes) 分）。"
+            ? "It ended at \(time) (actual \(minutes) min). Record it as completed?"
+            : "It has been paused since \(time) (actual \(minutes) min)."
     }
 }

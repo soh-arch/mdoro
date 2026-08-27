@@ -18,11 +18,11 @@ struct HotKeyRecorderView: View {
                 .frame(minWidth: 90, alignment: .trailing)
                 .monospaced()
 
-            Button(isRecording ? "キャンセル" : "変更…") {
+            Button(isRecording ? "Cancel" : "Change…") {
                 isRecording ? stopRecording() : startRecording()
             }
             if binding != nil {
-                Button("解除") {
+                Button("Clear") {
                     stopRecording()
                     binding = nil
                 }
@@ -32,10 +32,10 @@ struct HotKeyRecorderView: View {
     }
 
     private var label: String {
-        if isRecording { return "キーを押す" }
-        guard let binding else { return "未設定" }
+        if isRecording { return "Press a key" }
+        guard let binding else { return "Not set" }
         // 他アプリに取られている場合は、割り当ててあるのに効かない。それを隠さない。
-        return isActive ? binding.displayName : "\(binding.displayName)（使用できません）"
+        return isActive ? binding.displayName : "\(binding.displayName) (unavailable)"
     }
 
     private func startRecording() {

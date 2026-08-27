@@ -438,12 +438,12 @@ final class AppModel {
         switch command.action {
         case .selectTask:
             guard let stableId = command.params?.stableId else {
-                reject(.invalidStateForAction, "stableId がありません", command)
+                reject(.invalidStateForAction, "No stableId", command)
                 return
             }
             // REQ-TSK-036: 現在の一覧に存在しない stableId は受け付けず、選択も変えない。
             guard tasks.item(id: stableId) != nil else {
-                reject(.taskNotFound, "そのタスクは見つかりません", command)
+                reject(.taskNotFound, "That task no longer exists", command)
                 return
             }
             selectTask(id: stableId)
@@ -459,7 +459,7 @@ final class AppModel {
 
         case .updateSettings:
             guard let updated = command.params?.settings else {
-                reject(.invalidStateForAction, "settings がありません", command)
+                reject(.invalidStateForAction, "No settings", command)
                 return
             }
             // didSet が検証・永続化・状態機械への反映をまとめて行う。
@@ -519,7 +519,7 @@ final class AppModel {
             sourcePath: settings.taskFilePath,
             itemCount: tasks.items.count,
             isTruncated: tasks.wasTruncated,
-            parseError: tasks.loadFailed ? "Task.md を読み込めませんでした" : nil
+            parseError: tasks.loadFailed ? "Could not read the task file" : nil
         )
     }
 
@@ -570,7 +570,7 @@ final class AppModel {
         guard let bookmark = bookmarks.logFolder else {
             // 出力先が未設定でも記録は捨てず、キューへ残す。設定された時点で書き出す。
             logWriteFailed = true
-            lastLogError = "実績ログの出力先が設定されていません"
+            lastLogError = "No folder is set for the session log"
             diagnostics.write("log.blocked", level: .warn, [
                 DiagnosticField("why", "noFolder"),
                 DiagnosticField("pending", logQueue.pendingCount),

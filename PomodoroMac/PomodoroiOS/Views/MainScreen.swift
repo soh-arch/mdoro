@@ -45,7 +45,7 @@ struct MainScreen: View {
                     Button {
                         model.isFocusViewPresented = true
                     } label: {
-                        Label("集中表示", systemImage: "arrow.up.left.and.arrow.down.right")
+                        Label("Full Screen", systemImage: "arrow.up.left.and.arrow.down.right")
                     }
                     .disabled(timer.runState == .idle)
                 }
@@ -79,7 +79,7 @@ struct MainScreen: View {
                 .accessibilityLabel(Format.spokenRemaining(remaining))
             // REQ-COM-012: 00:00 に達しても完了を確定しない。「同期待ち」と示す。
             if model.isAwaitingSync {
-                Text("同期待ち")
+                Text("Waiting for sync")
                     .font(.footnote)
                     .foregroundStyle(theme.color(.warning, .text))
             }
@@ -93,24 +93,24 @@ struct MainScreen: View {
         HStack(spacing: 10) {
             switch timer.runState {
             case .idle:
-                Button("Focus を開始") { model.send(.startWork) }
+                Button("Start Focus") { model.send(.startWork) }
                     .buttonStyle(.borderedProminent)
-                Button("休憩を開始") {
+                Button("Start Break") {
                     model.send(.startBreak, params: CommandParams(sessionType: nextBreak))
                 }
             case .running:
-                Button("一時停止") { model.send(.pause) }.buttonStyle(.borderedProminent)
+                Button("Pause") { model.send(.pause) }.buttonStyle(.borderedProminent)
                 extendButton
-                Button("スキップ") { model.send(.skip) }
-                Button("中断") { model.send(.abort) }
+                Button("Skip") { model.send(.skip) }
+                Button("Stop") { model.send(.abort) }
             case .paused:
-                Button("再開") { model.send(.resume) }.buttonStyle(.borderedProminent)
+                Button("Resume") { model.send(.resume) }.buttonStyle(.borderedProminent)
                 extendButton
-                Button("中断") { model.send(.abort) }
+                Button("Stop") { model.send(.abort) }
             case .finished:
-                Button("次を開始") { startNext() }.buttonStyle(.borderedProminent)
+                Button("Start Next") { startNext() }.buttonStyle(.borderedProminent)
                 extendButton
-                Button("中断") { model.send(.abort) }
+                Button("Stop") { model.send(.abort) }
             case .pendingDecision:
                 EmptyView()
             }
@@ -124,7 +124,7 @@ struct MainScreen: View {
     @ViewBuilder
     private var extendButton: some View {
         if timer.sessionType == .work {
-            Button("延長 +\(preset.extendSeconds / 60)分") { model.send(.extend) }
+            Button("Extend +\(preset.extendSeconds / 60) min") { model.send(.extend) }
                 .disabled(!TimerEngine.isWithinExtensionWindow(timer, now: model.displayNow))
         }
     }
@@ -147,7 +147,7 @@ struct MainScreen: View {
         let presets = model.snapshot?.presets.presets ?? []
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                Text("プリセット").font(.footnote).foregroundStyle(theme.textTertiary)
+                Text("Preset").font(.footnote).foregroundStyle(theme.textTertiary)
                 if presets.count >= 2 {
                     Menu("\(preset.name)（\(Format.presetShape(preset))）") {
                         ForEach(presets) { candidate in
@@ -169,7 +169,7 @@ struct MainScreen: View {
             // Decision 0020: 音色の選択は Mac 専用で、iPhone には効かない。
             // 共通の設定に見えるので、効かない側に書いておく。
             if preset.notificationSound != .silent {
-                Text("iPhone は iOS の既定音で鳴ります（音色の選択は Mac のみ）")
+                Text("iPhone uses the iOS default sound. The choice of tone is Mac only.")
                     .font(.caption2)
                     .foregroundStyle(theme.textTertiary)
             }
@@ -195,13 +195,13 @@ struct SessionHeader: View {
                 .font(.headline)
                 .foregroundStyle(theme.color(sessionType.colorRole, .text))
             if runState == .paused {
-                Text("一時停止中").font(.subheadline).foregroundStyle(theme.textSecondary)
+                Text("Paused").font(.subheadline).foregroundStyle(theme.textSecondary)
             }
             Spacer()
             Text("\(loopDisplay) / \(longBreakInterval)")
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(theme.textSecondary)
-                .accessibilityLabel("周回 \(loopDisplay) / \(longBreakInterval)")
+                .accessibilityLabel("Loop \(loopDisplay) of \(longBreakInterval)")
         }
     }
 }

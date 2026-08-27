@@ -17,16 +17,16 @@ struct TaskListView: View {
 
             if model.settings.taskFilePath == nil {
                 // REQ-ERR-001: タスク欄に理由と再選択導線を表示する。タイマー機能は継続する。
-                notice("Task.md が選ばれていません", detail: "設定で監視するファイルを選んでください。", role: .warning)
+                notice("No task file selected", detail: "Choose a file to watch in Settings.", role: .warning)
             } else if model.tasks.loadFailed {
                 // REQ-ERR-002: 直前に成功した一覧を保持したままエラーを示す。
-                notice("Task.md を読み込めませんでした", detail: "前回読み込んだ内容を表示しています。", role: .danger)
+                notice("Could not read the task file", detail: "Showing what was read last time.", role: .danger)
             }
 
             if sections.isEmpty, model.settings.taskFilePath != nil, !model.tasks.loadFailed {
                 // REQ-TSK-016: 0件のときは想定している記法の例を示す。
-                notice("タスクが見つかりません",
-                       detail: "`- [ ] タスク名` の形式の行を読み取ります。見出し（##）ごとにまとまります。",
+                notice("No tasks found",
+                       detail: "Reads lines written as `- [ ] task`. Headings (##) group them.",
                        role: .warning)
             }
 
@@ -46,11 +46,11 @@ struct TaskListView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Text("タスク").font(.headline).foregroundStyle(theme.textPrimary)
+            Text("Tasks").font(.headline).foregroundStyle(theme.textPrimary)
 
             if model.tasks.wasTruncated {
                 // REQ-TSK-037 / REQ-ERR-003: 打ち切りの有無と読み込んだ件数を示す。
-                Text("先頭 \(model.tasks.items.count) 件のみ表示")
+                Text("Showing the first \(model.tasks.items.count)")
                     .font(.footnote)
                     .foregroundStyle(theme.color(.warning, .text))
             }
@@ -61,14 +61,14 @@ struct TaskListView: View {
                 Button {
                     model.acknowledgeTaskFollow()
                 } label: {
-                    Label("選択を追従しました", systemImage: "arrow.turn.down.right")
+                    Label("Followed the selection", systemImage: "arrow.turn.down.right")
                         .font(.footnote)
                 }
                 .buttonStyle(.link)
             }
 
             if model.tasks.selectedTaskId != nil {
-                Button("選択を解除") { model.clearTaskSelection() }
+                Button("Clear selection") { model.clearTaskSelection() }
                     .buttonStyle(.link)
                     .font(.footnote)
             }
@@ -99,7 +99,7 @@ struct TaskListView: View {
                 Image(systemName: "link")
                     .font(.caption2)
                     .foregroundStyle(theme.textTertiary)
-                    .help("ブロック ID があるため、文言を直しても選択が維持されます")
+                    .help("Has a block ID, so the selection survives edits to the text")
             }
             Spacer()
         }

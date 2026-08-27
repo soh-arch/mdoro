@@ -208,7 +208,7 @@ final class MdoroServer {
 
         guard approved else {
             sendThenClose(.authFailed(AuthFailedPayload(code: .connectionRejectedByUser,
-                                                        message: "接続が承認されませんでした")), to: pending.connection)
+                                                        message: "The connection was not approved")), to: pending.connection)
             return
         }
         // 承認されたので、既存接続を切ってから改めて認証させる。
@@ -273,12 +273,12 @@ final class MdoroServer {
 
     private static func message(for code: AuthFailureCode) -> String {
         switch code {
-        case .invalidPairingCode: return "ペアリングコードが違います"
-        case .pairingModeNotActive: return "Mac 側でペアリングを開始してください"
-        case .pairingAttemptsExceeded: return "入力を5回間違えたため、ペアリングを終了しました"
-        case .unknownDeviceToken: return "この端末は登録されていません"
-        case .anotherClientConnected: return "別の端末が接続中です"
-        case .connectionRejectedByUser: return "接続が承認されませんでした"
+        case .invalidPairingCode: return "Wrong pairing code"
+        case .pairingModeNotActive: return "Start pairing on the Mac"
+        case .pairingAttemptsExceeded: return "Pairing ended after five wrong codes"
+        case .unknownDeviceToken: return "This device is not registered"
+        case .anotherClientConnected: return "Another device is connected"
+        case .connectionRejectedByUser: return "The connection was not approved"
         }
     }
 }

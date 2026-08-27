@@ -25,7 +25,7 @@ struct SessionHeaderView: View {
                 .foregroundStyle(theme.color(role, .text))
 
             if runState == .paused {
-                Text("一時停止中")
+                Text("Paused")
                     .font(.subheadline)
                     .foregroundStyle(theme.textSecondary)
             }
@@ -36,7 +36,7 @@ struct SessionHeaderView: View {
             Text("\(loopDisplay) / \(longBreakInterval)")
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(theme.textSecondary)
-                .accessibilityLabel("周回 \(loopDisplay) / \(longBreakInterval)")
+                .accessibilityLabel("Loop \(loopDisplay) of \(longBreakInterval)")
         }
     }
 }

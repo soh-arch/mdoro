@@ -88,7 +88,7 @@ struct FocusView: View {
 
             if model.isAwaitingSync {
                 // REQ-COM-012: 00:00 でも完了扱いにしない。
-                Text("同期待ち")
+                Text("Waiting for sync")
                     .font(.system(size: height * 0.7))
                     .foregroundStyle(theme.color(.warning, .text))
             }
@@ -100,15 +100,15 @@ struct FocusView: View {
         HStack(spacing: 24) {
             switch timer.runState {
             case .running:
-                Button("一時停止") { model.send(.pause) }
+                Button("Pause") { model.send(.pause) }
             case .paused:
-                Button("再開") { model.send(.resume) }
+                Button("Resume") { model.send(.resume) }
             default:
                 EmptyView()
             }
             // 延長は WORK 以外では非表示（REQ-TIM-040 により休憩に延長はない）。
             if timer.sessionType == .work {
-                Button("延長 +\(preset.extendSeconds / 60)分") { model.send(.extend) }
+                Button("Extend +\(preset.extendSeconds / 60) min") { model.send(.extend) }
                     .disabled(!TimerEngine.isWithinExtensionWindow(timer, now: model.displayNow))
             }
         }

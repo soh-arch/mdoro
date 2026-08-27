@@ -49,15 +49,15 @@ enum Format {
     // REQ-UIX-006: VoiceOver では「残り12分30秒」のように読み上げる。
     static func spokenRemaining(_ seconds: Int) -> LocalizedStringKey {
         seconds >= 60
-            ? "残り\(seconds / 60)分\(seconds % 60)秒"
-            : "残り\(seconds)秒"
+            ? "\(seconds / 60) minutes \(seconds % 60) seconds left"
+            : "\(seconds) seconds left"
     }
 
     static func sessionLabel(_ type: SessionType) -> LocalizedStringKey {
         switch type {
         case .work: return "Focus"
-        case .shortBreak: return "短い休憩"
-        case .longBreak: return "長い休憩"
+        case .shortBreak: return "Short Break"
+        case .longBreak: return "Long Break"
         }
     }
 
@@ -67,9 +67,9 @@ enum Format {
 
     static func connectionLabel(_ status: ConnectionStatus) -> LocalizedStringKey {
         switch status {
-        case .connected: return "接続済み"
-        case .reconnecting: return "再接続中"
-        case .disconnected: return "未接続"
+        case .connected: return "Connected"
+        case .reconnecting: return "Reconnecting"
+        case .disconnected: return "Not connected"
         }
     }
 }

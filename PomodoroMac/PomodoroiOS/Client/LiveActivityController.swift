@@ -25,7 +25,7 @@ final class LiveActivityController {
     // **何が起きたかを常に文字で残す。**
     // 「エラーが無い」と「そもそも呼ばれていない」は別物で、
     // 後者を無表示にしていたため実機で切り分けられなかった。
-    private(set) var diagnostic: String = "まだ開始していません"
+    private(set) var diagnostic: String = "Not started yet"
     // 正常に動いているときは黙る。問題があるときだけ画面に出す。
     private(set) var isHealthy = false
 
@@ -54,13 +54,13 @@ final class LiveActivityController {
         // REQ-PER-009: PENDING_DECISION へ遷移した時点で終了させる。
         // REQ-UIX-022: セッション終了・中断時も終了させる。
         guard timer.runState == .running || timer.runState == .paused else {
-            diagnostic = "セッションが動いていません（\(timer.runState.rawValue)）"
+            diagnostic = "No session running (\(timer.runState.rawValue))"
             isHealthy = true
             end()
             return
         }
         guard let serverStart = timer.sessionStartedAt else {
-            diagnostic = "開始時刻がありません"
+            diagnostic = "No start time"
             isHealthy = false
             end()
             return
@@ -79,7 +79,7 @@ final class LiveActivityController {
                 start(state: state, serverName: serverName, isForeground: isForeground, isConnected: isConnected)
                 return
             }
-            diagnostic = "更新中（OS 上に \(systemActivityCount) 件）"
+            diagnostic = "Updating (\(systemActivityCount) known to the system)"
             isHealthy = true
             push(state, extendingStaleDate: isConnected)
         } else {
@@ -109,7 +109,7 @@ final class LiveActivityController {
             try? await Task.sleep(for: .seconds(delay))
             // この間に生きたスナップショットが来ていれば、引き取られている。
             guard let self, self.activity == nil else { return }
-            self.diagnostic = "残っていた Live Activity を畳みました（状態を確認できなかったため）"
+            self.diagnostic = "Dismissed a leftover Live Activity: its state could not be confirmed"
             self.isHealthy = true
             self.end()
         }
@@ -133,7 +133,7 @@ final class LiveActivityController {
         for duplicate in existing.dropFirst() {
             Task { await duplicate.end(nil, dismissalPolicy: .immediate) }
         }
-        diagnostic = "残っていた Live Activity を引き取りました（\(existing.count) 件）"
+        diagnostic = "Adopted a leftover Live Activity (\(existing.count) found)"
         isHealthy = true
     }
 
@@ -159,19 +159,19 @@ final class LiveActivityController {
         // 何時間前のものか分からない。これで開始すると、
         // **とうに終わったセッションが、正しい顔で、動かないままロック画面に居座る。**
         guard isConnected else {
-            diagnostic = String(localized: "Mac に接続してから開始します")
+            diagnostic = String(localized: "Starts once connected to your Mac")
             isHealthy = true
             return
         }
         // REQ-UIX-020: フォアグラウンドでないと開始できない（プラットフォーム制約）。
         guard isForeground else {
             // これは制約であって不具合ではない（REQ-UIX-020）。騒がない。
-            diagnostic = String(localized: "アプリが前面にある間しか開始できません")
+            diagnostic = String(localized: "Can only start while the app is in the foreground")
             isHealthy = true
             return
         }
         guard isSupported else {
-            diagnostic = String(localized: "iOS の設定でライブアクティビティが無効です")
+            diagnostic = String(localized: "Live Activities are turned off in iOS Settings")
             isHealthy = false
             return
         }
@@ -185,10 +185,10 @@ final class LiveActivityController {
             lastPushedAt = Date()
             lastState = state
             currentStaleDate = Date().addingTimeInterval(MdoroActivityAttributes.staleAfter)
-            diagnostic = "開始しました id=\(requested.id.prefix(8)) / OS 上に \(systemActivityCount) 件"
+            diagnostic = "Started id=\(requested.id.prefix(8)) / \(systemActivityCount) known to the system"
             isHealthy = true
         } catch {
-            diagnostic = "開始に失敗: \(String(describing: error))"
+            diagnostic = "Could not start: \(String(describing: error))"
             isHealthy = false
         }
     }

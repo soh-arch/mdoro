@@ -56,15 +56,15 @@ struct MenuBarMenuContent: View {
     var body: some View {
         switch model.timer.runState {
         case .running:
-            Button("一時停止") { model.send(.pause) }
+            Button("Pause") { model.send(.pause) }
         case .paused:
-            Button("再開") { model.send(.resume) }
+            Button("Resume") { model.send(.resume) }
         case .idle, .finished:
             Button(nextSessionTitle) { startNext() }
         case .pendingDecision:
             // 確認はメインウィンドウで行う（REQ-UIX-036 / REQ-PER-005）。
-            Text("確認が必要です")
-            Button("メインウィンドウで確認") { openMain() }
+            Text("A decision is needed")
+            Button("Open the main window") { openMain() }
         }
 
         if model.timer.runState == .running || model.timer.runState == .paused {
@@ -75,7 +75,7 @@ struct MenuBarMenuContent: View {
 
         // REQ-UIX-007: プリセットが2件以上のときだけ切替を出す。
         if model.presets.presets.count >= 2 {
-            Menu("プリセット") {
+            Menu("Preset") {
                 ForEach(model.presets.presets) { candidate in
                     Button {
                         model.send(.selectPreset(id: candidate.id))
@@ -89,13 +89,13 @@ struct MenuBarMenuContent: View {
             Divider()
         }
 
-        Button("メインウィンドウを開く") { openMain() }
+        Button("Open Main Window") { openMain() }
         Divider()
-        Button("終了") { NSApplication.shared.terminate(nil) }
+        Button("Quit") { NSApplication.shared.terminate(nil) }
     }
 
     private var nextSessionTitle: String {
-        "次を開始（\(Format.sessionLabel(model.timer.nextSessionType))）"
+        "Start Next (\(Format.sessionLabel(model.timer.nextSessionType)))"
     }
 
     private func startNext() {

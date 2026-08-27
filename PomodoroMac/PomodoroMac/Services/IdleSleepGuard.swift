@@ -10,7 +10,7 @@ final class IdleSleepGuard {
 
     var isActive: Bool { activity != nil }
 
-    func begin(reason: String = "ポモドーロのセッションが進行中") {
+    func begin(reason: String = "A session is running") {
         guard activity == nil else { return }
         activity = ProcessInfo.processInfo.beginActivity(
             options: [.idleSystemSleepDisabled],

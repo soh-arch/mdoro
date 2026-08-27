@@ -64,8 +64,8 @@ final class NotificationScheduler {
     // REQ-NTF-004: 終了したセッション種別・選択中タスク名・次に行うべきセッション種別を含める。
     private func scheduleEnd(at endAt: Date, timer: TimerContext, preset: Preset, taskName: String?) {
         let content = UNMutableNotificationContent()
-        content.title = String(localized: "\(Self.label(timer.sessionType)) が終了しました")
-        var body = String(localized: "次は \(Self.label(timer.nextSessionType))")
+        content.title = String(localized: "\(Self.label(timer.sessionType)) has ended")
+        var body = String(localized: "Next: \(Self.label(timer.nextSessionType))")
         if timer.sessionType == .work, let taskName, !taskName.isEmpty {
             body = "\(taskName)\n\(body)"
         }
@@ -85,9 +85,9 @@ final class NotificationScheduler {
         )
         for fireDate in fireDates {
             let content = UNMutableNotificationContent()
-            content.title = String(localized: "まもなく終了します")
+            content.title = String(localized: "Ending soon")
             let remaining = max(1, Int((endAt.timeIntervalSince(fireDate) / 60).rounded()))
-            content.body = String(localized: "残り約 \(remaining) 分")
+            content.body = String(localized: "About \(remaining) min left")
             apply(preset: preset, to: content)
             add(content, at: fireDate, identifier: Self.prePrefix + UUID().uuidString)
         }
@@ -131,8 +131,8 @@ final class NotificationScheduler {
     private static func label(_ type: SessionType) -> String {
         switch type {
         case .work: return String(localized: "Focus")
-        case .shortBreak: return String(localized: "短い休憩")
-        case .longBreak: return String(localized: "長い休憩")
+        case .shortBreak: return String(localized: "Short Break")
+        case .longBreak: return String(localized: "Long Break")
         }
     }
 }

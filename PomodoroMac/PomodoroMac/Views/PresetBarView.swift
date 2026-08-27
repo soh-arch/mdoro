@@ -12,7 +12,7 @@ struct PresetBarView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text("プリセット")
+            Text("Preset")
                 .font(.footnote)
                 .foregroundStyle(theme.textTertiary)
 
@@ -36,7 +36,7 @@ struct PresetBarView: View {
                 // REQ-PRS-013: 1件のときは切替 UI を出さず「追加」への導線にする。
                 Text("\(active.name)（\(Format.presetShape(active))）")
                     .foregroundStyle(theme.textPrimary)
-                SettingsLink { Text("追加") }
+                SettingsLink { Text("Add") }
                     .buttonStyle(.link)
             }
             Spacer()

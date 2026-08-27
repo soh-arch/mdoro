@@ -51,7 +51,7 @@ enum Format {
     }
 
     static func spokenRemaining(_ seconds: Int) -> String {
-        seconds >= 60 ? "残り\(seconds / 60)分\(seconds % 60)秒" : "残り\(seconds)秒"
+        seconds >= 60 ? "\(seconds / 60) minutes \(seconds % 60) seconds left" : "\(seconds) seconds left"
     }
 
     static func sessionLabel(_ type: SessionType) -> String {

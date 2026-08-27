@@ -6,7 +6,7 @@ struct PairingSection: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Section("iPhone との接続") {
+        Section("iPhone connection") {
             if let code = model.pairingCode {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(formatted(code))
@@ -14,28 +14,28 @@ struct PairingSection: View {
                         .textSelection(.enabled)
                     // REQ-SEC-003: 3分間のみ有効。残り時間を出さないと、
                     // 入力している最中に失効しても理由が分からない。
-                    Text("iPhone のアプリでこのコードを入力してください（残り \(model.pairingRemainingSeconds) 秒）")
+                    Text("Enter this code in the iPhone app (\(model.pairingRemainingSeconds) s left)")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                    Button("ペアリングをやめる") { model.endPairing() }
+                    Button("Stop pairing") { model.endPairing() }
                 }
             } else {
                 HStack {
                     Text(model.connection.label)
                     Spacer()
-                    Button("ペアリングを開始") { model.beginPairing() }
+                    Button("Start pairing") { model.beginPairing() }
                 }
-                Text("ペアリングは開始してから3分間だけ有効です。コードを5回間違えると終了します。")
+                Text("Pairing stays open for three minutes. Five wrong codes end it.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
 
             if let error = model.serverStartError {
                 // REQ-SEC-005 / REQ-ERR-014: 待ち受けられない事実と理由を隠さない。
-                Text("接続を待ち受けられません: \(error)")
+                Text("Cannot listen for connections: \(error)")
                     .font(.footnote)
                     .foregroundStyle(.red)
-                Text("「システム設定 > プライバシーとセキュリティ > ローカルネットワーク」で、このアプリが許可されているか確認してください。")
+                Text("Check that this app is allowed in System Settings > Privacy & Security > Local Network.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -60,16 +60,16 @@ struct ConnectionRequestBanner: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("\(deviceName) が接続しようとしています", systemImage: "iphone.gen3.badge.exclamationmark")
+            Label("\(deviceName) is trying to connect", systemImage: "iphone.gen3.badge.exclamationmark")
                 .font(.headline)
                 .foregroundStyle(theme.color(.warning, .text))
-            Text("接続中の端末は切断されます。60秒で自動的に拒否します。")
+            Text("The connected device will be disconnected. Denied automatically after 60 seconds.")
                 .font(.callout)
                 .foregroundStyle(theme.textSecondary)
             HStack(spacing: 10) {
-                Button("許可") { model.respondToConnectionRequest(approved: true) }
+                Button("Allow") { model.respondToConnectionRequest(approved: true) }
                     .buttonStyle(.borderedProminent)
-                Button("拒否") { model.respondToConnectionRequest(approved: false) }
+                Button("Deny") { model.respondToConnectionRequest(approved: false) }
             }
         }
         .padding(14)

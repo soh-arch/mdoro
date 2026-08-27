@@ -16,7 +16,7 @@ struct ConnectionBanner: View {
                 Spacer()
                 // REQ-PER-011: 永続化された状態を出しているあいだは取得時刻を併記する。
                 if !model.isConnected, let at = model.snapshotReceivedAt {
-                    Text("最終取得 \(at.formatted(date: .omitted, time: .shortened))")
+                    Text("Last received \(at.formatted(date: .omitted, time: .shortened))")
                         .font(.caption)
                         .foregroundStyle(theme.textTertiary)
                 }
@@ -26,14 +26,14 @@ struct ConnectionBanner: View {
 
             // REQ-NTF-011: 同期が取れるまで「同期中」と示し、確定していない情報を断定的に見せない。
             if model.isAwaitingFirstSync {
-                Text("同期中…")
+                Text("Syncing…")
                     .font(.footnote)
                     .foregroundStyle(theme.color(.warning, .text))
             }
 
             // Live Activity が出せない理由は隠さない。正常なら何も出さない。
             if let problem = model.liveActivityProblem {
-                Text("ライブアクティビティ: \(problem)")
+                Text("Live Activity: \(problem)")
                     .font(.caption)
                     .foregroundStyle(theme.color(.warning, .text))
                     .textSelection(.enabled)
@@ -54,12 +54,12 @@ struct ConnectionBanner: View {
     private var notice: some View {
         // REQ-ERR-014: ローカルネットワーク許可の拒否は、Wi-Fi 未接続とは別の文言にする。
         if model.localNetworkDenied {
-            Text("ローカルネットワークの利用が許可されていません")
+            Text("Local network access is not allowed")
                 .font(.callout.weight(.medium))
-            Text("「設定 > プライバシーとセキュリティ > ローカルネットワーク」でこのアプリを許可してください。")
+            Text("Allow this app in Settings > Privacy & Security > Local Network.")
                 .font(.footnote)
                 .foregroundStyle(theme.textSecondary)
-            Button("設定を開く") { openSettings() }
+            Button("Open Settings") { openSettings() }
                 .font(.footnote)
         } else if case let .failed(code) = model.status {
             Text(Self.message(for: code))
@@ -68,22 +68,22 @@ struct ConnectionBanner: View {
                 pairingField
             }
         } else if model.status == .needsPairing {
-            Text("Mac の設定画面でペアリングを開始し、表示された6桁のコードを入力してください。")
+            Text("Start pairing in Settings on your Mac, then enter the six-digit code it shows.")
                 .font(.footnote)
                 .foregroundStyle(theme.textSecondary)
             pairingField
         } else if model.servers.count > 1 {
             // REQ-ERR-005: 複数見つかったら一覧から選ばせる。
-            Text("接続先を選んでください").font(.footnote).foregroundStyle(theme.textSecondary)
+            Text("Choose a Mac").font(.footnote).foregroundStyle(theme.textSecondary)
             ForEach(model.servers) { server in
                 Button(server.name) { model.connect(to: server) }
                     .font(.footnote)
             }
         } else if model.servers.isEmpty {
             // REQ-ERR-008: 汎用的な接続エラーにしない。
-            Text("Mac に接続していません")
+            Text("Not connected to your Mac")
                 .font(.callout.weight(.medium))
-            Text("Mac と同じ Wi-Fi ネットワークに接続してください。")
+            Text("Join the same Wi-Fi network as your Mac.")
                 .font(.footnote)
                 .foregroundStyle(theme.textSecondary)
         }
@@ -92,11 +92,11 @@ struct ConnectionBanner: View {
     // REQ-SEC-001: 6桁のペアリングコードを入力させる。
     private var pairingField: some View {
         HStack {
-            TextField("6桁のコード", text: $pairingCode)
+            TextField("Six-digit code", text: $pairingCode)
                 .keyboardType(.numberPad)
                 .textFieldStyle(.roundedBorder)
                 .frame(maxWidth: 160)
-            Button("接続") {
+            Button("Connect") {
                 model.submitPairingCode(pairingCode)
                 pairingCode = ""
             }
@@ -111,12 +111,12 @@ struct ConnectionBanner: View {
 
     private static func message(for code: AuthFailureCode) -> LocalizedStringKey {
         switch code {
-        case .invalidPairingCode: return "コードが違います"
-        case .pairingModeNotActive: return "Mac 側でペアリングを開始してください"
-        case .pairingAttemptsExceeded: return "5回間違えたため、Mac 側でペアリングをやり直してください"
-        case .unknownDeviceToken: return "この端末の登録が失われました。もう一度ペアリングしてください"
-        case .anotherClientConnected: return "別の端末が接続中です"
-        case .connectionRejectedByUser: return "Mac 側で接続が承認されませんでした"
+        case .invalidPairingCode: return "That code is not correct"
+        case .pairingModeNotActive: return "Start pairing on your Mac"
+        case .pairingAttemptsExceeded: return "Five wrong codes. Start pairing again on your Mac"
+        case .unknownDeviceToken: return "This device is no longer registered. Pair again"
+        case .anotherClientConnected: return "Another device is connected"
+        case .connectionRejectedByUser: return "Your Mac did not approve the connection"
         }
     }
 }
@@ -137,22 +137,22 @@ struct PendingDecisionCard: View {
             if model.isConnected {
                 HStack(spacing: 10) {
                     if pending.reason == .pausedTooLong {
-                        Button("再開する") {
+                        Button("Resume it") {
                             model.send(.confirmRestoredSession, params: CommandParams(decision: .resume))
                         }
                         .buttonStyle(.borderedProminent)
                     }
-                    Button("完了として記録") {
+                    Button("Record as completed") {
                         model.send(.confirmRestoredSession, params: CommandParams(decision: .complete))
                     }
-                    Button("中断として記録") {
+                    Button("Record as stopped") {
                         model.send(.confirmRestoredSession, params: CommandParams(decision: .discard))
                     }
                 }
                 .buttonStyle(.bordered)
             } else {
                 // REQ-PER-005: 切断中は iPhone から応答できない。
-                Text("Mac 側で確認が必要です")
+                Text("Your Mac needs a decision")
                     .font(.footnote)
                     .foregroundStyle(theme.textSecondary)
             }
@@ -165,12 +165,12 @@ struct PendingDecisionCard: View {
     }
 
     private var title: LocalizedStringKey {
-        pending.reason == .restoredAfterEnd ? "セッションは終了していました" : "長時間の一時停止を検出しました"
+        pending.reason == .restoredAfterEnd ? "The session had already ended" : "A long pause was detected"
     }
 
     private var detail: LocalizedStringKey {
         let minutes = pending.elapsedSeconds / 60
-        return "実経過 \(minutes) 分"
+        return "actual \(minutes) min"
     }
 }
 
@@ -182,10 +182,10 @@ struct TaskListSectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("タスク").font(.headline).foregroundStyle(theme.textPrimary)
+                Text("Tasks").font(.headline).foregroundStyle(theme.textPrimary)
                 if model.taskList?.isTruncated == true {
                     // REQ-TSK-037
-                    Text("先頭 \(model.taskList?.itemCount ?? 0) 件のみ")
+                    Text("First \(model.taskList?.itemCount ?? 0) only")
                         .font(.footnote)
                         .foregroundStyle(theme.color(.warning, .text))
                 }
@@ -199,7 +199,7 @@ struct TaskListSectionView: View {
             let sections = model.taskList?.sections ?? []
             if sections.isEmpty {
                 // REQ-TSK-016
-                Text("タスクが見つかりません")
+                Text("No tasks found")
                     .font(.footnote)
                     .foregroundStyle(theme.textSecondary)
             }

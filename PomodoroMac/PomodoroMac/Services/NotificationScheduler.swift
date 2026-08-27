@@ -21,9 +21,9 @@ final class NotificationScheduler {
     func requestAuthorization() async -> String? {
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .sound])
-            return granted ? nil : "通知が許可されませんでした。"
+            return granted ? nil : "Notifications were not allowed."
         } catch {
-            return "通知の許可を求められませんでした: \(String(describing: error))"
+            return "Could not ask for notification permission: \(String(describing: error))"
         }
     }
 
@@ -59,9 +59,9 @@ final class NotificationScheduler {
         preset: Preset
     ) {
         let content = UNMutableNotificationContent()
-        content.title = "\(Self.label(for: type)) が終了しました"
+        content.title = "\(Self.label(for: type)) has ended"
 
-        var body = "次は \(Self.label(for: nextType))"
+        var body = "Next: \(Self.label(for: nextType))"
         if type == .work, let taskName, !taskName.isEmpty {
             body = "\(taskName)\n\(body)"
         }
@@ -96,9 +96,9 @@ final class NotificationScheduler {
 
         for (index, fireDate) in fireDates.enumerated() {
             let content = UNMutableNotificationContent()
-            content.title = "まもなく終了します"
+            content.title = "Ending soon"
             let remaining = Int((sessionEndAt.timeIntervalSince(fireDate) / 60).rounded())
-            content.body = "残り約 \(max(1, remaining)) 分"
+            content.body = "About \(max(1, remaining)) min left"
             apply(sound: preset.notificationSound, timeSensitive: preset.timeSensitiveNotifications, to: content)
 
             // 絶対時刻で撃つ。相対秒だとスリープ復帰でずれる（3原則の3つ目）。
@@ -128,8 +128,8 @@ final class NotificationScheduler {
     // REQ-LOG-005 / REQ-ERR-004: ログの書き込みに3回失敗したことを伝える。
     func notifyLogWriteFailure() {
         let content = UNMutableNotificationContent()
-        content.title = "実績ログを書き込めません"
-        content.body = "設定で出力先を確認してください。タイマーは動き続けています。"
+        content.title = "The session log cannot be written"
+        content.body = "Check the destination in Settings. The timer keeps running."
         content.sound = .default
         deliverNow(content, identifier: "log-write-failed")
     }
@@ -138,8 +138,8 @@ final class NotificationScheduler {
     // 音源を直接鳴らすと、通知が届かない状態を試聴が隠してしまう。
     func deliverSoundTest(preset: Preset) {
         let content = UNMutableNotificationContent()
-        content.title = "通知のテスト"
-        content.body = "区切りのときは、この通知が届きます。"
+        content.title = "Notification test"
+        content.body = "This is what you get at each boundary."
         apply(sound: preset.notificationSound, timeSensitive: preset.timeSensitiveNotifications, to: content)
         deliverNow(content, identifier: "sound-test.\(UUID().uuidString)")
     }
@@ -168,8 +168,8 @@ final class NotificationScheduler {
     static func label(for type: SessionType) -> String {
         switch type {
         case .work: return "Focus"
-        case .shortBreak: return "短い休憩"
-        case .longBreak: return "長い休憩"
+        case .shortBreak: return "Short Break"
+        case .longBreak: return "Long Break"
         }
     }
 }
@@ -184,9 +184,9 @@ struct NotificationPermission: Equatable, Sendable {
 
     // 音が鳴らない理由を、鳴らない側で説明できるようにする。
     var problem: String? {
-        if !isAuthorized { return "macOS の「通知」設定でこのアプリの通知が許可されていません（\(status)）。" }
-        if !alertsEnabled { return "macOS の「通知」設定でバナーが切られています。" }
-        if !soundEnabled { return "macOS の「通知」設定で通知音が切られています。アプリ側でどの音を選んでも鳴りません。" }
+        if !isAuthorized { return "Notifications for this app are turned off in macOS Settings (\(status))." }
+        if !alertsEnabled { return "Banners are turned off for this app in macOS Settings." }
+        if !soundEnabled { return "Sound is turned off for this app in macOS Settings. No choice made here will play." }
         return nil
     }
 }

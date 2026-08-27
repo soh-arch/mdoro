@@ -19,7 +19,7 @@ struct PresetEditorView: View {
             if let preset = selected {
                 editor(for: preset)
             } else {
-                Text("プリセットを選んでください").foregroundStyle(.secondary).padding()
+                Text("Choose a preset").foregroundStyle(.secondary).padding()
             }
         }
         // 設定は macOS 側でいつでも変えられる。開くたびに見に行く。
@@ -33,7 +33,7 @@ struct PresetEditorView: View {
                     HStack {
                         Text(preset.name)
                         if preset.id == model.presets.activePresetId {
-                            Text("使用中").font(.caption2).foregroundStyle(.secondary)
+                            Text("In use").font(.caption2).foregroundStyle(.secondary)
                         }
                     }
                     Text(Format.presetShape(preset)).font(.caption).foregroundStyle(.secondary)
@@ -45,7 +45,7 @@ struct PresetEditorView: View {
                 // REQ-PRS-003: 上限 10 件。
                 Button { create() } label: { Image(systemName: "plus") }
                     .disabled(model.presets.presets.count >= 10)
-                    .help(model.presets.presets.count >= 10 ? "プリセットは10件までです" : "追加")
+                    .help(model.presets.presets.count >= 10 ? "Up to 10 presets" : "Add")
                 Button { duplicate() } label: { Image(systemName: "plus.square.on.square") }
                     .disabled(selected == nil)
                 // REQ-PRS-004: 使用中のプリセットと最後の1件は削除できない。
@@ -72,56 +72,56 @@ struct PresetEditorView: View {
             }
 
             Section {
-                TextField("名前", text: binding(preset, \.name))
+                TextField("Name", text: binding(preset, \.name))
             } header: {
-                Text("識別")
+                Text("Identity")
             } footer: {
                 // 9.5 C 群
-                groupNote("即座に反映されます。ログには開始時点の名前が残ります。")
+                groupNote("Applies immediately. The log keeps the name from when the session started.")
             }
 
             Section {
                 minuteStepper("Focus", binding(preset, \.workSeconds), range: 1...180)
-                minuteStepper("短い休憩", binding(preset, \.shortBreakSeconds), range: 1...60)
-                minuteStepper("長い休憩", binding(preset, \.longBreakSeconds), range: 1...60)
+                minuteStepper("Short Break", binding(preset, \.shortBreakSeconds), range: 1...60)
+                minuteStepper("Long Break", binding(preset, \.longBreakSeconds), range: 1...60)
             } header: {
-                Text("セッションの長さ")
+                Text("Session lengths")
             } footer: {
                 // REQ-UIX-009 / 9.5 A 群: 実行中の sessionEndAt は変えない。
-                groupNote("**次に開始されるセッションから**適用されます。実行中のセッションの終了時刻は変わりません。")
+                groupNote("Applies **from the next session**. The end time of a running session does not change.")
             }
 
             Section {
                 Stepper(value: binding(preset, \.longBreakInterval), in: 2...12) {
-                    Text("長い休憩を挟む間隔：\(preset.longBreakInterval) 回")
+                    Text("Long break every \(preset.longBreakInterval) loops")
                 }
-                minuteStepper("延長1回あたり", binding(preset, \.extendSeconds), range: 1...30)
-                Toggle("終了後に自動で次へ進む", isOn: binding(preset, \.autoAdvance))
+                minuteStepper("Each extension", binding(preset, \.extendSeconds), range: 1...30)
+                Toggle("Start the next session automatically", isOn: binding(preset, \.autoAdvance))
                 if preset.autoAdvance {
                     // REQ-TIM-043: autoAdvance は猶予を放棄することを意味する。
-                    groupNote("自動で次が始まるため、終了後の猶予（延長・中断を選べる1分）はなくなります。")
+                    groupNote("The next session starts on its own, so the one-minute grace period for extending or stopping is gone.")
                 }
             } header: {
-                Text("進行")
+                Text("Flow")
             } footer: {
                 // 9.5 B 群
-                groupNote("**実行中のセッションにも即座に**適用されます。")
+                groupNote("Applies **immediately, including to a running session**.")
             }
 
             Section {
                 HStack {
                     // Decision 0020: 音色の選択は Mac 専用。共通設定と誤解させない。
-                    Picker("Mac の通知音", selection: binding(preset, \.notificationSound)) {
+                    Picker("Mac notification sound", selection: binding(preset, \.notificationSound)) {
                         ForEach(NotificationSound.allCases, id: \.self) { sound in
                             Text(sound.displayName).tag(sound)
                         }
                     }
                     // Decision 0019: 音源を直接鳴らさず、本番と同じ通知を1件送る。
                     // 既定音も試聴でき、通知が届かない状態もここで露見する。
-                    Button("テスト通知") { model.sendNotificationSoundTest(preset) }
-                        .help("この設定で通知を1件送ります")
+                    Button("Send a test") { model.sendNotificationSoundTest(preset) }
+                        .help("Sends one notification with this setting")
                 }
-                groupNote("macOS のシステムサウンドから選びます。**この選択が効くのは Mac だけです。** iPhone は iOS の既定音で鳴ります。無音を選んだときは、どちらの端末でも鳴りません。")
+                groupNote("Chosen from the macOS system sounds. **This choice only affects the Mac.** iPhone uses the iOS default sound. Silent applies to both.")
                 // 鳴らない理由がアプリの外にあるなら、アプリが言う。
                 if let problem = model.notificationPermission?.problem {
                     Text(problem).font(.footnote).foregroundStyle(.orange)
@@ -129,12 +129,12 @@ struct PresetEditorView: View {
                 if let error = model.notificationAuthorizationError {
                     Text(error).font(.footnote).foregroundStyle(.orange)
                 }
-                Toggle("集中モード中も通知する", isOn: binding(preset, \.timeSensitiveNotifications))
+                Toggle("Notify during Focus modes", isOn: binding(preset, \.timeSensitiveNotifications))
                 preNotificationEditor(preset)
             } header: {
-                Text("通知")
+                Text("Notifications")
             } footer: {
-                groupNote("**実行中のセッションにも即座に**適用されます。")
+                groupNote("Applies **immediately, including to a running session**.")
             }
         }
         .formStyle(.grouped)
@@ -144,34 +144,34 @@ struct PresetEditorView: View {
     @ViewBuilder
     private func preNotificationEditor(_ preset: Preset) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("予告通知（\(preset.preNotifications.count) / 2）").font(.callout)
+            Text("Heads-up (\(preset.preNotifications.count) / 2)").font(.callout)
 
             ForEach(Array(preset.preNotifications.enumerated()), id: \.offset) { index, trigger in
                 HStack {
                     Text(describe(trigger, in: preset))
                     // REQ-NTF-021: 発火時刻がセッション開始以前になる場合はスケジュールされない旨を示す。
                     if !canFire(trigger, in: preset) {
-                        Label("このセッション長では鳴りません", systemImage: "exclamationmark.triangle")
+                        Label("Will not fire at this session length", systemImage: "exclamationmark.triangle")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
                     Spacer()
-                    Button("削除") { removeTrigger(preset, at: index) }.buttonStyle(.link)
+                    Button("Remove") { removeTrigger(preset, at: index) }.buttonStyle(.link)
                 }
             }
 
             if preset.preNotifications.count < 2 {
-                Menu("トリガを追加") {
+                Menu("Add a trigger") {
                     // 承認済みの刻み（Decision 0012）: 残り1〜15分を1分単位。
-                    Menu("残り時間で指定") {
+                    Menu("By time left") {
                         ForEach(1...15, id: \.self) { minutes in
-                            Button("残り \(minutes) 分") { addTrigger(preset, .beforeEnd(seconds: minutes * 60)) }
+                            Button("\(minutes) min left") { addTrigger(preset, .beforeEnd(seconds: minutes * 60)) }
                         }
                     }
                     // 経過 50〜95% を5刻み。
-                    Menu("経過割合で指定") {
+                    Menu("By percent elapsed") {
                         ForEach(Array(stride(from: 50, through: 95, by: 5)), id: \.self) { percent in
-                            Button("\(percent)% 経過時") { addTrigger(preset, .atElapsedPercent(percent)) }
+                            Button("at \(percent)% elapsed") { addTrigger(preset, .atElapsedPercent(percent)) }
                         }
                     }
                 }
@@ -182,8 +182,8 @@ struct PresetEditorView: View {
 
     private func describe(_ trigger: PreNotification, in preset: Preset) -> String {
         switch trigger {
-        case let .beforeEnd(seconds): return "残り \(seconds / 60) 分"
-        case let .atElapsedPercent(percent): return "\(percent)% 経過時"
+        case let .beforeEnd(seconds): return "\(seconds / 60) min left"
+        case let .atElapsedPercent(percent): return "at \(percent)% elapsed"
         }
     }
 
@@ -233,7 +233,7 @@ struct PresetEditorView: View {
                 seconds.wrappedValue = max(seconds.wrappedValue - 60, range.lowerBound * 60)
             }
             .labelsHidden()
-            Text("分").foregroundStyle(.secondary)
+            Text("min").foregroundStyle(.secondary)
         }
     }
 
@@ -255,7 +255,7 @@ struct PresetEditorView: View {
 
     private func create() {
         var new = Preset.standard(id: UUID().uuidString)
-        new.name = "新しいプリセット"
+        new.name = "New Preset"
         new.isBuiltInDefault = false
         errorMessage = message(for: model.send(.createPreset(new)))
         selectedId = new.id
@@ -275,12 +275,12 @@ struct PresetEditorView: View {
     private func message(for error: TimerError?) -> String? {
         switch error {
         case nil: return nil
-        case .presetNameConflict: return "同じ名前のプリセットがあります。"
-        case .presetLimitReached: return "プリセットは10件までです。"
-        case .cannotDeleteActivePreset: return "使用中のプリセットは削除できません。"
-        case .cannotDeleteLastPreset: return "最後の1件は削除できません。"
-        case .settingOutOfRange: return "設定できる範囲を超えています。"
-        default: return "この操作は受け付けられませんでした。"
+        case .presetNameConflict: return "Another preset already has that name."
+        case .presetLimitReached: return "Up to 10 presets."
+        case .cannotDeleteActivePreset: return "The preset in use cannot be deleted."
+        case .cannotDeleteLastPreset: return "The last preset cannot be deleted."
+        case .settingOutOfRange: return "That is outside the allowed range."
+        default: return "That action was not accepted."
         }
     }
 }
