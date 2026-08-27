@@ -84,11 +84,13 @@ struct MdoroWidgetLiveActivity: Widget {
         return symbol(context.state.sessionType)
     }
 
+    // REQ-COL-013 の趣旨で、**形の違いで種別を分ける。**
+    // Focus に `circle.fill` を当てていたが、丸は何も言っていない（2026-08-28、実機で報告）。
     private func symbol(_ type: SessionType) -> String {
         switch type {
-        case .work: return "circle.fill"
+        case .work: return "timer"
         case .shortBreak: return "cup.and.saucer"
-        case .longBreak: return "cup.and.saucer.fill"
+        case .longBreak: return "moon.zzz"
         }
     }
 }

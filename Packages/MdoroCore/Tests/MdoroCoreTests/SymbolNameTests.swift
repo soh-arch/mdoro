@@ -28,7 +28,9 @@ struct SymbolNameTests {
                      "arrow.trianglehead.2.clockwise",
                      // 設定タブとタスク一覧で使う名前も、ここで実在を確かめる。
                      "timer", "gearshape", "folder", "paintpalette",
-                     "largecircle.fill.circle", "circle"] {
+                     "largecircle.fill.circle", "circle",
+                     // Live Activity のセッション記号。
+                     "cup.and.saucer", "moon.zzz"] {
             #expect(symbolExists(name), "\(name) が実在しない")
         }
     }
