@@ -25,7 +25,7 @@ struct ConnectionBanner: View {
 
     private var statusMark: some View {
         HStack(spacing: 6) {
-            Image(systemName: model.connectionStatus.symbolName)
+            Image(systemName: model.connectionStatus.peerSymbolName)
             Text(Format.connectionLabel(model.connectionStatus))
         }
         .font(.footnote)
@@ -35,7 +35,7 @@ struct ConnectionBanner: View {
     private var banner: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Image(systemName: model.connectionStatus.symbolName)
+                Image(systemName: model.connectionStatus.peerSymbolName)
                 Text(Format.connectionLabel(model.connectionStatus))
                 Spacer()
                 // REQ-PER-011: 永続化された状態を出しているあいだは取得時刻を併記する。

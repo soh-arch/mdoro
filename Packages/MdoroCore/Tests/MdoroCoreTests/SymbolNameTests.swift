@@ -20,12 +20,24 @@ private func symbolExists(_ name: String) -> Bool {
 @Suite("SF Symbol 名の実在 (REQ-UIX-030 / 035)")
 struct SymbolNameTests {
 
+    // `peerSymbolName` は `#if os(macOS)` で分岐するため、テストを走らせた側の名前しか通らない。
+    // **もう片方の名前は、名指しで確かめる。** SF Symbols のカタログは両プラットフォームで共通。
+    @Test func peerSymbolsOfBothPlatformsExist() {
+        for name in ["iphone.gen3", "iphone.gen3.slash",
+                     "laptopcomputer", "laptopcomputer.slash",
+                     "arrow.trianglehead.2.clockwise"] {
+            #expect(symbolExists(name), "\(name) が実在しない")
+        }
+    }
+
     @Test func connectionStatusSymbolsExist() {
         for status in ConnectionStatus.allCases {
             #expect(symbolExists(status.menuBarSymbolName),
                     "\(status): メニューバー用の \(status.menuBarSymbolName) が実在しない")
             #expect(symbolExists(status.symbolName),
                     "\(status): 画面用の \(status.symbolName) が実在しない")
+            #expect(symbolExists(status.peerSymbolName),
+                    "\(status): 相手端末用の \(status.peerSymbolName) が実在しない")
         }
     }
 

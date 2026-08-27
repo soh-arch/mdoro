@@ -142,7 +142,7 @@ struct MainWindowView: View {
     private var statusBar: some View {
         HStack(spacing: 8) {
             let status = model.connection
-            Image(systemName: status.symbolName)
+            Image(systemName: status.peerSymbolName)
             Text(status.label)
             if model.pendingLogCount > 0 {
                 Divider().frame(height: 12)

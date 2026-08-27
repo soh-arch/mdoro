@@ -37,6 +37,28 @@ public enum ConnectionStatus: String, Equatable, Sendable, Codable, CaseIterable
         }
     }
 
+    // REQ-UIX-004: **表示する側から見た「相手の端末」**を表す記号。
+    // `symbolName` を両端から使うと、指す相手が逆になる
+    // （iPhone の画面に iPhone のアイコンが出て「Mac につながっている」を意味していた。
+    // 2026-08-28、実機で確認）。
+    //
+    // 名前は必ず `SymbolNameTests` で存在を検証すること。
+    public var peerSymbolName: String {
+        #if os(macOS)
+        switch self {
+        case .connected: return "iphone.gen3"
+        case .reconnecting: return "arrow.trianglehead.2.clockwise"
+        case .disconnected: return "iphone.gen3.slash"
+        }
+        #else
+        switch self {
+        case .connected: return "laptopcomputer"
+        case .reconnecting: return "arrow.trianglehead.2.clockwise"
+        case .disconnected: return "laptopcomputer.slash"
+        }
+        #endif
+    }
+
     public var colorRole: ColorRole {
         switch self {
         case .connected: return .success

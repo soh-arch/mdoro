@@ -32,16 +32,19 @@ struct MdoroWidgetLiveActivity: Widget {
                         .font(.system(size: WidgetFontSize.label).monospacedDigit())
                         .lineLimit(1)
                 }
-                DynamicIslandExpandedRegion(.center) {
-                    TimerText(state: context.state)
-                        .font(.system(size: WidgetFontSize.islandTimer, weight: .medium, design: .rounded).monospacedDigit())
-                }
+                // **`.center` は使わない。** 中央領域は幅を全部取り、端の2領域を潰す。
+                // 種別名も周回数も、置いたのに何も描かれなかった（2026-08-28、実機で確認）。
                 DynamicIslandExpandedRegion(.bottom) {
                     // **島にタスク名を出さない。** 高さが固定で、3つ積むと黙って消える。
                     // タスク名はロック画面が持つ（REQ-UIX-025）。
-                    VStack(spacing: 4) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline) {
+                            TimerText(state: context.state)
+                                .font(.system(size: WidgetFontSize.islandTimer, weight: .medium, design: .rounded).monospacedDigit())
+                            Spacer()
+                            Controls(state: context.state)
+                        }
                         StatusNotice(isStale: context.isStale, isConnected: context.state.isConnected)
-                        Controls(state: context.state)
                     }
                 }
             } compactLeading: {
@@ -120,7 +123,7 @@ private struct StatusNotice: View {
         if isStale {
             notice("This may be out of date", "exclamationmark.triangle")
         } else if !isConnected {
-            notice("Disconnected from your Mac", ConnectionStatus.disconnected.symbolName)
+            notice("Disconnected from your Mac", ConnectionStatus.disconnected.peerSymbolName)
         }
     }
 

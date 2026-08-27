@@ -74,7 +74,7 @@ struct FocusView: View {
                     .foregroundStyle(theme.color(timer.sessionType.colorRole, .text))
                 Text("\(timer.displayLoop(longBreakInterval: preset.longBreakInterval)) / \(preset.longBreakInterval)")
                     .foregroundStyle(theme.textSecondary)
-                Image(systemName: model.connectionStatus.symbolName)
+                Image(systemName: model.connectionStatus.peerSymbolName)
                     .foregroundStyle(theme.color(model.connectionStatus.colorRole, .text))
             }
             .font(.system(size: height, weight: .medium))
