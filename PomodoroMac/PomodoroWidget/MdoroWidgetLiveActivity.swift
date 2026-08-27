@@ -50,6 +50,9 @@ struct MdoroWidgetLiveActivity: Widget {
                         }
                         StatusNotice(isStale: context.isStale, isConnected: context.state.isConnected)
                     }
+                    // 下の領域も島の外周まで届く。**角の丸みに食われるので、四方を逃がす。**
+                    .padding(.horizontal, WidgetInset.islandEdge)
+                    .padding(.bottom, WidgetInset.islandBottom)
                 }
             } compactLeading: {
                 // REQ-UIX-023: コンパクト表示に文言は置けない。**記号で示す。**
@@ -97,6 +100,7 @@ struct MdoroWidgetLiveActivity: Widget {
 private enum WidgetInset {
     // ダイナミックアイランドの角の丸みを避けるための、端からの逃げ。
     static let islandEdge: CGFloat = 8
+    static let islandBottom: CGFloat = 4
 }
 
 private enum WidgetFontSize {
