@@ -148,8 +148,9 @@ struct MainWindowView: View {
             // 接続でつまずいた人が最初に見るのはここ。**ここから設定へ行けるようにする。**
             SettingsLink {
                 Label(status.label, systemImage: status.peerSymbolName)
+                    .foregroundStyle(theme.color(status.colorRole, .text))
             }
-            .buttonStyle(.link)
+            .buttonStyle(.plain)
             .simultaneousGesture(TapGesture().onEnded { model.settingsTab = .connection })
             if model.pendingLogCount > 0 {
                 Divider().frame(height: 12)

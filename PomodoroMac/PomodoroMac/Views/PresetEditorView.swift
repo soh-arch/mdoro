@@ -165,7 +165,10 @@ struct PresetEditorView: View {
                             .foregroundStyle(.orange)
                     }
                     Spacer()
-                    Button("Remove") { removeTrigger(preset, at: index) }.buttonStyle(.link)
+                    Button { removeTrigger(preset, at: index) } label: {
+                        Text("Remove").foregroundStyle(theme.color(.danger, .text))
+                    }
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -230,7 +233,16 @@ struct PresetEditorView: View {
     ) -> some View {
         // REQ-CFG-011 / 012: UI は分単位、内部は秒。直接入力とステッパーの両方を出す。
         HStack {
+            // REQ-COL-011: セッション種別に使ってよいのは `-graphic`（図形）と `-text`（文字）だけ。
+            // **帯は使えない。** 色付きの文字だけでは弱かったので、図形を添えて持ち上げる
+            //（2026-08-28、実機で「分かりづらい」と報告）。
+            if let role {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(theme.color(role, .graphic))
+                    .frame(width: 4, height: 18)
+            }
             Text(title)
+                .fontWeight(role == nil ? .regular : .medium)
                 .foregroundStyle(role.map { theme.color($0, .text) } ?? theme.textPrimary)
             Spacer()
             TextField("", value: Binding(

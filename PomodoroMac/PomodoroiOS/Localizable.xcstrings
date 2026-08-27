@@ -58,6 +58,9 @@
     "Appearance" : {
 
     },
+    "Applies to this iPhone only. The Mac keeps its own." : {
+
+    },
     "Can only start while the app is in the foreground" : {
 
     },
@@ -92,6 +95,15 @@
 
     },
     "Focus" : {
+
+    },
+    "Forget" : {
+
+    },
+    "Forget %@" : {
+
+    },
+    "Forget this Mac?" : {
 
     },
     "Full Screen" : {
@@ -146,6 +158,9 @@
     "Open Settings" : {
 
     },
+    "Pairing" : {
+
+    },
     "Pause" : {
 
     },
@@ -164,10 +179,16 @@
     "Record as stopped" : {
 
     },
+    "Removes this device's registration. Pairing again takes a six-digit code." : {
+
+    },
     "Resume" : {
 
     },
     "Resume it" : {
+
+    },
+    "Settings" : {
 
     },
     "Short Break" : {
@@ -216,9 +237,6 @@
 
     },
     "This device is no longer registered. Pair again" : {
-
-    },
-    "This setting applies to this iPhone only. The Mac keeps its own." : {
 
     },
     "Waiting for sync" : {

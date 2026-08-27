@@ -567,7 +567,8 @@ iPhone 側も旧アプリを削除してから入れ直す。**サンドボッ�
 `.tint` を当てて直らず、直したと報告してしまった（2026-08-28）。
 行に `-subtle` の地を敷き、`onTapGesture` で選ぶ形にする。
 
-同じ理由で、`.buttonStyle(.link)` も既定のアクセント色を使う。**`.tint` が要る。**
+同じ理由で **`.buttonStyle(.link)` も自前の色を受け付けない。`.tint` でも変わらない。**
+ラベルを `foregroundStyle` で塗り、`.buttonStyle(.plain)` にする。
 
 ### ダイナミックアイランドの `.center` を使わない
 

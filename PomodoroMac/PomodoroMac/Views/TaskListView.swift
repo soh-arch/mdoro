@@ -63,16 +63,20 @@ struct TaskListView: View {
                 } label: {
                     Label("Followed the selection", systemImage: "arrow.turn.down.right")
                         .font(.footnote)
+                        .foregroundStyle(theme.color(.accentPrimary, .text))
                 }
-                .buttonStyle(.link)
-                .tint(theme.color(.accentPrimary, .text))
+                // REQ-COL-002: `.link` スタイルは自前の色を受け付けない（`.tint` も効かない）。
+                // **ラベルを自分で塗り、素のボタンにする。**
+                .buttonStyle(.plain)
             }
 
             if model.tasks.selectedTaskId != nil {
-                Button("Clear selection") { model.clearTaskSelection() }
-                    .buttonStyle(.link)
-                .tint(theme.color(.accentPrimary, .text))
-                    .font(.footnote)
+                Button { model.clearTaskSelection() } label: {
+                    Text("Clear selection")
+                        .font(.footnote)
+                        .foregroundStyle(theme.color(.accentPrimary, .text))
+                }
+                .buttonStyle(.plain)
             }
         }
     }

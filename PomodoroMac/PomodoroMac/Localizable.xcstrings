@@ -183,9 +183,6 @@
     "Light" : {
 
     },
-    "Long break every %lld loops" : {
-
-    },
     "Loop %lld of %lld" : {
       "localizations" : {
         "en" : {

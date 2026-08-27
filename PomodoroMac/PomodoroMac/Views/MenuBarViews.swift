@@ -154,10 +154,6 @@ struct MenuBarMenuContent: View {
         let sections = model.tasks.grouped(showCompleted: model.settings.showCompletedTasks)
         if !sections.isEmpty {
             Menu("Task") {
-                if model.tasks.selectedTaskId != nil {
-                    Button("Clear selection") { model.clearTaskSelection() }
-                    Divider()
-                }
                 ForEach(sections) { section in
                     Menu(section.name) {
                         ForEach(section.items.prefix(Self.taskMenuLimit)) { item in
@@ -173,6 +169,11 @@ struct MenuBarMenuContent: View {
                             Text("More in the main window")
                         }
                     }
+                }
+                // **選択の解除は最下段。** 上に置くと、タスクを選ぶつもりで押してしまう。
+                if model.tasks.selectedTaskId != nil {
+                    Divider()
+                    Button("Clear selection") { model.clearTaskSelection() }
                 }
             }
         }

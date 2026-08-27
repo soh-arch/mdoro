@@ -36,8 +36,10 @@ struct PresetBarView: View {
                 // REQ-PRS-013: 1件のときは切替 UI を出さず「追加」への導線にする。
                 Text("\(active.name)（\(Format.presetShape(active))）")
                     .foregroundStyle(theme.textPrimary)
-                SettingsLink { Text("Add") }
-                    .buttonStyle(.link)
+                SettingsLink {
+                    Text("Add").foregroundStyle(theme.color(.accentPrimary, .text))
+                }
+                .buttonStyle(.plain)
             }
             Spacer()
         }
