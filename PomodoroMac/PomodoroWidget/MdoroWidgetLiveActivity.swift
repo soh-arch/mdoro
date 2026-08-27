@@ -40,10 +40,15 @@ struct MdoroWidgetLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     // **島にタスク名を出さない。** 高さが固定で、3つ積むと黙って消える。
                     // タスク名はロック画面が持つ（REQ-UIX-025）。
-                    VStack(alignment: .leading, spacing: 4) {
-                        TimerText(state: context.state)
-                            .font(.system(size: WidgetFontSize.islandTimer, weight: .medium, design: .rounded).monospacedDigit())
-                        StatusNotice(isStale: context.isStale, isConnected: context.state.isConnected)
+                    // ボタンが抜けたので、左寄せだと右が大きく空く。**中央に置く。**
+                    HStack {
+                        Spacer(minLength: 0)
+                        VStack(spacing: 4) {
+                            TimerText(state: context.state)
+                                .font(.system(size: WidgetFontSize.islandTimer, weight: .medium, design: .rounded).monospacedDigit())
+                            StatusNotice(isStale: context.isStale, isConnected: context.state.isConnected)
+                        }
+                        Spacer(minLength: 0)
                     }
                     // 下の領域も島の外周まで届く。**角の丸みに食われるので、四方を逃がす。**
                     .padding(.horizontal, WidgetInset.islandEdge)

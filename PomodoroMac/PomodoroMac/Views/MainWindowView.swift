@@ -13,6 +13,25 @@ struct MainWindowView: View {
     private var preset: Preset { model.presets.activePreset ?? Preset.standard() }
 
     var body: some View {
+        // **内容が窓より高いと、SwiftUI は黙って上を切る。**
+        // 接続要求や PENDING_DECISION の帯が増えたとき、いちばん上の帯が
+        // タイトルバーに食い込んで読めなくなっていた（2026-08-28、実機）。
+        // 伸び縮みする部分をスクロールに入れ、**状態表示は下に固定する。**
+        VStack(spacing: 0) {
+            ScrollView { content }
+            Divider().overlay(theme.borderSubtle)
+            statusBar
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
+        }
+        .frame(minWidth: 460, minHeight: 560)
+        .background(theme.background)
+        .environment(\.theme, theme)
+        // REQ-COL-003: 設定でライト固定・ダーク固定も選べる。
+        .preferredColorScheme(preferredScheme)
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 20) {
             // REQ-SEC-004: 接続要求の確認。タイマーの操作より前に出す。
             if let requester = model.pendingConnectionRequest {
@@ -36,15 +55,9 @@ struct MainWindowView: View {
             PresetBarView()
             Divider().overlay(theme.borderSubtle)
             TaskListView()
-            Spacer(minLength: 0)
-            statusBar
         }
         .padding(20)
-        .frame(minWidth: 460, minHeight: 560)
-        .background(theme.background)
-        .environment(\.theme, theme)
-        // REQ-COL-003: 設定でライト固定・ダーク固定も選べる。
-        .preferredColorScheme(preferredScheme)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var preferredScheme: SwiftUI.ColorScheme? {

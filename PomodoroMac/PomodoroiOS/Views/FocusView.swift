@@ -105,7 +105,10 @@ struct FocusView: View {
 
     private func bar(width: CGFloat, height: CGFloat, role: ColorRole) -> some View {
         ZStack(alignment: .leading) {
-            Capsule().fill(theme.color(role, .line))
+            // **軌道は中立の色にする。** セッション種別に使ってよいのは `-graphic` と `-text` だけで
+            //（REQ-COL-011）、`-line` を渡すと `ColorRole.color(_:in:)` の precondition で落ちる。
+            // 実際に落とした（2026-08-28、実機で集中表示ビューが真っ暗になった）。
+            Capsule().fill(theme.borderSubtle)
             Capsule()
                 .fill(theme.color(role, .graphic))
                 .frame(width: width * progress)
