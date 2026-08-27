@@ -159,11 +159,11 @@ Git に入っていないため、失われると復元できない。
 
 | ID | 内容 |
 | :-- | :---- |
-| OPEN-002 | 集中表示ビューのタイポグラフィ（数字書体・等幅の可否・ウェイト）。配色は解決済み。**現在は Mac のメインウィンドウと同じ指定**（`.system(design: .rounded).monospacedDigit()`）を使っている。変えるなら指示が要る |
-| OPEN-015 | REQ-UIX-010 の「画面短辺の 40% 以上の**文字高**」を、フォントサイズと解釈している。字面の高さと解釈すると、縦向きでは `05:12` の5字が横幅に収まらず**幾何的に成立しない**。現状の解釈でよいか |
-| OPEN-003 | 診断ログ（REQ-ERR-010、SHOULD）の保持期間とローテーション方針。**工程5では実装していない。** 保持期間を決めないと、書き出し口だけ作っても際限なく溜まる |
+| OPEN-015 | REQ-UIX-010 の「画面短辺の 40% 以上の**文字高**」を、フォントサイズと解釈している。字面の高さと解釈すると、縦向きでは `05:12` の5字が横幅に収まらず**幾何的に成立しない**。現状の解釈でよいか。**プロダクトオーナーが手元の iPhone で確認後に条文を明確化する**（2026-08-27） |
+| OPEN-003 | 診断ログ（REQ-ERR-010、SHOULD）の保持期間とローテーション方針。未実装。**工程8終了後に判断する**（2026-08-27） |
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 |
 | OPEN-007 | REQ-NTF-005 の Time Sensitive 通知が実機で届くか。**Xcode 26.6 の Capability 一覧に 「Time Sensitive Notifications」は存在しなかった**（2026-08-26 確認）。capability 追加ではなく `UNNotificationInterruptionLevel.timeSensitive` の指定で実装し、**工程7で実機検証する** |
+| OPEN-016 | **iOS の通知音**。`/System/Library/Sounds` は iOS に存在せず（ランタイムで確認）、`UNNotificationSound(named:)` はアプリバンドルと `Library/Sounds` しか見ないため、[0017](decisions/0017-system-notification-sounds.md) の対応表（Glass / Submarine / Tink）を iOS で使えない。現在は無音以外すべて OS 既定音。選択肢は「iPhone では既定音のみ（Mac だけ4種）」か「音源をバンドルに同梱する」（0017 の『独自音源を同梱しない』と衝突） |
 | OPEN-011 | `--border-strong` が WCAG 1.4.11 の 3.0 を満たすのは `--bg` 上のみ（ライト 3.10 / ダーク 3.30）。`--surface-raised` 上では 2.91 / 2.68 に落ちる。仕様書は `-strong` の保証面を規定していない。**工程4では顕在化しなかった**（設定画面の入力欄はシステム標準のコントロールを使い、`-strong` を自前で描いていない）。枠を自前で描く場面が来たら判断が要る |
 
 ---
@@ -196,6 +196,13 @@ Git に入っていないため、失われると復元できない。
 - 通知音をシステムサウンドに確定（[0017](decisions/0017-system-notification-sounds.md)）、
   グローバルショートカット2種（一時停止/再開・ウィンドウ前面）、ログイン時起動
   （[0016](decisions/0016-standard-settings-and-hotkeys.md)）
+- **工程7 完了（iPhone の通知）**: 絶対時刻のローカル通知として事前スケジュール（REQ-NTF-002）、
+  発火時刻・内容の変化での再スケジュール（REQ-NTF-003）、通知内容（REQ-NTF-004）、
+  予告通知（REQ-NTF-007 / 020〜023）、`DateComponents.timeZone` の明示（REQ-COM-014）、
+  PENDING_DECISION での取り消し（REQ-PER-008）、通知タップ後の「同期中」表示（REQ-NTF-011）
+  — `PomodoroiOS/Client/NotificationScheduler.swift`
+  - **実機で確認したのはセッション終了通知のみ**。予告通知は発火時刻の算出（`PreNotificationSchedule`）が
+    単体テスト済みで、スケジュール経路は終了通知と同じだが、通しでは未確認
 - **工程6 完了（iOS アプリ）**: Bonjour 探索と接続（REQ-COM-003 / 004）、
   時刻同期の適用（REQ-COM-009）、切断中の表示と操作無効化（REQ-COM-011〜013）、
   ペアリング入力（REQ-SEC-001）、Keychain でのトークン保持、

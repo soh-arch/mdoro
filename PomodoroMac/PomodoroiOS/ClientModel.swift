@@ -23,17 +23,21 @@ final class ClientModel {
     private(set) var snapshotReceivedAt: Date?
     private(set) var localNetworkDenied = false
     private(set) var displayNow = Date()
+    // REQ-NTF-011: 通知から起動した直後は、同期が取れるまで断定的に表示しない。
+    private(set) var isAwaitingFirstSync = false
 
     // 集中表示ビューを出しているか（REQ-UIX-013）。
     var isFocusViewPresented = false
 
     private let client = PomodoroClient()
+    private let notifications = NotificationScheduler()
     private let browser = ServerBrowser()
     private var ticker: Task<Void, Never>?
 
     // MARK: - 起動
 
     func start() {
+        Task { await notifications.requestAuthorization() }
         restoreLastSnapshot()
         browser.onChange = { [weak self] found in
             self?.servers = found
@@ -67,9 +71,14 @@ final class ClientModel {
         client.connect(to: server, pairingCode: pairingCode, callbacks: PomodoroClient.Callbacks(
             statusChanged: { [weak self] in self?.status = $0 },
             receivedSnapshot: { [weak self] snapshot in
-                self?.snapshot = snapshot
-                self?.snapshotReceivedAt = Date()
-                self?.persistSnapshot(snapshot)
+                guard let self else { return }
+                self.snapshot = snapshot
+                self.snapshotReceivedAt = Date()
+                self.isAwaitingFirstSync = false
+                self.persistSnapshot(snapshot)
+                // REQ-NTF-003 / 009: 状態を受け取るたびに通知を組み直す。
+                // 接続していない間に始まったセッションも、ここで初めて組まれる。
+                self.notifications.reschedule(for: snapshot, clockOffset: self.clockOffset)
             },
             receivedTaskList: { [weak self] in self?.taskList = $0 },
             receivedEvent: { _ in },
@@ -126,6 +135,11 @@ final class ClientModel {
 
     // REQ-ERR-007: 時計が大きくずれていたら警告する。
     var needsClockWarning: Bool { client.timeSync.needsClockWarning }
+
+    private var clockOffset: TimeInterval { client.timeSync.offset }
+
+    // REQ-NTF-011: 通知タップで起動したときに呼ぶ。
+    func markAwaitingSync() { isAwaitingFirstSync = true }
 
     // MARK: - 操作
 

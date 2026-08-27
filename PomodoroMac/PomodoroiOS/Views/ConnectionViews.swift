@@ -24,6 +24,13 @@ struct ConnectionBanner: View {
             .font(.footnote)
             .foregroundStyle(theme.color(model.connectionStatus.colorRole, .text))
 
+            // REQ-NTF-011: 同期が取れるまで「同期中」と示し、確定していない情報を断定的に見せない。
+            if model.isAwaitingFirstSync {
+                Text("同期中…")
+                    .font(.footnote)
+                    .foregroundStyle(theme.color(.warning, .text))
+            }
+
             if !model.isConnected {
                 notice
             }
