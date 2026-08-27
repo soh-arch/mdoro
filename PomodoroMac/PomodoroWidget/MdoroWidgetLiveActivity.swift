@@ -22,15 +22,19 @@ struct MdoroWidgetLiveActivity: Widget {
                 // 端の2領域は中央のタイマーに幅を譲るため**狭い**。
                 // アイコンを添えると文字のぶんが押し出され、種別名が消える（2026-08-28、実機）。
                 // 記号はコンパクト表示が持っているので、ここは文字だけにする。
+                // 端の2領域は**島の外周まで届く。** 角が丸いので、詰めて置くと最初と最後の字が欠ける
+                // （`Focus` の F、`2/4` の 4 が切れた。2026-08-28、実機）。内側へ寄せる。
                 DynamicIslandExpandedRegion(.leading) {
                     Text(sessionLabel(context.state.sessionType))
                         .font(.system(size: WidgetFontSize.label, weight: .medium))
                         .lineLimit(1)
+                        .padding(.leading, WidgetInset.islandEdge)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text("\(context.state.loopDisplay)/\(context.state.longBreakInterval)")
                         .font(.system(size: WidgetFontSize.label).monospacedDigit())
                         .lineLimit(1)
+                        .padding(.trailing, WidgetInset.islandEdge)
                 }
                 // **`.center` は使わない。** 中央領域は幅を全部取り、端の2領域を潰す。
                 // 種別名も周回数も、置いたのに何も描かれなかった（2026-08-28、実機で確認）。
@@ -89,6 +93,12 @@ struct MdoroWidgetLiveActivity: Widget {
 // フォントサイズは pt で明示する。
 // ロック画面とダイナミックアイランドは**高さが固定**で、字が伸びれば行が落ちる。
 // 数値は従来の `.caption` / `.caption2` と同じ 12 / 11 pt で、見た目は変わらない。
+// REQ-UIX-042: 余白は 8.6.2 の値から選ぶ。
+private enum WidgetInset {
+    // ダイナミックアイランドの角の丸みを避けるための、端からの逃げ。
+    static let islandEdge: CGFloat = 8
+}
+
 private enum WidgetFontSize {
     static let label: CGFloat = 12
     static let secondary: CGFloat = 11
