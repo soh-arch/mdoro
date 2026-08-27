@@ -2,21 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- REQ-PLT-001 (3.5): ATS は IP アドレスへの直接接続を既定で拒否する。 -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<!-- REQ-PLT-001 (3.5): 未列挙だとサービスの探索が失敗する。 -->
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_mdoro._tcp</string>
 	</array>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Mac と iPhone を接続するために使用します</string>
-	<!-- REQ-PLT-001 (3.5): Live Activity (8.3)。 -->
-	<key>NSSupportsLiveActivities</key>
-	<true/>
 </dict>
 </plist>

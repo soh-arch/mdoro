@@ -17,7 +17,7 @@
 | **状態の正本は Mac。** iPhone は表示上のカウントダウン補間はしてよいが、**セッションの終了を確定してはならない。** 周回数の加算・ログ記録の判断は Mac だけが行う | [0001](decisions/0001-mac-as-single-source-of-truth.md) |
 | **時間は絶対時刻基準。** 残り秒数を同期しない。`sessionEndAt` を配って各端末が算出する。残り時間の算出には単調時計、`sessionEndAt` の生成とログ表記には壁時計を使う | [0001](decisions/0001-mac-as-single-source-of-truth.md) |
 | **色リテラルをビューに書かない。** 役割名（`sessionFocus`, `warning`, `danger`, `textPrimary`）で参照する | [0007](decisions/0007-oklch-color-system.md) |
-| **共有できるコードは必ず `PomodoroCore` に置く。** 状態機械・通信プロトコル・データモデルを Mac 版と iPhone 版で二重に実装しない | REQ-PRT-001 |
+| **共有できるコードは必ず `MdoroCore` に置く。** 状態機械・通信プロトコル・データモデルを Mac 版と iPhone 版で二重に実装しない | REQ-PRT-001 |
 
 ### 設計方針（GitHub で OSS として公開する）
 
@@ -226,7 +226,7 @@ iPhone 側に `.preferredColorScheme` が無く（Mac 側にはあった）、
 
 存在しない名前を `Image(systemName:)` に渡しても**エラーにならず、何も描かれない。**
 `timer.slash`（実在しない）を指定してメニューバー項目が消えた。
-`PomodoroCore` の `SymbolNameTests` が全名称の実在を検証している。名前を増やしたらそこに足す。
+`MdoroCore` の `SymbolNameTests` が全名称の実在を検証している。名前を増やしたらそこに足す。
 
 ### 似た名前の2つのタスク名スナップショット
 
@@ -320,7 +320,7 @@ Git に入っていないため、失われると復元できない。
 
 ### 完了
 
-- `PomodoroCore` の状態機械（仕様書 第4章・9.5・10.3 相当）
+- `MdoroCore` の状態機械（仕様書 第4章・9.5・10.3 相当）
   - `TimerEngine` / `TimerContext` / `PresetContext` / `Preset` / `Effect` / `TimerAction` /
     `SessionType` / `StateTransitionMatrix` / `PreNotification`
   - ファイル I/O・ネットワーク・UI は含まない。ログ確定は `Effect.commitLog` として呼び出し側へ渡す
@@ -331,10 +331,10 @@ Git に入っていないため、失われると復元できない。
 - 予告通知の数値の刻みを確定（[0012](decisions/0012-prenotification-value-grid.md)）
 - **工程1 完了**: 色トークン（8.5.3 全トークン・ライト/ダーク）、役割マッピング（8.5.4）、
   コントラストと ΔE の自動検証（REQ-COL-020）、絶対輝度の段差の検証（REQ-COL-021）
-  — `Sources/PomodoroCore/Color/`。SwiftUI への橋渡しは `#if canImport(SwiftUI)` で同居
+  — `Sources/MdoroCore/Color/`。SwiftUI への橋渡しは `#if canImport(SwiftUI)` で同居
 - **工程2 完了**: 復元判定（REQ-PER-003 (a)〜(d)）、日跨ぎの自動確定（REQ-PER-004）、
   PENDING_DECISION 遷移時の通知取り消しと Live Activity 終了（REQ-PER-008 / 009）、
-  状態の永続化（REQ-PER-001 / 002）— `Sources/PomodoroCore/Persistence/`
+  状態の永続化（REQ-PER-001 / 002）— `Sources/MdoroCore/Persistence/`
 - **工程3（ドメイン層）完了**: タスクのパースと ID（REQ-TSK-010〜015, 020〜023）、
   選択状態と追従（REQ-TSK-030〜036）、ファイル監視（REQ-TSK-002 / REQ-PLT-006）、
   ログの整形と挿入（REQ-LOG-001〜004, 010〜013, 016〜019, 022, 023）、
@@ -346,7 +346,7 @@ Git に入っていないため、失われると復元できない。
   `Text(timerInterval:pauseTime:countsDown:)` による自律更新（REQ-UIX-021）、
   `staleDate` / `isStale` の陳腐化表示（REQ-UIX-023）、`LiveActivityIntent`（REQ-UIX-024）、
   タスク名の打ち切り（REQ-UIX-025）、`PENDING_DECISION` での終了（REQ-PER-009）
-  — `Sources/PomodoroCore/LiveActivityAttributes.swift`,
+  — `Sources/MdoroCore/LiveActivityAttributes.swift`,
   `PomodoroiOS/Client/LiveActivityController.swift`, `PomodoroWidget/PomodoroWidgetLiveActivity.swift`
   - **実機で確認**: ロック画面で Live Activity が 0:00 まで自律カウントダウンし、
     **同時に終了通知（第5章）が届く**。Decision 0009 の「両者を独立させる」がそのとおり成立している
@@ -367,13 +367,13 @@ Git に入っていないため、失われると復元できない。
 - **工程5 完了（通信層・Mac 側）**: プロトコル（第10章）、時刻同期（REQ-COM-007〜009）、
   再接続バックオフとハートビート（REQ-COM-004 / 005）、Bonjour 広告と `GET /info`（REQ-COM-002 / 003）、
   WebSocket サーバー、ペアリングと認証（REQ-SEC-001〜004）
-  — `Sources/PomodoroCore/Protocol/`, `PomodoroMac/Server/`
+  — `Sources/MdoroCore/Protocol/`, `PomodoroMac/Server/`
 - **工程4 完了（Mac UI）**: メニューバー常駐と表示密度（REQ-UIX-030〜032, 035）、
   メインウィンドウ（REQ-UIX-001〜009, 036）、設定画面とプリセット編集（9.2 / 9.3 / REQ-PRS）、
   Mac 側通知（REQ-NTF-001, 004〜007, 020〜023）、アイドルスリープ抑止（REQ-PER-006）、
   読み取り専用ブックマーク（REQ-PLT-003 / 005）、工程3から持ち越した
   REQ-TSK-004 / 005 / 016 / 024・REQ-LOG-020 / 021 — `PomodoroMac/PomodoroMac/`
-  — `Sources/PomodoroCore/Tasks/`, `Sources/PomodoroCore/Log/`
+  — `Sources/MdoroCore/Tasks/`, `Sources/MdoroCore/Log/`
   - **工程3で完了していない第6章・第7章の要件**（いずれも UI・通信・アプリ層に属する）
     | 要件ID | 内容 | 実装する工程 |
     | :-- | :---- | :-- |
@@ -408,7 +408,7 @@ Mac 側だけで実用になる。ファイル安全性とログ形式という�
 | 5 | 通信層（第3章・第10章）+ ペアリングと認証（第12章） | entitlements、M1 |
 | 6 | iOS アプリ（表示・操作、集中表示ビュー 8.1・8.2） | 工程5、**OPEN-002** |
 | 7 | iPhone のローカル通知（第5章、予告通知の実配線） | 工程5 |
-| 8 | Live Activity（8.3） | 工程6・7、Widget への `PomodoroCore` リンク |
+| 8 | Live Activity（8.3） | 工程6・7、Widget への `MdoroCore` リンク |
 
 **M3: 公開できる状態にする**（2026-08-27 決定）
 
@@ -447,8 +447,8 @@ Mac 側だけで実用になる。ファイル安全性とログ形式という�
 | 段階 | 内容 | 状態 |
 | :-- | :---- | :-- |
 | 9a | コード側の改名（サービス型・Keychain・保存先・既定名・画面のタイトル・Swift の型とファイル名）と、仕様書の Obsidian 前提の掃除 | **完了。** 212テスト / 両ビルド通過 |
-| 9b | **ターゲット名・bundle ID・表示名・スキーム名**（下の手順） | **人間の Xcode 操作待ち** |
-| 9c | `PomodoroCore` → `MdoroCore`（パッケージとモジュールの改名。リンクし直しが要る） | 9b の完了後 |
+| 9b | **ターゲット名・bundle ID・表示名・スキーム名** | **完了**（2026-08-27）。出荷される3つの識別子はすべて `Mdoro` 系 |
+| 9c | `PomodoroCore` → `MdoroCore`（パッケージとモジュールの改名） | **コード側は完了。Xcode のリンクし直し待ち** |
 
 **9b と 9c を分けるのは、あいだでビルドを緑に保つため。** モジュール名を変えると
 Xcode 側のリンクが切れ、直すまで何も検証できない。ターゲットの改名だけなら、
@@ -458,7 +458,7 @@ Xcode 側のリンクが切れ、直すまで何も検証できない。ター�
 
 1. **先に置き換え表を作り、通してから流す。** 日本語の文字列リテラルは約290箇所
    （Mac 183 / iOS 69 / Widget 7 / Core 27。2026-08-27 実測）
-2. **`PomodoroCore` から着手する。** 既定プリセット名（「標準」）・接続状態・ログ整形・
+2. **`MdoroCore` から着手する。** 既定プリセット名（「標準」）・接続状態・ログ整形・
    `TaskParser.uncategorizedSection`（「（未分類）」）は**両端末に出る**
 3. Mac の文字列を String Catalog へ集約する（iOS は既に経由済み）。**開発言語を英語にし、カタログは残す**
    （[0022](decisions/0022-english-only-ui.md)）
@@ -546,7 +546,7 @@ iPhone はリスト、Mac は Form のまま、意味だけを揃える。
 iPhone 側も旧アプリを削除してから入れ直す。**サンドボックスの container も別になるので、
 設定・プリセット・ブックマークは作り直しになる**（[0024](decisions/0024-rename-everything-to-mdoro.md) のとおり、移行は行わない）。
 
-**このセッションでは `PomodoroCore` に触らない**（工程9c）。
+**このセッションでは `MdoroCore` に触らない**（工程9c）。
 
 - アプリアイコンの差し替え（工程11・12）
 - capability・署名・配布設定の変更（工程12、OPEN-021 が有償 Program の場合）

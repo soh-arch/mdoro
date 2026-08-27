@@ -1,7 +1,7 @@
 import Foundation
 import ActivityKit
 import Observation
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-020 / 022 / 028: Live Activity の開始・更新・終了。
 //

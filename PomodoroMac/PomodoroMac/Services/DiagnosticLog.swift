@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import PomodoroCore
+import MdoroCore
 
 // REQ-ERR-010 / Decision 0018: 診断ログの入り口。
 //

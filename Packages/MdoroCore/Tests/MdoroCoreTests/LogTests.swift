@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import PomodoroCore
+@testable import MdoroCore
 
 private let calendar: Calendar = {
     var c = Calendar(identifier: .gregorian)

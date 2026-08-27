@@ -1,6 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-033: グローバルショートカット。
 //

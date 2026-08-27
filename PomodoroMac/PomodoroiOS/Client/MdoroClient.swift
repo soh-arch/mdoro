@@ -1,6 +1,6 @@
 import Foundation
 import Network
-import PomodoroCore
+import MdoroCore
 
 // REQ-COM-001: iPhone は子（クライアント）。
 //

@@ -37,7 +37,7 @@ Mac と iPhone の2端末でひとつのタイマーを共有する。素朴に�
 ## 影響
 
 - 要件: REQ-TIM-001、REQ-COM-011、REQ-COM-012、仕様書 第2章・第14章「単一の真実」
-- コード: `Packages/PomodoroCore/Sources/PomodoroCore/TimerEngine.swift`、`TimerContext.swift`
+- コード: `Packages/MdoroCore/Sources/MdoroCore/TimerEngine.swift`、`TimerContext.swift`
 - 派生: iPhone 側に「終了を確定する」コードパスを作らないこと。Live Activity と通知の設計もこれに従う
 
 ## 出典と確度

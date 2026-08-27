@@ -34,9 +34,9 @@ OPEN-009 は解決済みとして `docs/CONTEXT.md` の未決事項から外す�
 
 - 要件: REQ-NTF-020（条文の変更なし。確定のみ）、REQ-NTF-021 / 022 / 023
 - 仕様書: v2.6.1 の 0.9 節に確定を記録
-- コード: `Packages/PomodoroCore/Sources/PomodoroCore/PreNotification.swift`（新規）、
+- コード: `Packages/MdoroCore/Sources/MdoroCore/PreNotification.swift`（新規）、
   `Preset.swift` の `preNotifySeconds` → `preNotifications`
-- 未着手: 通知のスケジュール層（Mac / iOS）は未実装。発火時刻の決定のみ `PomodoroCore` にある
+- 未着手: 通知のスケジュール層（Mac / iOS）は未実装。発火時刻の決定のみ `MdoroCore` にある
 
 ## 出典と確度
 

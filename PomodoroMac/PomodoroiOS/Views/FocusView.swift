@@ -1,5 +1,5 @@
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-010〜014: 集中表示ビュー。
 //

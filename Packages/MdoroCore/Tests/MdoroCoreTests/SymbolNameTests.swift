@@ -1,5 +1,5 @@
 import Testing
-@testable import PomodoroCore
+@testable import MdoroCore
 
 #if canImport(AppKit)
 import AppKit

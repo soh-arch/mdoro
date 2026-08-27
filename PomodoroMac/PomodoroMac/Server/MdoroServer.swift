@@ -1,6 +1,6 @@
 import Foundation
 import Network
-import PomodoroCore
+import MdoroCore
 
 // REQ-COM-001 / 002: Mac を親（サーバー）、iPhone を子（クライアント）とする。
 // 状態同期は WebSocket（JSON）で行う。

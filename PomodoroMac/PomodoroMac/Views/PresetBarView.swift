@@ -1,5 +1,5 @@
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-007: 有効なプリセット名を常時表示し、2件以上なら2タップ以内で切り替えられること。
 // 設定画面を経由させない。

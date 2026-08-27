@@ -2,7 +2,7 @@ import ActivityKit
 import AppIntents
 import WidgetKit
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-020〜029: ロック画面・ダイナミックアイランドでの残り時間表示。
 //

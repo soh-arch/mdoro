@@ -1,6 +1,6 @@
 import Foundation
 import Network
-import PomodoroCore
+import MdoroCore
 
 // REQ-COM-002: Bonjour 発見後のサーバー情報取得。
 //

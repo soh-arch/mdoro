@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import PomodoroCore
+@testable import MdoroCore
 
 // REQ-COL-020: 全トークンのコントラスト比と、セッション3色の色覚シミュレーション下 ΔE を検証する。
 // 基準は 8.5.3 の役ごとの保証値、および ΔE 最小 14。

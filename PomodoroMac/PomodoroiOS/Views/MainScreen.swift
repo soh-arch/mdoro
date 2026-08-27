@@ -1,5 +1,5 @@
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-001: iPhone の通常画面では全機能（設定、タスク選択、タイマー操作）を提供する。
 struct MainScreen: View {

@@ -11,7 +11,7 @@
 		4640E03F303CAE1A00475D34 /* PomodoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4640E03E303CAE1A00475D34 /* PomodoroCore */; };
 		4640E046303CAE7A00475D34 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4640E045303CAE7A00475D34 /* WidgetKit.framework */; };
 		4640E048303CAE7A00475D34 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4640E047303CAE7A00475D34 /* SwiftUI.framework */; };
-		4640E057303CAE7B00475D34 /* PomodoroWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4640E044303CAE7A00475D34 /* PomodoroWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4640E057303CAE7B00475D34 /* MdoroWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4640E044303CAE7A00475D34 /* MdoroWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4671DC29303EA7AF00BAC370 /* PomodoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4671DC28303EA7AF00BAC370 /* PomodoroCore */; };
 /* End PBXBuildFile section */
 
@@ -60,7 +60,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				4640E057303CAE7B00475D34 /* PomodoroWidgetExtension.appex in Embed Foundation Extensions */,
+				4640E057303CAE7B00475D34 /* MdoroWidget.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -68,39 +68,39 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		4640DFE5303CA8FF00475D34 /* PomodoroMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PomodoroMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4640DFE5303CA8FF00475D34 /* MdoroMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MdoroMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4640DFF2303CA90000475D34 /* PomodoroMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PomodoroMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4640DFFC303CA90000475D34 /* PomodoroMacUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PomodoroMacUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		4640E013303CA98900475D34 /* PomodoroiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PomodoroiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4640E013303CA98900475D34 /* MdoroiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MdoroiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4640E01F303CA98A00475D34 /* PomodoroiOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PomodoroiOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4640E029303CA98A00475D34 /* PomodoroiOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PomodoroiOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4640E03A303CADB700475D34 /* PomodoroCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = PomodoroCore; path = ../Packages/PomodoroCore; sourceTree = SOURCE_ROOT; };
-		4640E044303CAE7A00475D34 /* PomodoroWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PomodoroWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4640E044303CAE7A00475D34 /* MdoroWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MdoroWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4640E045303CAE7A00475D34 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		4640E047303CAE7A00475D34 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		4640E058303CAE7B00475D34 /* Exceptions for "PomodoroWidget" folder in "PomodoroWidgetExtension" target */ = {
+		4640E058303CAE7B00475D34 /* Exceptions for "PomodoroWidget" folder in "MdoroWidget" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 4640E043303CAE7A00475D34 /* PomodoroWidgetExtension */;
+			target = 4640E043303CAE7A00475D34 /* MdoroWidget */;
 		};
-		4671DC25303CAF8300BAC370 /* Exceptions for "PomodoroiOS" folder in "PomodoroiOS" target */ = {
+		4671DC25303CAF8300BAC370 /* Exceptions for "PomodoroiOS" folder in "MdoroiOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 4640E012303CA98900475D34 /* PomodoroiOS */;
+			target = 4640E012303CA98900475D34 /* MdoroiOS */;
 		};
-		4671DC27303CB27F00BAC370 /* Exceptions for "PomodoroMac" folder in "PomodoroMac" target */ = {
+		4671DC27303CB27F00BAC370 /* Exceptions for "PomodoroMac" folder in "MdoroMac" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 4640DFE4303CA8FF00475D34 /* PomodoroMac */;
+			target = 4640DFE4303CA8FF00475D34 /* MdoroMac */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -108,7 +108,7 @@
 		4640DFE7303CA8FF00475D34 /* PomodoroMac */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				4671DC27303CB27F00BAC370 /* Exceptions for "PomodoroMac" folder in "PomodoroMac" target */,
+				4671DC27303CB27F00BAC370 /* Exceptions for "PomodoroMac" folder in "MdoroMac" target */,
 			);
 			path = PomodoroMac;
 			sourceTree = "<group>";
@@ -126,7 +126,7 @@
 		4640E014303CA98900475D34 /* PomodoroiOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				4671DC25303CAF8300BAC370 /* Exceptions for "PomodoroiOS" folder in "PomodoroiOS" target */,
+				4671DC25303CAF8300BAC370 /* Exceptions for "PomodoroiOS" folder in "MdoroiOS" target */,
 			);
 			path = PomodoroiOS;
 			sourceTree = "<group>";
@@ -144,7 +144,7 @@
 		4640E049303CAE7A00475D34 /* PomodoroWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				4640E058303CAE7B00475D34 /* Exceptions for "PomodoroWidget" folder in "PomodoroWidgetExtension" target */,
+				4640E058303CAE7B00475D34 /* Exceptions for "PomodoroWidget" folder in "MdoroWidget" target */,
 			);
 			path = PomodoroWidget;
 			sourceTree = "<group>";
@@ -228,13 +228,13 @@
 		4640DFE6303CA8FF00475D34 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				4640DFE5303CA8FF00475D34 /* PomodoroMac.app */,
+				4640DFE5303CA8FF00475D34 /* MdoroMac.app */,
 				4640DFF2303CA90000475D34 /* PomodoroMacTests.xctest */,
 				4640DFFC303CA90000475D34 /* PomodoroMacUITests.xctest */,
-				4640E013303CA98900475D34 /* PomodoroiOS.app */,
+				4640E013303CA98900475D34 /* MdoroiOS.app */,
 				4640E01F303CA98A00475D34 /* PomodoroiOSTests.xctest */,
 				4640E029303CA98A00475D34 /* PomodoroiOSUITests.xctest */,
-				4640E044303CAE7A00475D34 /* PomodoroWidgetExtension.appex */,
+				4640E044303CAE7A00475D34 /* MdoroWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -251,9 +251,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		4640DFE4303CA8FF00475D34 /* PomodoroMac */ = {
+		4640DFE4303CA8FF00475D34 /* MdoroMac */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4640E006303CA90000475D34 /* Build configuration list for PBXNativeTarget "PomodoroMac" */;
+			buildConfigurationList = 4640E006303CA90000475D34 /* Build configuration list for PBXNativeTarget "MdoroMac" */;
 			buildPhases = (
 				4640DFE1303CA8FF00475D34 /* Sources */,
 				4640DFE2303CA8FF00475D34 /* Frameworks */,
@@ -266,12 +266,12 @@
 			fileSystemSynchronizedGroups = (
 				4640DFE7303CA8FF00475D34 /* PomodoroMac */,
 			);
-			name = PomodoroMac;
+			name = MdoroMac;
 			packageProductDependencies = (
 				4640E03C303CADFD00475D34 /* PomodoroCore */,
 			);
 			productName = PomodoroMac;
-			productReference = 4640DFE5303CA8FF00475D34 /* PomodoroMac.app */;
+			productReference = 4640DFE5303CA8FF00475D34 /* MdoroMac.app */;
 			productType = "com.apple.product-type.application";
 		};
 		4640DFF1303CA90000475D34 /* PomodoroMacTests */ = {
@@ -320,9 +320,9 @@
 			productReference = 4640DFFC303CA90000475D34 /* PomodoroMacUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		4640E012303CA98900475D34 /* PomodoroiOS */ = {
+		4640E012303CA98900475D34 /* MdoroiOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4640E031303CA98A00475D34 /* Build configuration list for PBXNativeTarget "PomodoroiOS" */;
+			buildConfigurationList = 4640E031303CA98A00475D34 /* Build configuration list for PBXNativeTarget "MdoroiOS" */;
 			buildPhases = (
 				4640E00F303CA98900475D34 /* Sources */,
 				4640E010303CA98900475D34 /* Frameworks */,
@@ -337,12 +337,12 @@
 			fileSystemSynchronizedGroups = (
 				4640E014303CA98900475D34 /* PomodoroiOS */,
 			);
-			name = PomodoroiOS;
+			name = MdoroiOS;
 			packageProductDependencies = (
 				4640E03E303CAE1A00475D34 /* PomodoroCore */,
 			);
 			productName = PomodoroiOS;
-			productReference = 4640E013303CA98900475D34 /* PomodoroiOS.app */;
+			productReference = 4640E013303CA98900475D34 /* MdoroiOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 		4640E01E303CA98A00475D34 /* PomodoroiOSTests */ = {
@@ -391,9 +391,9 @@
 			productReference = 4640E029303CA98A00475D34 /* PomodoroiOSUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		4640E043303CAE7A00475D34 /* PomodoroWidgetExtension */ = {
+		4640E043303CAE7A00475D34 /* MdoroWidget */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4640E059303CAE7B00475D34 /* Build configuration list for PBXNativeTarget "PomodoroWidgetExtension" */;
+			buildConfigurationList = 4640E059303CAE7B00475D34 /* Build configuration list for PBXNativeTarget "MdoroWidget" */;
 			buildPhases = (
 				4640E040303CAE7A00475D34 /* Sources */,
 				4640E041303CAE7A00475D34 /* Frameworks */,
@@ -406,12 +406,12 @@
 			fileSystemSynchronizedGroups = (
 				4640E049303CAE7A00475D34 /* PomodoroWidget */,
 			);
-			name = PomodoroWidgetExtension;
+			name = MdoroWidget;
 			packageProductDependencies = (
 				4671DC28303EA7AF00BAC370 /* PomodoroCore */,
 			);
 			productName = PomodoroWidgetExtension;
-			productReference = 4640E044303CAE7A00475D34 /* PomodoroWidgetExtension.appex */;
+			productReference = 4640E044303CAE7A00475D34 /* MdoroWidget.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -465,13 +465,13 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				4640DFE4303CA8FF00475D34 /* PomodoroMac */,
+				4640DFE4303CA8FF00475D34 /* MdoroMac */,
 				4640DFF1303CA90000475D34 /* PomodoroMacTests */,
 				4640DFFB303CA90000475D34 /* PomodoroMacUITests */,
-				4640E012303CA98900475D34 /* PomodoroiOS */,
+				4640E012303CA98900475D34 /* MdoroiOS */,
 				4640E01E303CA98A00475D34 /* PomodoroiOSTests */,
 				4640E028303CA98A00475D34 /* PomodoroiOSUITests */,
-				4640E043303CAE7A00475D34 /* PomodoroWidgetExtension */,
+				4640E043303CAE7A00475D34 /* MdoroWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -583,27 +583,27 @@
 /* Begin PBXTargetDependency section */
 		4640DFF4303CA90000475D34 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 4640DFE4303CA8FF00475D34 /* PomodoroMac */;
+			target = 4640DFE4303CA8FF00475D34 /* MdoroMac */;
 			targetProxy = 4640DFF3303CA90000475D34 /* PBXContainerItemProxy */;
 		};
 		4640DFFE303CA90000475D34 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 4640DFE4303CA8FF00475D34 /* PomodoroMac */;
+			target = 4640DFE4303CA8FF00475D34 /* MdoroMac */;
 			targetProxy = 4640DFFD303CA90000475D34 /* PBXContainerItemProxy */;
 		};
 		4640E021303CA98A00475D34 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 4640E012303CA98900475D34 /* PomodoroiOS */;
+			target = 4640E012303CA98900475D34 /* MdoroiOS */;
 			targetProxy = 4640E020303CA98A00475D34 /* PBXContainerItemProxy */;
 		};
 		4640E02B303CA98A00475D34 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 4640E012303CA98900475D34 /* PomodoroiOS */;
+			target = 4640E012303CA98900475D34 /* MdoroiOS */;
 			targetProxy = 4640E02A303CA98A00475D34 /* PBXContainerItemProxy */;
 		};
 		4640E056303CAE7B00475D34 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 4640E043303CAE7A00475D34 /* PomodoroWidgetExtension */;
+			target = 4640E043303CAE7A00475D34 /* MdoroWidget */;
 			targetProxy = 4640E055303CAE7B00475D34 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -751,6 +751,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroMac/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Mdoro;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mac と iPhone を接続するために使用します";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -759,7 +760,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.PomodoroMac;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.MdoroMac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -795,6 +796,7 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroMac/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Mdoro;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mac と iPhone を接続するために使用します";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -803,7 +805,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.PomodoroMac;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.MdoroMac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -904,9 +906,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroiOS/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_CFBundleDisplayName = Mdoro;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mac と iPhone を接続するために使用します";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -918,7 +921,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.PomodoroiOS;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.MdoroiOS;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -942,9 +945,10 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroiOS/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_CFBundleDisplayName = Mdoro;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mac と iPhone を接続するために使用します";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -956,7 +960,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.PomodoroiOS;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.MdoroiOS;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -1068,7 +1072,7 @@
 				DEVELOPMENT_TEAM = X95RFBZD5X;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = PomodoroWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = MdoroWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1077,7 +1081,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.PomodoroiOS.PomodoroWidget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.MdoroiOS.MdoroWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1100,7 +1104,7 @@
 				DEVELOPMENT_TEAM = X95RFBZD5X;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroWidget/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = PomodoroWidget;
+				INFOPLIST_KEY_CFBundleDisplayName = MdoroWidget;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1109,7 +1113,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.PomodoroiOS.PomodoroWidget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.MdoroiOS.MdoroWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1135,7 +1139,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4640E006303CA90000475D34 /* Build configuration list for PBXNativeTarget "PomodoroMac" */ = {
+		4640E006303CA90000475D34 /* Build configuration list for PBXNativeTarget "MdoroMac" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4640E007303CA90000475D34 /* Debug */,
@@ -1162,7 +1166,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4640E031303CA98A00475D34 /* Build configuration list for PBXNativeTarget "PomodoroiOS" */ = {
+		4640E031303CA98A00475D34 /* Build configuration list for PBXNativeTarget "MdoroiOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4640E032303CA98A00475D34 /* Debug */,
@@ -1189,7 +1193,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4640E059303CAE7B00475D34 /* Build configuration list for PBXNativeTarget "PomodoroWidgetExtension" */ = {
+		4640E059303CAE7B00475D34 /* Build configuration list for PBXNativeTarget "MdoroWidget" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4640E05A303CAE7B00475D34 /* Debug */,

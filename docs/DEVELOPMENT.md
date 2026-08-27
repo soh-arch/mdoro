@@ -17,18 +17,22 @@ Pomodoro_Timer/                        # プロジェクトルート
 │   └── decisions/                     # Decision Record
 ├── .claude/agents/                    # implementer / reviewer
 ├── buildServer.json                   # xcode-build-server の設定（Cursor の補完用）
-├── Packages/PomodoroCore/             # 共有コード。ここが主戦場
+├── Packages/MdoroCore/             # 共有コード。ここが主戦場
 │   ├── Package.swift
-│   ├── Sources/PomodoroCore/
-│   └── Tests/PomodoroCoreTests/
-└── PomodoroMac/                       # Xcode プロジェクト一式
+│   ├── Sources/MdoroCore/
+│   └── Tests/MdoroCoreTests/
+└── PomodoroMac/                       # Xcode プロジェクト一式（フォルダ名は未改名）
     ├── PomodoroMac.xcodeproj
     ├── PomodoroMac/       PomodoroMacTests/    PomodoroMacUITests/
     ├── PomodoroiOS/       PomodoroiOSTests/    PomodoroiOSUITests/
     └── PomodoroWidget/                # Live Activity
 ```
 
-- ターゲット3つ（`PomodoroMac` / `PomodoroiOS` / `PomodoroWidget`）はいずれも `PomodoroMac/` の下にある。
+**フォルダ名とターゲット名が食い違っている。** ターゲットは `MdoroMac` / `MdoroiOS` / `MdoroWidget`、
+フォルダは `PomodoroMac/` などのまま（工程9の残り。`docs/CONTEXT.md` §6）。
+**パスは上の表示どおりで正しい。**
+
+- ターゲット3つ（`MdoroMac` / `MdoroiOS` / `MdoroWidget`）はいずれも `PomodoroMac/` の下にある。
   **`.xcodeproj` はルートではなく `PomodoroMac/` の中。**
 - 各ターゲットのフォルダは buildable folder。**`.swift` をディスクに置けば自動でビルド対象に入る。**
 - `Info.plist` は3ターゲットとも実ファイルとして存在する（`PomodoroMac/<ターゲット名>/Info.plist`）。
@@ -47,7 +51,7 @@ Xcode プロジェクト: `./PomodoroMac/PomodoroMac.xcodeproj`
 プロジェクトルートから実行する。
 
 ```bash
-(cd Packages/PomodoroCore && swift test)
+(cd Packages/MdoroCore && swift test)
 ```
 
 ### macOS アプリ
@@ -55,7 +59,7 @@ Xcode プロジェクト: `./PomodoroMac/PomodoroMac.xcodeproj`
 ```bash
 set -o pipefail && xcodebuild \
   -project ./PomodoroMac/PomodoroMac.xcodeproj \
-  -scheme PomodoroMac \
+  -scheme MdoroMac \
   -destination 'platform=macOS' \
   build | xcbeautify
 ```
@@ -67,7 +71,7 @@ set -o pipefail && xcodebuild \
 ```bash
 set -o pipefail && xcodebuild \
   -project ./PomodoroMac/PomodoroMac.xcodeproj \
-  -scheme PomodoroiOS \
+  -scheme MdoroiOS \
   -destination 'platform=iOS Simulator,name=iPhone 17' \
   build | xcbeautify
 ```

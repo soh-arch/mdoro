@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import PomodoroiOS
+@testable import MdoroiOS
 
 struct PomodoroiOSTests {
 

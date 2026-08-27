@@ -1,5 +1,5 @@
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-COL-001 / 002: 色リテラルを書かず、役割名で引く。Mac 側と同じ出典（8.5.3）を使う。
 struct Theme {

@@ -1,5 +1,5 @@
 import Foundation
-import PomodoroCore
+import MdoroCore
 
 // REQ-PLT-003 / 005: サンドボックス下でユーザーが選んだファイルへ、再起動をまたいで到達するための
 // セキュリティスコープ付きブックマーク。

@@ -1,5 +1,5 @@
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-002 / 003 / 013: セッション種別を色と文言の両方で示し、周回数を n / interval で表示する。
 // REQ-COL-011: セッション状態に使えるのは -graphic と -text のみ。バナー表現（-subtle + -line）は

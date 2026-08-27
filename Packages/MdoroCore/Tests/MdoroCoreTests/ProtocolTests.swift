@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import PomodoroCore
+@testable import MdoroCore
 
 private let now = Date(timeIntervalSince1970: 1_700_000_000)
 

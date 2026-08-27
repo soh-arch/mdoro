@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 import Observation
-import PomodoroCore
+import MdoroCore
 
 // iPhone 側の状態保持。
 //

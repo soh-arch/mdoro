@@ -1,6 +1,6 @@
 import Foundation
 import Network
-import PomodoroCore
+import MdoroCore
 
 // REQ-COM-003 / REQ-ERR-005: Bonjour で Mac を探す。
 // 複数見つかった場合は一覧を提示してユーザーに選ばせるため、結果は配列で保持する。

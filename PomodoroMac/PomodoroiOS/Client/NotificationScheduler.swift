@@ -1,6 +1,6 @@
 import Foundation
 import UserNotifications
-import PomodoroCore
+import MdoroCore
 
 // REQ-NTF-002: iPhone 側の通知は **WebSocket 経由のメッセージに依存してはならない。**
 // `sessionEndAt` に対する絶対時刻トリガーのローカル通知として**事前にスケジュール**する。
@@ -75,7 +75,7 @@ final class NotificationScheduler {
         add(content, at: endAt, identifier: Self.endPrefix + UUID().uuidString)
     }
 
-    // REQ-NTF-007 / 020〜023: 予告通知。発火時刻の決定は PomodoroCore が行う。
+    // REQ-NTF-007 / 020〜023: 予告通知。発火時刻の決定は MdoroCore が行う。
     private func schedulePreNotifications(preset: Preset, sessionType: SessionType, startedAt: Date, endAt: Date) {
         guard sessionType == .work, !preset.preNotifications.isEmpty else { return }
 

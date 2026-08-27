@@ -2,14 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- REQ-PLT-001 (3.5): ATS は IP アドレスへの直接接続を既定で拒否する。 -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<!-- REQ-PLT-001 (3.5): macOS 15 以降は Bonjour の登録側にも許可が要る。 -->
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Mac と iPhone を接続するために使用します</string>
 </dict>
 </plist>

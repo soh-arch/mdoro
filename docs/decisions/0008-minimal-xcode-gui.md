@@ -18,7 +18,7 @@
 この方針を満たすため、次の3つを構成の前提に置く。
 
 - **Buildable folder**（Xcode 16 以降の既定）: `.swift` をディスクに置くだけでビルド対象に入る
-- **ローカル Swift Package**（`Packages/PomodoroCore`）: 初回リンクだけ GUI、以降は `Package.swift` のテキスト編集で完結
+- **ローカル Swift Package**（`Packages/MdoroCore`）: 初回リンクだけ GUI、以降は `Package.swift` のテキスト編集で完結
 - **Xcode 26.3 以降の MCP サーバー**（`xcrun mcpbridge`）: ビルド・テスト・SwiftUI プレビュー取得が CLI 側から可能
 
 ## 理由・設計意図
@@ -32,7 +32,7 @@
 
 ## 影響
 
-- 構成: `Packages/PomodoroCore` を共有コードの主戦場とする。3ターゲットはすべて buildable folder
+- 構成: `Packages/MdoroCore` を共有コードの主戦場とする。3ターゲットはすべて buildable folder
 - `Info.plist` は3ターゲットとも実ファイルとして存在し、XML として直接編集してよい
 - 手順: ビルド・テストコマンドと環境メモは `docs/DEVELOPMENT.md`
 - 参照: Xcode セットアップ手順書の URL は `docs/CONTEXT.md`

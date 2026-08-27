@@ -1,6 +1,6 @@
 import SwiftUI
 import AppKit
-import PomodoroCore
+import MdoroCore
 
 // REQ-PRS / 9.2: プリセットの編集。
 // REQ-UIX-009: 「次のセッションから適用される」項目と「即座に適用される」項目を視覚的に区別する（9.5）。

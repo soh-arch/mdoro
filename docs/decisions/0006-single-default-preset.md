@@ -26,7 +26,7 @@
 
 - 要件: REQ-PRS-010（標準プリセットのみを作成し、追加のプリセットを同梱しないこと）、
   REQ-PRS-013（プリセットが1件のときは切替 UI を「追加」への導線にする）、仕様書 9.4
-- コード: `Packages/PomodoroCore/Sources/PomodoroCore/Preset.swift`、`PresetContext.swift`
+- コード: `Packages/MdoroCore/Sources/MdoroCore/Preset.swift`、`PresetContext.swift`
 - **AI への適用指針**: 既定値・テンプレート・候補・オプションを増やす提案をする前に、
   それが使われずに捨てられる可能性を検討し、検討結果を提案に含めること
 

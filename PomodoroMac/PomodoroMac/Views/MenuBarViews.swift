@@ -1,5 +1,5 @@
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-030 / 032 / 035 / REQ-COL-022: メニューバーのラベル。
 //

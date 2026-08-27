@@ -1,5 +1,5 @@
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-SEC-001: 初回接続時は Mac 画面に6桁のペアリングコードを表示し、iPhone に入力させる。
 struct PairingSection: View {

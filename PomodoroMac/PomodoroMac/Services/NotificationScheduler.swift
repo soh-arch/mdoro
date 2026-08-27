@@ -1,6 +1,6 @@
 import Foundation
 import UserNotifications
-import PomodoroCore
+import MdoroCore
 
 // REQ-NTF-001 / 004 / 005 / 007 / 020〜023: Mac 側の通知。
 //
@@ -71,7 +71,7 @@ final class NotificationScheduler {
         deliverNow(content, identifier: "session-finished.\(UUID().uuidString)")
     }
 
-    // REQ-NTF-007 / 020〜023: 予告通知。発火時刻の決定は PomodoroCore が行う。
+    // REQ-NTF-007 / 020〜023: 予告通知。発火時刻の決定は MdoroCore が行う。
     // ここは「決まった時刻に鳴らす」だけを受け持つ。
     func reschedulePreNotifications(
         preset: Preset,

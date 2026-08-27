@@ -1,5 +1,5 @@
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-001: メインウィンドウでは全機能（設定、タスク選択、タイマー操作）を提供する。
 struct MainWindowView: View {

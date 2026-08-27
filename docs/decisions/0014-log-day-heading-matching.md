@@ -55,7 +55,7 @@ REQ-LOG-022 の力点は前半の「改名されていたら末尾へ」では�
 
 - 要件: REQ-LOG-003（「当該見出し」の判定方法を明記）、REQ-LOG-022（日付が読める見出しを「改名」から除外）
 - 仕様書: v2.6.1 の 0.9 節に記録
-- コード: `Packages/PomodoroCore/Sources/PomodoroCore/Log/LogFormatter.swift` の `headingMatches`
+- コード: `Packages/MdoroCore/Sources/MdoroCore/Log/LogFormatter.swift` の `headingMatches`
 - テスト: `LogTests.renamedHeadingIsMatchedByItsDate`、`userHeadingContainingADateIsNotTreatedAsTheDaySection`
 - OPEN-012 を解決済みとして `docs/CONTEXT.md` から外す
 

@@ -1,5 +1,5 @@
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-004 / REQ-COM-013: 接続状態を常時視認できること。
 // 切断中は「Mac に接続していません」と明示する。

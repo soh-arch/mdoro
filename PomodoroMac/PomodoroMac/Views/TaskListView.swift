@@ -1,5 +1,5 @@
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-TSK-004: 読み込まれたタスク一覧を閲覧・選択できること。
 // REQ-TSK-011 / 014: 見出しごとにグループ化し、子タスクは字下げして並べる。

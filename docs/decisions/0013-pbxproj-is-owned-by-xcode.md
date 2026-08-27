@@ -9,7 +9,7 @@
 `.swift` をディスクに置けば自動でビルド対象に入るため、
 **ファイルの追加・削除を目的として `project.pbxproj` を触る必要がない。**
 
-共有コードは `Packages/PomodoroCore` のローカル Swift Package にあり、
+共有コードは `Packages/MdoroCore` のローカル Swift Package にあり、
 ターゲット・依存・ビルド対象の追加は `Package.swift` のテキスト編集で完結する。
 
 一方 `project.pbxproj` は、Xcode が生成・管理する巨大な機械可読ファイルである。
@@ -41,10 +41,10 @@
 ## 影響
 
 - `CLAUDE.md`「コードの置き場所」に条文がある
-- **代替**: `Packages/PomodoroCore/Package.swift`。共有できるコードは必ずここに置く（REQ-PRT-001）
+- **代替**: `Packages/MdoroCore/Package.swift`。共有できるコードは必ずここに置く（REQ-PRT-001）
 - **停止して報告する操作の実例**（2026-08-26 に実際に発生）
   - `ENABLE_USER_SELECTED_FILES` を `readonly` → `readwrite`（REQ-PLT-001、ログ追記に必須）
-  - `PomodoroWidgetExtension` への `PomodoroCore` のリンク
+  - `PomodoroWidgetExtension` への `MdoroCore` のリンク
 - Info.plist は3ターゲットとも**実ファイル**として存在するため、この判断の対象外。XML として直接編集してよい
 - 関連: [0008](0008-minimal-xcode-gui.md)（Xcode の GUI を開く場面の限定）
 

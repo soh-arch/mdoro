@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import PomodoroCore
+@testable import MdoroCore
 
 @Suite("読み込みの頑健性 (REQ-ERR-001 / 002 / 003)")
 struct TaskLoadRobustnessTests {

@@ -1,6 +1,6 @@
 import SwiftUI
 import AppKit
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-033: ホットキーの割り当て UI。
 // 既定は未割り当て。押されたキーをその場で記録する。

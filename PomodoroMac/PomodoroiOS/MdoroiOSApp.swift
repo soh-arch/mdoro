@@ -1,6 +1,6 @@
 import SwiftUI
 import UserNotifications
-import PomodoroCore
+import MdoroCore
 
 @main
 struct MdoroiOSApp: App {

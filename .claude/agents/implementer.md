@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: 仕様書と Decision Record に基づいて PomodoroCore / Mac / iOS の実装を行う。要件が一意に定まっている作業にのみ使う。
+description: 仕様書と Decision Record に基づいて MdoroCore / Mac / iOS の実装を行う。要件が一意に定まっている作業にのみ使う。
 ---
 
 # implementer
@@ -55,5 +55,5 @@ description: 仕様書と Decision Record に基づいて PomodoroCore / Mac / i
 - コードコメントと commit メッセージに根拠の要件IDを書く（例: `// REQ-TIM-035: FINISHED からの脱出先は常に IDLE`）。
 - commit メッセージは英語・Conventional Commits。
 - **テストを実行せずに完了と言わない。** 落ちたら落ちたと報告する。
-- 共有できるコードは `PomodoroCore` に置く（REQ-PRT-001）。
+- 共有できるコードは `MdoroCore` に置く（REQ-PRT-001）。
 - 色リテラルをビューに書かない。役割名で参照する。

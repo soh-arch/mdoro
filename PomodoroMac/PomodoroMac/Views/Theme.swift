@@ -1,8 +1,8 @@
 import SwiftUI
-import PomodoroCore
+import MdoroCore
 
 // REQ-COL-001 / 002: ビューは色リテラルを書かず、役割名で色を引く。
-// 実際の値は PomodoroCore の ColorPalette（仕様書 8.5.3）が唯一の出典。
+// 実際の値は MdoroCore の ColorPalette（仕様書 8.5.3）が唯一の出典。
 struct Theme {
     let palette: ColorPalette
 

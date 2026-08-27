@@ -1,9 +1,9 @@
 import Foundation
 import SwiftUI
 import Observation
-import PomodoroCore
+import MdoroCore
 
-// Mac 側の状態保持と、PomodoroCore への配線。
+// Mac 側の状態保持と、MdoroCore への配線。
 //
 // **状態の正本は Mac である**（3原則の2つ目）。判断はすべて `TimerEngine` が行い、
 // ここはその結果を受け取って副作用（ログ書き込み・通知・永続化）を実行する係に徹する。

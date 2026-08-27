@@ -6,7 +6,7 @@
 //
 
 import Testing
-@testable import PomodoroMac
+@testable import MdoroMac
 
 struct PomodoroMacTests {
 

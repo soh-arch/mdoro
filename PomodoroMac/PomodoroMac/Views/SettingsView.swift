@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
-import PomodoroCore
+import MdoroCore
 
 // REQ-UIX-031: 中断・リセット・プリセット編集・設定変更はメインウィンドウ（と設定画面）でのみ可能。
 struct SettingsView: View {

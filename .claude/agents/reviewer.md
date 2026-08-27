@@ -27,7 +27,7 @@ description: 実装の成果物を独立コンテキストで検証する。要�
 ### 2. テストの実行
 
 ```bash
-(cd Packages/PomodoroCore && swift test)
+(cd Packages/MdoroCore && swift test)
 ```
 
 必要に応じて `docs/DEVELOPMENT.md` のビルドコマンドを実行する。

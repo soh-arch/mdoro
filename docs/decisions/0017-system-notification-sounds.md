@@ -40,7 +40,7 @@ REQ-NTF-006（SHOULD）は「通知音を数種類から選択でき、無音（
 ## 影響
 
 - 要件: REQ-NTF-006（音源をシステムサウンドに確定、試聴を追加）
-- コード: `PomodoroCore/Preset.swift` の `NotificationSound`（`systemSoundFileName` / `displayName`）、
+- コード: `MdoroCore/Preset.swift` の `NotificationSound`（`systemSoundFileName` / `displayName`）、
   `PomodoroMac/Services/NotificationScheduler.swift`、`Views/PresetEditorView.swift`
 - iOS 側（工程7）でも同じ列挙を使う。**iOS には `/System/Library/Sounds` が存在せず、
   この対応表は macOS 専用であることが判明した**（2026-08-27 確認）。iPhone 側の扱いは OPEN-016
