@@ -570,6 +570,19 @@ iPhone 側も旧アプリを削除してから入れ直す。**サンドボッ�
 同じ理由で **`.buttonStyle(.link)` も自前の色を受け付けない。`.tint` でも変わらない。**
 ラベルを `foregroundStyle` で塗り、`.buttonStyle(.plain)` にする。
 
+### Live Activity のボタンは、suspend 中は必ず無反応になる
+
+`LiveActivityIntent.perform()` はアプリ本体のプロセスで走るが、
+**iPhone が suspend されていれば WebSocket は切れている**（§3）。
+接続を前提にしたハンドラは、そこで必ず false を返す。
+アプリが終了していれば、ハンドラを差し込む画面すら作られない。
+
+**押して何も起きないボタンは、機能が無いことより悪い。**
+再接続を `perform()` の中で完結させない限り、ボタンを置かない（[0030](decisions/0030-live-activity-is-display-only.md)）。
+
+なお **`ActivityConfiguration` は `dynamicIsland:` を必須とする。**
+「アイランドだけ外す」はできない。外せるのは中身だけである。
+
 ### ダイナミックアイランドの `.center` を使わない
 
 展開表示の `.center` に置いたものは**幅を全部取り、leading / trailing を潰す。**

@@ -52,13 +52,6 @@ final class ClientModel {
 
     func start() {
         Task { await notifications.requestAuthorization() }
-        // REQ-UIX-024: Live Activity のボタンはアプリ本体のプロセスで動く。
-        // 送れなかったときに「送れた」と見せないよう、成否をそのまま返す。
-        LiveActivityCommandBridge.handler = { [weak self] action in
-            guard let self, self.isConnected else { return false }
-            self.send(action)
-            return true
-        }
         // 前のプロセスが残した Live Activity は、接続できなければ畳む。
         // **復元したスナップショットで正当化しない**（それは何時間前のものか分からない）。
         liveActivity.discardOrphansIfUnconfirmed()

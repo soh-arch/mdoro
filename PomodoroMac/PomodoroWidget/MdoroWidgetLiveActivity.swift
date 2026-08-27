@@ -1,5 +1,4 @@
 import ActivityKit
-import AppIntents
 import WidgetKit
 import SwiftUI
 import MdoroCore
@@ -42,12 +41,8 @@ struct MdoroWidgetLiveActivity: Widget {
                     // **島にタスク名を出さない。** 高さが固定で、3つ積むと黙って消える。
                     // タスク名はロック画面が持つ（REQ-UIX-025）。
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack(alignment: .firstTextBaseline) {
-                            TimerText(state: context.state)
-                                .font(.system(size: WidgetFontSize.islandTimer, weight: .medium, design: .rounded).monospacedDigit())
-                            Spacer()
-                            Controls(state: context.state)
-                        }
+                        TimerText(state: context.state)
+                            .font(.system(size: WidgetFontSize.islandTimer, weight: .medium, design: .rounded).monospacedDigit())
                         StatusNotice(isStale: context.isStale, isConnected: context.state.isConnected)
                     }
                     // 下の領域も島の外周まで届く。**角の丸みに食われるので、四方を逃がす。**
@@ -150,25 +145,6 @@ private struct StatusNotice: View {
     }
 }
 
-// REQ-UIX-024: 「一時停止 / 再開」を LiveActivityIntent として置く。
-private struct Controls: View {
-    let state: MdoroActivityAttributes.ContentState
-
-    var body: some View {
-        HStack(spacing: 12) {
-            if state.isPaused {
-                Button(intent: ResumeSessionIntent()) { Label("Resume", systemImage: "play.fill") }
-            } else {
-                Button(intent: PauseSessionIntent()) { Label("Pause", systemImage: "pause.fill") }
-            }
-        }
-        .font(.system(size: WidgetFontSize.label))
-        .buttonStyle(.bordered)
-        // REQ-COM-013 と同じ理由: 繋がっていないなら操作できるように見せない。
-        .disabled(!state.isConnected)
-    }
-}
-
 private struct LockScreenView: View {
     let context: ActivityViewContext<MdoroActivityAttributes>
 
@@ -183,16 +159,12 @@ private struct LockScreenView: View {
                     .foregroundStyle(.secondary)
             }
 
-            HStack(alignment: .firstTextBaseline) {
-                // **`Text(timerInterval:)` に `.fixedSize()` を付けないこと。**
-                // 打ち切り対策のつもりで付けたところ、ロック画面のレイアウトが破綻し、
-                // 時間も操作も消えて真っ白になった（2026-08-27、実機で確認）。
-                // この Text の寸法はシステムが決める。こちらから理想幅を要求してはならない。
-                TimerText(state: context.state)
-                    .font(.system(size: WidgetFontSize.lockTimer, weight: .medium, design: .rounded).monospacedDigit())
-                Spacer()
-                Controls(state: context.state)
-            }
+            // **`Text(timerInterval:)` に `.fixedSize()` を付けないこと。**
+            // 打ち切り対策のつもりで付けたところ、ロック画面のレイアウトが破綻し、
+            // 時間も操作も消えて真っ白になった（2026-08-27、実機で確認）。
+            // この Text の寸法はシステムが決める。こちらから理想幅を要求してはならない。
+            TimerText(state: context.state)
+                .font(.system(size: WidgetFontSize.lockTimer, weight: .medium, design: .rounded).monospacedDigit())
 
             // ロック画面は**高さが固定**で、入らない行は黙って消える。
             // 3行目を取り合うなら、**REQ-UIX-023（MUST）の注意書きがタスク名に勝つ。**
