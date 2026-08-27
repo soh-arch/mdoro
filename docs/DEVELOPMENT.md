@@ -11,7 +11,7 @@
 Pomodoro_Timer/                        # プロジェクトルート
 ├── CLAUDE.md                          # 運用憲法
 ├── docs/
-│   ├── SPEC.md                        # 要件の正本（v2.6.1、232要件）
+│   ├── SPEC.md                        # 要件の正本（v2.7、234要件）
 │   ├── CONTEXT.md                     # 現在有効な方針の要約
 │   ├── DEVELOPMENT.md                 # このファイル
 │   └── decisions/                     # Decision Record
@@ -87,6 +87,9 @@ xcrun simctl list devices available
 - Push 通知と iCloud は Personal Team では使えないが、本仕様は使わない（ローカル通知に capability は不要）。
 - **Xcode を開くのは、ターゲット追加・capability 追加・実機デバッグ・Instruments・アイコン作成のときだけ。**
   それ以外では開かない（[0008](decisions/0008-minimal-xcode-gui.md)）。
+- **アプリ名は `Mdoro` に決まっている**（[0021](decisions/0021-published-as-oss-named-mdoro.md)）。
+  ただしターゲット名・bundle ID・フォルダ名は未改名であり、この文書のパスは現状のままである。
+  改名の範囲は OPEN-017、実施は工程9。**改名は Xcode 操作**なので人間へ依頼する。
 - セットアップ手順書: https://claude.ai/code/artifact/79598e4c-33c6-49c6-aaeb-aa64e2cc6f3b
 
 Apple プラットフォームの制約（ATS、ローカルネットワーク許可、Live Activity、ファイル監視など）は

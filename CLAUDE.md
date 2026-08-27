@@ -1,7 +1,11 @@
-# Pomodoro Timer (Mac ⇄ iPhone) — 運用憲法
+# Mdoro (Mac ⇄ iPhone) — 運用憲法
 
-Mac をタイマー状態の正本、iPhone を表示・操作端末とする、LAN 内で完結するポモドーロタイマー。
-Obsidian の `Task.md` を読み取り専用で参照し、実績を `PomodoroLog.md` へ記録する。
+Mac をタイマー状態の正本、iPhone を表示・操作端末とする、LAN 内で完結する集中セッションのタイマー。
+**Markdown のタスクファイル**を読み取り専用で参照し、実績をログファイルへ記録する。
+Obsidian / Logseq など、md を素のファイルとして扱う道具であればよい（特定ツール専用ではない）。
+
+**GitHub で OSS として公開する。** 名称は `Mdoro`。対象は Markdown でタスクを管理する利用者。
+アプリが生成する文字列は英語のみ（コードコメントと `docs/` は日本語）。
 
 - **Mac**: SwiftUI / macOS 26+。メニューバー常駐＋メインウィンドウ。WebSocket サーバー。
 - **iPhone**: SwiftUI / iOS 26+。表示と操作。Live Activity。
@@ -12,7 +16,7 @@ Obsidian の `Task.md` を読み取り専用で参照し、実績を `PomodoroLo
 
 | 知りたいこと | 参照先 |
 | :---- | :---- |
-| 要件（何を作るか） | `docs/SPEC.md`（v2.6.1、232要件）**唯一の正** |
+| 要件（何を作るか） | `docs/SPEC.md`（v2.7、234要件）**唯一の正** |
 | 現在有効な方針・制約・未決事項・作業状態 | `docs/CONTEXT.md` |
 | なぜそう決めたか | `docs/decisions/` |
 | ビルド手順・プロジェクト構成・環境 | `docs/DEVELOPMENT.md` |
@@ -108,5 +112,6 @@ Obsidian の `Task.md` を読み取り専用で参照し、実績を `PomodoroLo
 やらない。提案もしない。
 
 - クラウド同期、アカウント、APNs（完全ローカル駆動の原則）
-- `Task.md` の編集機能（タスクの作成・完了は Obsidian 側の操作）
+- 広告・アプリ内課金・利用計測、英語以外の UI 言語
+- タスクファイルの編集機能（タスクの作成・完了は利用者の Markdown エディタ側の操作）
 - iPad / Apple Watch、複数クライアント同時接続、LAN 外からの接続
