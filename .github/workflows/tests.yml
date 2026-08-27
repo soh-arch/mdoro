@@ -1,0 +1,18 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  core:
+    # The shared package is where the rules live: the state machine, the log
+    # format, the colour system and its contrast checks. It builds without Xcode,
+    # so it is what CI can hold onto.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: swift test
+        working-directory: Packages/MdoroCore
+        run: swift test
