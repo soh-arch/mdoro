@@ -32,22 +32,25 @@ struct MdoroWidgetLiveActivity: Widget {
                         .font(.system(size: WidgetFontSize.islandTimer, weight: .medium, design: .rounded).monospacedDigit())
                 }
                 DynamicIslandExpandedRegion(.bottom) {
+                    // **島にタスク名を出さない。** 高さが固定で、3つ積むと黙って消える。
+                    // タスク名はロック画面が持つ（REQ-UIX-025）。
                     VStack(spacing: 4) {
-                        if let task = context.state.taskName, !task.isEmpty {
-                            Text(task).font(.system(size: WidgetFontSize.secondary)).lineLimit(1)
-                        }
                         StatusNotice(isStale: context.isStale, isConnected: context.state.isConnected)
                         Controls(state: context.state)
                     }
                 }
             } compactLeading: {
-                Image(systemName: symbol(context.state.sessionType))
+                // REQ-UIX-023: コンパクト表示に文言は置けない。**記号で示す。**
+                // 古い情報を、正しい情報と同じ顔で出さないことが目的である。
+                Image(systemName: compactSymbol(context))
             } compactTrailing: {
                 TimerText(state: context.state)
                     .font(.system(size: WidgetFontSize.compactTimer).monospacedDigit())
-                    .frame(maxWidth: 44)
+                    // 1時間を超えるセッション（`1:05:00`）でも切れない幅にする。
+                    // Focus は最大180分まで設定できる（9.2）。
+                    .frame(maxWidth: 56)
             } minimal: {
-                Image(systemName: symbol(context.state.sessionType))
+                Image(systemName: compactSymbol(context))
             }
         }
     }
@@ -58,6 +61,12 @@ struct MdoroWidgetLiveActivity: Widget {
         case .shortBreak: return String(localized: "Short Break")
         case .longBreak: return String(localized: "Long Break")
         }
+    }
+
+    // 状態を確認できていないときは、種別ではなく注意記号を出す。
+    private func compactSymbol(_ context: ActivityViewContext<MdoroActivityAttributes>) -> String {
+        if context.isStale || !context.state.isConnected { return "exclamationmark.triangle.fill" }
+        return symbol(context.state.sessionType)
     }
 
     private func symbol(_ type: SessionType) -> String {
@@ -170,7 +179,9 @@ private struct LockScreenView: View {
                 Text(task).font(.system(size: WidgetFontSize.secondary)).foregroundStyle(.secondary).lineLimit(1)
             }
         }
-        .padding()
+        // REQ-UIX-042: 余白は 8.6.2 の値から選ぶ。`.padding()` の 16 はシステム側の余白と二重になる。
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     private var label: String {

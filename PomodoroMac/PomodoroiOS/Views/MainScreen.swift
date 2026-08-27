@@ -88,8 +88,30 @@ struct MainScreen: View {
     }
 
     // REQ-COM-013: 切断中は操作系 UI を無効化する。
+    // REQ-UIX-044: ボタンの色は役割名から引く。**OS の既定に委ねない。**
+    // 委ねていたために、有効な副次ボタンと無効なボタンが同じ見た目になっていた（2026-08-27、実機）。
     @ViewBuilder
     private var controls: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            buttonRow
+            // REQ-UIX-045: 無効にした操作には、無効である理由を示す。
+            if let reason = extendDisabledReason {
+                Text(reason).font(.caption).foregroundStyle(theme.textTertiary)
+            }
+        }
+        .buttonStyle(.bordered)
+        .tint(theme.color(.accentPrimary, .text))
+    }
+
+    // REQ-TIM-046: 受付ウィンドウの外では押せない。押せない理由は上に出す。
+    private var extendDisabledReason: String? {
+        guard timer.sessionType == .work, timer.runState != .idle else { return nil }
+        guard !TimerEngine.isWithinExtensionWindow(timer, now: model.displayNow) else { return nil }
+        return "Extending opens in the last 5 minutes"
+    }
+
+    @ViewBuilder
+    private var buttonRow: some View {
         HStack(spacing: 10) {
             switch timer.runState {
             case .idle:
@@ -102,22 +124,21 @@ struct MainScreen: View {
                 Button("Pause") { model.send(.pause) }.buttonStyle(.borderedProminent)
                 extendButton
                 Button("Skip") { model.send(.skip) }
-                Button("Stop") { model.send(.abort) }
+                Button("Stop") { model.send(.abort) }.tint(theme.color(.danger, .text))
             case .paused:
                 Button("Resume") { model.send(.resume) }.buttonStyle(.borderedProminent)
                 extendButton
-                Button("Stop") { model.send(.abort) }
+                Button("Stop") { model.send(.abort) }.tint(theme.color(.danger, .text))
             case .finished:
                 Button("Start Next") { startNext() }.buttonStyle(.borderedProminent)
                 extendButton
-                Button("Stop") { model.send(.abort) }
+                Button("Stop") { model.send(.abort) }.tint(theme.color(.danger, .text))
             case .pendingDecision:
                 EmptyView()
             }
             Spacer()
         }
         .disabled(!model.isConnected)
-        .buttonStyle(.bordered)
     }
 
     // REQ-TIM-044: 休憩に延長はない。REQ-TIM-046: 窓の外では無効。

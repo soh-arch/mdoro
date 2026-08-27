@@ -8,7 +8,31 @@ struct ConnectionBanner: View {
     @Environment(ClientModel.self) private var model
     @State private var pairingCode = ""
 
+    // REQ-UIX-046: 帯は**注意を要する状態にだけ**使う。
+    // 正常につながっているあいだ「問題ありません」と全幅で言う要素を置かない。
+    // REQ-UIX-004 は、点と短いラベルで満たす。
+    private var needsAttention: Bool {
+        !model.isConnected || model.isAwaitingFirstSync || model.liveActivityProblem != nil
+    }
+
     var body: some View {
+        if needsAttention {
+            banner
+        } else {
+            statusMark
+        }
+    }
+
+    private var statusMark: some View {
+        HStack(spacing: 6) {
+            Image(systemName: model.connectionStatus.symbolName)
+            Text(Format.connectionLabel(model.connectionStatus))
+        }
+        .font(.footnote)
+        .foregroundStyle(theme.color(model.connectionStatus.colorRole, .text))
+    }
+
+    private var banner: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: model.connectionStatus.symbolName)

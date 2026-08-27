@@ -96,11 +96,9 @@ struct PresetEditorView: View {
                     Text("Long break every \(preset.longBreakInterval) loops")
                 }
                 minuteStepper("Each extension", binding(preset, \.extendSeconds), range: 1...30)
-                Toggle("Start the next session automatically", isOn: binding(preset, \.autoAdvance))
-                if preset.autoAdvance {
-                    // REQ-TIM-043: autoAdvance は猶予を放棄することを意味する。
-                    groupNote("The next session starts on its own, so the one-minute grace period for extending or stopping is gone.")
-                }
+                // REQ-TIM-011（SHOULD）は未実装であり、`autoAdvance` を読むコードは存在しない。
+                // **実装していない機能の操作盤を出さない**（Decision 0026、旧 OPEN-023）。
+                // 実装するときは、REQ-TIM-043（autoAdvance は猶予を放棄する）と一緒に戻すこと。
             } header: {
                 Text("Flow")
             } footer: {

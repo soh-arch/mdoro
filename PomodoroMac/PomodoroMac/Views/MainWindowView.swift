@@ -68,6 +68,28 @@ struct MainWindowView: View {
     @ViewBuilder
     private var controls: some View {
         let state = model.timer.runState
+        VStack(alignment: .leading, spacing: 6) {
+            // REQ-UIX-045: 無効にした操作には、無効である理由を示す。
+            // ツールチップは「気づいた人にしか届かない」ので、画面に出す。
+            controlRow(state)
+            if let reason = extendDisabledReason {
+                Text(reason).font(.caption).foregroundStyle(theme.textTertiary)
+            }
+        }
+        // REQ-UIX-044: ボタンの色は役割名から引く。OS の既定に委ねない。
+        .buttonStyle(.bordered)
+        .tint(theme.color(.accentPrimary, .text))
+    }
+
+    // REQ-TIM-046: 受付ウィンドウ（残り5分〜終了後1分）の外では押せない。
+    private var extendDisabledReason: String? {
+        guard model.timer.sessionType == .work, model.timer.runState != .idle else { return nil }
+        guard !TimerEngine.isWithinExtensionWindow(model.timer, now: now) else { return nil }
+        return "Extending opens in the last 5 minutes"
+    }
+
+    @ViewBuilder
+    private func controlRow(_ state: RunState) -> some View {
         HStack(spacing: 10) {
             switch state {
             case .idle:
@@ -78,15 +100,15 @@ struct MainWindowView: View {
                 Button("Pause") { model.send(.pause) }.buttonStyle(.borderedProminent)
                 extendButton
                 Button("Skip") { model.send(.skip) }
-                Button("Stop") { model.send(.abort) }
+                Button("Stop") { model.send(.abort) }.tint(theme.color(.danger, .text))
             case .paused:
                 Button("Resume") { model.send(.resume) }.buttonStyle(.borderedProminent)
                 extendButton
-                Button("Stop") { model.send(.abort) }
+                Button("Stop") { model.send(.abort) }.tint(theme.color(.danger, .text))
             case .finished:
                 Button("Start Next") { startNext() }.buttonStyle(.borderedProminent)
                 extendButton
-                Button("Stop") { model.send(.abort) }
+                Button("Stop") { model.send(.abort) }.tint(theme.color(.danger, .text))
             case .pendingDecision:
                 EmptyView()
             }
