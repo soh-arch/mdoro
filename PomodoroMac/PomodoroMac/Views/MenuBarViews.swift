@@ -45,8 +45,11 @@ struct MenuBarLabelView: View {
     }
 }
 
-// REQ-UIX-031: ドロップダウンからは「一時停止 / 再開」「次のセッションを開始」「プリセット切替」
+// REQ-UIX-031: **操作**は「一時停止 / 再開」「次のセッションを開始」「プリセット切替」
 // 「メインウィンドウを開く」のみ。中断・リセット・プリセット編集・設定変更は誤操作防止のため出さない。
+//
+// **読むだけの情報は制限の対象ではない。** 誤操作しようがないものを隠す理由はなく、
+// メニューバーを開く動機の多くは「今どうなっているか」を確かめることである。
 struct MenuBarMenuContent: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
@@ -54,6 +57,8 @@ struct MenuBarMenuContent: View {
     private var preset: Preset { model.presets.activePreset ?? Preset.standard() }
 
     var body: some View {
+        status
+        Divider()
         switch model.timer.runState {
         case .running:
             Button("Pause") { model.send(.pause) }
@@ -92,6 +97,31 @@ struct MenuBarMenuContent: View {
         Button("Open Main Window") { openMain() }
         Divider()
         Button("Quit") { NSApplication.shared.terminate(nil) }
+    }
+
+    // 読むだけの情報。**問題があるものだけを足す**（正常なログ書き込みは黙っている）。
+    @ViewBuilder
+    private var status: some View {
+        Text(headline)
+        if let task = model.tasks.selectedTaskSnapshot, !task.isEmpty {
+            Text("Task: \(task.prefix(40))")
+        }
+        Text("\(preset.name)（\(Format.presetShape(preset))）")
+        // REQ-UIX-004: 接続状態は常時視認できること。
+        Text(model.connection.label)
+        // REQ-LOG-005 / REQ-ERR-004: 書けていないことを黙らせない。
+        if model.logWriteFailed || model.pendingLogCount > 0 {
+            Text("\(model.pendingLogCount) log lines not yet written")
+        }
+    }
+
+    private var headline: String {
+        let clock = model.timer.runState == .idle
+            ? "--:--"
+            : Format.clock(model.remainingSeconds(at: model.displayNow))
+        let loop = "\(model.timer.displayLoop(longBreakInterval: preset.longBreakInterval))/\(preset.longBreakInterval)"
+        let paused = model.timer.runState == .paused ? " (paused)" : ""
+        return "\(Format.sessionLabel(model.timer.sessionType)) \(clock)\(paused) · \(loop)"
     }
 
     private var nextSessionTitle: String {

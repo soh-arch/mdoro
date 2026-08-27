@@ -123,7 +123,10 @@ struct MainWindowView: View {
     @ViewBuilder
     private var extendButton: some View {
         if model.timer.sessionType == .work {
-            Button("Extend +\(preset.extendSeconds / 60)m") { model.send(.extend) }
+            // 文言は短くてよい（下に理由が出る。REQ-UIX-045）が、
+            // **読み上げでは何のボタンか分からなくなる**ので、そちらには意味を残す。
+            Button("+\(preset.extendSeconds / 60) min") { model.send(.extend) }
+                .accessibilityLabel("Extend by \(preset.extendSeconds / 60) minutes")
                 .disabled(!TimerEngine.isWithinExtensionWindow(model.timer, now: now))
                 .help("You can extend from 5 minutes before the end until 1 minute after")
         }
@@ -142,8 +145,12 @@ struct MainWindowView: View {
     private var statusBar: some View {
         HStack(spacing: 8) {
             let status = model.connection
-            Image(systemName: status.peerSymbolName)
-            Text(status.label)
+            // 接続でつまずいた人が最初に見るのはここ。**ここから設定へ行けるようにする。**
+            SettingsLink {
+                Label(status.label, systemImage: status.peerSymbolName)
+            }
+            .buttonStyle(.link)
+            .simultaneousGesture(TapGesture().onEnded { model.settingsTab = .connection })
             if model.pendingLogCount > 0 {
                 Divider().frame(height: 12)
                 Text("\(model.pendingLogCount) not yet written")

@@ -108,7 +108,8 @@ struct FocusView: View {
             }
             // 延長は WORK 以外では非表示（REQ-TIM-040 により休憩に延長はない）。
             if timer.sessionType == .work {
-                Button("Extend +\(preset.extendSeconds / 60) min") { model.send(.extend) }
+                Button("+\(preset.extendSeconds / 60) min") { model.send(.extend) }
+                    .accessibilityLabel("Extend by \(preset.extendSeconds / 60) minutes")
                     .disabled(!TimerEngine.isWithinExtensionWindow(timer, now: model.displayNow))
             }
         }

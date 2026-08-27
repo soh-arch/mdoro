@@ -123,7 +123,7 @@
     "Export…" : {
 
     },
-    "Extend +%lld min" : {
+    "Extend +%lldm" : {
 
     },
     "Extending" : {
@@ -287,9 +287,6 @@
 
     },
     "Start pairing" : {
-
-    },
-    "Start the next session automatically" : {
 
     },
     "Startup" : {

@@ -147,7 +147,8 @@ struct MainScreen: View {
     @ViewBuilder
     private var extendButton: some View {
         if timer.sessionType == .work {
-            Button("Extend +\(preset.extendSeconds / 60)m") { model.send(.extend) }
+            Button("+\(preset.extendSeconds / 60) min") { model.send(.extend) }
+                .accessibilityLabel("Extend by \(preset.extendSeconds / 60) minutes")
                 .disabled(!TimerEngine.isWithinExtensionWindow(timer, now: model.displayNow))
         }
     }

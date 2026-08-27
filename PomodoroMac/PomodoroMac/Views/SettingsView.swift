@@ -4,6 +4,11 @@ import UniformTypeIdentifiers
 import MdoroCore
 
 // REQ-UIX-031: 中断・リセット・プリセット編集・設定変更はメインウィンドウ（と設定画面）でのみ可能。
+// 設定タブの識別子。メインウィンドウから開く先を指定するため、モデルが持つ。
+enum SettingsTab: String, Hashable, CaseIterable {
+    case presets, files, connection, behavior, display
+}
+
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var systemScheme
@@ -12,13 +17,29 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var bindable = model
-        TabView {
-            filesTab(model: $bindable).tabItem { Label("Files", systemImage: "folder") }
-            behaviorTab(model: $bindable).tabItem { Label("Behavior", systemImage: "timer") }
-            appearanceTab(model: $bindable).tabItem { Label("Display", systemImage: "paintpalette") }
-            PresetEditorView().tabItem { Label("Presets", systemImage: "slider.horizontal.3") }
+        // 並びは「タイマーの形 → 読み書きするファイル → 相手の端末 → 規則 → 見た目」。
+        // 触る頻度が高いものほど手前に置く。
+        TabView(selection: $bindable.settingsTab) {
+            PresetEditorView()
+                .tabItem { Label("Presets", systemImage: "slider.horizontal.3") }.tag(SettingsTab.presets)
+            filesTab(model: $bindable)
+                .tabItem { Label("Files", systemImage: "folder") }.tag(SettingsTab.files)
+            connectionTab
+                .tabItem { Label("Connection", systemImage: "iphone.gen3") }.tag(SettingsTab.connection)
+            behaviorTab(model: $bindable)
+                .tabItem { Label("Behavior", systemImage: "timer") }.tag(SettingsTab.behavior)
+            appearanceTab(model: $bindable)
+                .tabItem { Label("Display", systemImage: "paintpalette") }.tag(SettingsTab.display)
         }
         .frame(width: 560, height: 460)
+    }
+
+    // MARK: - 接続
+
+    // 「iPhone との接続」は動作の設定ではない。独立したタブに置き、
+    // メインウィンドウの接続表示から直接ここへ来られるようにする（REQ-UIX-004）。
+    private var connectionTab: some View {
+        Form { PairingSection() }.formStyle(.grouped)
     }
 
     // MARK: - ファイル
@@ -205,8 +226,6 @@ struct SettingsView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-
-            PairingSection()
 
             Section("Startup") {
                 Toggle("Launch at login", isOn: model.settings.launchAtLogin)

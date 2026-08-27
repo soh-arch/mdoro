@@ -62,6 +62,8 @@ final class AppModel {
     private let server = MdoroServer()
     // REQ-ERR-010 / Decision 0018: タスク名もパスも載せない診断ログ。
     let diagnostics = DiagnosticLog()
+    // 設定ウィンドウをどのタブで開くか。メインウィンドウの接続表示から指定する。
+    var settingsTab: SettingsTab = .presets
     private var infoServer: InfoHTTPServer?
     private var authenticator = Authenticator(issuedTokens: DeviceTokenStore.load())
     private let logQueue: LogWriteQueue
