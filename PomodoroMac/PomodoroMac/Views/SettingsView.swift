@@ -222,6 +222,23 @@ struct SettingsView: View {
                         isActive: self.model.showWindowHotKeyIsActive
                     )
                 }
+                // Decision 0029: ウィンドウを開かずに進められるように。
+                HStack {
+                    Text("Start the next session")
+                    Spacer()
+                    HotKeyRecorderView(
+                        binding: model.settings.startNextHotKey,
+                        isActive: self.model.startNextHotKeyIsActive
+                    )
+                }
+                HStack {
+                    Text("Skip")
+                    Spacer()
+                    HotKeyRecorderView(
+                        binding: model.settings.skipHotKey,
+                        isActive: self.model.skipHotKeyIsActive
+                    )
+                }
                 Text("A combination another app already uses cannot be registered. Include a modifier key.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)

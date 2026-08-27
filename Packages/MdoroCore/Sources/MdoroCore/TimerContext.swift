@@ -160,6 +160,10 @@ public struct AppSettings: Equatable, Sendable, Codable {
     public var pauseResumeHotKey: HotKeyBinding?
     // メインウィンドウを前面に出すホットキー。既定は未設定 (Decision 0016)。
     public var showWindowHotKey: HotKeyBinding?
+    // REQ-UIX-033 / Decision 0029: ウィンドウを開かずに進められるように。
+    // **中断とリセットには割り当てない。** 確認を1段はさめない経路に、破壊的操作を置かない。
+    public var startNextHotKey: HotKeyBinding?
+    public var skipHotKey: HotKeyBinding?
     // 標準的な常駐アプリの設定項目 (Decision 0016)。
     public var launchAtLogin: Bool
 
@@ -178,6 +182,8 @@ public struct AppSettings: Equatable, Sendable, Codable {
         menuBarDisplayMode: MenuBarDisplayMode = .timeAndType,
         pauseResumeHotKey: HotKeyBinding? = nil,
         showWindowHotKey: HotKeyBinding? = nil,
+        startNextHotKey: HotKeyBinding? = nil,
+        skipHotKey: HotKeyBinding? = nil,
         launchAtLogin: Bool = false
     ) {
         self.appearance = appearance
@@ -194,6 +200,8 @@ public struct AppSettings: Equatable, Sendable, Codable {
         self.menuBarDisplayMode = menuBarDisplayMode
         self.pauseResumeHotKey = pauseResumeHotKey
         self.showWindowHotKey = showWindowHotKey
+        self.startNextHotKey = startNextHotKey
+        self.skipHotKey = skipHotKey
         self.launchAtLogin = launchAtLogin
     }
 
@@ -233,6 +241,8 @@ public struct AppSettings: Equatable, Sendable, Codable {
         menuBarDisplayMode = try c.decodeIfPresent(MenuBarDisplayMode.self, forKey: .menuBarDisplayMode) ?? d.menuBarDisplayMode
         pauseResumeHotKey = try c.decodeIfPresent(HotKeyBinding.self, forKey: .pauseResumeHotKey)
         showWindowHotKey = try c.decodeIfPresent(HotKeyBinding.self, forKey: .showWindowHotKey)
+        startNextHotKey = try c.decodeIfPresent(HotKeyBinding.self, forKey: .startNextHotKey)
+        skipHotKey = try c.decodeIfPresent(HotKeyBinding.self, forKey: .skipHotKey)
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
     }
 

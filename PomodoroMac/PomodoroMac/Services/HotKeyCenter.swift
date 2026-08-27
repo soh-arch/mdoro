@@ -13,6 +13,9 @@ final class HotKeyCenter {
     enum Slot: UInt32, CaseIterable {
         case pauseResume = 1
         case showWindow = 2
+        // Decision 0029: ウィンドウを開かずに次へ進める。
+        case startNext = 3
+        case skip = 4
     }
 
     private var refs: [Slot: EventHotKeyRef] = [:]

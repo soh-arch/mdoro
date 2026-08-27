@@ -45,33 +45,41 @@ struct MenuBarLabelView: View {
     }
 }
 
-// REQ-UIX-031: **操作**は「一時停止 / 再開」「次のセッションを開始」「プリセット切替」
-// 「メインウィンドウを開く」のみ。中断・リセット・プリセット編集・設定変更は誤操作防止のため出さない。
+// REQ-UIX-031 / Decision 0029: **危険度で階層を分ける。**
 //
-// **読むだけの情報は制限の対象ではない。** 誤操作しようがないものを隠す理由はなく、
-// メニューバーを開く動機の多くは「今どうなっているか」を確かめることである。
+// 旧条文は操作を4つに絞っていたが、守っていたのは「誤操作」であって
+// 「メニューにあること」ではない。**確認を1段はさめば、深さは作れる。**
+//
+// 直下         … 取り返しのつく操作
+// 確認1段     … 中断・周回リセット（破壊的）
+// サブメニュー … 設定の一部（選ぶだけ。破壊的操作を含まない）
+// 置かない     … プリセット編集・パス変更・ペアリング（不可逆か、外の世界に触る）
 struct MenuBarMenuContent: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
 
     private var preset: Preset { model.presets.activePreset ?? Preset.standard() }
+    private var isLive: Bool { model.timer.runState == .running || model.timer.runState == .paused }
 
     var body: some View {
+        // --- 直下 ---
         switch model.timer.runState {
         case .running:
             Button("Pause") { model.send(.pause) }
         case .paused:
             Button("Resume") { model.send(.resume) }
         case .idle, .finished:
-            Button(nextSessionTitle) { startNext() }
+            Button(nextSessionTitle) { model.startNextSession() }
         case .pendingDecision:
             // 確認はメインウィンドウで行う（REQ-UIX-036 / REQ-PER-005）。
             Text("A decision is needed")
             Button("Open the main window") { openMain() }
         }
 
-        if model.timer.runState == .running || model.timer.runState == .paused {
-            Button(nextSessionTitle) { startNext() }
+        if isLive {
+            Button(nextSessionTitle) { model.startNextSession() }
+            // REQ-TIM-018: スキップは周回数を減らさない。取り返しがつく。
+            Button("Skip") { model.send(.skip) }
         }
 
         Divider()
@@ -89,13 +97,88 @@ struct MenuBarMenuContent: View {
                     }
                 }
             }
-            Divider()
+        }
+        taskMenu
+        displayMenu
+
+        Divider()
+
+        // --- 確認を1段はさむ ---
+        // **滑って押しても走らない。** 破壊的な操作を浅い場所に置かないための段。
+        if isLive || model.timer.runState == .finished {
+            Menu("Stop…") {
+                Button("Confirm stop") { model.send(.abort) }
+            }
+        }
+        if model.timer.loopCount > 0 {
+            Menu("Reset loop count…") {
+                Button("Confirm reset") { model.send(.resetLoopCount) }
+            }
         }
 
+        Divider()
+
+        SettingsLink { Text("Settings…") }
         Button("Open Main Window") { openMain() }
         Divider()
         Button("Quit") { NSApplication.shared.terminate(nil) }
     }
+
+    // 設定画面の一部を持ち出す。**選ぶだけで、外の世界には触らない。**
+    private var displayMenu: some View {
+        Menu("Display") {
+            Picker("Appearance", selection: Binding(
+                get: { model.settings.appearance },
+                set: { model.settings.appearance = $0 }
+            )) {
+                Text("System").tag(AppearancePreference.system)
+                Text("Light").tag(AppearancePreference.light)
+                Text("Dark").tag(AppearancePreference.dark)
+            }
+            Picker("Menu bar", selection: Binding(
+                get: { model.settings.menuBarDisplayMode },
+                set: { model.settings.menuBarDisplayMode = $0 }
+            )) {
+                Text("Time and type").tag(MenuBarDisplayMode.timeAndType)
+                Text("Time and task").tag(MenuBarDisplayMode.timeAndTask)
+                Text("Time only").tag(MenuBarDisplayMode.timeOnly)
+                Text("Icon only").tag(MenuBarDisplayMode.iconOnly)
+            }
+        }
+    }
+
+    // REQ-TSK-004: タスクの選択はどちらの画面からでもできること。
+    // **一覧が長いときは打ち切る。** 縦長のメニューに1000件は載せられない。
+    @ViewBuilder
+    private var taskMenu: some View {
+        let sections = model.tasks.grouped(showCompleted: model.settings.showCompletedTasks)
+        if !sections.isEmpty {
+            Menu("Task") {
+                if model.tasks.selectedTaskId != nil {
+                    Button("Clear selection") { model.clearTaskSelection() }
+                    Divider()
+                }
+                ForEach(sections) { section in
+                    Menu(section.name) {
+                        ForEach(section.items.prefix(Self.taskMenuLimit)) { item in
+                            Button {
+                                model.selectTask(id: item.stableId)
+                            } label: {
+                                Text(item.displayText
+                                     + (item.stableId == model.tasks.selectedTaskId ? " ✓" : ""))
+                            }
+                        }
+                        if section.items.count > Self.taskMenuLimit {
+                            Divider()
+                            Text("More in the main window")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static let taskMenuLimit = 20
 
     private var nextSessionTitle: String {
         "Start Next (\(Format.sessionLabel(model.timer.nextSessionType)))"

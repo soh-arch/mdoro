@@ -31,6 +31,8 @@ final class AppModel {
     // REQ-UIX-033: 割り当ててあるのに他アプリに取られている場合を UI で区別する。
     private(set) var pauseResumeHotKeyIsActive = false
     private(set) var showWindowHotKeyIsActive = false
+    private(set) var startNextHotKeyIsActive = false
+    private(set) var skipHotKeyIsActive = false
     // REQ-SEC-001: ペアリング中に Mac 画面へ表示する6桁コード。
     private(set) var pairingCode: String?
     private(set) var pairingRemainingSeconds = 0
@@ -330,7 +332,9 @@ final class AppModel {
             startWatchingTaskFile()
         }
         if settings.pauseResumeHotKey != previous.pauseResumeHotKey
-            || settings.showWindowHotKey != previous.showWindowHotKey {
+            || settings.showWindowHotKey != previous.showWindowHotKey
+            || settings.startNextHotKey != previous.startNextHotKey
+            || settings.skipHotKey != previous.skipHotKey {
             updateHotKey()
         }
         if settings.launchAtLogin != previous.launchAtLogin {
@@ -342,8 +346,8 @@ final class AppModel {
         persist()
     }
 
-    // REQ-UIX-033: 「一時停止 / 再開」だけをグローバルに割り当てる。
-    // 中断・リセットは誤爆すると取り返しがつかないので、メインウィンドウに留める（REQ-UIX-031 と同じ理由）。
+    // REQ-UIX-033 / Decision 0029: 一時停止・再開・次を開始・スキップを割り当てられる。
+    // **中断とリセットは割り当てない。** 確認をはさめない操作に、破壊的なものを置かない。
     private func updateHotKey() {
         hotKeys.update(.pauseResume, binding: settings.pauseResumeHotKey) { [weak self] in
             guard let self else { return }
@@ -356,12 +360,34 @@ final class AppModel {
         hotKeys.update(.showWindow, binding: settings.showWindowHotKey) { [weak self] in
             self?.onShowWindowRequested?()
         }
+        // Decision 0029: 次を開始・スキップも割り当てられる。
+        // **中断とリセットには割り当てない** — 確認を1段はさめない経路だから。
+        hotKeys.update(.startNext, binding: settings.startNextHotKey) { [weak self] in
+            self?.startNextSession()
+        }
+        hotKeys.update(.skip, binding: settings.skipHotKey) { [weak self] in
+            guard let self, timer.runState == .running || timer.runState == .paused else { return }
+            send(.skip)
+        }
         pauseResumeHotKeyIsActive = hotKeys.isRegistered(.pauseResume)
         showWindowHotKeyIsActive = hotKeys.isRegistered(.showWindow)
+        startNextHotKeyIsActive = hotKeys.isRegistered(.startNext)
+        skipHotKeyIsActive = hotKeys.isRegistered(.skip)
     }
 
     // ウィンドウを前面に出す処理は Scene 側が握っているため、呼び出し口だけ持つ。
     var onShowWindowRequested: (() -> Void)?
+
+    // 「次を開始」はメニューからもホットキーからも呼ぶ。判断を1箇所に置く。
+    func startNextSession() {
+        guard let presetId = presets.activePreset?.id else { return }
+        let next = timer.nextSessionType
+        if next == .work {
+            send(.startWork(presetId: presetId, taskSnapshot: tasks.selectedTaskSnapshot))
+        } else {
+            send(.startBreak(type: next, presetId: presetId))
+        }
+    }
 
     // MARK: - 通信 (第3章 / 第10章)
 

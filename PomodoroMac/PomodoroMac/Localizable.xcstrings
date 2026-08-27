@@ -27,9 +27,6 @@
         }
       }
     },
-    "%lld log lines not yet written" : {
-
-    },
     "%lld min left" : {
 
     },
@@ -311,9 +308,6 @@
 
     },
     "Task file (read-only)" : {
-
-    },
-    "Task: %@" : {
 
     },
     "Tasks" : {
