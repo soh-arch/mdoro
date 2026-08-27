@@ -114,6 +114,8 @@ struct MainWindowView: View {
             }
             Spacer()
         }
+        // **ボタンの文字を折り返させない。**
+        .lineLimit(1)
     }
 
     // REQ-TIM-044: 休憩に延長はない。
@@ -121,7 +123,7 @@ struct MainWindowView: View {
     @ViewBuilder
     private var extendButton: some View {
         if model.timer.sessionType == .work {
-            Button("Extend +\(preset.extendSeconds / 60) min") { model.send(.extend) }
+            Button("Extend +\(preset.extendSeconds / 60)m") { model.send(.extend) }
                 .disabled(!TimerEngine.isWithinExtensionWindow(model.timer, now: now))
                 .help("You can extend from 5 minutes before the end until 1 minute after")
         }

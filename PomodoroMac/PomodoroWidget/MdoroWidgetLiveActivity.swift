@@ -19,13 +19,18 @@ struct MdoroWidgetLiveActivity: Widget {
                 .activitySystemActionForegroundColor(.primary)
         } dynamicIsland: { context in
             DynamicIsland {
+                // 端の2領域は中央のタイマーに幅を譲るため**狭い**。
+                // アイコンを添えると文字のぶんが押し出され、種別名が消える（2026-08-28、実機）。
+                // 記号はコンパクト表示が持っているので、ここは文字だけにする。
                 DynamicIslandExpandedRegion(.leading) {
-                    Label(sessionLabel(context.state.sessionType), systemImage: symbol(context.state.sessionType))
-                        .font(.system(size: WidgetFontSize.label))
+                    Text(sessionLabel(context.state.sessionType))
+                        .font(.system(size: WidgetFontSize.label, weight: .medium))
+                        .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text("\(context.state.loopDisplay) / \(context.state.longBreakInterval)")
+                    Text("\(context.state.loopDisplay)/\(context.state.longBreakInterval)")
                         .font(.system(size: WidgetFontSize.label).monospacedDigit())
+                        .lineLimit(1)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     TimerText(state: context.state)

@@ -138,6 +138,8 @@ struct MainScreen: View {
             }
             Spacer()
         }
+        // **ボタンの文字を折り返させない。** 折れると行の高さが揃わず、押す場所が読めなくなる。
+        .lineLimit(1)
         .disabled(!model.isConnected)
     }
 
@@ -145,7 +147,7 @@ struct MainScreen: View {
     @ViewBuilder
     private var extendButton: some View {
         if timer.sessionType == .work {
-            Button("Extend +\(preset.extendSeconds / 60) min") { model.send(.extend) }
+            Button("Extend +\(preset.extendSeconds / 60)m") { model.send(.extend) }
                 .disabled(!TimerEngine.isWithinExtensionWindow(timer, now: model.displayNow))
         }
     }
