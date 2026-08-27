@@ -52,8 +52,21 @@ struct MainScreen: View {
             }
         }
         .environment(\.theme, theme)
+        // REQ-COL-003: 設定でライト固定・ダーク固定も選べる。**Mac 側にはあり、ここに無かった。**
+        // 無いと、地と文字は自前のパレット、ナビゲーションバーと標準コントロールは OS の外観、
+        // という食い違いが起きる。実機では**タイトルが白く飛び、有効なボタンが無効に見えた**
+        // （2026-08-27、スクリーンショットで確認）。
+        .preferredColorScheme(preferredScheme)
         .fullScreenCover(isPresented: Bindable(model).isFocusViewPresented) {
             FocusView()
+        }
+    }
+
+    private var preferredScheme: SwiftUI.ColorScheme? {
+        switch model.snapshot?.settings.appearance ?? .system {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
         }
     }
 

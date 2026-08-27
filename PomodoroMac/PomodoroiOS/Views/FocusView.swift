@@ -50,6 +50,9 @@ struct FocusView: View {
             .onTapGesture(count: 2) { dismiss() }
         }
         .statusBarHidden()
+        // REQ-COL-030: 集中表示ビューはシステムの外観にかかわらず常にダークのパレット。
+        // 器の側も揃えておかないと、標準コントロールだけが明るいまま残る。
+        .preferredColorScheme(.dark)
         .onAppear {
             // REQ-UIX-012: 自動画面ロックを抑止する。
             UIApplication.shared.isIdleTimerDisabled = true
