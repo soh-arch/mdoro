@@ -8,6 +8,12 @@ over your local network and talk to nothing else.
 Mdoro reads a Markdown file you already have, **read-only**, and appends what you
 actually did to a log file next to it. It never edits your tasks.
 
+<p align="center">
+  <img src="docs/images/mac-main-light.png" width="430" alt="The Mdoro window on the Mac: a Focus session running, with the task list from a Markdown file below it">
+  &nbsp;&nbsp;
+  <img src="docs/images/ios-main-light.png" width="205" alt="Mdoro on the iPhone: connected to the Mac, showing the same session and the same tasks">
+</p>
+
 ---
 
 ## What it does
@@ -61,6 +67,20 @@ Any Markdown file. Mdoro reads **standard checkbox list items** and nothing else
 Tool-specific task markers (`TODO`, `DOING`, `id::`) are **not** read. If a file
 works in Obsidian, Logseq, or a plain editor, it works here - because Mdoro only
 relies on what all of them share.
+
+## On the iPhone
+
+The lock screen carries the session, so the phone can stay face down. Tapping the
+timer opens a full-screen view that is only a clock, a task and one control.
+
+<p align="center">
+  <img src="docs/images/ios-lock-screen.jpg" width="205" alt="The lock screen showing the running Focus session, the selected task and the loop count">
+  &nbsp;&nbsp;
+  <img src="docs/images/ios-focus-view.png" width="205" alt="The full-screen focus view: session type, task, remaining time and a progress bar">
+</p>
+
+The iPhone never decides anything. It draws the countdown between updates, but the
+session ends, the loop advances and the log is written on the Mac.
 
 ## Requirements
 
