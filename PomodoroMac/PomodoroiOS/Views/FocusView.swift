@@ -86,9 +86,14 @@ struct FocusView: View {
 
     @ViewBuilder
     private func exitHint(height: CGFloat) -> some View {
+        // 中立の面に置く。**色を帯びた地は使わない** — 帯は注意を要する状態に予約されている
+        //（REQ-UIX-046）。これは注意ではなく案内である。
         Text("Double-tap to go back")
             .font(.system(size: height * 0.7))
-            .foregroundStyle(theme.textTertiary)
+            .foregroundStyle(theme.textSecondary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 8).fill(theme.surface))
             .opacity(isExitHintVisible ? 1 : 0)
             .animation(.easeInOut(duration: 0.25), value: isExitHintVisible)
     }

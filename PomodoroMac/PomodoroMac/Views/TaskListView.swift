@@ -71,9 +71,9 @@ struct TaskListView: View {
             }
 
             if model.tasks.selectedTaskId != nil {
+                // 大きさは `Add`（PresetBarView）と同じ本文サイズに揃える（REQ-UIX-047）。
                 Button { model.clearTaskSelection() } label: {
                     Text("Clear selection")
-                        .font(.footnote)
                         .foregroundStyle(theme.color(.accentPrimary, .text))
                 }
                 .buttonStyle(.plain)
