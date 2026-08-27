@@ -12,6 +12,10 @@ public enum AppInfo {
     public static let supportURL = URL(string: "https://buymeacoffee.com/soh.arch")!
     public static let supportLabel = "buymeacoffee.com/soh.arch"
 
+    // 配布はソースからのビルドのみ（decisions/0021）。About から取りに行ける場所を示す。
+    public static let sourceURL = URL(string: "https://github.com/soh-arch/mdoro")!
+    public static let sourceLabel = "github.com/soh-arch/mdoro"
+
     public static func version(_ bundle: Bundle = .main) -> String {
         let short = bundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
         guard let build = bundle.infoDictionary?["CFBundleVersion"] as? String else { return short }

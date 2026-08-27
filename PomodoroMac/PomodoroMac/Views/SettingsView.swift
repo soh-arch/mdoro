@@ -282,6 +282,14 @@ struct SettingsView: View {
             Section(AppInfo.name) {
                 LabeledContent("Version", value: AppInfo.version())
                 LabeledContent("License", value: AppInfo.license)
+                Button { NSWorkspace.shared.open(AppInfo.sourceURL) } label: {
+                    LabeledContent("Source") {
+                        Text(AppInfo.sourceLabel)
+                            .foregroundStyle(theme.color(.accentPrimary, .text))
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open \(AppInfo.sourceLabel) in your browser")
                 Text(AppInfo.tagline)
                     .font(.footnote)
                     .foregroundStyle(.secondary)

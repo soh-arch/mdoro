@@ -262,6 +262,14 @@ struct DeviceSettingsSheet: View {
                 Section {
                     LabeledContent("Version", value: AppInfo.version())
                     LabeledContent("License", value: AppInfo.license)
+                    Button { openURL(AppInfo.sourceURL) } label: {
+                        LabeledContent("Source") {
+                            Text(AppInfo.sourceLabel)
+                                .foregroundStyle(theme.color(.accentPrimary, .text))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open \(AppInfo.sourceLabel) in Safari")
                     // 開く前にリンク先を見せる。REQ-COL-002: ラベルを自分で塗り、素のボタンにする。
                     Button { openURL(AppInfo.supportURL) } label: {
                         Text(AppInfo.supportLabel)

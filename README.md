@@ -71,7 +71,12 @@ relies on what all of them share.
 
 Mdoro is not distributed as a signed binary. You build it yourself:
 
-1. Open `PomodoroMac/PomodoroMac.xcodeproj`.
+1. Clone the repository and open `PomodoroMac/PomodoroMac.xcodeproj`.
+
+   ```bash
+   git clone https://github.com/soh-arch/mdoro.git
+   ```
+
 2. Select your team under Signing & Capabilities for `MdoroMac`, `MdoroiOS` and
    `MdoroWidget`. A free Apple ID works.
 3. Run `MdoroMac`, then run `MdoroiOS` on your iPhone.
