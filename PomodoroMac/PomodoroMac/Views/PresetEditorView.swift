@@ -115,15 +115,18 @@ struct PresetEditorView: View {
                             Text(sound.displayName).tag(sound)
                         }
                     }
-                    // 選ぶ前に聞けないと、名前だけでは違いが分からない。
-                    Button("試聴") { preview(preset.notificationSound) }
-                        .disabled(!preset.notificationSound.isPreviewable)
-                        .help(preset.notificationSound.isPreviewable ? "" : "システムの通知音のため試聴できません")
+                    // Decision 0019: 音源を直接鳴らさず、本番と同じ通知を1件送る。
+                    // 既定音も試聴でき、通知が届かない状態もここで露見する。
+                    Button("テスト通知") { model.sendNotificationSoundTest(preset) }
+                        .help("この設定で通知を1件送ります")
                 }
                 groupNote("macOS のシステムサウンドを使います。無音を選ぶと音は鳴りません。")
                 // 鳴らない理由がアプリの外にあるなら、アプリが言う。
                 if let problem = model.notificationPermission?.problem {
                     Text(problem).font(.footnote).foregroundStyle(.orange)
+                }
+                if let error = model.notificationAuthorizationError {
+                    Text(error).font(.footnote).foregroundStyle(.orange)
                 }
                 Toggle("集中モード中も通知する", isOn: binding(preset, \.timeSensitiveNotifications))
                 preNotificationEditor(preset)
@@ -190,11 +193,6 @@ struct PresetEditorView: View {
         return !PreNotificationSchedule.fireDates(
             for: [trigger], sessionStartedAt: start, sessionEndAt: end, now: start
         ).isEmpty
-    }
-
-    private func preview(_ sound: NotificationSound) {
-        guard let fileName = sound.systemSoundFileName else { return }
-        NSSound(named: NSSound.Name((fileName as NSString).deletingPathExtension))?.play()
     }
 
     // REQ-UIX-009: 適用タイミング（9.5 の A / B / C 群）を視覚的に区別するための注記。

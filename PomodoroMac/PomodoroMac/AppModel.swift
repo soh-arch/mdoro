@@ -39,6 +39,8 @@ final class AppModel {
     private(set) var serverStartError: String?
     // REQ-NTF-001: 通知が OS 側で切られていたら、それを画面に出す。
     private(set) var notificationPermission: NotificationPermission?
+    // 許可を求めることに失敗した理由。署名の無いビルドではここで止まる。
+    private(set) var notificationAuthorizationError: String?
 
     // REQ-ERR-004 / REQ-LOG-005: 書き込みに失敗し続けていることを UI に出す。
     private(set) var logWriteFailed = false
@@ -104,7 +106,12 @@ final class AppModel {
         diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
         diagnostics.write("app.start")
         Task {
-            await notifications.requestAuthorization()
+            notificationAuthorizationError = await notifications.requestAuthorization()
+            if let notificationAuthorizationError {
+                diagnostics.write("notify.authorize", level: .warn, [
+                    DiagnosticField("why", notificationAuthorizationError),
+                ])
+            }
             await refreshNotificationPermission()
         }
         // 前回書けなかったぶんを、出力先が使えるなら真っ先に書き出す。
@@ -115,6 +122,12 @@ final class AppModel {
         syncSideEffectsToState()
         updateHotKey()
         Task { await startServer() }
+    }
+
+    // REQ-NTF-006 / Decision 0019: 選んだ設定のまま通知を1件送る。
+    func sendNotificationSoundTest(_ preset: Preset) {
+        notifications.deliverSoundTest(preset: preset)
+        diagnostics.write("notify.test", [DiagnosticField("sound", preset.notificationSound.rawValue)])
     }
 
     func refreshNotificationPermission() async {

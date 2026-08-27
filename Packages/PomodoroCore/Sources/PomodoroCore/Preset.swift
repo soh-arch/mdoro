@@ -26,10 +26,6 @@ public enum NotificationSound: String, Equatable, Sendable, Codable, CaseIterabl
 
     public var isSilent: Bool { self == .silent }
 
-    // 既定音は OS が持つ音で、ファイルとして指せない。忠実に試聴できないものを
-    // 試聴できるように見せない。
-    public var isPreviewable: Bool { systemSoundFileName != nil }
-
     public var displayName: String {
         switch self {
         case .default: return "既定"

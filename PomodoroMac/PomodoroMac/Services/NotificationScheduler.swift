@@ -15,8 +15,16 @@ final class NotificationScheduler {
 
     private static let preNotificationPrefix = "pre-notification."
 
-    func requestAuthorization() async {
-        _ = try? await center.requestAuthorization(options: [.alert, .sound])
+    // **`try?` で捨てない。** ここを握り潰していたため、
+    // 「許可を求めることすらできていない」状態が誰にも見えなかった（2026-08-27）。
+    // 署名のないビルドでは、この呼び出し自体が失敗して notDetermined のまま止まる。
+    func requestAuthorization() async -> String? {
+        do {
+            let granted = try await center.requestAuthorization(options: [.alert, .sound])
+            return granted ? nil : "通知が許可されませんでした。"
+        } catch {
+            return "通知の許可を求められませんでした: \(String(describing: error))"
+        }
     }
 
     // 鳴らないときに「アプリが壊れている」と思わせない。
@@ -124,6 +132,16 @@ final class NotificationScheduler {
         content.body = "設定で出力先を確認してください。タイマーは動き続けています。"
         content.sound = .default
         deliverNow(content, identifier: "log-write-failed")
+    }
+
+    // REQ-NTF-006 / Decision 0019: 試聴は**本番と同じ経路**で行う。
+    // 音源を直接鳴らすと、通知が届かない状態を試聴が隠してしまう。
+    func deliverSoundTest(preset: Preset) {
+        let content = UNMutableNotificationContent()
+        content.title = "通知のテスト"
+        content.body = "区切りのときは、この通知が届きます。"
+        apply(sound: preset.notificationSound, timeSensitive: preset.timeSensitiveNotifications, to: content)
+        deliverNow(content, identifier: "sound-test.\(UUID().uuidString)")
     }
 
     // MARK: -

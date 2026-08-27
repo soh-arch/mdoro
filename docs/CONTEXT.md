@@ -102,6 +102,24 @@ Widget 拡張の `IPHONEOS_DEPLOYMENT_TARGET` が端末の iOS より新しい�
 
 **外の世界に触れる操作の失敗は、必ず画面か通知に出す。** 正常時は黙ってよい。
 
+### 検証ビルドで、ユーザーのビルド成果物を上書きしない
+
+`xcodebuild ... CODE_SIGNING_ALLOWED=NO` は既定の DerivedData へ書くため、
+**Xcode で署名して作った成果物を、署名の無いビルドで置き換える。**
+利用者がそのまま起動すると ad-hoc 署名のアプリが動き、次の節の理由で通知が一切届かない。
+原因究明に往復を要した（2026-08-27）。
+
+**検証ビルドは `-derivedDataPath` を作業用ディレクトリへ向けること。**
+
+### 通知には正しい署名が要る
+
+`UNUserNotificationCenter.requestAuthorization` は、**ad-hoc 署名（linker-signed）の
+アプリバンドルでは失敗する。** 権限は `notDetermined` のまま動かず、
+`add()` は成功したように見えて何も配信されない。設定にもアプリが現れない。
+
+`codesign -dv` で `Signature=adhoc` かつ `Identifier` がバンドル ID と食い違っていたら、これ。
+Xcode から実行して署名し直せば直る。**再調査しない。**
+
 ### 前面にいるあいだ、通知は出ない
 
 macOS も iOS も、**アプリが最前面のあいだは `UNUserNotificationCenterDelegate.willPresent` が
