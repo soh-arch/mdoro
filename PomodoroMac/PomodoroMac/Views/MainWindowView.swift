@@ -68,7 +68,7 @@ struct MainWindowView: View {
     @ViewBuilder
     private var controls: some View {
         let state = model.timer.runState
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             // REQ-UIX-045: 無効にした操作には、無効である理由を示す。
             // ツールチップは「気づいた人にしか届かない」ので、画面に出す。
             controlRow(state)
@@ -90,7 +90,7 @@ struct MainWindowView: View {
 
     @ViewBuilder
     private func controlRow(_ state: RunState) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             switch state {
             case .idle:
                 Button("Start Focus") { model.send(.startWork(presetId: preset.id, taskSnapshot: model.tasks.selectedTaskSnapshot)) }
@@ -174,14 +174,14 @@ struct PendingDecisionView: View {
     let pending: PendingDecision
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Label(title, systemImage: "questionmark.circle")
                 .font(.headline)
                 .foregroundStyle(theme.color(.warning, .text))
             Text(detail)
                 .font(.callout)
                 .foregroundStyle(theme.textSecondary)
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 if pending.reason == .pausedTooLong {
                     Button("Resume it") { model.send(.confirmRestoredSession(.continueSession)) }
                         .buttonStyle(.borderedProminent)

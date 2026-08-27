@@ -92,7 +92,7 @@ struct MainScreen: View {
     // 委ねていたために、有効な副次ボタンと無効なボタンが同じ見た目になっていた（2026-08-27、実機）。
     @ViewBuilder
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             buttonRow
             // REQ-UIX-045: 無効にした操作には、無効である理由を示す。
             if let reason = extendDisabledReason {
@@ -112,7 +112,7 @@ struct MainScreen: View {
 
     @ViewBuilder
     private var buttonRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             switch timer.runState {
             case .idle:
                 Button("Start Focus") { model.send(.startWork) }
@@ -209,7 +209,7 @@ struct SessionHeader: View {
     let longBreakInterval: Int
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Circle()
                 .strokeBorder(lineWidth: 3)
                 .frame(width: 14, height: 14)

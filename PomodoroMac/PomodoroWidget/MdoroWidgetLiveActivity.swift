@@ -41,7 +41,7 @@ struct MdoroWidgetLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     // **島にタスク名を出さない。** 高さが固定で、3つ積むと黙って消える。
                     // タスク名はロック画面が持つ（REQ-UIX-025）。
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .firstTextBaseline) {
                             TimerText(state: context.state)
                                 .font(.system(size: WidgetFontSize.islandTimer, weight: .medium, design: .rounded).monospacedDigit())
@@ -171,7 +171,7 @@ private struct LockScreenView: View {
     let context: ActivityViewContext<MdoroActivityAttributes>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(label)
                     .font(.system(size: WidgetFontSize.label, weight: .medium))

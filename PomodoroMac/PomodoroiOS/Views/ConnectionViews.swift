@@ -24,7 +24,7 @@ struct ConnectionBanner: View {
     }
 
     private var statusMark: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Image(systemName: model.connectionStatus.peerSymbolName)
             Text(Format.connectionLabel(model.connectionStatus))
         }
@@ -33,7 +33,7 @@ struct ConnectionBanner: View {
     }
 
     private var banner: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: model.connectionStatus.peerSymbolName)
                 Text(Format.connectionLabel(model.connectionStatus))
@@ -152,14 +152,14 @@ struct PendingDecisionCard: View {
     let pending: PendingDecision
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             Label(title, systemImage: "questionmark.circle")
                 .font(.headline)
                 .foregroundStyle(theme.color(.warning, .text))
             Text(detail).font(.callout).foregroundStyle(theme.textSecondary)
 
             if model.isConnected {
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     if pending.reason == .pausedTooLong {
                         Button("Resume it") {
                             model.send(.confirmRestoredSession, params: CommandParams(decision: .resume))
@@ -234,7 +234,7 @@ struct TaskListSectionView: View {
                     Button {
                         model.send(.selectTask, params: CommandParams(stableId: item.stableId))
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 8) {
                             // REQ-TSK-014: 子タスクは字下げして並べる。
                             if item.depth > 0 { Spacer().frame(width: CGFloat(item.depth) * 16) }
                             Image(systemName: model.snapshot?.task.selectedTaskId == item.stableId
