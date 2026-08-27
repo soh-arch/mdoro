@@ -7,12 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4640E03D303CADFD00475D34 /* PomodoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4640E03C303CADFD00475D34 /* PomodoroCore */; };
-		4640E03F303CAE1A00475D34 /* PomodoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4640E03E303CAE1A00475D34 /* PomodoroCore */; };
 		4640E046303CAE7A00475D34 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4640E045303CAE7A00475D34 /* WidgetKit.framework */; };
 		4640E048303CAE7A00475D34 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4640E047303CAE7A00475D34 /* SwiftUI.framework */; };
 		4640E057303CAE7B00475D34 /* MdoroWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4640E044303CAE7A00475D34 /* MdoroWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		4671DC29303EA7AF00BAC370 /* PomodoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4671DC28303EA7AF00BAC370 /* PomodoroCore */; };
 		4671DC7B3040708600BAC370 /* MdoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4671DC7A3040708600BAC370 /* MdoroCore */; };
 		4671DC7D3040709600BAC370 /* MdoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4671DC7C3040709600BAC370 /* MdoroCore */; };
 		4671DC7F304070A400BAC370 /* MdoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4671DC7E304070A400BAC370 /* MdoroCore */; };
@@ -149,7 +146,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4640E03D303CADFD00475D34 /* PomodoroCore in Frameworks */,
 				4671DC7B3040708600BAC370 /* MdoroCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -165,7 +161,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4640E03F303CAE1A00475D34 /* PomodoroCore in Frameworks */,
 				4671DC7D3040709600BAC370 /* MdoroCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -182,7 +177,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				4640E048303CAE7A00475D34 /* SwiftUI.framework in Frameworks */,
-				4671DC29303EA7AF00BAC370 /* PomodoroCore in Frameworks */,
 				4640E046303CAE7A00475D34 /* WidgetKit.framework in Frameworks */,
 				4671DC7F304070A400BAC370 /* MdoroCore in Frameworks */,
 			);
@@ -247,7 +241,6 @@
 			);
 			name = MdoroMac;
 			packageProductDependencies = (
-				4640E03C303CADFD00475D34 /* PomodoroCore */,
 				4671DC7A3040708600BAC370 /* MdoroCore */,
 			);
 			productName = PomodoroMac;
@@ -296,7 +289,6 @@
 			);
 			name = MdoroiOS;
 			packageProductDependencies = (
-				4640E03E303CAE1A00475D34 /* PomodoroCore */,
 				4671DC7C3040709600BAC370 /* MdoroCore */,
 			);
 			productName = PomodoroiOS;
@@ -344,7 +336,6 @@
 			);
 			name = MdoroWidget;
 			packageProductDependencies = (
-				4671DC28303EA7AF00BAC370 /* PomodoroCore */,
 				4671DC7E304070A400BAC370 /* MdoroCore */,
 			);
 			productName = PomodoroWidgetExtension;
@@ -1010,18 +1001,6 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		4640E03C303CADFD00475D34 /* PomodoroCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = PomodoroCore;
-		};
-		4640E03E303CAE1A00475D34 /* PomodoroCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = PomodoroCore;
-		};
-		4671DC28303EA7AF00BAC370 /* PomodoroCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = PomodoroCore;
-		};
 		4671DC7A3040708600BAC370 /* MdoroCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 4671DC793040704B00BAC370 /* XCLocalSwiftPackageReference "../Packages/MdoroCore" */;

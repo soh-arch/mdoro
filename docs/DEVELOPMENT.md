@@ -23,9 +23,9 @@ Pomodoro_Timer/                        # プロジェクトルート
 │   └── Tests/MdoroCoreTests/
 └── PomodoroMac/                       # Xcode プロジェクト一式（フォルダ名は未改名）
     ├── PomodoroMac.xcodeproj
-    ├── PomodoroMac/       PomodoroMacTests/    PomodoroMacUITests/
-    ├── PomodoroiOS/       PomodoroiOSTests/    PomodoroiOSUITests/
-    └── PomodoroWidget/                # Live Activity
+    ├── PomodoroMac/       PomodoroMacTests/
+    ├── PomodoroiOS/       PomodoroiOSTests/
+    └── PomodoroWidget/                # Live Activity（提供するのは Live Activity だけ）
 ```
 
 **フォルダ名とターゲット名が食い違っている。** ターゲットは `MdoroMac` / `MdoroiOS` / `MdoroWidget`、
@@ -35,7 +35,7 @@ Pomodoro_Timer/                        # プロジェクトルート
 - ターゲット3つ（`MdoroMac` / `MdoroiOS` / `MdoroWidget`）はいずれも `PomodoroMac/` の下にある。
   **`.xcodeproj` はルートではなく `PomodoroMac/` の中。**
 - 各ターゲットのフォルダは buildable folder。**`.swift` をディスクに置けば自動でビルド対象に入る。**
-- `Info.plist` は3ターゲットとも実ファイルとして存在する（`PomodoroMac/<ターゲット名>/Info.plist`）。
+- `Info.plist` は3ターゲットとも実ファイルとして存在する（`PomodoroMac/<フォルダ名>/Info.plist`）。
   XML として直接編集してよい。
 - **`.xcodeproj` を直接編集しない。** buildable folder があるので、ファイルはディスクに置くだけでよい。
 
