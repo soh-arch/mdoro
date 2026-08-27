@@ -159,7 +159,8 @@ Git に入っていないため、失われると復元できない。
 
 | ID | 内容 |
 | :-- | :---- |
-| OPEN-002 | 集中表示ビューのタイポグラフィ（数字書体・等幅の可否・ウェイト）。配色は解決済み |
+| OPEN-002 | 集中表示ビューのタイポグラフィ（数字書体・等幅の可否・ウェイト）。配色は解決済み。**現在は Mac のメインウィンドウと同じ指定**（`.system(design: .rounded).monospacedDigit()`）を使っている。変えるなら指示が要る |
+| OPEN-015 | REQ-UIX-010 の「画面短辺の 40% 以上の**文字高**」を、フォントサイズと解釈している。字面の高さと解釈すると、縦向きでは `05:12` の5字が横幅に収まらず**幾何的に成立しない**。現状の解釈でよいか |
 | OPEN-003 | 診断ログ（REQ-ERR-010、SHOULD）の保持期間とローテーション方針。**工程5では実装していない。** 保持期間を決めないと、書き出し口だけ作っても際限なく溜まる |
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 |
 | OPEN-007 | REQ-NTF-005 の Time Sensitive 通知が実機で届くか。**Xcode 26.6 の Capability 一覧に 「Time Sensitive Notifications」は存在しなかった**（2026-08-26 確認）。capability 追加ではなく `UNNotificationInterruptionLevel.timeSensitive` の指定で実装し、**工程7で実機検証する** |
@@ -195,13 +196,17 @@ Git に入っていないため、失われると復元できない。
 - 通知音をシステムサウンドに確定（[0017](decisions/0017-system-notification-sounds.md)）、
   グローバルショートカット2種（一時停止/再開・ウィンドウ前面）、ログイン時起動
   （[0016](decisions/0016-standard-settings-and-hotkeys.md)）
+- **工程6 完了（iOS アプリ）**: Bonjour 探索と接続（REQ-COM-003 / 004）、
+  時刻同期の適用（REQ-COM-009）、切断中の表示と操作無効化（REQ-COM-011〜013）、
+  ペアリング入力（REQ-SEC-001）、Keychain でのトークン保持、
+  通常画面（8.1）、集中表示ビュー（8.2 / REQ-UIX-010〜014）、
+  最後の状態の永続化と取得時刻の併記（REQ-PER-010 / 011）
+  — `PomodoroMac/PomodoroiOS/`
+  - UI 文字列は **String Catalog**（`Localizable.xcstrings`）経由。工程9で英語を入れる
 - **工程5 完了（通信層・Mac 側）**: プロトコル（第10章）、時刻同期（REQ-COM-007〜009）、
   再接続バックオフとハートビート（REQ-COM-004 / 005）、Bonjour 広告と `GET /info`（REQ-COM-002 / 003）、
   WebSocket サーバー、ペアリングと認証（REQ-SEC-001〜004）
   — `Sources/PomodoroCore/Protocol/`, `PomodoroMac/Server/`
-  - **工程6（iOS クライアント）に残るもの**: REQ-COM-004 の再接続実行、REQ-COM-009 / 010 の
-    オフセット適用と単調時計、REQ-COM-011〜013 の切断中の表示、REQ-ERR-005（複数サーバーの選択）、
-    REQ-ERR-008 / 014（Wi-Fi・ローカルネットワーク許可の案内）、REQ-PER-010 / 011
 - **工程4 完了（Mac UI）**: メニューバー常駐と表示密度（REQ-UIX-030〜032, 035）、
   メインウィンドウ（REQ-UIX-001〜009, 036）、設定画面とプリセット編集（9.2 / 9.3 / REQ-PRS）、
   Mac 側通知（REQ-NTF-001, 004〜007, 020〜023）、アイドルスリープ抑止（REQ-PER-006）、
@@ -262,7 +267,7 @@ Mac 側だけで実用になる。ファイル安全性とログ形式という�
 
 - **通知のスケジュール層**（第5章）— 未着手。
   発火時刻の決定（`PreNotificationSchedule`）だけが `PomodoroCore` にある
-- **iOS UI と集中表示ビュー**（8.1・8.2）、**Live Activity**（8.3）— 未着手
+- **Live Activity**（8.3）— 未着手（工程8）
 - REQ-UIX-034（Mac のフローティングウィンドウ、MAY）— 見送り
 - **REQ-LOG-014（前日の日次サマリ、SHOULD）— 実装しない**（2026-08-26 決定）。
   設定 UI からも外した。将来必要になれば、前日ぶんの集計にログの読み戻しが要る

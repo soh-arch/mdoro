@@ -1,0 +1,156 @@
+import Foundation
+import SwiftUI
+import Observation
+import PomodoroCore
+
+// iPhone 側の状態保持。
+//
+// **セッションの完了を確定しない**（REQ-COM-012 / 3原則の2つ目）。
+// 表示上のカウントダウンは続けてよいが、周回数の加算もログ記録も行わない。
+// 判断はすべて Mac が行い、ここはその結果を映すだけ。
+@MainActor
+@Observable
+final class ClientModel {
+
+    // MARK: - 状態
+
+    private(set) var snapshot: StateSnapshot?
+    private(set) var taskList: TaskListPayload?
+    private(set) var status: PomodoroClient.Status = .idle
+    private(set) var servers: [DiscoveredServer] = []
+    private(set) var lastError: String?
+    // REQ-PER-011: 永続化された状態を表示するときは取得時刻を併記する。
+    private(set) var snapshotReceivedAt: Date?
+    private(set) var localNetworkDenied = false
+    private(set) var displayNow = Date()
+
+    // 集中表示ビューを出しているか（REQ-UIX-013）。
+    var isFocusViewPresented = false
+
+    private let client = PomodoroClient()
+    private let browser = ServerBrowser()
+    private var ticker: Task<Void, Never>?
+
+    // MARK: - 起動
+
+    func start() {
+        restoreLastSnapshot()
+        browser.onChange = { [weak self] found in
+            self?.servers = found
+            // 1台だけ見つかったなら黙って繋ぐ。複数なら選ばせる（REQ-ERR-005）。
+            if found.count == 1, self?.status == .idle { self?.connect(to: found[0]) }
+        }
+        browser.onLocalNetworkDenied = { [weak self] in self?.localNetworkDenied = true }
+        browser.start()
+        startTicking()
+    }
+
+    func stop() {
+        ticker?.cancel(); ticker = nil
+        browser.stop()
+        client.disconnect()
+    }
+
+    private func startTicking() {
+        ticker?.cancel()
+        ticker = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+                await MainActor.run { self?.displayNow = Date() }
+            }
+        }
+    }
+
+    // MARK: - 接続
+
+    func connect(to server: DiscoveredServer, pairingCode: String? = nil) {
+        client.connect(to: server, pairingCode: pairingCode, callbacks: PomodoroClient.Callbacks(
+            statusChanged: { [weak self] in self?.status = $0 },
+            receivedSnapshot: { [weak self] snapshot in
+                self?.snapshot = snapshot
+                self?.snapshotReceivedAt = Date()
+                self?.persistSnapshot(snapshot)
+            },
+            receivedTaskList: { [weak self] in self?.taskList = $0 },
+            receivedEvent: { _ in },
+            receivedError: { [weak self] in self?.lastError = $0.message },
+            issuedToken: { token, serverName in
+                TokenKeychain.save(token, serverName: serverName)
+            }
+        ))
+    }
+
+    func submitPairingCode(_ code: String) {
+        guard let server = servers.first(where: { $0.name == connectedServerName }) ?? servers.first else { return }
+        lastError = nil
+        connect(to: server, pairingCode: code)
+    }
+
+    private var connectedServerName: String? { client.serverName }
+
+    var isConnected: Bool { status == .connected }
+
+    // REQ-UIX-004 / REQ-COM-013: 接続状態を常時視認できること。
+    var connectionStatus: ConnectionStatus {
+        switch status {
+        case .connected: return .connected
+        case .connecting, .reconnecting: return .reconnecting
+        case .idle, .failed, .needsPairing: return .disconnected
+        }
+    }
+
+    // MARK: - 残り時間
+
+    // REQ-COM-009 / 011 / 012: サーバー時刻にオフセットを当てて算出する。
+    // 表示は 00:00 に達しても、**完了として扱わない**。
+    func remainingSeconds() -> Int {
+        guard let timer = snapshot?.timer else { return 0 }
+        switch timer.runState {
+        case .running:
+            guard let endAt = timer.sessionEndAt else { return 0 }
+            let local = client.timeSync.localTime(forServerTime: endAt)
+            return max(0, Int(local.timeIntervalSince(displayNow).rounded(.up)))
+        case .paused:
+            return max(0, timer.remainingSeconds ?? 0)
+        case .finished, .idle, .pendingDecision:
+            return 0
+        }
+    }
+
+    // 表示が 00:00 に達したが Mac から次の状態が届いていない、という状態。
+    // REQ-COM-012: ここで完了を確定してはならない。「同期待ち」として示す。
+    var isAwaitingSync: Bool {
+        guard let timer = snapshot?.timer, timer.runState == .running else { return false }
+        return remainingSeconds() == 0
+    }
+
+    // REQ-ERR-007: 時計が大きくずれていたら警告する。
+    var needsClockWarning: Bool { client.timeSync.needsClockWarning }
+
+    // MARK: - 操作
+
+    // REQ-COM-013: 切断中は操作系 UI を無効化する。
+    func send(_ action: CommandAction, params: CommandParams? = nil) {
+        guard isConnected else { return }
+        client.send(command: action, params: params)
+    }
+
+    // MARK: - 永続化 (REQ-PER-010)
+
+    private static let snapshotKey = "lastStateSnapshot"
+    private static let snapshotAtKey = "lastStateSnapshotAt"
+
+    private func persistSnapshot(_ snapshot: StateSnapshot) {
+        guard let data = try? MessageCoder.encoder.encode(snapshot) else { return }
+        UserDefaults.standard.set(data, forKey: Self.snapshotKey)
+        UserDefaults.standard.set(Date(), forKey: Self.snapshotAtKey)
+    }
+
+    // REQ-PER-010: 起動直後・未接続時は「最後に確認した状態」として表示する。
+    private func restoreLastSnapshot() {
+        guard let data = UserDefaults.standard.data(forKey: Self.snapshotKey),
+              let restored = try? MessageCoder.decoder.decode(StateSnapshot.self, from: data) else { return }
+        snapshot = restored
+        snapshotReceivedAt = UserDefaults.standard.object(forKey: Self.snapshotAtKey) as? Date
+    }
+}

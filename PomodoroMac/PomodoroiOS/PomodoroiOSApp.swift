@@ -1,17 +1,15 @@
-//
-//  PomodoroiOSApp.swift
-//  PomodoroiOS
-//
-//  Created by Sohta Uchiyama on 8/25/26.
-//
-
 import SwiftUI
+import PomodoroCore
 
 @main
 struct PomodoroiOSApp: App {
+    @State private var model = ClientModel()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainScreen()
+                .environment(model)
+                .task { model.start() }
         }
     }
 }
