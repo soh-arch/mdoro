@@ -37,6 +37,9 @@
     "%lld seconds left" : {
 
     },
+    "+%lld min" : {
+
+    },
     "A long pause was detected" : {
 
     },
@@ -52,6 +55,9 @@
     "Another device is connected" : {
 
     },
+    "Appearance" : {
+
+    },
     "Can only start while the app is in the foreground" : {
 
     },
@@ -64,13 +70,16 @@
     "Connected" : {
 
     },
+    "Dark" : {
+
+    },
+    "Done" : {
+
+    },
     "Ending soon" : {
 
     },
-    "Extend +%lld min" : {
-
-    },
-    "Extend +%lldm" : {
+    "Extend by %lld minutes" : {
 
     },
     "First %lld only" : {
@@ -92,6 +101,9 @@
 
     },
     "Last received %@" : {
+
+    },
+    "Light" : {
 
     },
     "Live Activities are turned off in iOS Settings" : {
@@ -191,6 +203,9 @@
     "Syncing…" : {
 
     },
+    "System" : {
+
+    },
     "Tasks" : {
 
     },
@@ -201,6 +216,9 @@
 
     },
     "This device is no longer registered. Pair again" : {
+
+    },
+    "This setting applies to this iPhone only. The Mac keeps its own." : {
 
     },
     "Waiting for sync" : {

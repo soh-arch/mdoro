@@ -42,7 +42,7 @@ struct MainScreen: View {
             .background(theme.background)
             .navigationTitle("Mdoro")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { isAppearancePresented = true } label: {
                         Label("Appearance", systemImage: "gearshape")
                     }
@@ -103,21 +103,13 @@ struct MainScreen: View {
     @ViewBuilder
     private var controls: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // REQ-UIX-045 は Mac に限る（Decision 0028）。
+            // **iPhone の画面は一等地であり、説明で埋めない。**
+            // 押せない理由は Mac の設定画面と、読み上げのラベルが持つ。
             buttonRow
-            // REQ-UIX-045: 無効にした操作には、無効である理由を示す。
-            if let reason = extendDisabledReason {
-                Text(reason).font(.caption).foregroundStyle(theme.textTertiary)
-            }
         }
         .buttonStyle(.bordered)
         .tint(theme.color(.accentPrimary, .text))
-    }
-
-    // REQ-TIM-046: 受付ウィンドウの外では押せない。押せない理由は上に出す。
-    private var extendDisabledReason: String? {
-        guard timer.sessionType == .work, timer.runState != .idle else { return nil }
-        guard !TimerEngine.isWithinExtensionWindow(timer, now: model.displayNow) else { return nil }
-        return "Extending opens in the last 5 minutes"
     }
 
     @ViewBuilder
@@ -200,13 +192,6 @@ struct MainScreen: View {
             }
             .font(.callout)
 
-            // Decision 0020: 音色の選択は Mac 専用で、iPhone には効かない。
-            // 共通の設定に見えるので、効かない側に書いておく。
-            if preset.notificationSound != .silent {
-                Text("iPhone uses the iOS default sound. The choice of tone is Mac only.")
-                    .font(.caption2)
-                    .foregroundStyle(theme.textTertiary)
-            }
         }
     }
 }

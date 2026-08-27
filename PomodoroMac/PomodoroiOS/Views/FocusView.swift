@@ -11,6 +11,9 @@ struct FocusView: View {
 
     // REQ-UIX-014: 焼き付き防止のため 5 分ごとに ±8pt 平行移動させる。
     @State private var drift: CGSize = .zero
+    // 戻り方の案内。**常時は出さない。** 出しっぱなしは集中表示の趣旨に反する。
+    @State private var isExitHintVisible = false
+    @State private var hintTimer: Task<Void, Never>?
     @State private var driftTimer: Task<Void, Never>?
 
     private let theme = Theme(focusView: true)
@@ -29,25 +32,38 @@ struct FocusView: View {
             ZStack {
                 theme.background.ignoresSafeArea()
 
-                VStack(spacing: secondaryHeight * 0.4) {
+                // **3つの塊を離して置く。** 固定の間隔だと、横向きでは詰まり、
+                // 縦向きでは中途半端な位置に寄る。Spacer に配らせて、
+                // 狭いときは潰れる（`minLength: 0`）ようにしておく。
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
                     secondary(height: secondaryHeight)
+                    Spacer(minLength: 0)
 
+                    // REQ-UIX-040: 数字は SF Rounded / medium / 等幅。
                     Text(Format.clock(model.remainingSeconds()))
-                        // OPEN-002 待ち: 書体は Mac のメインウィンドウと同じ指定を使っている。
                         .font(.system(size: timeHeight, weight: .medium, design: .rounded).monospacedDigit())
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                         .foregroundStyle(theme.textPrimary)
                         .accessibilityLabel(Format.spokenRemaining(model.remainingSeconds()))
 
+                    Spacer(minLength: 0)
                     controls(height: secondaryHeight)
+                    Spacer(minLength: 0)
+                    // REQ-UIX-011: 戻り方はダブルタップだけ。**試した人にだけ、そっと教える。**
+                    exitHint(height: secondaryHeight)
                 }
                 .offset(drift)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.vertical, 24)
             }
             .contentShape(Rectangle())
-            // REQ-UIX-011: 通常画面へ戻るのは明示操作。
+            // REQ-UIX-011: 通常画面へ戻るのは明示操作。**ダブルタップが先に判定される。**
             .onTapGesture(count: 2) { dismiss() }
+            // 1回叩いた、あるいは払った — どちらも「戻ろうとした」合図とみなす。
+            .onTapGesture { showExitHint() }
+            .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { _ in showExitHint() })
         }
         .statusBarHidden()
         // REQ-COL-030: 集中表示ビューはシステムの外観にかかわらず常にダークのパレット。
@@ -63,6 +79,27 @@ struct FocusView: View {
             UIApplication.shared.isIdleTimerDisabled = false
             driftTimer?.cancel()
             driftTimer = nil
+            hintTimer?.cancel()
+            hintTimer = nil
+        }
+    }
+
+    @ViewBuilder
+    private func exitHint(height: CGFloat) -> some View {
+        Text("Double-tap to go back")
+            .font(.system(size: height * 0.7))
+            .foregroundStyle(theme.textTertiary)
+            .opacity(isExitHintVisible ? 1 : 0)
+            .animation(.easeInOut(duration: 0.25), value: isExitHintVisible)
+    }
+
+    private func showExitHint() {
+        isExitHintVisible = true
+        hintTimer?.cancel()
+        hintTimer = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            isExitHintVisible = false
         }
     }
 
