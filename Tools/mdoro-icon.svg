@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    Mdoro のアプリアイコン。`#`（Markdown の見出し）を蔕にしたトマト。
+    この1枚が正本。ライト・ダーク・ティントと macOS の各寸法は
+    Tools/make_icon.swift が色を差し替えて描き出す。**PNG を手で置き換えない。**
+
+    地の色だけは 8.5.3 のトークン（bg）。マークの色はトークンの外にある。
+    アプリ本体が Focus の藍を中心に置くため、アイコンは意図的に補色側へ振ってある。
+  -->
+  <defs>
+    <clipPath id="bodyClip">
+      <path d="M404 385 H619 L743 455 V716 L511.5 847 L280 716 V455 Z"/>
+    </clipPath>
+    <clipPath id="leafClip">
+      <path d="M757 236 C628 234 600 292 625 347 C708 352 759 298 757 236 Z"/>
+    </clipPath>
+  </defs>
+
+  <rect id="ground" width="1024" height="1024" fill="#F7F3ED"/>
+
+  <!-- 光学的な中心に置く。実の重心が下にあるぶん、少し持ち上げている。 -->
+  <g transform="translate(512 512) scale(1.05) translate(-518.5 -535)">
+
+    <!-- 蔕の `#`。横棒2本と左の斜線。右の斜線は実の上に重ねるので後段にある。 -->
+    <g fill="#383A3F">
+      <path d="M429 237 H619 L611.4 268 H421.4 Z"/>
+      <path d="M410.6 307 H600.6 L593 338 H403 Z"/>
+      <path d="M485 186 H513.5 L462.8 392 H434.3 Z"/>
+    </g>
+
+    <g clip-path="url(#leafClip)">
+      <path d="M757 236 C628 234 600 292 625 347 C708 352 759 298 757 236 Z" fill="#8FA08D"/>
+      <path d="M710 270 L615 333 L637 331 Z" fill="#F2F9E7"/>
+    </g>
+
+    <g clip-path="url(#bodyClip)">
+      <path d="M404 385 H619 L743 455 V716 L511.5 847 L280 716 V455 Z" fill="#D8563C"/>
+      <path d="M404 385 H619 L743 455 V716 L511.5 847 L280 716 V455 Z"
+            fill="none" stroke="#BC422D" stroke-width="32"/>
+      <g fill="none" stroke="#BC422D">
+        <path d="M511.5 420 L657 504 V672 L511.5 756 L366 672 V504 Z" stroke-width="12"/>
+        <g stroke-width="11">
+          <path d="M280 455 L366 504"/>
+          <path d="M743 455 L657 504"/>
+          <path d="M280 716 L366 672"/>
+          <path d="M743 716 L657 672"/>
+        </g>
+        <!-- 細部。16・32px では線が潰れて濁るだけなので、生成器がこの群を外す。 -->
+        <g id="detail" stroke-width="5" opacity="0.85">
+          <path d="M511.5 648 V847" opacity="0.28"/>
+          <path d="M511.5 480 V522"/>
+          <path d="M458 553 L432 538"/>
+          <path d="M565 553 L591 538"/>
+          <path d="M458 617 L432 632"/>
+          <path d="M565 617 L591 632"/>
+        </g>
+      </g>
+      <path d="M511.5 522 L566 553.5 V616.5 L511.5 648 L457 616.5 V553.5 Z" fill="#3B3A3F"/>
+    </g>
+
+    <path d="M558 186 H587.5 L529 424 L502.5 412 Z" fill="#383A3F"/>
+  </g>
+</svg>

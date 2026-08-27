@@ -94,9 +94,10 @@ xcrun simctl list devices available
 - **アプリ名は `Mdoro`**（[0021](decisions/0021-published-as-oss-named-mdoro.md)）。ターゲット名・bundle ID は
   改名済み（工程9、[0024](decisions/0024-rename-everything-to-mdoro.md)）。リポジトリ名は `mdoro`。
   リポジトリのフォルダ名だけは `Pomodoro_Timer` のままで、この文書のパスもそれに従う。
-- **アプリアイコンはスクリプトで描く。** `python3 Tools/make_icon.py`（要 Pillow）が
-  8.5.3 のトークンから両プラットフォームの `AppIcon.appiconset` を書き出す。
-  画像を手で置き換えず、スクリプトを直して再生成する（色リテラルをビューに書かないのと同じ理由）。
+- **アプリアイコンの正本は `Tools/mdoro-icon.svg`。** `swift Tools/make_icon.swift` が
+  両プラットフォームの `AppIcon.appiconset` を書き出す（iOS のライト・ダーク・ティントと macOS の10寸法）。
+  描画は AppKit の SVG 対応に任せてあり、外部ツールは要らない。
+  **PNG を手で置き換えず、SVG を直して回す**（色リテラルをビューに書かないのと同じ理由）。
 - セットアップ手順書: https://claude.ai/code/artifact/79598e4c-33c6-49c6-aaeb-aa64e2cc6f3b
 
 Apple プラットフォームの制約（ATS、ローカルネットワーク許可、Live Activity、ファイル監視など）は
