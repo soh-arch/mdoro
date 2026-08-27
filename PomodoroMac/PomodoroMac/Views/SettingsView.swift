@@ -6,7 +6,7 @@ import MdoroCore
 // REQ-UIX-031: 中断・リセット・プリセット編集・設定変更はメインウィンドウ（と設定画面）でのみ可能。
 // 設定タブの識別子。メインウィンドウから開く先を指定するため、モデルが持つ。
 enum SettingsTab: String, Hashable, CaseIterable {
-    case presets, files, connection, behavior, display
+    case presets, files, connection, behavior, display, about
 }
 
 struct SettingsView: View {
@@ -31,6 +31,8 @@ struct SettingsView: View {
                 .tabItem { Label("Behavior", systemImage: "gearshape") }.tag(SettingsTab.behavior)
             appearanceTab(model: $bindable)
                 .tabItem { Label("Display", systemImage: "paintpalette") }.tag(SettingsTab.display)
+            aboutTab
+                .tabItem { Label("About", systemImage: "info.circle") }.tag(SettingsTab.about)
         }
         .frame(width: 560, height: 460)
         // 設定ウィンドウは別の Scene なので、テーマを自分で配る（REQ-COL-002）。
@@ -271,6 +273,39 @@ struct SettingsView: View {
     }
 
     // MARK: - 表示
+
+    // MARK: - About
+
+    // decisions/0021: 支援リンクはここに1つだけ。集中を切る場所には出さない。
+    private var aboutTab: some View {
+        Form {
+            Section(AppInfo.name) {
+                LabeledContent("Version", value: AppInfo.version())
+                LabeledContent("License", value: AppInfo.license)
+                Text(AppInfo.tagline)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                // 開く前にリンク先を見せる（decisions/0021 の「透明」）。
+                // REQ-COL-002: `.link` スタイルは自前の色を受け付けないため、ラベルを塗って素のボタンにする。
+                Button { NSWorkspace.shared.open(AppInfo.supportURL) } label: {
+                    Text(AppInfo.supportLabel)
+                        .foregroundStyle(theme.color(.accentPrimary, .text))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open \(AppInfo.supportLabel) in your browser")
+            } header: {
+                Text("Support")
+            } footer: {
+                // REQ-NFR-008
+                Text("Mdoro has no ads, no in-app purchases, and no analytics. If it is useful to you, this opens the page in your browser.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
 
     private func appearanceTab(model: Bindable<AppModel>) -> some View {
         Form {

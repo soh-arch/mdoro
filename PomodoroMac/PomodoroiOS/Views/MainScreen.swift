@@ -234,6 +234,7 @@ struct DeviceSettingsSheet: View {
     @Environment(ClientModel.self) private var model
     @Environment(\.theme) private var theme
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @State private var isConfirmingForget = false
 
     var body: some View {
@@ -255,6 +256,24 @@ struct DeviceSettingsSheet: View {
                     Text("Appearance")
                 } footer: {
                     Text("Applies to this iPhone only. The Mac keeps its own.")
+                }
+
+                // decisions/0021: 支援リンクはここに1つだけ。Mac の About と同じ並びにする（REQ-UIX-047）。
+                Section {
+                    LabeledContent("Version", value: AppInfo.version())
+                    LabeledContent("License", value: AppInfo.license)
+                    // 開く前にリンク先を見せる。REQ-COL-002: ラベルを自分で塗り、素のボタンにする。
+                    Button { openURL(AppInfo.supportURL) } label: {
+                        Text(AppInfo.supportLabel)
+                            .foregroundStyle(theme.color(.accentPrimary, .text))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open \(AppInfo.supportLabel) in Safari")
+                } header: {
+                    Text(AppInfo.name)
+                } footer: {
+                    // REQ-NFR-008
+                    Text("No ads, no in-app purchases, no analytics. The link opens in Safari.")
                 }
 
                 if let paired = model.pairedServerName {

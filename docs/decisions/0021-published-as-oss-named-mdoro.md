@@ -60,8 +60,8 @@ README も UI の文言も、そもそも「何を断るか」も書けない。
 | 仕様書 第16章 | 用語に `Mdoro` を追加 |
 | 改名 | 表示名・識別子・Bonjour サービス型・ログ既定名。**全範囲で行う**（2026-08-27 決定。[0024](0024-rename-everything-to-mdoro.md)） |
 | ライセンス | **MIT**（2026-08-27 決定） |
-| 支援リンクの URL | **OPEN-020** |
-| 配布形態 | **OPEN-021**（無償の Personal Team では署名済み成果物を配れない） |
+| 支援リンクの URL | `https://buymeacoffee.com/soh.arch`（2026-08-28 決定）。`MdoroCore/AppInfo.swift` が唯一の出典 |
+| 配布形態 | **ソースからのビルドのみ**（2026-08-28 決定）。無償の Personal Team では署名済み成果物を配れないため |
 | 工程 | 工程9〜12（`CONTEXT.md` §6） |
 
 ## 出典と確度

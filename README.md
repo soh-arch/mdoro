@@ -111,6 +111,14 @@ comments are Japanese for the same reason. Everything the app itself says is Eng
 - `docs/decisions/` — why things are the way they are
 - `docs/CONTEXT.md` — current constraints, and the places that have broken before
 
+## Support
+
+Mdoro is free, carries no ads and asks for nothing. If it earns a place in your day:
+
+<https://buymeacoffee.com/soh.arch>
+
+The same link sits in the app under Settings → About, once, and nowhere else.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
