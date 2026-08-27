@@ -37,6 +37,10 @@ final class ClientModel {
     private let liveActivity = LiveActivityController()
     // REQ-UIX-020: 開始できるのはフォアグラウンドにある間だけ。
     private var isForeground = true
+    // **復元したスナップショット（REQ-PER-010）は、何時間前のものか分からない。**
+    // Live Activity へ流してよいのは、接続中に受け取ったものだけである。
+    // ここを見ずに流したため、終わったセッションが凍ったままロック画面に残っていた（2026-08-27、実機）。
+    private var hasLiveSnapshot = false
     private let browser = ServerBrowser()
     private var ticker: Task<Void, Never>?
 
@@ -73,10 +77,10 @@ final class ClientModel {
     // フォアグラウンドへ復帰した時点で開始する。
     func setForeground(_ foreground: Bool) {
         isForeground = foreground
-        guard foreground, let snapshot else { return }
+        guard foreground, isConnected, hasLiveSnapshot, let snapshot else { return }
         liveActivity.sync(
             snapshot: snapshot, clockOffset: clockOffset,
-            isForeground: true, serverName: client.serverName ?? "Mac"
+            isForeground: true, isConnected: true, serverName: client.serverName ?? "Mac"
         )
     }
 
@@ -97,10 +101,10 @@ final class ClientModel {
     // REQ-UIX-023: 接続が生きている限り「状態を確認できている」ので、staleDate を押し出す。
     // 切断中は押し出さない。確認できていないのだから、古い扱いで正しい。
     private func refreshLiveActivityIfNeeded() {
-        guard isConnected, let snapshot else { return }
+        guard isConnected, hasLiveSnapshot, let snapshot else { return }
         liveActivity.refreshIfNeeded(
             snapshot: snapshot, clockOffset: clockOffset,
-            isForeground: isForeground, serverName: client.serverName ?? "Mac"
+            isForeground: isForeground, isConnected: true, serverName: client.serverName ?? "Mac"
         )
     }
 
@@ -108,11 +112,20 @@ final class ClientModel {
 
     func connect(to server: DiscoveredServer, pairingCode: String? = nil) {
         client.connect(to: server, pairingCode: pairingCode, callbacks: PomodoroClient.Callbacks(
-            statusChanged: { [weak self] in self?.status = $0 },
+            statusChanged: { [weak self] status in
+                guard let self else { return }
+                self.status = status
+                guard !self.isConnected else { return }
+                // 切れたら Live Activity の操作を落とす（REQ-COM-013）。
+                // **手元の状態は「最後に見た値」に落ちたので、これで新しく開始もしない。**
+                self.hasLiveSnapshot = false
+                self.liveActivity.setConnected(false)
+            },
             receivedSnapshot: { [weak self] snapshot in
                 guard let self else { return }
                 self.snapshot = snapshot
                 self.snapshotReceivedAt = Date()
+                self.hasLiveSnapshot = true
                 self.isAwaitingFirstSync = false
                 self.persistSnapshot(snapshot)
                 // REQ-NTF-003 / 009: 状態を受け取るたびに通知を組み直す。
@@ -121,7 +134,8 @@ final class ClientModel {
                 // REQ-UIX-020 / 022: アプリが動いている間だけ Live Activity を追随させる。
                 self.liveActivity.sync(
                     snapshot: snapshot, clockOffset: self.clockOffset,
-                    isForeground: self.isForeground, serverName: self.client.serverName ?? "Mac"
+                    isForeground: self.isForeground, isConnected: true,
+                    serverName: self.client.serverName ?? "Mac"
                 )
             },
             receivedTaskList: { [weak self] in self?.taskList = $0 },

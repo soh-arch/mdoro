@@ -1324,8 +1324,8 @@ JSON では判別子 `type` を持つオブジェクトとして表現する。
 | **OPEN-005** | ~~Mac アプリを App Sandbox 有効で配布するか~~（3.5 節で有効を前提に確定）。 |
 | **OPEN-007** | 無償の Personal Team で Time Sensitive Notifications capability を有効化できるか（REQ-NTF-005 は SHOULD のため着手の障害にはならない）。 |
 | **OPEN-008** | ~~`MenuBarExtra` の label で残り時間を毎秒更新した場合の安定性~~（実測により解決。`CONTEXT.md` §3）。 |
-| **OPEN-017** | `Mdoro` への改名をどこまで及ぼすか。**(A)** 表示名・README・ドキュメントのみ、**(B)** 加えて bundle ID・ターゲット名・フォルダ名・モジュール名（`PomodoroCore`）・Bonjour サービス型（`_pomodoro._tcp`）・診断ログの出力先まで。(B) は Xcode 操作が1回要る（`decisions/0013`）。**公開前に決めること** — 公開後の改名は利用者の再ペアリングと再インストールを伴う。 |
-| **OPEN-018** | Obsidian 以外のツール固有記法への対応範囲。Logseq の `TODO` / `DOING` マーカー、`id::` プロパティを `stableId` の入力として扱うか、標準のチェックボックス記法のみを対象とするか（`decisions/0023`）。 |
-| **OPEN-019** | ライセンス。MIT / Apache-2.0 のいずれか。 |
+| **OPEN-017** | ~~`Mdoro` への改名の範囲~~（解決: **全範囲で行う。** `decisions/0024-rename-everything-to-mdoro.md`）。 |
+| **OPEN-018** | ~~Obsidian 以外のツール固有記法への対応範囲~~（解決: **標準のチェックボックス記法のみを読む。** `decisions/0025-standard-checkbox-syntax-only.md`）。 |
+| **OPEN-019** | ~~ライセンス~~（解決: **MIT**。2026-08-27）。 |
 | **OPEN-020** | 支援リンク（Buy Me a Coffee）の URL（REQ-NFR-008）。 |
 | **OPEN-021** | 配布形態。ソースからのビルドのみとするか、有償の Apple Developer Program を取得して署名済み成果物（notarized DMG / TestFlight）を配るか。**無償の Personal Team では前者しか選べない**（`CONTEXT.md` §3）。 |

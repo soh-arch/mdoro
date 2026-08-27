@@ -142,6 +142,9 @@ private struct LockScreenView: View {
             HStack(alignment: .firstTextBaseline) {
                 TimerText(state: context.state)
                     .font(.system(size: WidgetFontSize.lockTimer, weight: .medium, design: .rounded).monospacedDigit())
+                    // **残り時間は絶対に打ち切らせない。** 幅が足りなければボタン側が縮む。
+                    // 切り詰められた数字は、間違った数字として読まれる。
+                    .fixedSize()
                 Spacer()
                 Controls(state: context.state)
             }
