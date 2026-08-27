@@ -11,7 +11,7 @@ public enum LogWriteError: Error, Equatable, Sendable {
 
 // REQ-LOG-001〜004 / 022: 実績ログへの追記。
 //
-// **このアプリが Obsidian の中へ書き込む唯一の経路である。** Task.md へ書く手段はどこにも持たない。
+// **このアプリが利用者のファイルへ書き込む唯一の経路である。** Task.md へ書く手段はどこにも持たない。
 public struct LogWriter: Sendable {
     public let fileURL: URL
     // 3原則の1つ目を書き込みのたびに確かめるために持つ。設定画面のバリデーション

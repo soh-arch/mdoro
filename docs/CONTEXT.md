@@ -2,7 +2,7 @@
 
 このファイルは**今の状態だけ**を書く。経緯は書かない。経緯が必要なら `docs/decisions/` を参照する。
 
-- 要件の正本: `SPEC.md`（v2.7、234要件）
+- 要件の正本: `SPEC.md`（v2.7.1、234要件）
 - 運用の正本: `CLAUDE.md`
 - 判断と意図の正本: `docs/decisions/`
 - ビルド手順・環境: `docs/DEVELOPMENT.md`
@@ -306,6 +306,7 @@ Git に入っていないため、失われると復元できない。
 | ID | 内容 | いつ決める |
 | :-- | :---- | :-- |
 | OPEN-002 | **アプリ全体のタイポグラフィ・スケール**（数字書体・等幅の可否・ウェイト・段階）。集中表示ビュー（REQ-UIX-010）を含む | 工程11の着手前 |
+| OPEN-022 | **Xcode のテンプレート由来のウィジェット2つ**（`PomodoroWidget.swift` の「My Widget / This is an example widget」と `PomodoroWidgetControl.swift`）を削除するか。ホーム画面ウィジェットは FUT-003（将来拡張）であり、仕様には無い。現状は `WidgetBundle` に登録されており、**ウィジェットギャラリーに 😀 の例が出る** | 工程9c までに |
 | OPEN-020 | 支援リンク（Buy Me a Coffee）の URL | 工程12 |
 | OPEN-021 | 配布形態。ソースからのビルドのみか、有償の Developer Program を取って署名済み成果物を配るか | 工程12 |
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 | 該当機能の実装時 |
@@ -441,6 +442,18 @@ Mac 側だけで実用になる。ファイル安全性とログ形式という�
 
 **検証**: `swift test` / 両ターゲットのビルド / **iPhone と再ペアリングして接続できること**（サービス型を変えたため）
 
+**進捗（2026-08-27）**
+
+| 段階 | 内容 | 状態 |
+| :-- | :---- | :-- |
+| 9a | コード側の改名（サービス型・Keychain・保存先・既定名・画面のタイトル・Swift の型とファイル名）と、仕様書の Obsidian 前提の掃除 | **完了。** 212テスト / 両ビルド通過 |
+| 9b | **ターゲット名・bundle ID・表示名・スキーム名**（下の手順） | **人間の Xcode 操作待ち** |
+| 9c | `PomodoroCore` → `MdoroCore`（パッケージとモジュールの改名。リンクし直しが要る） | 9b の完了後 |
+
+**9b と 9c を分けるのは、あいだでビルドを緑に保つため。** モジュール名を変えると
+Xcode 側のリンクが切れ、直すまで何も検証できない。ターゲットの改名だけなら、
+終わった時点で私が検証してから次へ進める。
+
 #### 工程10 — 英語一本化
 
 1. **先に置き換え表を作り、通してから流す。** 日本語の文字列リテラルは約290箇所
@@ -513,7 +526,28 @@ iPhone はリスト、Mac は Form のまま、意味だけを揃える。
 
 [0013](decisions/0013-pbxproj-is-owned-by-xcode.md) により、次は私が行わない。**止めて依頼する。**
 
-- bundle ID・ターゲット名・スキーム名・フォルダ名・モジュール名の変更（工程9。[0024](decisions/0024-rename-everything-to-mdoro.md)）
+**工程9b の手順**（`PomodoroMac/PomodoroMac.xcodeproj` を開いて、1回のセッションで）
+
+1. **ターゲット名。** Project navigator でターゲットを選び、名前をクリックして改名する。
+   フォルダも一緒に変えるか聞かれたら**変える**
+   - `PomodoroMac` → `MdoroMac` / `PomodoroiOS` → `MdoroiOS` / `PomodoroWidget`（`...Extension`）→ `MdoroWidget`
+   - テストターゲット4つも同様（`PomodoroMacTests` → `MdoroMacTests` など）
+2. **bundle ID**（各ターゲット > Signing & Capabilities）
+   - Mac `com.sohta.PomodoroMac` → `com.sohta.MdoroMac`
+   - iOS `com.sohta.PomodoroiOS` → `com.sohta.MdoroiOS`
+   - Widget → `com.sohta.MdoroiOS.MdoroWidget`
+   - **拡張の ID は本体の ID で始まっていること。** ずれると iOS は拡張を黙って登録しない（§2）
+3. **表示名。** General > Display Name（`INFOPLIST_KEY_CFBundleDisplayName`）を **`Mdoro`** に（Mac / iOS）
+4. **スキーム名。** Product > Scheme > Manage Schemes で `MdoroMac` / `MdoroiOS`
+5. 終わったら**ビルドが通ることだけ確認**して戻る。中身の検証は私が引き取る
+
+**bundle ID を変えると、macOS からは別のアプリに見える。**
+通知の許可は取り直しになり、システム設定 > 通知には旧 `PomodoroMac` が残る（消してよい）。
+iPhone 側も旧アプリを削除してから入れ直す。**サンドボックスの container も別になるので、
+設定・プリセット・ブックマークは作り直しになる**（[0024](decisions/0024-rename-everything-to-mdoro.md) のとおり、移行は行わない）。
+
+**このセッションでは `PomodoroCore` に触らない**（工程9c）。
+
 - アプリアイコンの差し替え（工程11・12）
 - capability・署名・配布設定の変更（工程12、OPEN-021 が有償 Program の場合）
 

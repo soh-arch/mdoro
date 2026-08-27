@@ -31,7 +31,7 @@ struct SettingsView: View {
                     chooseTaskFile()
                 }
                 // REQ-TSK-024
-                Text("重要なタスクには Obsidian 側でブロック ID（`^abc123`）を付けると、文言を修正しても選択が維持されます。")
+                Text("重要なタスクには行末にブロック ID（`^abc123`）を付けると、文言を修正しても選択が維持されます。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Text("このファイルには書き込みません。読み取り専用として開きます。")
@@ -63,7 +63,7 @@ struct SettingsView: View {
                     Text(logFileError).font(.footnote).foregroundStyle(.red)
                 }
                 // REQ-LOG-020: 同時編集で競合しうることを設定画面に明記する。
-                Text("追記中に Obsidian 側で同じファイルを編集すると競合します。ログファイルは Obsidian で開いたままにしないでください。")
+                Text("追記中にエディタ側で同じファイルを編集すると競合します。ログファイルは開いたままにしないでください。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 // REQ-LOG-013
