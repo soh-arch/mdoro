@@ -48,6 +48,8 @@ struct FocusView: View {
                         .foregroundStyle(theme.textPrimary)
                         .accessibilityLabel(Format.spokenRemaining(model.remainingSeconds()))
 
+                    // REQ-COL-031 / 013: セッション種別の色は**数字ではなく進行インジケータと種別ラベル**に当てる。
+                    progressBar(width: min(geometry.size.width * 0.72, 520))
                     Spacer(minLength: 0)
                     controls(height: secondaryHeight)
                     Spacer(minLength: 0)
@@ -82,6 +84,46 @@ struct FocusView: View {
             hintTimer?.cancel()
             hintTimer = nil
         }
+    }
+
+    // REQ-COL-013: 色に加えて**線種**でも種別を分ける（Focus 実線 / Short 細実線 / Long 二重）。
+    //
+    // リングではなくバーなのは、集中表示ビューの数字が短辺の 40% 以上を占めるため（REQ-UIX-010）。
+    // 横向きでは、その数字を囲めるリングが短辺に収まらない。
+    @ViewBuilder
+    private func progressBar(width: CGFloat) -> some View {
+        let role = timer.sessionType.colorRole
+        let style = timer.sessionType.progressRingStyle
+        let thickness: CGFloat = style == .thin ? 3 : 6
+        VStack(spacing: 3) {
+            bar(width: width, height: thickness, role: role)
+            // 二重線は長い休憩だけ。色を失っても形で分かる。
+            if style == .double { bar(width: width, height: 2, role: role) }
+        }
+        .opacity(timer.runState == .idle ? 0 : 1)
+    }
+
+    private func bar(width: CGFloat, height: CGFloat, role: ColorRole) -> some View {
+        ZStack(alignment: .leading) {
+            Capsule().fill(theme.color(role, .line))
+            Capsule()
+                .fill(theme.color(role, .graphic))
+                .frame(width: width * progress)
+        }
+        .frame(width: width, height: height)
+    }
+
+    // 経過の割合。**残り時間から出す** — 進行の正本は Mac にあり、ここは映すだけ。
+    private var progress: CGFloat {
+        let total: Int
+        switch timer.sessionType {
+        case .work: total = preset.workSeconds
+        case .shortBreak: total = preset.shortBreakSeconds
+        case .longBreak: total = preset.longBreakSeconds
+        }
+        guard total > 0 else { return 0 }
+        let elapsed = Double(total - model.remainingSeconds()) / Double(total)
+        return CGFloat(min(max(elapsed, 0), 1))
     }
 
     @ViewBuilder

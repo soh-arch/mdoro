@@ -149,30 +149,31 @@ private struct LockScreenView: View {
     let context: ActivityViewContext<MdoroActivityAttributes>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
+        // ボタンが抜けて右側が空いたので、**2列にして幅を使う。**
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(label)
                     .font(.system(size: WidgetFontSize.label, weight: .medium))
-                Spacer()
+                // 高さが固定で、入らない行は黙って消える。3行目を取り合うなら、
+                // **REQ-UIX-023（MUST）の注意書きがタスク名に勝つ。**
+                if context.isStale || !context.state.isConnected {
+                    StatusNotice(isStale: context.isStale, isConnected: context.state.isConnected)
+                } else if let task = context.state.taskName, !task.isEmpty {
+                    Text(task)
+                        .font(.system(size: WidgetFontSize.secondary))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+            VStack(alignment: .trailing, spacing: 2) {
+                // **`Text(timerInterval:)` に `.fixedSize()` を付けないこと。**
+                // 寸法はシステムが決める。理想幅を要求すると破綻する（2026-08-27、実機）。
+                TimerText(state: context.state)
+                    .font(.system(size: WidgetFontSize.lockTimer, weight: .medium, design: .rounded).monospacedDigit())
                 Text("\(context.state.loopDisplay) / \(context.state.longBreakInterval)")
                     .font(.system(size: WidgetFontSize.label).monospacedDigit())
                     .foregroundStyle(.secondary)
-            }
-
-            // **`Text(timerInterval:)` に `.fixedSize()` を付けないこと。**
-            // 打ち切り対策のつもりで付けたところ、ロック画面のレイアウトが破綻し、
-            // 時間も操作も消えて真っ白になった（2026-08-27、実機で確認）。
-            // この Text の寸法はシステムが決める。こちらから理想幅を要求してはならない。
-            TimerText(state: context.state)
-                .font(.system(size: WidgetFontSize.lockTimer, weight: .medium, design: .rounded).monospacedDigit())
-
-            // ロック画面は**高さが固定**で、入らない行は黙って消える。
-            // 3行目を取り合うなら、**REQ-UIX-023（MUST）の注意書きがタスク名に勝つ。**
-            // 古い情報を正しい情報のように見せないことのほうが、何をしていたかより重い。
-            if context.isStale || !context.state.isConnected {
-                StatusNotice(isStale: context.isStale, isConnected: context.state.isConnected)
-            } else if let task = context.state.taskName, !task.isEmpty {
-                Text(task).font(.system(size: WidgetFontSize.secondary)).foregroundStyle(.secondary).lineLimit(1)
             }
         }
         // REQ-UIX-042: 余白は 8.6.2 の値から選ぶ。`.padding()` の 16 はシステム側の余白と二重になる。
