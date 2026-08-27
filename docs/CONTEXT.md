@@ -534,7 +534,7 @@ iPhone はリスト、Mac は Form のまま、意味だけを揃える。
    [0018](decisions/0018-diagnostic-log-policy.md) はこのために設計してある（利用者由来の文字列を含まないので、そのまま貼れる）
 4. CI: `swift test`（macOS ランナー）
 5. スクリーンショット。**済**（2026-08-28）。`docs/images/`。撮影用のタスクファイルは `docs/example/Task.md`。
-   Mac 側は `Tools/`（`screencapture -R` ＋ 角丸マスク）で影なしに切り出した。**ダークの1枚だけ未取得**
+   Mac 側は `screencapture -R` ＋ 角丸マスクで影なしに切り出した。**7枚すべて取得済み**
 6. 支援リンクの実装（About）。**済**（2026-08-28）
 7. 配布。**ソースからのビルドのみ**（2026-08-28 決定）。7日で失効することを README に書く
 8. `docs/` は日本語のまま公開する。README にその一文を置く

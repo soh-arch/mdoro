@@ -35,6 +35,20 @@ actually did to a log file next to it. It never edits your tasks.
 - 11:35–11:43 WORK 8m ⏹ Stopped [Standard] — Protocol design
 ```
 
+## From the menu bar
+
+The window is optional. The menu bar carries the session, and the controls sit
+behind it, ordered by what they cost you if you hit them by mistake.
+
+<p align="center">
+  <img src="docs/images/mac-menubar.png" width="210" alt="The Mdoro menu bar item showing a running Focus session, with its menu open: pause, start next, skip, task, display, stop, reset loop count, settings">
+</p>
+
+Pause, start and skip are one click. Stopping a session and resetting the loop
+count ask once before they happen. Editing presets, changing file paths and
+pairing are not here at all — they live in the window, where you can see what
+you are doing.
+
 ## What it does not do
 
 - **No cloud, no account, no sync service.** Everything happens on your LAN.
