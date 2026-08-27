@@ -1,7 +1,214 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ has ended" : {
 
+    },
+    "%@（%@）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@（%2$@）"
+          }
+        }
+      }
+    },
+    "%lld / %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "%lld minutes %lld seconds left" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld minutes %2$lld seconds left"
+          }
+        }
+      }
+    },
+    "%lld seconds left" : {
+
+    },
+    "A long pause was detected" : {
+
+    },
+    "About %lld min left" : {
+
+    },
+    "actual %lld min" : {
+
+    },
+    "Allow this app in Settings > Privacy & Security > Local Network." : {
+
+    },
+    "Another device is connected" : {
+
+    },
+    "Can only start while the app is in the foreground" : {
+
+    },
+    "Choose a Mac" : {
+
+    },
+    "Connect" : {
+
+    },
+    "Connected" : {
+
+    },
+    "Ending soon" : {
+
+    },
+    "Extend +%lld min" : {
+
+    },
+    "First %lld only" : {
+
+    },
+    "Five wrong codes. Start pairing again on your Mac" : {
+
+    },
+    "Focus" : {
+
+    },
+    "Full Screen" : {
+
+    },
+    "iPhone uses the iOS default sound. The choice of tone is Mac only." : {
+
+    },
+    "Join the same Wi-Fi network as your Mac." : {
+
+    },
+    "Last received %@" : {
+
+    },
+    "Live Activities are turned off in iOS Settings" : {
+
+    },
+    "Live Activity: %@" : {
+
+    },
+    "Local network access is not allowed" : {
+
+    },
+    "Long Break" : {
+
+    },
+    "Loop %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Loop %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "Mdoro" : {
+
+    },
+    "Next: %@" : {
+
+    },
+    "No tasks found" : {
+
+    },
+    "Not connected" : {
+
+    },
+    "Not connected to your Mac" : {
+
+    },
+    "Open Settings" : {
+
+    },
+    "Pause" : {
+
+    },
+    "Paused" : {
+
+    },
+    "Preset" : {
+
+    },
+    "Reconnecting" : {
+
+    },
+    "Record as completed" : {
+
+    },
+    "Record as stopped" : {
+
+    },
+    "Resume" : {
+
+    },
+    "Resume it" : {
+
+    },
+    "Short Break" : {
+
+    },
+    "Six-digit code" : {
+
+    },
+    "Skip" : {
+
+    },
+    "Start Break" : {
+
+    },
+    "Start Focus" : {
+
+    },
+    "Start Next" : {
+
+    },
+    "Start pairing in Settings on your Mac, then enter the six-digit code it shows." : {
+
+    },
+    "Start pairing on your Mac" : {
+
+    },
+    "Starts once connected to your Mac" : {
+
+    },
+    "Stop" : {
+
+    },
+    "Syncing…" : {
+
+    },
+    "Tasks" : {
+
+    },
+    "That code is not correct" : {
+
+    },
+    "The session had already ended" : {
+
+    },
+    "This device is no longer registered. Pair again" : {
+
+    },
+    "Waiting for sync" : {
+
+    },
+    "Your Mac did not approve the connection" : {
+
+    },
+    "Your Mac needs a decision" : {
+
+    }
   },
   "version" : "1.0"
 }

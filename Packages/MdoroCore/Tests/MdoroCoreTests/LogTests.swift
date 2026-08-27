@@ -213,13 +213,12 @@ struct LogFileEditorTests {
     // Decision 0014: 曜日部分を書き換えられていても、日付が読めれば同じ日として扱う。
     // 見出しを2つ作って記録を分断しない。REQ-LOG-022 の「改名」には当たらない。
     //
-    // **工程10 で曜日を英語にしたので、日本語の見出しは実際に起こる過去の姿である。**
-    // 既に書かれたログへ、今日のアプリが追記できなければならない。
+    // **利用者は自分のログを自分で編集する。** 曜日を書き直されても、その日の行はそこへ入る。
     @Test func renamedHeadingIsMatchedByItsDate() throws {
-        let existing = "## 2026-08-24 (月)\n\n- 既存の行\n"
+        let existing = "## 2026-08-24 (Monday)\n\n- 既存の行\n"
         let result = try insert(into: existing)
         #expect(result.components(separatedBy: "## ").count == 2, "見出しを二重に作らない")
-        #expect(result.contains("## 2026-08-24 (月)"), "既存の見出しは書き換えない")
+        #expect(result.contains("## 2026-08-24 (Monday)"), "既存の見出しは書き換えない")
     }
 
     // REQ-LOG-003: ユーザーが自分で書いた見出しに日付が含まれていても、当該見出しとみなさない。
