@@ -306,7 +306,6 @@ Git に入っていないため、失われると復元できない。
 | ID | 内容 | いつ決める |
 | :-- | :---- | :-- |
 | OPEN-002 | **アプリ全体のタイポグラフィ・スケール**（数字書体・等幅の可否・ウェイト・段階）。集中表示ビュー（REQ-UIX-010）を含む | 工程11の着手前 |
-| OPEN-022 | **Xcode のテンプレート由来のウィジェット2つ**（`PomodoroWidget.swift` の「My Widget / This is an example widget」と `PomodoroWidgetControl.swift`）を削除するか。ホーム画面ウィジェットは FUT-003（将来拡張）であり、仕様には無い。現状は `WidgetBundle` に登録されており、**ウィジェットギャラリーに 😀 の例が出る** | 工程9c までに |
 | OPEN-020 | 支援リンク（Buy Me a Coffee）の URL | 工程12 |
 | OPEN-021 | 配布形態。ソースからのビルドのみか、有償の Developer Program を取って署名済み成果物を配るか | 工程12 |
 | OPEN-004 | 無制限モード（REQ-TIM-045）実装時の Live Activity 再開方法 | 該当機能の実装時 |
@@ -550,6 +549,13 @@ iPhone 側も旧アプリを削除してから入れ直す。**サンドボッ�
 
 - アプリアイコンの差し替え（工程11・12）
 - capability・署名・配布設定の変更（工程12、OPEN-021 が有償 Program の場合）
+
+### 拡張が提供するのは Live Activity だけ
+
+`MdoroWidgetBundle` に登録してよいのは `MdoroWidgetLiveActivity` **だけ**である。
+ホーム画面ウィジェットは第15章 FUT-003、コントロールウィジェットは仕様に無い。
+Xcode のテンプレートが作った2つを消し忘れていたため、
+**ウィジェットギャラリーに「My Widget」と 😀 が出ていた**（2026-08-27 に削除、旧 OPEN-022）。
 
 ### 既知の不具合
 

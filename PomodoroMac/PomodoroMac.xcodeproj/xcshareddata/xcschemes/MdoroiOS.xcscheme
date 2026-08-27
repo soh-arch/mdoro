@@ -36,8 +36,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "4640E01E303CA98A00475D34"
-               BuildableName = "PomodoroiOSTests.xctest"
-               BlueprintName = "PomodoroiOSTests"
+               BuildableName = "MdoroiOSTests.xctest"
+               BlueprintName = "MdoroiOSTests"
                ReferencedContainer = "container:PomodoroMac.xcodeproj">
             </BuildableReference>
          </TestableReference>

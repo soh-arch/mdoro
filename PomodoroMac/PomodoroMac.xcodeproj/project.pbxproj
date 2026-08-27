@@ -13,17 +13,13 @@
 		4640E048303CAE7A00475D34 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4640E047303CAE7A00475D34 /* SwiftUI.framework */; };
 		4640E057303CAE7B00475D34 /* MdoroWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4640E044303CAE7A00475D34 /* MdoroWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4671DC29303EA7AF00BAC370 /* PomodoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4671DC28303EA7AF00BAC370 /* PomodoroCore */; };
+		4671DC7B3040708600BAC370 /* MdoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4671DC7A3040708600BAC370 /* MdoroCore */; };
+		4671DC7D3040709600BAC370 /* MdoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4671DC7C3040709600BAC370 /* MdoroCore */; };
+		4671DC7F304070A400BAC370 /* MdoroCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4671DC7E304070A400BAC370 /* MdoroCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		4640DFF3303CA90000475D34 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 4640DFDD303CA8FF00475D34 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 4640DFE4303CA8FF00475D34;
-			remoteInfo = PomodoroMac;
-		};
-		4640DFFD303CA90000475D34 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 4640DFDD303CA8FF00475D34 /* Project object */;
 			proxyType = 1;
@@ -37,19 +33,19 @@
 			remoteGlobalIDString = 4640E012303CA98900475D34;
 			remoteInfo = PomodoroiOS;
 		};
-		4640E02A303CA98A00475D34 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 4640DFDD303CA8FF00475D34 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 4640E012303CA98900475D34;
-			remoteInfo = PomodoroiOS;
-		};
 		4640E055303CAE7B00475D34 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 4640DFDD303CA8FF00475D34 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 4640E043303CAE7A00475D34;
 			remoteInfo = PomodoroWidgetExtension;
+		};
+		4671DC803040712700BAC370 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4640DFDD303CA8FF00475D34 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4640DFE4303CA8FF00475D34;
+			remoteInfo = MdoroMac;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -69,12 +65,9 @@
 
 /* Begin PBXFileReference section */
 		4640DFE5303CA8FF00475D34 /* MdoroMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MdoroMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		4640DFF2303CA90000475D34 /* PomodoroMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PomodoroMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		4640DFFC303CA90000475D34 /* PomodoroMacUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PomodoroMacUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4640DFF2303CA90000475D34 /* MdoroMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MdoroMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4640E013303CA98900475D34 /* MdoroiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MdoroiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		4640E01F303CA98A00475D34 /* PomodoroiOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PomodoroiOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		4640E029303CA98A00475D34 /* PomodoroiOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PomodoroiOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		4640E03A303CADB700475D34 /* PomodoroCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = PomodoroCore; path = ../Packages/PomodoroCore; sourceTree = SOURCE_ROOT; };
+		4640E01F303CA98A00475D34 /* MdoroiOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MdoroiOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4640E044303CAE7A00475D34 /* MdoroWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MdoroWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4640E045303CAE7A00475D34 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		4640E047303CAE7A00475D34 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -157,17 +150,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				4640E03D303CADFD00475D34 /* PomodoroCore in Frameworks */,
+				4671DC7B3040708600BAC370 /* MdoroCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		4640DFEF303CA90000475D34 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4640DFF9303CA90000475D34 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -179,17 +166,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				4640E03F303CAE1A00475D34 /* PomodoroCore in Frameworks */,
+				4671DC7D3040709600BAC370 /* MdoroCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		4640E01C303CA98A00475D34 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4640E026303CA98A00475D34 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -203,6 +184,7 @@
 				4640E048303CAE7A00475D34 /* SwiftUI.framework in Frameworks */,
 				4671DC29303EA7AF00BAC370 /* PomodoroCore in Frameworks */,
 				4640E046303CAE7A00475D34 /* WidgetKit.framework in Frameworks */,
+				4671DC7F304070A400BAC370 /* MdoroCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -212,7 +194,6 @@
 		4640DFDC303CA8FF00475D34 = {
 			isa = PBXGroup;
 			children = (
-				4640E03A303CADB700475D34 /* PomodoroCore */,
 				4640DFE7303CA8FF00475D34 /* PomodoroMac */,
 				4640DFF5303CA90000475D34 /* PomodoroMacTests */,
 				4640DFFF303CA90000475D34 /* PomodoroMacUITests */,
@@ -229,11 +210,9 @@
 			isa = PBXGroup;
 			children = (
 				4640DFE5303CA8FF00475D34 /* MdoroMac.app */,
-				4640DFF2303CA90000475D34 /* PomodoroMacTests.xctest */,
-				4640DFFC303CA90000475D34 /* PomodoroMacUITests.xctest */,
+				4640DFF2303CA90000475D34 /* MdoroMacTests.xctest */,
 				4640E013303CA98900475D34 /* MdoroiOS.app */,
-				4640E01F303CA98A00475D34 /* PomodoroiOSTests.xctest */,
-				4640E029303CA98A00475D34 /* PomodoroiOSUITests.xctest */,
+				4640E01F303CA98A00475D34 /* MdoroiOSTests.xctest */,
 				4640E044303CAE7A00475D34 /* MdoroWidget.appex */,
 			);
 			name = Products;
@@ -269,14 +248,15 @@
 			name = MdoroMac;
 			packageProductDependencies = (
 				4640E03C303CADFD00475D34 /* PomodoroCore */,
+				4671DC7A3040708600BAC370 /* MdoroCore */,
 			);
 			productName = PomodoroMac;
 			productReference = 4640DFE5303CA8FF00475D34 /* MdoroMac.app */;
 			productType = "com.apple.product-type.application";
 		};
-		4640DFF1303CA90000475D34 /* PomodoroMacTests */ = {
+		4640DFF1303CA90000475D34 /* MdoroMacTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4640E009303CA90000475D34 /* Build configuration list for PBXNativeTarget "PomodoroMacTests" */;
+			buildConfigurationList = 4640E009303CA90000475D34 /* Build configuration list for PBXNativeTarget "MdoroMacTests" */;
 			buildPhases = (
 				4640DFEE303CA90000475D34 /* Sources */,
 				4640DFEF303CA90000475D34 /* Frameworks */,
@@ -290,35 +270,12 @@
 			fileSystemSynchronizedGroups = (
 				4640DFF5303CA90000475D34 /* PomodoroMacTests */,
 			);
-			name = PomodoroMacTests;
+			name = MdoroMacTests;
 			packageProductDependencies = (
 			);
 			productName = PomodoroMacTests;
-			productReference = 4640DFF2303CA90000475D34 /* PomodoroMacTests.xctest */;
+			productReference = 4640DFF2303CA90000475D34 /* MdoroMacTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		4640DFFB303CA90000475D34 /* PomodoroMacUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 4640E00C303CA90000475D34 /* Build configuration list for PBXNativeTarget "PomodoroMacUITests" */;
-			buildPhases = (
-				4640DFF8303CA90000475D34 /* Sources */,
-				4640DFF9303CA90000475D34 /* Frameworks */,
-				4640DFFA303CA90000475D34 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				4640DFFE303CA90000475D34 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				4640DFFF303CA90000475D34 /* PomodoroMacUITests */,
-			);
-			name = PomodoroMacUITests;
-			packageProductDependencies = (
-			);
-			productName = PomodoroMacUITests;
-			productReference = 4640DFFC303CA90000475D34 /* PomodoroMacUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		4640E012303CA98900475D34 /* MdoroiOS */ = {
 			isa = PBXNativeTarget;
@@ -340,14 +297,15 @@
 			name = MdoroiOS;
 			packageProductDependencies = (
 				4640E03E303CAE1A00475D34 /* PomodoroCore */,
+				4671DC7C3040709600BAC370 /* MdoroCore */,
 			);
 			productName = PomodoroiOS;
 			productReference = 4640E013303CA98900475D34 /* MdoroiOS.app */;
 			productType = "com.apple.product-type.application";
 		};
-		4640E01E303CA98A00475D34 /* PomodoroiOSTests */ = {
+		4640E01E303CA98A00475D34 /* MdoroiOSTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4640E034303CA98A00475D34 /* Build configuration list for PBXNativeTarget "PomodoroiOSTests" */;
+			buildConfigurationList = 4640E034303CA98A00475D34 /* Build configuration list for PBXNativeTarget "MdoroiOSTests" */;
 			buildPhases = (
 				4640E01B303CA98A00475D34 /* Sources */,
 				4640E01C303CA98A00475D34 /* Frameworks */,
@@ -357,39 +315,17 @@
 			);
 			dependencies = (
 				4640E021303CA98A00475D34 /* PBXTargetDependency */,
+				4671DC813040712700BAC370 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				4640E022303CA98A00475D34 /* PomodoroiOSTests */,
 			);
-			name = PomodoroiOSTests;
+			name = MdoroiOSTests;
 			packageProductDependencies = (
 			);
 			productName = PomodoroiOSTests;
-			productReference = 4640E01F303CA98A00475D34 /* PomodoroiOSTests.xctest */;
+			productReference = 4640E01F303CA98A00475D34 /* MdoroiOSTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		4640E028303CA98A00475D34 /* PomodoroiOSUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 4640E037303CA98A00475D34 /* Build configuration list for PBXNativeTarget "PomodoroiOSUITests" */;
-			buildPhases = (
-				4640E025303CA98A00475D34 /* Sources */,
-				4640E026303CA98A00475D34 /* Frameworks */,
-				4640E027303CA98A00475D34 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				4640E02B303CA98A00475D34 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				4640E02C303CA98A00475D34 /* PomodoroiOSUITests */,
-			);
-			name = PomodoroiOSUITests;
-			packageProductDependencies = (
-			);
-			productName = PomodoroiOSUITests;
-			productReference = 4640E029303CA98A00475D34 /* PomodoroiOSUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		4640E043303CAE7A00475D34 /* MdoroWidget */ = {
 			isa = PBXNativeTarget;
@@ -409,6 +345,7 @@
 			name = MdoroWidget;
 			packageProductDependencies = (
 				4671DC28303EA7AF00BAC370 /* PomodoroCore */,
+				4671DC7E304070A400BAC370 /* MdoroCore */,
 			);
 			productName = PomodoroWidgetExtension;
 			productReference = 4640E044303CAE7A00475D34 /* MdoroWidget.appex */;
@@ -431,18 +368,10 @@
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = 4640DFE4303CA8FF00475D34;
 					};
-					4640DFFB303CA90000475D34 = {
-						CreatedOnToolsVersion = 26.6;
-						TestTargetID = 4640DFE4303CA8FF00475D34;
-					};
 					4640E012303CA98900475D34 = {
 						CreatedOnToolsVersion = 26.6;
 					};
 					4640E01E303CA98A00475D34 = {
-						CreatedOnToolsVersion = 26.6;
-						TestTargetID = 4640E012303CA98900475D34;
-					};
-					4640E028303CA98A00475D34 = {
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = 4640E012303CA98900475D34;
 					};
@@ -460,17 +389,18 @@
 			);
 			mainGroup = 4640DFDC303CA8FF00475D34;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				4671DC793040704B00BAC370 /* XCLocalSwiftPackageReference "../Packages/MdoroCore" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4640DFE6303CA8FF00475D34 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				4640DFE4303CA8FF00475D34 /* MdoroMac */,
-				4640DFF1303CA90000475D34 /* PomodoroMacTests */,
-				4640DFFB303CA90000475D34 /* PomodoroMacUITests */,
+				4640DFF1303CA90000475D34 /* MdoroMacTests */,
 				4640E012303CA98900475D34 /* MdoroiOS */,
-				4640E01E303CA98A00475D34 /* PomodoroiOSTests */,
-				4640E028303CA98A00475D34 /* PomodoroiOSUITests */,
+				4640E01E303CA98A00475D34 /* MdoroiOSTests */,
 				4640E043303CAE7A00475D34 /* MdoroWidget */,
 			);
 		};
@@ -491,13 +421,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4640DFFA303CA90000475D34 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		4640E011303CA98900475D34 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -506,13 +429,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		4640E01D303CA98A00475D34 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4640E027303CA98A00475D34 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -543,13 +459,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		4640DFF8303CA90000475D34 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		4640E00F303CA98900475D34 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -558,13 +467,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		4640E01B303CA98A00475D34 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4640E025303CA98A00475D34 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -586,25 +488,20 @@
 			target = 4640DFE4303CA8FF00475D34 /* MdoroMac */;
 			targetProxy = 4640DFF3303CA90000475D34 /* PBXContainerItemProxy */;
 		};
-		4640DFFE303CA90000475D34 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 4640DFE4303CA8FF00475D34 /* MdoroMac */;
-			targetProxy = 4640DFFD303CA90000475D34 /* PBXContainerItemProxy */;
-		};
 		4640E021303CA98A00475D34 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 4640E012303CA98900475D34 /* MdoroiOS */;
 			targetProxy = 4640E020303CA98A00475D34 /* PBXContainerItemProxy */;
 		};
-		4640E02B303CA98A00475D34 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 4640E012303CA98900475D34 /* MdoroiOS */;
-			targetProxy = 4640E02A303CA98A00475D34 /* PBXContainerItemProxy */;
-		};
 		4640E056303CAE7B00475D34 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 4640E043303CAE7A00475D34 /* MdoroWidget */;
 			targetProxy = 4640E055303CAE7B00475D34 /* PBXContainerItemProxy */;
+		};
+		4671DC813040712700BAC370 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4640DFE4303CA8FF00475D34 /* MdoroMac */;
+			targetProxy = 4671DC803040712700BAC370 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -833,7 +730,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PomodoroMac.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PomodoroMac";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MdoroMac.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MdoroMac";
 			};
 			name = Debug;
 		};
@@ -853,45 +750,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PomodoroMac.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PomodoroMac";
-			};
-			name = Release;
-		};
-		4640E00D303CA90000475D34 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.PomodoroMacUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = PomodoroMac;
-			};
-			name = Debug;
-		};
-		4640E00E303CA90000475D34 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.PomodoroMacUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = PomodoroMac;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MdoroMac.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MdoroMac";
 			};
 			name = Release;
 		};
@@ -992,7 +851,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PomodoroiOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PomodoroiOS";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MdoroiOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MdoroiOS";
 			};
 			name = Debug;
 		};
@@ -1014,50 +873,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PomodoroiOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PomodoroiOS";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		4640E038303CA98A00475D34 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.PomodoroiOSUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = PomodoroiOS;
-			};
-			name = Debug;
-		};
-		4640E039303CA98A00475D34 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sohta.PomodoroiOSUITests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = PomodoroiOS;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MdoroiOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MdoroiOS";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -1148,20 +964,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4640E009303CA90000475D34 /* Build configuration list for PBXNativeTarget "PomodoroMacTests" */ = {
+		4640E009303CA90000475D34 /* Build configuration list for PBXNativeTarget "MdoroMacTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4640E00A303CA90000475D34 /* Debug */,
 				4640E00B303CA90000475D34 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		4640E00C303CA90000475D34 /* Build configuration list for PBXNativeTarget "PomodoroMacUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				4640E00D303CA90000475D34 /* Debug */,
-				4640E00E303CA90000475D34 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1175,20 +982,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4640E034303CA98A00475D34 /* Build configuration list for PBXNativeTarget "PomodoroiOSTests" */ = {
+		4640E034303CA98A00475D34 /* Build configuration list for PBXNativeTarget "MdoroiOSTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4640E035303CA98A00475D34 /* Debug */,
 				4640E036303CA98A00475D34 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		4640E037303CA98A00475D34 /* Build configuration list for PBXNativeTarget "PomodoroiOSUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				4640E038303CA98A00475D34 /* Debug */,
-				4640E039303CA98A00475D34 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1204,6 +1002,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		4671DC793040704B00BAC370 /* XCLocalSwiftPackageReference "../Packages/MdoroCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/MdoroCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		4640E03C303CADFD00475D34 /* PomodoroCore */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -1216,6 +1021,21 @@
 		4671DC28303EA7AF00BAC370 /* PomodoroCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PomodoroCore;
+		};
+		4671DC7A3040708600BAC370 /* MdoroCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4671DC793040704B00BAC370 /* XCLocalSwiftPackageReference "../Packages/MdoroCore" */;
+			productName = MdoroCore;
+		};
+		4671DC7C3040709600BAC370 /* MdoroCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4671DC793040704B00BAC370 /* XCLocalSwiftPackageReference "../Packages/MdoroCore" */;
+			productName = MdoroCore;
+		};
+		4671DC7E304070A400BAC370 /* MdoroCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4671DC793040704B00BAC370 /* XCLocalSwiftPackageReference "../Packages/MdoroCore" */;
+			productName = MdoroCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
