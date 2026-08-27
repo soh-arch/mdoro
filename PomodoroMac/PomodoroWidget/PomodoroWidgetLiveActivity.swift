@@ -36,7 +36,7 @@ struct PomodoroWidgetLiveActivity: Widget {
                         if let task = context.state.taskName, !task.isEmpty {
                             Text(task).font(.system(size: WidgetFontSize.secondary)).lineLimit(1)
                         }
-                        StaleNotice(isStale: context.isStale)
+                        StatusNotice(isStale: context.isStale, isConnected: context.state.isConnected)
                         Controls(state: context.state)
                     }
                 }
@@ -93,16 +93,27 @@ private struct TimerText: View {
 }
 
 // REQ-UIX-023: `isStale` が真のとき「情報が古い可能性があります」を明示する。
-// **古い情報を正しい情報のように見せない。**
-private struct StaleNotice: View {
+// REQ-UIX-004: 接続状態は常時視認できること。
+//
+// **`isStale` の判定を下すのは OS で、期限が来た瞬間に切り替わるとは限らない。**
+// 90 秒の期限に対して、実機では4分後に切り替わった（2026-08-27、19:08 切断 → 19:12 表示）。
+// 切れたこと自体はこちら側が知っている。**知っていることは、OS を待たずに自分で言う。**
+private struct StatusNotice: View {
     let isStale: Bool
+    let isConnected: Bool
 
     var body: some View {
         if isStale {
-            Label("情報が古い可能性があります", systemImage: "exclamationmark.triangle")
-                .font(.system(size: WidgetFontSize.secondary))
-                .foregroundStyle(.secondary)
+            notice("情報が古い可能性があります", "exclamationmark.triangle")
+        } else if !isConnected {
+            notice("Mac との接続が切れています", ConnectionStatus.disconnected.symbolName)
         }
+    }
+
+    private func notice(_ text: String, _ symbol: String) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.system(size: WidgetFontSize.secondary))
+            .foregroundStyle(.secondary)
     }
 }
 
@@ -153,8 +164,8 @@ private struct LockScreenView: View {
             // ロック画面は**高さが固定**で、入らない行は黙って消える。
             // 3行目を取り合うなら、**REQ-UIX-023（MUST）の注意書きがタスク名に勝つ。**
             // 古い情報を正しい情報のように見せないことのほうが、何をしていたかより重い。
-            if context.isStale {
-                StaleNotice(isStale: true)
+            if context.isStale || !context.state.isConnected {
+                StatusNotice(isStale: context.isStale, isConnected: context.state.isConnected)
             } else if let task = context.state.taskName, !task.isEmpty {
                 Text(task).font(.system(size: WidgetFontSize.secondary)).foregroundStyle(.secondary).lineLimit(1)
             }
