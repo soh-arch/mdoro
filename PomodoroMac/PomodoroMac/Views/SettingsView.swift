@@ -106,7 +106,7 @@ struct SettingsView: View {
 
     private func exportDiagnostics() {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "pomodoro-diagnostics.log"
+        panel.nameFieldStringValue = "mdoro-diagnostics.log"
         panel.allowedContentTypes = [.plainText]
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {

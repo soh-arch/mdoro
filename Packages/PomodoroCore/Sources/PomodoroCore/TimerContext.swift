@@ -199,7 +199,7 @@ public struct AppSettings: Equatable, Sendable, Codable {
 
     public static let `default` = AppSettings()
     // REQ-LOG-001: 既定名。
-    public static let defaultLogFileName = "PomodoroLog.md"
+    public static let defaultLogFileName = "MdoroLog.md"
 
     // 9.3 の `logFilePath` に相当する値。フォルダとファイル名から組み立てる。
     public var logFilePath: String? {

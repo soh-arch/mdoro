@@ -109,6 +109,6 @@ struct MenuBarMenuContent: View {
 
     private func openMain() {
         NSApplication.shared.activate(ignoringOtherApps: true)
-        openWindow(id: PomodoroMacApp.mainWindowId)
+        openWindow(id: MdoroMacApp.mainWindowId)
     }
 }

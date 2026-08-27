@@ -3,7 +3,7 @@ import UserNotifications
 import PomodoroCore
 
 @main
-struct PomodoroiOSApp: App {
+struct MdoroiOSApp: App {
     @State private var model = ClientModel()
     @State private var delegate = NotificationDelegate()
     @Environment(\.scenePhase) private var scenePhase

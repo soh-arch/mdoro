@@ -7,7 +7,7 @@ import ActivityKit
 // 表示に必要な情報はすべてここに載せて渡す。
 //
 // REQ-PRT-001: アプリ本体と拡張の双方が使うため、共有パッケージに置く。
-public struct PomodoroActivityAttributes: ActivityAttributes {
+public struct MdoroActivityAttributes: ActivityAttributes {
 
     public struct ContentState: Codable, Hashable, Sendable {
         public var sessionType: SessionType
@@ -39,7 +39,7 @@ public struct PomodoroActivityAttributes: ActivityAttributes {
             self.loopDisplay = loopDisplay
             self.longBreakInterval = longBreakInterval
             // REQ-UIX-025: 動的データは 4KB 以内。タスク名は表示可能長で切り詰める。
-            self.taskName = taskName.map { String($0.prefix(PomodoroActivityAttributes.maxTaskNameLength)) }
+            self.taskName = taskName.map { String($0.prefix(MdoroActivityAttributes.maxTaskNameLength)) }
             self.isConnected = isConnected
         }
 

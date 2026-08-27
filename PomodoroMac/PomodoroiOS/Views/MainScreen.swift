@@ -38,7 +38,7 @@ struct MainScreen: View {
                 .padding(20)
             }
             .background(theme.background)
-            .navigationTitle("Pomodoro")
+            .navigationTitle("Mdoro")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     // REQ-UIX-013: 通常画面からの明示操作で集中表示ビューへ。

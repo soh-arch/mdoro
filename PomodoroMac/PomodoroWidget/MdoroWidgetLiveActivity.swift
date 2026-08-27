@@ -9,9 +9,9 @@ import PomodoroCore
 // **これはセッション終了を知らせる手段ではない**（8.3 末尾）。終了の通知は第5章の
 // ローカル通知が担い、こちらはアプリが動いている間の可視化に徹する。
 // 両者を独立させることで、更新できない状況でも通知は必ず届く（Decision 0009）。
-struct PomodoroWidgetLiveActivity: Widget {
+struct MdoroWidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: PomodoroActivityAttributes.self) { context in
+        ActivityConfiguration(for: MdoroActivityAttributes.self) { context in
             LockScreenView(context: context)
                 // REQ-UIX-027: 8.5 のトークンをそのまま当てない。
                 // 背景はユーザーの壁紙なので「対 --bg」のコントラスト保証が成立しない。
@@ -84,7 +84,7 @@ private enum WidgetFontSize {
 // **アプリからの毎秒更新を行ってはならない。** 更新予算を使い切るうえ、
 // そもそも suspend 中は更新できない。
 private struct TimerText: View {
-    let state: PomodoroActivityAttributes.ContentState
+    let state: MdoroActivityAttributes.ContentState
 
     var body: some View {
         Text(timerInterval: state.timerRange, pauseTime: state.pauseTime, countsDown: true)
@@ -119,7 +119,7 @@ private struct StatusNotice: View {
 
 // REQ-UIX-024: 「一時停止 / 再開」を LiveActivityIntent として置く。
 private struct Controls: View {
-    let state: PomodoroActivityAttributes.ContentState
+    let state: MdoroActivityAttributes.ContentState
 
     var body: some View {
         HStack(spacing: 12) {
@@ -137,7 +137,7 @@ private struct Controls: View {
 }
 
 private struct LockScreenView: View {
-    let context: ActivityViewContext<PomodoroActivityAttributes>
+    let context: ActivityViewContext<MdoroActivityAttributes>
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

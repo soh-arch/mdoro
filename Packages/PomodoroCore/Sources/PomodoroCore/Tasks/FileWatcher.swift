@@ -21,7 +21,7 @@ public final class FileWatcher: @unchecked Sendable {
     public init(
         fileURL: URL,
         debounce: TimeInterval = FileWatcher.debounceInterval,
-        queue: DispatchQueue = DispatchQueue(label: "PomodoroCore.FileWatcher"),
+        queue: DispatchQueue = DispatchQueue(label: "MdoroCore.FileWatcher"),
         onChange: @escaping @Sendable () -> Void
     ) {
         self.directoryURL = fileURL.deletingLastPathComponent()

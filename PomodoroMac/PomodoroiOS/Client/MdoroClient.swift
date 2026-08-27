@@ -7,7 +7,7 @@ import PomodoroCore
 // **このクラスはセッションの完了を確定しない**（REQ-COM-012 / 3原則の2つ目）。
 // 受け取った状態をそのまま上へ渡すだけで、周回数の加算もログ記録も行わない。
 @MainActor
-final class PomodoroClient {
+final class MdoroClient {
 
     enum Status: Equatable {
         case idle

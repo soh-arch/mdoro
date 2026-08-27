@@ -12,7 +12,7 @@ import WidgetKit
 struct PomodoroWidgetControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(
-            kind: "com.sohta.PomodoroiOS.PomodoroWidget",
+            kind: "com.sohta.Mdoro.iOS.MdoroWidget",
             provider: Provider()
         ) { value in
             ControlWidgetToggle(

@@ -16,7 +16,7 @@ final class ClientModel {
 
     private(set) var snapshot: StateSnapshot?
     private(set) var taskList: TaskListPayload?
-    private(set) var status: PomodoroClient.Status = .idle
+    private(set) var status: MdoroClient.Status = .idle
     private(set) var servers: [DiscoveredServer] = []
     private(set) var lastError: String?
     // REQ-PER-011: 永続化された状態を表示するときは取得時刻を併記する。
@@ -32,7 +32,7 @@ final class ClientModel {
     // 集中表示ビューを出しているか（REQ-UIX-013）。
     var isFocusViewPresented = false
 
-    private let client = PomodoroClient()
+    private let client = MdoroClient()
     private let notifications = NotificationScheduler()
     private let liveActivity = LiveActivityController()
     // REQ-UIX-020: 開始できるのはフォアグラウンドにある間だけ。
@@ -114,7 +114,7 @@ final class ClientModel {
     // MARK: - 接続
 
     func connect(to server: DiscoveredServer, pairingCode: String? = nil) {
-        client.connect(to: server, pairingCode: pairingCode, callbacks: PomodoroClient.Callbacks(
+        client.connect(to: server, pairingCode: pairingCode, callbacks: MdoroClient.Callbacks(
             statusChanged: { [weak self] status in
                 guard let self else { return }
                 self.status = status

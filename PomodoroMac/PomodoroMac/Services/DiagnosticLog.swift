@@ -22,7 +22,7 @@ final class DiagnosticLog {
     static let directory: URL = {
         let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library")
-        return library.appendingPathComponent("Logs/Pomodoro", isDirectory: true)
+        return library.appendingPathComponent("Logs/Mdoro", isDirectory: true)
     }()
 
     func open(preset: Preset, settings: AppSettings) {

@@ -18,7 +18,7 @@ public struct FileStateStore: StateStore {
     // Application Support 配下。サンドボックス下ではコンテナ内に解決されるため、
     // セキュリティスコープ付きブックマークは不要。
     public static func inApplicationSupport(
-        directoryName: String = "PomodoroTimer",
+        directoryName: String = "Mdoro",
         fileName: String = "state.json"
     ) throws -> FileStateStore {
         let fileManager = FileManager.default

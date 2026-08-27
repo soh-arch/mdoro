@@ -4,7 +4,7 @@ import Security
 // REQ-SEC-001: デバイストークンは Keychain に保存する。
 // UserDefaults に置くと、バックアップや設定の書き出しで持ち出せてしまう。
 enum TokenKeychain {
-    private static let service = "com.sohta.PomodoroiOS.deviceToken"
+    private static let service = "com.sohta.Mdoro.deviceToken"
 
     static func load(serverName: String) -> String? {
         var query = baseQuery(serverName)

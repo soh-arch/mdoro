@@ -28,7 +28,7 @@ final class ServerBrowser {
         stop()
         let parameters = NWParameters()
         parameters.includePeerToPeer = false
-        let browser = NWBrowser(for: .bonjourWithTXTRecord(type: "_pomodoro._tcp", domain: nil), using: parameters)
+        let browser = NWBrowser(for: .bonjourWithTXTRecord(type: "_mdoro._tcp", domain: nil), using: parameters)
 
         browser.stateUpdateHandler = { [weak self] state in
             guard case let .failed(error) = state else { return }

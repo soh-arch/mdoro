@@ -8,7 +8,7 @@ import PomodoroCore
 // **このクラスはドメインの判断を持たない。** 受け取ったメッセージを上位へ渡し、
 // 上位が決めた結果を送り返すだけにする。状態の正本は `TimerEngine` にある（3原則の2つ目）。
 @MainActor
-final class PomodoroServer {
+final class MdoroServer {
 
     struct Callbacks {
         // hello を受けた。認証の判断は上位（Authenticator）が行う。
@@ -25,7 +25,7 @@ final class PomodoroServer {
     private(set) var lastHeartbeatAt: Date?
 
     private var listener: NWListener?
-    private let queue = DispatchQueue(label: "PomodoroMac.Server")
+    private let queue = DispatchQueue(label: "MdoroMac.Server")
     private var callbacks: Callbacks?
     private var deduplicator = RequestDeduplicator()
     private var heartbeatTimer: Task<Void, Never>?

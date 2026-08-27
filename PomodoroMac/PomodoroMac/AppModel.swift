@@ -59,7 +59,7 @@ final class AppModel {
     private let notifications = NotificationScheduler()
     private let idleSleepGuard = IdleSleepGuard()
     private let hotKeys = HotKeyCenter()
-    private let server = PomodoroServer()
+    private let server = MdoroServer()
     // REQ-ERR-010 / Decision 0018: タスク名もパスも載せない診断ログ。
     let diagnostics = DiagnosticLog()
     private var infoServer: InfoHTTPServer?
@@ -369,7 +369,7 @@ final class AppModel {
             // REQ-COM-002 / 003: Bonjour で広告し、`GET /info` でサーバー情報を返す。
             let info = InfoHTTPServer(info: serverInfo(websocketPort: websocketPort))
             try await info.start()
-            info.advertise(serviceName: Host.current().localizedName ?? "Pomodoro", websocketPort: websocketPort)
+            info.advertise(serviceName: Host.current().localizedName ?? "Mdoro", websocketPort: websocketPort)
             infoServer = info
             websocketPortForInfo = websocketPort
             serverStartError = nil
@@ -396,8 +396,8 @@ final class AppModel {
         infoServer?.update(serverInfo(websocketPort: websocketPortForInfo))
     }
 
-    private func serverCallbacks() -> PomodoroServer.Callbacks {
-        PomodoroServer.Callbacks(
+    private func serverCallbacks() -> MdoroServer.Callbacks {
+        MdoroServer.Callbacks(
             authenticate: { [weak self] hello in
                 guard let self else { return .reject(.connectionRejectedByUser) }
                 let decision = authenticator.authenticate(hello, now: Date())

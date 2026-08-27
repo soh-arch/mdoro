@@ -3,7 +3,7 @@ import UserNotifications
 import PomodoroCore
 
 @main
-struct PomodoroMacApp: App {
+struct MdoroMacApp: App {
     static let mainWindowId = "main"
 
     @State private var model = AppModel()
@@ -11,7 +11,7 @@ struct PomodoroMacApp: App {
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
-        Window("Pomodoro", id: Self.mainWindowId) {
+        Window("Mdoro", id: Self.mainWindowId) {
             MainWindowView()
                 .environment(model)
                 .task {

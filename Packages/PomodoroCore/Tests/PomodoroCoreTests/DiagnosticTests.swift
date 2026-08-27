@@ -118,7 +118,7 @@ struct DiagnosticRotationTests {
         #expect(file.lastFailure == nil)
         #expect(FileManager.default.fileExists(atPath: file.previousURL.path))
         let current = try String(contentsOf: file.currentURL, encoding: .utf8)
-        #expect(current.hasPrefix("# Pomodoro Timer diagnostic log"))
+        #expect(current.hasPrefix("# Mdoro diagnostic log"))
     }
 
     // 上限は 2 世代ぶん。放っておいても増え続けない。

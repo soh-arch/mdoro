@@ -59,8 +59,8 @@ public enum DiagnosticLogFormat {
     // Decision 0018: 1ファイル 2MB・2世代。古い行を削除する処理は持たない。
     public static let maxFileBytes = 2 * 1024 * 1024
 
-    public static let currentFileName = "pomodoro.log"
-    public static let previousFileName = "pomodoro.1.log"
+    public static let currentFileName = "mdoro.log"
+    public static let previousFileName = "mdoro.1.log"
 
     public static func line(_ event: DiagnosticEvent) -> String {
         var parts = [timestamp(event.timestamp), event.level.padded, event.code]
@@ -71,7 +71,7 @@ public enum DiagnosticLogFormat {
     // 記録しないと決めたことは、決めただけでは伝わらない。**ファイル自身に書く。**
     public static func header(_ header: DiagnosticHeader) -> String {
         var lines = [
-            "# Pomodoro Timer diagnostic log",
+            "# Mdoro diagnostic log",
             "# no task names, note contents, file paths, host names or IP addresses are recorded",
             "# app=\(header.appVersion) (\(header.build)) os=\(header.osVersion) arch=\(header.architecture)",
         ]

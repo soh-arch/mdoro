@@ -22,7 +22,7 @@ struct ServerInfo: Codable, Equatable, Sendable {
 // クライアントは `/info` で WebSocket のポートを知る。
 final class InfoHTTPServer: @unchecked Sendable {
     private var listener: NWListener?
-    private let queue = DispatchQueue(label: "PomodoroMac.InfoHTTP")
+    private let queue = DispatchQueue(label: "MdoroMac.InfoHTTP")
 
     // **応答はネットワーク側のキューで組み立てられる。**
     // ここから MainActor の状態を読むと `MainActor.assumeIsolated` が落ちる（実際に落とした）。
@@ -67,11 +67,11 @@ final class InfoHTTPServer: @unchecked Sendable {
         port = nil
     }
 
-    // Bonjour で広告する。サービス型は `_pomodoro._tcp`（REQ-COM-003）。
+    // Bonjour で広告する。サービス型は `_mdoro._tcp`（REQ-COM-003）。
     func advertise(serviceName: String, websocketPort: UInt16) {
         listener?.service = NWListener.Service(
             name: serviceName,
-            type: "_pomodoro._tcp",
+            type: "_mdoro._tcp",
             txtRecord: NWTXTRecord(["ws": String(websocketPort),
                                     "v": String(PomodoroProtocol.version)])
         )

@@ -14,12 +14,12 @@ import PomodoroCore
 @Observable
 final class LiveActivityController {
 
-    private var activity: Activity<PomodoroActivityAttributes>?
+    private var activity: Activity<MdoroActivityAttributes>?
     private var startedAt: Date?
     private var lastPushedAt: Date?
     // 最後に渡した内容と、そのときに置いた期限。
     // 接続が落ちたときは、内容だけ直して**期限は押し出さない**ために要る。
-    private var lastState: PomodoroActivityAttributes.ContentState?
+    private var lastState: MdoroActivityAttributes.ContentState?
     private var currentStaleDate: Date?
 
     // **何が起きたかを常に文字で残す。**
@@ -30,7 +30,7 @@ final class LiveActivityController {
     private(set) var isHealthy = false
 
     // OS が把握している自アプリの Live Activity 数。0 なら本当に存在しない。
-    var systemActivityCount: Int { Activity<PomodoroActivityAttributes>.activities.count }
+    var systemActivityCount: Int { Activity<MdoroActivityAttributes>.activities.count }
 
     // REQ-UIX-028: アクティブ8時間の上限。超えたら復帰時に新しく開始し直す。
     private static let maximumLifetime: TimeInterval = 8 * 60 * 60
@@ -104,7 +104,7 @@ final class LiveActivityController {
     // **待って来なければ畳む。** 確かめられないものを、正しい顔で残しておかない。
     // セッションが本当に走っていれば、接続直後に開始し直される（REQ-UIX-020）。
     func discardOrphansIfUnconfirmed(within delay: TimeInterval = 10) {
-        guard activity == nil, !Activity<PomodoroActivityAttributes>.activities.isEmpty else { return }
+        guard activity == nil, !Activity<MdoroActivityAttributes>.activities.isEmpty else { return }
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             // この間に生きたスナップショットが来ていれば、引き取られている。
@@ -120,7 +120,7 @@ final class LiveActivityController {
     // 引き取れば、次の更新でそのまま正しい内容へ戻せる。
     private func adoptOrphanedActivity() {
         guard activity == nil else { return }
-        let existing = Activity<PomodoroActivityAttributes>.activities
+        let existing = Activity<MdoroActivityAttributes>.activities
         guard let survivor = existing.first else { return }
         activity = survivor
         lastState = survivor.content.state
@@ -137,10 +137,10 @@ final class LiveActivityController {
         isHealthy = true
     }
 
-    private func push(_ state: PomodoroActivityAttributes.ContentState, extendingStaleDate: Bool) {
+    private func push(_ state: MdoroActivityAttributes.ContentState, extendingStaleDate: Bool) {
         lastState = state
         if extendingStaleDate {
-            currentStaleDate = Date().addingTimeInterval(PomodoroActivityAttributes.staleAfter)
+            currentStaleDate = Date().addingTimeInterval(MdoroActivityAttributes.staleAfter)
             lastPushedAt = Date()
         }
         guard let activity else { return }
@@ -151,7 +151,7 @@ final class LiveActivityController {
     }
 
     private func start(
-        state: PomodoroActivityAttributes.ContentState,
+        state: MdoroActivityAttributes.ContentState,
         serverName: String, isForeground: Bool, isConnected: Bool
     ) {
         // **状態の正本は Mac**（3原則の2つ目）。繋がっていない間に手元にあるのは
@@ -177,14 +177,14 @@ final class LiveActivityController {
         }
         do {
             let requested = try Activity.request(
-                attributes: PomodoroActivityAttributes(serverName: serverName),
+                attributes: MdoroActivityAttributes(serverName: serverName),
                 content: content(state)
             )
             activity = requested
             startedAt = Date()
             lastPushedAt = Date()
             lastState = state
-            currentStaleDate = Date().addingTimeInterval(PomodoroActivityAttributes.staleAfter)
+            currentStaleDate = Date().addingTimeInterval(MdoroActivityAttributes.staleAfter)
             diagnostic = "開始しました id=\(requested.id.prefix(8)) / OS 上に \(systemActivityCount) 件"
             isHealthy = true
         } catch {
@@ -203,7 +203,7 @@ final class LiveActivityController {
         isForeground: Bool, isConnected: Bool, serverName: String
     ) {
         guard activity != nil, let lastPushedAt else { return }
-        guard Date().timeIntervalSince(lastPushedAt) >= PomodoroActivityAttributes.staleRefreshInterval else { return }
+        guard Date().timeIntervalSince(lastPushedAt) >= MdoroActivityAttributes.staleRefreshInterval else { return }
         sync(
             snapshot: snapshot, clockOffset: clockOffset,
             isForeground: isForeground, isConnected: isConnected, serverName: serverName
@@ -218,22 +218,22 @@ final class LiveActivityController {
         lastPushedAt = nil
         lastState = nil
         currentStaleDate = nil
-        for existing in Activity<PomodoroActivityAttributes>.activities {
+        for existing in Activity<MdoroActivityAttributes>.activities {
             Task { await existing.end(nil, dismissalPolicy: .immediate) }
         }
     }
 
     // REQ-UIX-023: 次に状態を確認できる保証がない時刻を staleDate に置く。
-    private func content(_ state: PomodoroActivityAttributes.ContentState) -> ActivityContent<PomodoroActivityAttributes.ContentState> {
+    private func content(_ state: MdoroActivityAttributes.ContentState) -> ActivityContent<MdoroActivityAttributes.ContentState> {
         ActivityContent(
             state: state,
-            staleDate: Date().addingTimeInterval(PomodoroActivityAttributes.staleAfter)
+            staleDate: Date().addingTimeInterval(MdoroActivityAttributes.staleAfter)
         )
     }
 
     private func contentState(
         snapshot: StateSnapshot, serverStart: Date, clockOffset: TimeInterval, isConnected: Bool
-    ) -> PomodoroActivityAttributes.ContentState {
+    ) -> MdoroActivityAttributes.ContentState {
         let timer = snapshot.timer
         let preset = snapshot.presets.activePreset ?? Preset.standard()
 
@@ -253,7 +253,7 @@ final class LiveActivityController {
             localEnd = (timer.sessionEndAt ?? Date()).addingTimeInterval(-clockOffset)
         }
 
-        return PomodoroActivityAttributes.ContentState(
+        return MdoroActivityAttributes.ContentState(
             sessionType: timer.sessionType,
             sessionStartedAt: localStart,
             sessionEndAt: localEnd,
