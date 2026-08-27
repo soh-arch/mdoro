@@ -2,7 +2,7 @@
 
 このファイルは**今の状態だけ**を書く。経緯は書かない。経緯が必要なら `docs/decisions/` を参照する。
 
-- 要件の正本: `SPEC.md`（v2.7.1、234要件）
+- 要件の正本: `SPEC.md`（v2.7.2、234要件）
 - 運用の正本: `CLAUDE.md`
 - 判断と意図の正本: `docs/decisions/`
 - ビルド手順・環境: `docs/DEVELOPMENT.md`

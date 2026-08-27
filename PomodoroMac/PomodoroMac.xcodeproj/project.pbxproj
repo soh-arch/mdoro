@@ -108,11 +108,6 @@
 			path = PomodoroMacTests;
 			sourceTree = "<group>";
 		};
-		4640DFFF303CA90000475D34 /* PomodoroMacUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = PomodoroMacUITests;
-			sourceTree = "<group>";
-		};
 		4640E014303CA98900475D34 /* PomodoroiOS */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -124,11 +119,6 @@
 		4640E022303CA98A00475D34 /* PomodoroiOSTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = PomodoroiOSTests;
-			sourceTree = "<group>";
-		};
-		4640E02C303CA98A00475D34 /* PomodoroiOSUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = PomodoroiOSUITests;
 			sourceTree = "<group>";
 		};
 		4640E049303CAE7A00475D34 /* PomodoroWidget */ = {
@@ -190,10 +180,8 @@
 			children = (
 				4640DFE7303CA8FF00475D34 /* PomodoroMac */,
 				4640DFF5303CA90000475D34 /* PomodoroMacTests */,
-				4640DFFF303CA90000475D34 /* PomodoroMacUITests */,
 				4640E014303CA98900475D34 /* PomodoroiOS */,
 				4640E022303CA98A00475D34 /* PomodoroiOSTests */,
-				4640E02C303CA98A00475D34 /* PomodoroiOSUITests */,
 				4640E049303CAE7A00475D34 /* PomodoroWidget */,
 				4640E03B303CADFD00475D34 /* Frameworks */,
 				4640DFE6303CA8FF00475D34 /* Products */,

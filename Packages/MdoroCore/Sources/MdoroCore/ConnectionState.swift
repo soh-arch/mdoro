@@ -9,9 +9,9 @@ public enum ConnectionStatus: String, Equatable, Sendable, Codable, CaseIterable
 
     public var label: String {
         switch self {
-        case .connected: return "接続済み"
-        case .reconnecting: return "再接続中"
-        case .disconnected: return "未接続"
+        case .connected: return "Connected"
+        case .reconnecting: return "Reconnecting"
+        case .disconnected: return "Not connected"
         }
     }
 

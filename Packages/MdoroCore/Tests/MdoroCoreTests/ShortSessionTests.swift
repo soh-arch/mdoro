@@ -5,7 +5,7 @@ import Foundation
 private let t0 = Date(timeIntervalSince1970: 1_700_000_000)
 
 private func standardPresets() -> PresetContext {
-    let p = Preset(id: "p", name: "標準", workSeconds: 25 * 60, shortBreakSeconds: 5 * 60,
+    let p = Preset(id: "p", name: "Standard", workSeconds: 25 * 60, shortBreakSeconds: 5 * 60,
                    longBreakSeconds: 15 * 60, longBreakInterval: 4, extendSeconds: 5 * 60)
     return PresetContext(presets: [p], activePresetId: p.id)
 }
@@ -84,7 +84,7 @@ struct ShortSessionTests {
 struct PauseRoundingTests {
 
     private func presets() -> PresetContext {
-        let p = Preset(id: "p", name: "標準", workSeconds: 25 * 60, shortBreakSeconds: 5 * 60,
+        let p = Preset(id: "p", name: "Standard", workSeconds: 25 * 60, shortBreakSeconds: 5 * 60,
                        longBreakSeconds: 15 * 60, longBreakInterval: 4, extendSeconds: 5 * 60)
         return PresetContext(presets: [p], activePresetId: p.id)
     }

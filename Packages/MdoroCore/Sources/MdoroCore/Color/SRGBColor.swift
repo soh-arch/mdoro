@@ -18,9 +18,9 @@ public struct SRGBColor: Equatable, Sendable, Hashable {
     // Optional にせず停止させる。
     public init(hex: String) {
         let digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
-        precondition(digits.count == 6, "hex は6桁で指定する: \(hex)")
+        precondition(digits.count == 6, "hex must have 6 digits: \(hex)")
         guard let value = UInt32(digits, radix: 16) else {
-            preconditionFailure("hex として解釈できない: \(hex)")
+            preconditionFailure("hex is not readable: \(hex)")
         }
         self.red = Double((value >> 16) & 0xFF) / 255
         self.green = Double((value >> 8) & 0xFF) / 255

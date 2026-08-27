@@ -40,7 +40,7 @@ public enum ColorRole: String, CaseIterable, Sendable {
     public func color(_ role: HueRole, in palette: ColorPalette) -> SRGBColor {
         precondition(
             permittedRoles.contains(role),
-            "REQ-COL-011/012: \(rawValue) に \(role.rawValue) は使えない。許可されるのは \(permittedRoles.map(\.rawValue).sorted())"
+            "REQ-COL-011/012: \(role.rawValue) is not allowed for \(rawValue). Allowed: \(permittedRoles.map(\.rawValue).sorted())"
         )
         return palette.color(hue, role)
     }

@@ -13,16 +13,17 @@ public enum LogFormatter {
         public static let `default` = Options()
     }
 
-    // 曜日はロケールに左右させない。ファイルの見た目が環境で変わると差分が読みにくくなる。
-    static let japaneseWeekdays = ["日", "月", "火", "水", "木", "金", "土"]
+    // REQ-UIX-038: 曜日はロケールに左右させず、英語3文字で固定する。
+    // ファイルの見た目が環境で変わると差分が読みにくくなる。
+    static let weekdaySymbols = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-    // REQ-LOG-003: `## YYYY-MM-DD (曜日)`
+    // REQ-LOG-003: `## YYYY-MM-DD (Day)`
     public static func dayHeading(for logicalDate: Date, calendar: Calendar = .current) -> String {
         var utc = calendar
         // logicalDate は LogicalDay が暦日として正規化した値なので、同じ暦で読み戻す。
         utc.locale = Locale(identifier: "en_US_POSIX")
         let components = utc.dateComponents([.year, .month, .day, .weekday], from: logicalDate)
-        let weekday = japaneseWeekdays[((components.weekday ?? 1) - 1) % 7]
+        let weekday = weekdaySymbols[((components.weekday ?? 1) - 1) % 7]
         return String(format: "## %04d-%02d-%02d (%@)",
                       components.year ?? 0, components.month ?? 0, components.day ?? 0, weekday)
     }
@@ -68,8 +69,8 @@ public enum LogFormatter {
 
         switch entry.outcome {
         case .completed: parts.append("✅")
-        case .skipped: parts.append("⏭ スキップ")
-        case .aborted: parts.append("⏹ 中断")
+        case .skipped: parts.append("⏭ Skipped")
+        case .aborted: parts.append("⏹ Stopped")
         }
 
         // REQ-LOG-011: WORK の正常完了行には、完了後の周回数を n / longBreakInterval で含める。
@@ -77,12 +78,12 @@ public enum LogFormatter {
         if entry.sessionType == .work, entry.outcome == .completed,
            let loopCount = entry.loopCountAfterCompletion, loopCount > 0, entry.longBreakInterval > 0 {
             let display = ((loopCount - 1) % entry.longBreakInterval) + 1
-            parts.append("周回 \(display)/\(entry.longBreakInterval)")
+            parts.append("Loop \(display)/\(entry.longBreakInterval)")
         }
 
         // REQ-LOG-012: 延長が行われた場合は累積延長時間を併記する。
         if entry.extendedSeconds > 0 {
-            parts.append("(延長 +\(minutes(entry.extendedSeconds))m)")
+            parts.append("(+\(minutes(entry.extendedSeconds))m extended)")
         }
 
         // REQ-LOG-016: A 群がセッション中に編集されていたらプリセット名に * を付す。

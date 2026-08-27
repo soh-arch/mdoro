@@ -11,7 +11,7 @@ public enum TaskParser {
     public static let maxTaskCount = 1_000
     // REQ-ERR-003: 5MB を超えるファイルは先頭 5MB のみを読む。
     public static let maxBytes = 5 * 1_024 * 1_024
-    public static let uncategorizedSection = "（未分類）"
+    public static let uncategorizedSection = "(Uncategorized)"
 
     public static func parse(_ contents: String) -> TaskParseResult {
         var items: [TaskItem] = []

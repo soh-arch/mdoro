@@ -6,7 +6,7 @@ import Foundation
 
 private func makePreset(
     id: String = "preset-1",
-    name: String = "標準",
+    name: String = "Standard",
     work: Int = 25 * 60,
     short: Int = 5 * 60,
     long: Int = 15 * 60,

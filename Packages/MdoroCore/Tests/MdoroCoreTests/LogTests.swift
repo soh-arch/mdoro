@@ -21,7 +21,7 @@ private func entry(
     end: Date = at(9, 25),
     elapsed: Int = 25 * 60,
     outcome: LogOutcome = .completed,
-    preset: String = "標準",
+    preset: String = "Standard",
     edited: Bool = false,
     task: String? = "仕様書のレビュー",
     extended: Int = 0,
@@ -42,34 +42,34 @@ struct LogFormatterTests {
     // 7.2 の出力例をそのまま再現できること。
     @Test func matchesTheExamplesInSection72() {
         #expect(LogFormatter.line(for: entry(), calendar: calendar)
-                == "- 09:00–09:25 WORK 25m ✅ 周回 1/4 [標準] — 仕様書のレビュー")
+                == "- 09:00–09:25 WORK 25m ✅ Loop 1/4 [Standard] — 仕様書のレビュー")
 
         #expect(LogFormatter.line(for: entry(
             type: .shortBreak, start: at(9, 25), end: at(9, 30), elapsed: 5 * 60,
             task: nil, loopAfter: nil), calendar: calendar)
-                == "- 09:25–09:30 SHORT_BREAK 5m ✅ [標準]")
+                == "- 09:25–09:30 SHORT_BREAK 5m ✅ [Standard]")
 
         #expect(LogFormatter.line(for: entry(
             start: at(9, 32), end: at(10, 4), elapsed: 32 * 60,
             task: "プロトコル設計", extended: 7 * 60, loopAfter: 2), calendar: calendar)
-                == "- 09:32–10:04 WORK 32m ✅ 周回 2/4 (延長 +7m) [標準] — プロトコル設計")
+                == "- 09:32–10:04 WORK 32m ✅ Loop 2/4 (+7m extended) [Standard] — プロトコル設計")
 
         #expect(LogFormatter.line(for: entry(
             type: .shortBreak, start: at(10, 4), end: at(10, 9), elapsed: 5 * 60,
             outcome: .skipped, task: nil, loopAfter: nil), calendar: calendar)
-                == "- 10:04–10:09 SHORT_BREAK 5m ⏭ スキップ [標準]")
+                == "- 10:04–10:09 SHORT_BREAK 5m ⏭ Skipped [Standard]")
 
         #expect(LogFormatter.line(for: entry(
             start: at(11, 35), end: at(11, 43), elapsed: 8 * 60, outcome: .aborted,
             preset: "ディープワーク", task: "プロトコル設計", loopAfter: nil), calendar: calendar)
-                == "- 11:35–11:43 WORK 8m ⏹ 中断 [ディープワーク] — プロトコル設計")
+                == "- 11:35–11:43 WORK 8m ⏹ Stopped [ディープワーク] — プロトコル設計")
     }
 
     // REQ-LOG-011: 周回は REQ-TIM-025 と同じ剰余表現で、UI の表示と一致させる。
     @Test func loopCountUsesTheSameModuloAsTheUI() {
-        #expect(LogFormatter.line(for: entry(loopAfter: 4), calendar: calendar).contains("周回 4/4"))
-        #expect(LogFormatter.line(for: entry(loopAfter: 5), calendar: calendar).contains("周回 1/4"))
-        #expect(LogFormatter.line(for: entry(loopAfter: 8), calendar: calendar).contains("周回 4/4"))
+        #expect(LogFormatter.line(for: entry(loopAfter: 4), calendar: calendar).contains("Loop 4/4"))
+        #expect(LogFormatter.line(for: entry(loopAfter: 5), calendar: calendar).contains("Loop 1/4"))
+        #expect(LogFormatter.line(for: entry(loopAfter: 8), calendar: calendar).contains("Loop 4/4"))
     }
 
     // 周回は WORK の**正常完了行**のみ。
@@ -81,7 +81,7 @@ struct LogFormatterTests {
 
     // REQ-LOG-016: A 群がセッション中に編集されたらプリセット名に * を付す。
     @Test func editedPresetIsMarkedWithAnAsterisk() {
-        #expect(LogFormatter.line(for: entry(edited: true), calendar: calendar).contains("[標準*]"))
+        #expect(LogFormatter.line(for: entry(edited: true), calendar: calendar).contains("[Standard*]"))
         #expect(!LogFormatter.line(for: entry(edited: false), calendar: calendar).contains("*"))
     }
 
@@ -116,18 +116,18 @@ struct LogFormatterTests {
 
         let crossing = LogEntry(
             sessionType: .work, startedAt: lateNight, endedAt: crossed, elapsedSeconds: 25 * 60,
-            outcome: .completed, presetName: "標準", presetEditedDuringSession: false,
+            outcome: .completed, presetName: "Standard", presetEditedDuringSession: false,
             taskSnapshot: nil, extendedSeconds: 0, loopCountAfterCompletion: 1,
             longBreakInterval: 4, logicalDate: day
         )
-        #expect(LogFormatter.dayHeading(for: crossing.logicalDate, calendar: calendar) == "## 2026-08-24 (月)",
+        #expect(LogFormatter.dayHeading(for: crossing.logicalDate, calendar: calendar) == "## 2026-08-24 (Mon)",
                 "終了が翌日でも、開始側の日付見出しへ記録する")
         #expect(LogFormatter.line(for: crossing, calendar: calendar).hasPrefix("- 03:50–04:15"))
     }
 
     // REQ-LOG-003: `## YYYY-MM-DD (曜日)`
     @Test func dayHeadingFormat() {
-        #expect(LogFormatter.dayHeading(for: logicalDay, calendar: calendar) == "## 2026-08-24 (月)")
+        #expect(LogFormatter.dayHeading(for: logicalDay, calendar: calendar) == "## 2026-08-24 (Mon)")
     }
 }
 
@@ -144,22 +144,22 @@ struct LogFileEditorTests {
 
     @Test func emptyFileGetsHeadingAndLine() throws {
         let result = try insert(into: "")
-        #expect(result == "## 2026-08-24 (月)\n\n- 新しい行\n")
+        #expect(result == "## 2026-08-24 (Mon)\n\n- 新しい行\n")
     }
 
     // REQ-LOG-003: 当該見出しが既にあれば、その日付セクションの末尾へ追記する。
     @Test func appendsToTheEndOfTheMatchingDaySection() throws {
         let existing = """
-        ## 2026-08-23 (日)
+        ## 2026-08-23 (Sun)
 
         - 前日の行
 
-        ## 2026-08-24 (月)
+        ## 2026-08-24 (Mon)
 
         - 既存の行1
         - 既存の行2
 
-        ## 2026-08-25 (火)
+        ## 2026-08-25 (Tue)
 
         - 翌日の行
 
@@ -169,7 +169,7 @@ struct LogFileEditorTests {
         let index = lines.firstIndex(of: "- 新しい行")!
         #expect(lines[index - 1] == "- 既存の行2")
         #expect(lines[index + 1] == "")
-        #expect(lines[index + 2] == "## 2026-08-25 (火)", "翌日のセクションの前に入る")
+        #expect(lines[index + 2] == "## 2026-08-25 (Tue)", "翌日のセクションの前に入る")
     }
 
     // **既存行は1行たりとも変えない。** これが第一原則。
@@ -179,12 +179,12 @@ struct LogFileEditorTests {
 
         ユーザーが自分で書いたメモ。
 
-        ## 2026-08-24 (月)
+        ## 2026-08-24 (Mon)
 
         - 既存の行
           - 手で足した子行
 
-        ## 2026-08-25 (火)
+        ## 2026-08-25 (Tue)
 
         - 翌日の行
         """
@@ -201,29 +201,32 @@ struct LogFileEditorTests {
     // 既存の行を復元・修正しようとしてはならない。
     @Test func missingHeadingIsRecreatedAtTheEndOfFile() throws {
         let existing = """
-        ## 2026-08-23 (日)
+        ## 2026-08-23 (Sun)
 
         - 前日の行
         """
         let result = try insert(into: existing)
-        #expect(result.hasSuffix("## 2026-08-24 (月)\n\n- 新しい行\n"))
+        #expect(result.hasSuffix("## 2026-08-24 (Mon)\n\n- 新しい行\n"))
         #expect(result.contains("- 前日の行"))
     }
 
     // Decision 0014: 曜日部分を書き換えられていても、日付が読めれば同じ日として扱う。
     // 見出しを2つ作って記録を分断しない。REQ-LOG-022 の「改名」には当たらない。
+    //
+    // **工程10 で曜日を英語にしたので、日本語の見出しは実際に起こる過去の姿である。**
+    // 既に書かれたログへ、今日のアプリが追記できなければならない。
     @Test func renamedHeadingIsMatchedByItsDate() throws {
-        let existing = "## 2026-08-24 (Mon)\n\n- 既存の行\n"
+        let existing = "## 2026-08-24 (月)\n\n- 既存の行\n"
         let result = try insert(into: existing)
         #expect(result.components(separatedBy: "## ").count == 2, "見出しを二重に作らない")
-        #expect(result.contains("## 2026-08-24 (Mon)"), "既存の見出しは書き換えない")
+        #expect(result.contains("## 2026-08-24 (月)"), "既存の見出しは書き換えない")
     }
 
     // REQ-LOG-003: ユーザーが自分で書いた見出しに日付が含まれていても、当該見出しとみなさない。
     @Test func userHeadingContainingADateIsNotTreatedAsTheDaySection() throws {
         let existing = "## 週次レビュー 2026-08-24 の分\n\n- ユーザーのメモ\n"
         let result = try insert(into: existing)
-        #expect(result.contains("## 2026-08-24 (月)"), "日付見出しを新設する")
+        #expect(result.contains("## 2026-08-24 (Mon)"), "日付見出しを新設する")
         let lines = result.components(separatedBy: "\n")
         let memo = lines.firstIndex(of: "- ユーザーのメモ")!
         let inserted = lines.firstIndex(of: "- 新しい行")!
@@ -244,16 +247,16 @@ struct LogFileEditorTests {
 
     // CRLF のファイルへ挿入しても改行コードを混ぜない。
     @Test func crlfFilesKeepTheirLineEndings() throws {
-        let existing = "## 2026-08-24 (月)\r\n\r\n- 既存の行\r\n"
+        let existing = "## 2026-08-24 (Mon)\r\n\r\n- 既存の行\r\n"
         let result = try insert(into: existing)
         #expect(!result.contains("- 既存の行\r\n- 新しい行\n"), "挿入行だけ LF にしない")
-        #expect(result == "## 2026-08-24 (月)\r\n\r\n- 既存の行\r\n- 新しい行\r\n")
+        #expect(result == "## 2026-08-24 (Mon)\r\n\r\n- 既存の行\r\n- 新しい行\r\n")
     }
 
     @Test func sectionAtEndOfFileGetsTheLineAppended() throws {
-        let existing = "## 2026-08-24 (月)\n\n- 既存の行\n"
+        let existing = "## 2026-08-24 (Mon)\n\n- 既存の行\n"
         let result = try insert(into: existing)
-        #expect(result == "## 2026-08-24 (月)\n\n- 既存の行\n- 新しい行\n")
+        #expect(result == "## 2026-08-24 (Mon)\n\n- 既存の行\n- 新しい行\n")
     }
 }
 
@@ -279,10 +282,10 @@ struct LogWriterTests {
 
         let contents = try String(contentsOf: url, encoding: .utf8)
         #expect(contents == """
-        ## 2026-08-24 (月)
+        ## 2026-08-24 (Mon)
 
-        - 09:00–09:25 WORK 25m ✅ 周回 1/4 [標準] — 仕様書のレビュー
-        - 09:25–09:30 SHORT_BREAK 5m ✅ [標準]
+        - 09:00–09:25 WORK 25m ✅ Loop 1/4 [Standard] — 仕様書のレビュー
+        - 09:25–09:30 SHORT_BREAK 5m ✅ [Standard]
 
         """)
     }
@@ -302,7 +305,7 @@ struct LogWriterTests {
         try writer.append(entry(start: at(10, 0), end: at(10, 25), loopAfter: 2), calendar: calendar)
         let contents = try String(contentsOf: url, encoding: .utf8)
         #expect(contents.contains("- ユーザーが手で書いた行"), "外部で加えられた行を失ってはならない")
-        #expect(contents.contains("周回 2/4"))
+        #expect(contents.contains("Loop 2/4"))
     }
 
     // REQ-LOG-002: 作成先ディレクトリが存在しない場合はエラー。
@@ -385,7 +388,7 @@ struct LogWriteQueueTests {
 struct LogTaskSnapshotTests {
 
     private func preset() -> Preset {
-        Preset(id: "p", name: "標準", workSeconds: 25 * 60, shortBreakSeconds: 5 * 60,
+        Preset(id: "p", name: "Standard", workSeconds: 25 * 60, shortBreakSeconds: 5 * 60,
                longBreakSeconds: 15 * 60, longBreakInterval: 4, extendSeconds: 5 * 60)
     }
 

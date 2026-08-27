@@ -432,7 +432,7 @@ public enum TimerEngine {
         case .restoreDefaultPreset:
             guard pr.presets.count < 10 else { return fail(.presetLimitReached) }
             var preset = Preset.standard(id: UUID().uuidString)
-            preset.name = uniqueName(base: "標準", in: pr)
+            preset.name = uniqueName(base: "Standard", in: pr)
             pr.presets.append(preset)
         }
 

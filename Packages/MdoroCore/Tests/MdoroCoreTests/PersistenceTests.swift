@@ -6,7 +6,7 @@ private let reference = Date(timeIntervalSince1970: 1_700_000_000)
 
 private func preset(work: Int = 25 * 60, interval: Int = 4) -> Preset {
     Preset(
-        id: "preset-1", name: "標準",
+        id: "preset-1", name: "Standard",
         workSeconds: work, shortBreakSeconds: 5 * 60, longBreakSeconds: 15 * 60,
         longBreakInterval: interval, extendSeconds: 5 * 60
     )
@@ -300,7 +300,7 @@ struct StateStoreTests {
         let restored = try store.loadAndRestore(now: reference)
         #expect(restored.context.runState == .idle)
         #expect(restored.presets.presets.count == 1, "REQ-PRS-010: 同梱するのは「標準」だけ")
-        #expect(restored.presets.activePreset?.name == "標準")
+        #expect(restored.presets.activePreset?.name == "Standard")
     }
 }
 
@@ -310,7 +310,7 @@ struct PendingLogPersistenceTests {
     private func entry(_ start: Date) -> LogEntry {
         LogEntry(
             sessionType: .work, startedAt: start, endedAt: start.addingTimeInterval(1500),
-            elapsedSeconds: 1500, outcome: .completed, presetName: "標準",
+            elapsedSeconds: 1500, outcome: .completed, presetName: "Standard",
             presetEditedDuringSession: false, taskSnapshot: "タスク", extendedSeconds: 0,
             loopCountAfterCompletion: 1, longBreakInterval: 4, logicalDate: reference
         )

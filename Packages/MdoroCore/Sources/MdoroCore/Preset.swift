@@ -28,11 +28,11 @@ public enum NotificationSound: String, Equatable, Sendable, Codable, CaseIterabl
 
     public var displayName: String {
         switch self {
-        case .default: return "既定"
-        case .chime: return "チャイム"
-        case .bell: return "ベル"
-        case .wood: return "ウッド"
-        case .silent: return "無音"
+        case .default: return "Default"
+        case .chime: return "Glass"
+        case .bell: return "Submarine"
+        case .wood: return "Pop"
+        case .silent: return "Silent"
         }
     }
 }
@@ -86,7 +86,7 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
     public static func standard(id: String = UUID().uuidString) -> Preset {
         Preset(
             id: id,
-            name: "標準",
+            name: "Standard",
             workSeconds: 25 * 60,
             shortBreakSeconds: 5 * 60,
             longBreakSeconds: 15 * 60,

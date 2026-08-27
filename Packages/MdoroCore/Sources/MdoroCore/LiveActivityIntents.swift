@@ -17,7 +17,7 @@ public enum LiveActivityCommandBridge {
 }
 
 public struct PauseSessionIntent: LiveActivityIntent {
-    public static let title: LocalizedStringResource = "一時停止"
+    public static let title: LocalizedStringResource = "Pause"
     public static let isDiscoverable: Bool = false
 
     public init() {}
@@ -31,7 +31,7 @@ public struct PauseSessionIntent: LiveActivityIntent {
 }
 
 public struct ResumeSessionIntent: LiveActivityIntent {
-    public static let title: LocalizedStringResource = "再開"
+    public static let title: LocalizedStringResource = "Resume"
     public static let isDiscoverable: Bool = false
 
     public init() {}
