@@ -56,6 +56,8 @@ final class AppModel {
     private let idleSleepGuard = IdleSleepGuard()
     private let hotKeys = HotKeyCenter()
     private let server = PomodoroServer()
+    // REQ-ERR-010 / Decision 0018: タスク名もパスも載せない診断ログ。
+    let diagnostics = DiagnosticLog()
     private var infoServer: InfoHTTPServer?
     private var authenticator = Authenticator(issuedTokens: DeviceTokenStore.load())
     private let logQueue: LogWriteQueue
@@ -97,6 +99,8 @@ final class AppModel {
     // MARK: - ライフサイクル
 
     func start() {
+        diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
+        diagnostics.write("app.start")
         Task { await notifications.requestAuthorization() }
         // 前回書けなかったぶんを、出力先が使えるなら真っ先に書き出す。
         flushLogQueue()
@@ -125,6 +129,7 @@ final class AppModel {
     }
 
     func stop() {
+        diagnostics.write("app.stop", [DiagnosticField("state", timer.runState.rawValue)])
         tickTask?.cancel()
         tickTask = nil
         stopWatchingTaskFile()
@@ -147,6 +152,15 @@ final class AppModel {
         timer = result.context
         apply(effects: result.effects)
         broadcastState()
+
+        if timer.runState != previousState {
+            diagnostics.write("state", [
+                DiagnosticField("from", previousState.rawValue),
+                DiagnosticField("to", timer.runState.rawValue),
+                DiagnosticField("type", previousType.rawValue),
+                DiagnosticField("loop", timer.loopCount),
+            ])
+        }
 
         // REQ-NTF-001: 終了時刻への到達を検知して通知する。
         if previousState == .running, timer.runState == .finished {
@@ -181,17 +195,32 @@ final class AppModel {
         displayNow = now
         switch TimerEngine.reduce(action: action, context: timer, presets: presets, settings: settings, now: now) {
         case let .success(reduction):
+            let previousState = timer.runState
             timer = reduction.context
             presets = reduction.presets
             apply(effects: reduction.effects)
             syncSideEffectsToState()
             persist()
             broadcastState()
+            diagnostics.write("action", [
+                DiagnosticField("do", action.diagnosticName),
+                DiagnosticField("from", previousState.rawValue),
+                DiagnosticField("to", timer.runState.rawValue),
+                DiagnosticField("type", timer.sessionType.rawValue),
+                DiagnosticField("loop", timer.loopCount),
+                DiagnosticField("task", timer.sessionTaskSnapshot == nil ? "none" : "set"),
+            ])
             return nil
         case let .failure(failure):
             // REQ-LOG-018: 拒否されても、直前の tick が確定させたログは失わない。
             apply(effects: failure.effects)
             persist()
+            // 拒否された操作こそ記録する。「押したのに何も起きない」を後から追える。
+            diagnostics.write("action.rejected", level: .warn, [
+                DiagnosticField("do", action.diagnosticName),
+                DiagnosticField("state", timer.runState.rawValue),
+                DiagnosticField("why", String(describing: failure.error)),
+            ])
             return failure.error
         }
     }
@@ -247,8 +276,14 @@ final class AppModel {
         guard settings != previous else { return }
         guard settings.isWithinValidRanges() else {
             settings = previous
+            diagnostics.write("settings.rejected", level: .warn)
             return
         }
+        // ヘッダは開いたときの値なので、変わったら現在値を1行残す。
+        diagnostics.write(
+            "settings.change",
+            DiagnosticHeader.settingsFields(preset: presets.activePreset ?? Preset.standard(), settings: settings)
+        )
         // REQ-PER-004: logicalDayStartHour の変更で PENDING_DECISION を自動確定させない。
         send(.updateSettings(settings))
         // ファイル名が変われば、次の書き込みから新しいファイルへ向く。
@@ -354,6 +389,8 @@ final class AppModel {
                 guard let self else { return }
                 connection = state.isConnected ? .connected : .disconnected
                 authenticator.connectedClientName = state.isConnected ? state.peerDeviceName : nil
+                // 端末名も IP も書かない。繋がったかどうかだけが要る。
+                diagnostics.write("conn", [DiagnosticField("up", state.isConnected)])
             }
         )
     }
@@ -498,6 +535,10 @@ final class AppModel {
             // 出力先が未設定でも記録は捨てず、キューへ残す。設定された時点で書き出す。
             logWriteFailed = true
             lastLogError = "実績ログの出力先が設定されていません"
+            diagnostics.write("log.blocked", level: .warn, [
+                DiagnosticField("why", "noFolder"),
+                DiagnosticField("pending", logQueue.pendingCount),
+            ])
             return
         }
 
@@ -517,6 +558,13 @@ final class AppModel {
                 persist()
             }
             lastLogError = result.lastError.map { String(describing: $0) }
+            // Vault へ何を書いたかは残す。**書いたことの証拠になる。**
+            diagnostics.write("log.write", level: result.pending > 0 ? .warn : .info, [
+                DiagnosticField("written", result.written),
+                DiagnosticField("pending", result.pending),
+                DiagnosticField("file", DiagnosticRedaction.optionalDigest(settings.logFolderPath)),
+                DiagnosticField("why", result.lastError.map { String(describing: $0) } ?? "-"),
+            ])
             // REQ-ERR-004: 3回失敗した時点で通知する。
             if result.shouldNotify {
                 notifications.notifyLogWriteFailure()
@@ -525,6 +573,11 @@ final class AppModel {
             // **黙って失敗しない。** ここを握り潰すと、記録が残らないことに誰も気づけない。
             logWriteFailed = true
             lastLogError = String(describing: error)
+            diagnostics.write("log.write", level: .error, [
+                DiagnosticField("written", 0),
+                DiagnosticField("pending", logQueue.pendingCount),
+                DiagnosticField("why", String(describing: error)),
+            ])
         }
     }
 
@@ -544,6 +597,14 @@ final class AppModel {
         let outcome = TaskReloader.reload(previous: tasks, result: result)
         tasks = outcome.context
         didFollowTaskSelection = outcome.didFollow
+        // 件数だけを残す。タスク名も見出しも書かない。
+        diagnostics.write("task.reload", level: outcome.context.loadFailed ? .warn : .info, [
+            DiagnosticField("count", outcome.context.items.count),
+            DiagnosticField("failed", outcome.context.loadFailed),
+            DiagnosticField("truncated", outcome.context.wasTruncated),
+            DiagnosticField("followed", outcome.didFollow),
+            DiagnosticField("file", DiagnosticRedaction.optionalDigest(settings.taskFilePath)),
+        ])
         persist()
         // REQ-TSK-002: 変更を検知したら iPhone へ最新リストを配信する。
         // ここを忘れると、Mac 側で Task.md を編集しても iPhone は古い一覧のままになる。

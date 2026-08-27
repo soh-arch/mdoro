@@ -23,6 +23,33 @@ public enum TimerAction: Equatable, Sendable {
     case reorderPresets(order: [String])
     case restoreDefaultPreset
 
+    // REQ-ERR-010 / Decision 0018: 診断ログに載せる名前。**引数は含めない。**
+    // `startWork` のタスクスナップショットも `updateSettings` のパスも利用者由来である。
+    public var diagnosticName: String {
+        switch self {
+        case .startWork: return "startWork"
+        case .startBreak: return "startBreak"
+        case .pause: return "pause"
+        case .resume: return "resume"
+        case .skip: return "skip"
+        case .abort: return "abort"
+        case .extend: return "extend"
+        case .resetLoopCount: return "resetLoopCount"
+        case .confirmRestoredSession: return "confirmRestoredSession"
+        case .selectTask: return "selectTask"
+        case .clearTaskSelection: return "clearTaskSelection"
+        case .reloadTasks: return "reloadTasks"
+        case .updateSettings: return "updateSettings"
+        case .selectPreset: return "selectPreset"
+        case .updatePreset: return "updatePreset"
+        case .createPreset: return "createPreset"
+        case .duplicatePreset: return "duplicatePreset"
+        case .deletePreset: return "deletePreset"
+        case .reorderPresets: return "reorderPresets"
+        case .restoreDefaultPreset: return "restoreDefaultPreset"
+        }
+    }
+
     // REQ-TIM-030: 状態遷移マトリクス上の行を識別するための分類。
     var matrixRow: MatrixRow {
         switch self {

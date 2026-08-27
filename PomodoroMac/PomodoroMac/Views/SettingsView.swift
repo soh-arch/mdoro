@@ -8,6 +8,7 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var systemScheme
     @State private var logFileError: String?
+    @State private var diagnosticsError: String?
 
     var body: some View {
         @Bindable var bindable = model
@@ -68,8 +69,52 @@ struct SettingsView: View {
                 // REQ-LOG-013
                 Toggle("ログのタスク名をリンク記法にする", isOn: model.settings.logTaskAsLink)
             }
+
+            diagnosticsSection
         }
         .formStyle(.grouped)
+    }
+
+    // REQ-ERR-010 / Decision 0018: 記録しないと決めたことは、決めただけでは伝わらない。
+    // **何を書かないかを、書き出す導線の隣に置く。**
+    private var diagnosticsSection: some View {
+        Section("診断ログ") {
+            Text("不具合の報告に添えるための記録です。**タスク名・ノートの中身・ファイルのパス・端末名は記録しません。** そのまま公開の場に貼れます。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Text("保存先: \(DiagnosticLog.directory.path)")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            HStack {
+                Button("書き出す…") { exportDiagnostics() }
+                Button("Finder で表示") {
+                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: DiagnosticLog.directory.path)
+                }
+                Spacer()
+            }
+            if let failure = model.diagnostics.lastFailure {
+                Text("診断ログを書けていません: \(failure)")
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+            if let diagnosticsError {
+                Text(diagnosticsError).font(.footnote).foregroundStyle(.red)
+            }
+        }
+    }
+
+    private func exportDiagnostics() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "pomodoro-diagnostics.log"
+        panel.allowedContentTypes = [.plainText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try model.diagnostics.exportedText().write(to: url, atomically: true, encoding: .utf8)
+            diagnosticsError = nil
+        } catch {
+            diagnosticsError = String(describing: error)
+        }
     }
 
     private func filePathRow(path: String?, placeholder: String, choose: @escaping () -> Void) -> some View {
