@@ -89,11 +89,14 @@ xcrun simctl list devices available
 - Xcode 26.6 / Swift 6.3。deployment target は macOS 26.0 / iOS 26.0。
 - 署名は無償の Personal Team。**iPhone 実機のアプリは7日で失効する**ので、切れたら再ビルドして入れ直す。
 - Push 通知と iCloud は Personal Team では使えないが、本仕様は使わない（ローカル通知に capability は不要）。
-- **Xcode を開くのは、ターゲット追加・capability 追加・実機デバッグ・Instruments・アイコン作成のときだけ。**
+- **Xcode を開くのは、ターゲット追加・capability 追加・実機デバッグ・Instruments のときだけ。**
   それ以外では開かない（[0008](decisions/0008-minimal-xcode-gui.md)）。
-- **アプリ名は `Mdoro` に決まっている**（[0021](decisions/0021-published-as-oss-named-mdoro.md)）。
-  ただしターゲット名・bundle ID・フォルダ名は未改名であり、この文書のパスは現状のままである。
-  改名の範囲は OPEN-017、実施は工程9。**改名は Xcode 操作**なので人間へ依頼する。
+- **アプリ名は `Mdoro`**（[0021](decisions/0021-published-as-oss-named-mdoro.md)）。ターゲット名・bundle ID は
+  改名済み（工程9、[0024](decisions/0024-rename-everything-to-mdoro.md)）。リポジトリ名は `mdoro`。
+  リポジトリのフォルダ名だけは `Pomodoro_Timer` のままで、この文書のパスもそれに従う。
+- **アプリアイコンはスクリプトで描く。** `python3 Tools/make_icon.py`（要 Pillow）が
+  8.5.3 のトークンから両プラットフォームの `AppIcon.appiconset` を書き出す。
+  画像を手で置き換えず、スクリプトを直して再生成する（色リテラルをビューに書かないのと同じ理由）。
 - セットアップ手順書: https://claude.ai/code/artifact/79598e4c-33c6-49c6-aaeb-aa64e2cc6f3b
 
 Apple プラットフォームの制約（ATS、ローカルネットワーク許可、Live Activity、ファイル監視など）は
