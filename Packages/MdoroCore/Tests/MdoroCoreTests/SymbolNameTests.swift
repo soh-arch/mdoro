@@ -25,7 +25,10 @@ struct SymbolNameTests {
     @Test func peerSymbolsOfBothPlatformsExist() {
         for name in ["iphone.gen3", "iphone.gen3.slash",
                      "laptopcomputer", "laptopcomputer.slash",
-                     "arrow.trianglehead.2.clockwise"] {
+                     "arrow.trianglehead.2.clockwise",
+                     // 設定タブとタスク一覧で使う名前も、ここで実在を確かめる。
+                     "timer", "gearshape", "folder", "paintpalette",
+                     "largecircle.fill.circle", "circle"] {
             #expect(symbolExists(name), "\(name) が実在しない")
         }
     }

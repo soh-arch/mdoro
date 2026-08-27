@@ -32,6 +32,10 @@ final class ClientModel {
     // 集中表示ビューを出しているか（REQ-UIX-013）。
     var isFocusViewPresented = false
 
+    // REQ-COL-003 / Decision 0027: **外観はこの端末だけの設定。** Mac へは送らない。
+    // 見ている画面の明るさは、見ている人の手元の事情で決まる。
+    private(set) var appearance: AppearancePreference = .system
+
     private let client = MdoroClient()
     private let notifications = NotificationScheduler()
     private let liveActivity = LiveActivityController()
@@ -58,6 +62,7 @@ final class ClientModel {
         // 前のプロセスが残した Live Activity は、接続できなければ畳む。
         // **復元したスナップショットで正当化しない**（それは何時間前のものか分からない）。
         liveActivity.discardOrphansIfUnconfirmed()
+        restoreAppearance()
         restoreLastSnapshot()
         browser.onChange = { [weak self] found in
             self?.servers = found
@@ -208,6 +213,21 @@ final class ClientModel {
     func send(_ action: CommandAction, params: CommandParams? = nil) {
         guard isConnected else { return }
         client.send(command: action, params: params)
+    }
+
+    // MARK: - 外観（この端末だけの設定）
+
+    private static let appearanceKey = "appearance"
+
+    func setAppearance(_ new: AppearancePreference) {
+        appearance = new
+        UserDefaults.standard.set(new.rawValue, forKey: Self.appearanceKey)
+    }
+
+    private func restoreAppearance() {
+        guard let raw = UserDefaults.standard.string(forKey: Self.appearanceKey),
+              let value = AppearancePreference(rawValue: raw) else { return }
+        appearance = value
     }
 
     // MARK: - 永続化 (REQ-PER-010)

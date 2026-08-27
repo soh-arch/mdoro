@@ -40,6 +40,9 @@ struct TaskListView: View {
                 }
             }
             .listStyle(.inset)
+            // REQ-COL-002 / REQ-UIX-044: 選択の塗りも役割名から引く。
+            // OS 既定のアクセント青は、このアプリのどのトークンでもない。
+            .tint(theme.color(.accentPrimary, .solid))
             .frame(minHeight: 160)
         }
     }
@@ -65,11 +68,13 @@ struct TaskListView: View {
                         .font(.footnote)
                 }
                 .buttonStyle(.link)
+                .tint(theme.color(.accentPrimary, .text))
             }
 
             if model.tasks.selectedTaskId != nil {
                 Button("Clear selection") { model.clearTaskSelection() }
                     .buttonStyle(.link)
+                .tint(theme.color(.accentPrimary, .text))
                     .font(.footnote)
             }
         }

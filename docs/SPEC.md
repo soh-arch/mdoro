@@ -1017,7 +1017,7 @@ v1.0 の「StandBy モード」を実現可能な形式に再定義する。
 
 | キー | 型 | 既定値 | 範囲 | 説明 |
 | :---- | :---- | :---- | :---- | :---- |
-| `appearance` | Enum | `system` | `system` / `light` / `dark` | 外観（REQ-COL-003） |
+| `appearance` | Enum | `system` | `system` / `light` / `dark` | 外観（REQ-COL-003）。**これは Mac の設定である。** iPhone は同名の設定を端末内に持ち、Mac へ送らない（`decisions/0027-appearance-is-a-per-device-setting.md`） |
 | `focusViewDimmed` | Bool | false | — | 集中表示ビューの減光モード（REQ-COL-032） |
 | `logicalDayStartHour` | 時 | 4 | 0–12 | 論理日の境界時刻 |
 | `idleResetHours` | 時間 | 12 | 1–48 | 周回数を自動リセットする未使用時間 |

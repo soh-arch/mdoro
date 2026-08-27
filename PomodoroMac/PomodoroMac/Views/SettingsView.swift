@@ -21,13 +21,13 @@ struct SettingsView: View {
         // 触る頻度が高いものほど手前に置く。
         TabView(selection: $bindable.settingsTab) {
             PresetEditorView()
-                .tabItem { Label("Presets", systemImage: "slider.horizontal.3") }.tag(SettingsTab.presets)
+                .tabItem { Label("Presets", systemImage: "timer") }.tag(SettingsTab.presets)
             filesTab(model: $bindable)
                 .tabItem { Label("Files", systemImage: "folder") }.tag(SettingsTab.files)
             connectionTab
                 .tabItem { Label("Connection", systemImage: "iphone.gen3") }.tag(SettingsTab.connection)
             behaviorTab(model: $bindable)
-                .tabItem { Label("Behavior", systemImage: "timer") }.tag(SettingsTab.behavior)
+                .tabItem { Label("Behavior", systemImage: "gearshape") }.tag(SettingsTab.behavior)
             appearanceTab(model: $bindable)
                 .tabItem { Label("Display", systemImage: "paintpalette") }.tag(SettingsTab.display)
         }

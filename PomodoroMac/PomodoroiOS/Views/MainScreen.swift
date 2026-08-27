@@ -5,9 +5,11 @@ import MdoroCore
 struct MainScreen: View {
     @Environment(\.colorScheme) private var systemScheme
     @Environment(ClientModel.self) private var model
+    @State private var isAppearancePresented = false
 
+    // Decision 0027: 外観は Mac の設定ではなく、**この端末の設定**に従う。
     private var theme: Theme {
-        Theme(appearance: model.snapshot?.settings.appearance ?? .system, systemScheme: systemScheme)
+        Theme(appearance: model.appearance, systemScheme: systemScheme)
     }
     private var preset: Preset { model.snapshot?.presets.activePreset ?? Preset.standard() }
     private var timer: TimerContext { model.snapshot?.timer ?? .idle(now: Date()) }
@@ -40,6 +42,11 @@ struct MainScreen: View {
             .background(theme.background)
             .navigationTitle("Mdoro")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { isAppearancePresented = true } label: {
+                        Label("Appearance", systemImage: "gearshape")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     // REQ-UIX-013: 通常画面からの明示操作で集中表示ビューへ。
                     Button {
@@ -60,10 +67,13 @@ struct MainScreen: View {
         .fullScreenCover(isPresented: Bindable(model).isFocusViewPresented) {
             FocusView()
         }
+        .sheet(isPresented: $isAppearancePresented) {
+            AppearanceSheet().environment(\.theme, theme)
+        }
     }
 
     private var preferredScheme: SwiftUI.ColorScheme? {
-        switch model.snapshot?.settings.appearance ?? .system {
+        switch model.appearance {
         case .system: return nil
         case .light: return .light
         case .dark: return .dark
@@ -226,6 +236,42 @@ struct SessionHeader: View {
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(theme.textSecondary)
                 .accessibilityLabel("Loop \(loopDisplay) of \(longBreakInterval)")
+        }
+    }
+}
+
+// REQ-COL-003 / Decision 0027: 外観の3択。**この端末にだけ効く。**
+// Mac の設定とは独立しているので、そのことを画面に書いておく
+// （通知音で一度、共通設定に見えるものが片方にしか効かない問題を踏んでいる。Decision 0020）。
+struct AppearanceSheet: View {
+    @Environment(ClientModel.self) private var model
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Appearance", selection: Binding(
+                        get: { model.appearance },
+                        set: { model.setAppearance($0) }
+                    )) {
+                        Text("System").tag(AppearancePreference.system)
+                        Text("Light").tag(AppearancePreference.light)
+                        Text("Dark").tag(AppearancePreference.dark)
+                    }
+                    .pickerStyle(.inline)
+                } footer: {
+                    Text("This setting applies to this iPhone only. The Mac keeps its own.")
+                }
+            }
+            .navigationTitle("Appearance")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 }

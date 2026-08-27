@@ -27,10 +27,16 @@
         }
       }
     },
+    "%lld log lines not yet written" : {
+
+    },
     "%lld min left" : {
 
     },
     "%lld not yet written" : {
+
+    },
+    "+%lld min" : {
 
     },
     "A combination another app already uses cannot be registered. Include a modifier key." : {
@@ -99,6 +105,9 @@
     "Clear selection" : {
 
     },
+    "Connection" : {
+
+    },
     "Dark" : {
 
     },
@@ -123,7 +132,7 @@
     "Export…" : {
 
     },
-    "Extend +%lldm" : {
+    "Extend by %lld minutes" : {
 
     },
     "Extending" : {
@@ -302,6 +311,9 @@
 
     },
     "Task file (read-only)" : {
+
+    },
+    "Task: %@" : {
 
     },
     "Tasks" : {

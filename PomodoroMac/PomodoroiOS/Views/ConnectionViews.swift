@@ -237,8 +237,14 @@ struct TaskListSectionView: View {
                         HStack(spacing: 8) {
                             // REQ-TSK-014: 子タスクは字下げして並べる。
                             if item.depth > 0 { Spacer().frame(width: CGFloat(item.depth) * 16) }
-                            Image(systemName: model.snapshot?.task.selectedTaskId == item.stableId
-                                  ? "largecircle.fill.circle" : "circle")
+                            // REQ-COL-010: 形（塗りつぶし／輪郭）で区別したうえで、色も足す。
+                            // 白黒だけだと、一覧の中でどれが選ばれているか一目で分からない。
+                            // 意味を持つ図形なので `-graphic`（背景に対し 3.0 以上）を使う。
+                            let isSelected = model.snapshot?.task.selectedTaskId == item.stableId
+                            Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                                .foregroundStyle(isSelected
+                                                 ? theme.color(.accentPrimary, .graphic)
+                                                 : theme.textTertiary)
                             Text(item.displayText)
                                 .foregroundStyle(theme.textPrimary)
                             // REQ-TSK-023
