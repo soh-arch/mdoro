@@ -14,7 +14,11 @@ struct MenuBarLabelView: View {
     var body: some View {
         HStack(spacing: 4) {
             // REQ-UIX-035: 未接続・再接続中は形状の違うアイコンにする。
-            Image(systemName: model.connection.menuBarSymbolName)
+            if model.connection.menuBarUsesAppMark {
+                Image("MenuBarIcon")
+            } else {
+                Image(systemName: model.connection.menuBarSymbolName)
+            }
             if let text {
                 Text(text).monospacedDigit()
             }

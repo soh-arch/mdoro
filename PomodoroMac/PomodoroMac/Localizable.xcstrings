@@ -48,6 +48,9 @@
     "A record to attach to a bug report. **Task names, note contents, file paths and device names are never written.** You can paste it in public as it is." : {
 
     },
+    "About" : {
+
+    },
     "Add" : {
 
     },
@@ -180,6 +183,9 @@
     "Launch at login" : {
 
     },
+    "License" : {
+
+    },
     "Light" : {
 
     },
@@ -197,6 +203,9 @@
 
     },
     "Mdoro" : {
+
+    },
+    "Mdoro has no ads, no in-app purchases, and no analytics. If it is useful to you, this opens the page in your browser." : {
 
     },
     "Menu bar" : {
@@ -218,6 +227,9 @@
 
     },
     "Notify during Focus modes" : {
+
+    },
+    "Open %@ in your browser" : {
 
     },
     "Open Main Window" : {
@@ -295,6 +307,9 @@
     "Skip" : {
 
     },
+    "Source" : {
+
+    },
     "Start Break" : {
 
     },
@@ -320,6 +335,9 @@
 
     },
     "Stop…" : {
+
+    },
+    "Support" : {
 
     },
     "System" : {
@@ -356,6 +374,9 @@
 
     },
     "Up to 10 presets" : {
+
+    },
+    "Version" : {
 
     },
     "Where the session log is written" : {

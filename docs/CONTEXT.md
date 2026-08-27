@@ -228,6 +228,10 @@ iPhone 側に `.preferredColorScheme` が無く（Mac 側にはあった）、
 `timer.slash`（実在しない）を指定してメニューバー項目が消えた。
 `MdoroCore` の `SymbolNameTests` が全名称の実在を検証している。名前を増やしたらそこに足す。
 
+**アセット名も同じ失敗をする。** `Image("MenuBarIcon")` の名前を間違えても静かに何も出ない。
+アセットカタログ側は `Bundle(url:)?.image(forResource:)` で**ビルド成果物から引けるか**を見て確かめる
+（2026-08-28、メニューバーの印を入れたときに確認した）。
+
 ### 似た名前の2つのタスク名スナップショット
 
 - `TaskContext.selectedTaskSnapshot` — **再読み込みのたびに最新へ更新される**（現在選ばれているものの表示名）

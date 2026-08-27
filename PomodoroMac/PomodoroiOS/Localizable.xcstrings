@@ -115,6 +115,9 @@
     "Last received %@" : {
 
     },
+    "License" : {
+
+    },
     "Light" : {
 
     },
@@ -146,6 +149,9 @@
     "Next: %@" : {
 
     },
+    "No ads, no in-app purchases, no analytics. The link opens in Safari." : {
+
+    },
     "No tasks found" : {
 
     },
@@ -153,6 +159,9 @@
 
     },
     "Not connected to your Mac" : {
+
+    },
+    "Open %@ in Safari" : {
 
     },
     "Open Settings" : {
@@ -200,6 +209,9 @@
     "Skip" : {
 
     },
+    "Source" : {
+
+    },
     "Start Break" : {
 
     },
@@ -237,6 +249,9 @@
 
     },
     "This device is no longer registered. Pair again" : {
+
+    },
+    "Version" : {
 
     },
     "Waiting for sync" : {

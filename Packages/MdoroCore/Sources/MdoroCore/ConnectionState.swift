@@ -28,6 +28,11 @@ public enum ConnectionStatus: String, Equatable, Sendable, Codable, CaseIterable
         }
     }
 
+    // 繋がっているときだけ、メニューバーにアプリの印（`MenuBarIcon`）を出す。
+    // 問題があるときは OS の警告記号に譲る。**不調は製品の顔ではなく、システムの語彙で伝える。**
+    // 形の差は保たれるので REQ-UIX-035 を満たす。
+    public var menuBarUsesAppMark: Bool { self == .connected }
+
     // REQ-COL-010: 色のみで区別しない。通常画面では色に加えて形の違うアイコンを添える。
     public var symbolName: String {
         switch self {

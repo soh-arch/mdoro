@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    メニューバー用のテンプレート画像。黒とアルファだけで描き、色は OS が乗せる。
+    アプリアイコンの実の輪郭（平らな上辺・垂直な側面・尖った底）に `#` を抜いたもの。
+    葉と面取りは持ち込まない。16px で読めることが唯一の条件である。
+
+    線の太さは 16px での可読性から決めた。細くすると副画素に沈んで灰色に濁る。
+    SF Symbol より僅かに重いが、この寸法では**細いほうが読めなくなる。**
+  -->
+  <g fill="none" stroke="#000000" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M165 60 H347 L452 119 V341 L256 452 L60 341 V119 Z" stroke-width="40"/>
+    <g stroke-width="30" transform="translate(256 252) scale(0.94) translate(-256 -252)">
+      <path d="M186 218 H326"/>
+      <path d="M178 286 H318"/>
+      <path d="M236 166 L212 338"/>
+      <path d="M300 166 L276 338"/>
+    </g>
+  </g>
+</svg>

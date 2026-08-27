@@ -114,6 +114,29 @@ try write(Data("""
 
 """.utf8), "\(ios)/Contents.json")
 
+// MARK: - メニューバー
+
+// テンプレート画像として登録する。色は OS が地の明るさに合わせて決める（REQ-COL-022）。
+let menuBar = "\(repo)/PomodoroMac/PomodoroMac/Assets.xcassets/MenuBarIcon.imageset"
+print("menu bar")
+try FileManager.default.createDirectory(atPath: menuBar, withIntermediateDirectories: true)
+let glyph = try String(contentsOfFile: "\(repo)/Tools/mdoro-menubar.svg", encoding: .utf8)
+for (scale, px) in [(1, 16), (2, 32), (3, 48)] {
+    try write(fullBleed(image(glyph), px), "\(menuBar)/menu-bar-\(scale)x.png")
+}
+try write(Data("""
+{
+  "images" : [
+    { "filename" : "menu-bar-1x.png", "idiom" : "universal", "scale" : "1x" },
+    { "filename" : "menu-bar-2x.png", "idiom" : "universal", "scale" : "2x" },
+    { "filename" : "menu-bar-3x.png", "idiom" : "universal", "scale" : "3x" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 },
+  "properties" : { "template-rendering-intent" : "template" }
+}
+
+""".utf8), "\(menuBar)/Contents.json")
+
 // MARK: - macOS
 
 let mac = "\(repo)/PomodoroMac/PomodoroMac/Assets.xcassets/AppIcon.appiconset"
