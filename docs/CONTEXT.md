@@ -196,6 +196,14 @@ Git に入っていないため、失われると復元できない。
 - 通知音をシステムサウンドに確定（[0017](decisions/0017-system-notification-sounds.md)）、
   グローバルショートカット2種（一時停止/再開・ウィンドウ前面）、ログイン時起動
   （[0016](decisions/0016-standard-settings-and-hotkeys.md)）
+- **工程8 完了（Live Activity）**: ロック画面・ダイナミックアイランド（REQ-UIX-020〜029）、
+  `Text(timerInterval:pauseTime:countsDown:)` による自律更新（REQ-UIX-021）、
+  `staleDate` / `isStale` の陳腐化表示（REQ-UIX-023）、`LiveActivityIntent`（REQ-UIX-024）、
+  タスク名の打ち切り（REQ-UIX-025）、`PENDING_DECISION` での終了（REQ-PER-009）
+  — `Sources/PomodoroCore/LiveActivityAttributes.swift`,
+  `PomodoroiOS/Client/LiveActivityController.swift`, `PomodoroWidget/PomodoroWidgetLiveActivity.swift`
+  - **実機で確認**: ロック画面で Live Activity が 0:00 まで自律カウントダウンし、
+    **同時に終了通知（第5章）が届く**。Decision 0009 の「両者を独立させる」がそのとおり成立している
 - **工程7 完了（iPhone の通知）**: 絶対時刻のローカル通知として事前スケジュール（REQ-NTF-002）、
   発火時刻・内容の変化での再スケジュール（REQ-NTF-003）、通知内容（REQ-NTF-004）、
   予告通知（REQ-NTF-007 / 020〜023）、`DateComponents.timeZone` の明示（REQ-COM-014）、
@@ -274,7 +282,6 @@ Mac 側だけで実用になる。ファイル安全性とログ形式という�
 
 - **通知のスケジュール層**（第5章）— 未着手。
   発火時刻の決定（`PreNotificationSchedule`）だけが `PomodoroCore` にある
-- **Live Activity**（8.3）— 未着手（工程8）
 - REQ-UIX-034（Mac のフローティングウィンドウ、MAY）— 見送り
 - **REQ-LOG-014（前日の日次サマリ、SHOULD）— 実装しない**（2026-08-26 決定）。
   設定 UI からも外した。将来必要になれば、前日ぶんの集計にログの読み戻しが要る

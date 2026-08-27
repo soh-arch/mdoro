@@ -6,6 +6,7 @@ import PomodoroCore
 struct PomodoroiOSApp: App {
     @State private var model = ClientModel()
     @State private var delegate = NotificationDelegate()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -16,6 +17,10 @@ struct PomodoroiOSApp: App {
                     delegate.onNotificationOpened = { model.markAwaitingSync() }
                     UNUserNotificationCenter.current().delegate = delegate
                     model.start()
+                }
+                // REQ-UIX-020: フォアグラウンドかどうかで Live Activity の開始可否が変わる。
+                .onChange(of: scenePhase) { _, phase in
+                    model.setForeground(phase == .active)
                 }
         }
     }

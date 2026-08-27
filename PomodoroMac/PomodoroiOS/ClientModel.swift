@@ -31,6 +31,9 @@ final class ClientModel {
 
     private let client = PomodoroClient()
     private let notifications = NotificationScheduler()
+    private let liveActivity = LiveActivityController()
+    // REQ-UIX-020: 開始できるのはフォアグラウンドにある間だけ。
+    private var isForeground = true
     private let browser = ServerBrowser()
     private var ticker: Task<Void, Never>?
 
@@ -38,6 +41,13 @@ final class ClientModel {
 
     func start() {
         Task { await notifications.requestAuthorization() }
+        // REQ-UIX-024: Live Activity のボタンはアプリ本体のプロセスで動く。
+        // 送れなかったときに「送れた」と見せないよう、成否をそのまま返す。
+        LiveActivityCommandBridge.handler = { [weak self] action in
+            guard let self, self.isConnected else { return false }
+            self.send(action)
+            return true
+        }
         restoreLastSnapshot()
         browser.onChange = { [weak self] found in
             self?.servers = found
@@ -53,6 +63,18 @@ final class ClientModel {
         ticker?.cancel(); ticker = nil
         browser.stop()
         client.disconnect()
+        liveActivity.end()
+    }
+
+    // REQ-UIX-020: バックグラウンド中に Mac 側で始まったセッションは、
+    // フォアグラウンドへ復帰した時点で開始する。
+    func setForeground(_ foreground: Bool) {
+        isForeground = foreground
+        guard foreground, let snapshot else { return }
+        liveActivity.sync(
+            snapshot: snapshot, clockOffset: clockOffset,
+            isForeground: true, serverName: client.serverName ?? "Mac"
+        )
     }
 
     private func startTicking() {
@@ -79,6 +101,11 @@ final class ClientModel {
                 // REQ-NTF-003 / 009: 状態を受け取るたびに通知を組み直す。
                 // 接続していない間に始まったセッションも、ここで初めて組まれる。
                 self.notifications.reschedule(for: snapshot, clockOffset: self.clockOffset)
+                // REQ-UIX-020 / 022: アプリが動いている間だけ Live Activity を追随させる。
+                self.liveActivity.sync(
+                    snapshot: snapshot, clockOffset: self.clockOffset,
+                    isForeground: self.isForeground, serverName: self.client.serverName ?? "Mac"
+                )
             },
             receivedTaskList: { [weak self] in self?.taskList = $0 },
             receivedEvent: { _ in },
