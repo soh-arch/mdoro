@@ -55,6 +55,9 @@ final class ClientModel {
             self.send(action)
             return true
         }
+        // 前のプロセスが残した Live Activity は、接続できなければ畳む。
+        // **復元したスナップショットで正当化しない**（それは何時間前のものか分からない）。
+        liveActivity.discardOrphansIfUnconfirmed()
         restoreLastSnapshot()
         browser.onChange = { [weak self] found in
             self?.servers = found

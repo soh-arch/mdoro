@@ -140,19 +140,24 @@ private struct LockScreenView: View {
             }
 
             HStack(alignment: .firstTextBaseline) {
+                // **`Text(timerInterval:)` に `.fixedSize()` を付けないこと。**
+                // 打ち切り対策のつもりで付けたところ、ロック画面のレイアウトが破綻し、
+                // 時間も操作も消えて真っ白になった（2026-08-27、実機で確認）。
+                // この Text の寸法はシステムが決める。こちらから理想幅を要求してはならない。
                 TimerText(state: context.state)
                     .font(.system(size: WidgetFontSize.lockTimer, weight: .medium, design: .rounded).monospacedDigit())
-                    // **残り時間は絶対に打ち切らせない。** 幅が足りなければボタン側が縮む。
-                    // 切り詰められた数字は、間違った数字として読まれる。
-                    .fixedSize()
                 Spacer()
                 Controls(state: context.state)
             }
 
-            if let task = context.state.taskName, !task.isEmpty {
+            // ロック画面は**高さが固定**で、入らない行は黙って消える。
+            // 3行目を取り合うなら、**REQ-UIX-023（MUST）の注意書きがタスク名に勝つ。**
+            // 古い情報を正しい情報のように見せないことのほうが、何をしていたかより重い。
+            if context.isStale {
+                StaleNotice(isStale: true)
+            } else if let task = context.state.taskName, !task.isEmpty {
                 Text(task).font(.system(size: WidgetFontSize.secondary)).foregroundStyle(.secondary).lineLimit(1)
             }
-            StaleNotice(isStale: context.isStale)
         }
         .padding()
     }

@@ -99,6 +99,22 @@ final class LiveActivityController {
         push(state, extendingStaleDate: false)
     }
 
+    // 起動時にロック画面へ残っているものは、**今の状態かどうか確かめようがない。**
+    // 接続して状態を受け取れれば引き取って直せるので、少しだけ待つ。
+    // **待って来なければ畳む。** 確かめられないものを、正しい顔で残しておかない。
+    // セッションが本当に走っていれば、接続直後に開始し直される（REQ-UIX-020）。
+    func discardOrphansIfUnconfirmed(within delay: TimeInterval = 10) {
+        guard activity == nil, !Activity<PomodoroActivityAttributes>.activities.isEmpty else { return }
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            // この間に生きたスナップショットが来ていれば、引き取られている。
+            guard let self, self.activity == nil else { return }
+            self.diagnostic = "残っていた Live Activity を畳みました（状態を確認できなかったため）"
+            self.isHealthy = true
+            self.end()
+        }
+    }
+
     // アプリのプロセスが落ちても、Live Activity はロック画面に残る。
     // 起動し直したときに拾い直さないと、**凍ったままの古い1件の横に新しい1件が並ぶ。**
     // 引き取れば、次の更新でそのまま正しい内容へ戻せる。
