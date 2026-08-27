@@ -21,20 +21,20 @@ struct PomodoroWidgetLiveActivity: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     Label(sessionLabel(context.state.sessionType), systemImage: symbol(context.state.sessionType))
-                        .font(.caption)
+                        .font(.system(size: WidgetFontSize.label))
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text("\(context.state.loopDisplay) / \(context.state.longBreakInterval)")
-                        .font(.caption.monospacedDigit())
+                        .font(.system(size: WidgetFontSize.label).monospacedDigit())
                 }
                 DynamicIslandExpandedRegion(.center) {
                     TimerText(state: context.state)
-                        .font(.system(size: 34, weight: .medium, design: .rounded).monospacedDigit())
+                        .font(.system(size: WidgetFontSize.islandTimer, weight: .medium, design: .rounded).monospacedDigit())
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 4) {
                         if let task = context.state.taskName, !task.isEmpty {
-                            Text(task).font(.caption2).lineLimit(1)
+                            Text(task).font(.system(size: WidgetFontSize.secondary)).lineLimit(1)
                         }
                         StaleNotice(isStale: context.isStale)
                         Controls(state: context.state)
@@ -44,7 +44,7 @@ struct PomodoroWidgetLiveActivity: Widget {
                 Image(systemName: symbol(context.state.sessionType))
             } compactTrailing: {
                 TimerText(state: context.state)
-                    .font(.caption.monospacedDigit())
+                    .font(.system(size: WidgetFontSize.compactTimer).monospacedDigit())
                     .frame(maxWidth: 44)
             } minimal: {
                 Image(systemName: symbol(context.state.sessionType))
@@ -69,6 +69,17 @@ struct PomodoroWidgetLiveActivity: Widget {
     }
 }
 
+// フォントサイズは pt で明示する。
+// ロック画面とダイナミックアイランドは**高さが固定**で、字が伸びれば行が落ちる。
+// 数値は従来の `.caption` / `.caption2` と同じ 12 / 11 pt で、見た目は変わらない。
+private enum WidgetFontSize {
+    static let label: CGFloat = 12
+    static let secondary: CGFloat = 11
+    static let lockTimer: CGFloat = 44
+    static let islandTimer: CGFloat = 34
+    static let compactTimer: CGFloat = 12
+}
+
 // REQ-UIX-021: 残り時間は `Text(timerInterval:pauseTime:countsDown:)` に任せる。
 // **アプリからの毎秒更新を行ってはならない。** 更新予算を使い切るうえ、
 // そもそも suspend 中は更新できない。
@@ -89,7 +100,7 @@ private struct StaleNotice: View {
     var body: some View {
         if isStale {
             Label("情報が古い可能性があります", systemImage: "exclamationmark.triangle")
-                .font(.caption2)
+                .font(.system(size: WidgetFontSize.secondary))
                 .foregroundStyle(.secondary)
         }
     }
@@ -107,7 +118,7 @@ private struct Controls: View {
                 Button(intent: PauseSessionIntent()) { Label("一時停止", systemImage: "pause.fill") }
             }
         }
-        .font(.caption)
+        .font(.system(size: WidgetFontSize.label))
         .buttonStyle(.bordered)
         // REQ-COM-013 と同じ理由: 繋がっていないなら操作できるように見せない。
         .disabled(!state.isConnected)
@@ -121,22 +132,22 @@ private struct LockScreenView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(label)
-                    .font(.caption.weight(.medium))
+                    .font(.system(size: WidgetFontSize.label, weight: .medium))
                 Spacer()
                 Text("\(context.state.loopDisplay) / \(context.state.longBreakInterval)")
-                    .font(.caption.monospacedDigit())
+                    .font(.system(size: WidgetFontSize.label).monospacedDigit())
                     .foregroundStyle(.secondary)
             }
 
             HStack(alignment: .firstTextBaseline) {
                 TimerText(state: context.state)
-                    .font(.system(size: 44, weight: .medium, design: .rounded).monospacedDigit())
+                    .font(.system(size: WidgetFontSize.lockTimer, weight: .medium, design: .rounded).monospacedDigit())
                 Spacer()
                 Controls(state: context.state)
             }
 
             if let task = context.state.taskName, !task.isEmpty {
-                Text(task).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                Text(task).font(.system(size: WidgetFontSize.secondary)).foregroundStyle(.secondary).lineLimit(1)
             }
             StaleNotice(isStale: context.isStale)
         }

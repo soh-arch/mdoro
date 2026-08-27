@@ -129,6 +129,7 @@ v2.4 の改訂内容に対する再レビューで、新設した 4.6 マトリ�
 | **確定** | REQ-NTF-006 の音源をシステムサウンドの流用に確定し、試聴を要求（`decisions/0017-system-notification-sounds.md`）。旧 OPEN-001 |
 | **明確化** | REQ-UIX-010 の「文字高」がフォントサイズを指すことを明記（旧 OPEN-015、実機確認により確定） |
 | **追記** | REQ-NTF-005 に、無償の Personal Team では成立しないことを実機確認の結果として明記（旧 OPEN-007） |
+| **追記** | REQ-UIX-023 に「running かつ接続中は `staleDate` を押し出し続けること（既定 60 秒間隔）」を追加。REQ-COM-006 により状態同期は変化時のみのため、正常動作中でも 90 秒で「情報が古い可能性があります」が出ていた（2026-08-27、実機で確認） |
 | **明確化** | REQ-PER-003(c) の猶予復元が `WORK` に限ることを明記。休憩は REQ-TIM-044 が猶予を否定しており、未確定のまま猶予内で復元した休憩の扱いが (c) の字面と衝突していた |
 | **明確化** | REQ-LOG-003 に「当該見出し」の判定方法を明記し、REQ-LOG-022 の「改名」から日付が読める見出しを除外。曜日だけ書き換えられた見出しに対して両条文が逆の指示を出していた（`decisions/0014-log-day-heading-matching.md`） |
 
@@ -621,7 +622,7 @@ v1.0 の「StandBy モード」を実現可能な形式に再定義する。
 | **REQ-UIX-021** | **MUST** | 残り時間の表示には `Text(timerInterval:pauseTime:countsDown:)` を用い、`sessionEndAt` に基づいてシステム側で自律的に更新させること。アプリからの毎秒更新を行ってはならない。 |
 | **REQ-UIX-029** | **SHOULD** | 一時停止をアプリが running の間に検知できた場合は、`pauseTime` を設定した update により停止表示へ切り替えること。**検知できない場合（アプリが suspend 中）は `staleDate` の失効により `isStale` 表示へ移行することで足りる**（REQ-UIX-023）。 |
 | **REQ-UIX-022** | **SHOULD** | アプリが running である間に状態が変化した場合（開始・一時停止・再開・延長・セッション種別変更）、Live Activity を更新すること。セッション終了・中断時は終了させること。 |
-| **REQ-UIX-023** | **MUST** | Live Activity の `ActivityContent.staleDate` を、**次にアプリが状態を確認できる保証がない時刻**（既定では更新時刻＋90秒）に設定すること。`context.isStale` が真のとき、Live Activity 上に「情報が古い可能性があります」を明示すること。 |
+| **REQ-UIX-023** | **MUST** | Live Activity の `ActivityContent.staleDate` を、**次にアプリが状態を確認できる保証がない時刻**（既定では更新時刻＋90秒）に設定すること。`context.isStale` が真のとき、Live Activity 上に「情報が古い可能性があります」を明示すること。**アプリが running かつ接続が生きている間は、状態が変化していなくても `staleDate` を押し出し続けること**（既定 60 秒間隔）。状態同期は変化時のみ行われる（REQ-COM-006）ため、押し出さなければ正常動作中でも 90 秒で陳腐化表示になる。 |
 | **REQ-UIX-024** | **SHOULD** | Live Activity 上に「一時停止 / 再開」ボタンを `LiveActivityIntent` として配置すること。`perform()` は**アプリ本体のプロセス**で実行されるため、その中で Mac への再接続とコマンド送信を試みること。接続に失敗した場合は Live Activity を `isStale` 表示へ切り替え、状態を変更したかのように見せてはならない。 |
 | **REQ-UIX-025** | **MUST** | Live Activity へ渡す動的データは **4KB 以内**に収めること。タスク名は表示可能長で切り詰めること。 |
 | **REQ-UIX-026** | **MUST** | Live Activity 拡張からネットワークにアクセスしないこと（サンドボックス上不可能）。表示に必要な情報はすべて `ActivityAttributes` / `ContentState` として渡すこと。 |

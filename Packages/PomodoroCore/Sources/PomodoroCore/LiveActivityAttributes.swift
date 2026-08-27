@@ -64,5 +64,10 @@ public struct PomodoroActivityAttributes: ActivityAttributes {
     // REQ-UIX-023: 次にアプリが状態を確認できる保証がない時刻。既定は更新時刻＋90秒。
     // アプリは suspend されうるので、**これを過ぎたら「古いかもしれない」と示す**。
     public static let staleAfter: TimeInterval = 90
+
+    // REQ-UIX-023: 状態を確認できている間は staleDate を押し出す間隔。
+    // スナップショットは状態が変わったときしか来ない（REQ-COM-006）ので、
+    // これを回さないと、前面で接続中でも 90 秒で「情報が古い」と出る。
+    public static let staleRefreshInterval: TimeInterval = 60
 }
 #endif

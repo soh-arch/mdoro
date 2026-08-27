@@ -16,6 +16,7 @@ final class LiveActivityController {
 
     private var activity: Activity<PomodoroActivityAttributes>?
     private var startedAt: Date?
+    private var lastPushedAt: Date?
 
     // **何が起きたかを常に文字で残す。**
     // 「エラーが無い」と「そもそも呼ばれていない」は別物で、
@@ -65,6 +66,7 @@ final class LiveActivityController {
             }
             diagnostic = "更新中（OS 上に \(systemActivityCount) 件）"
             isHealthy = true
+            lastPushedAt = Date()
             Task { await activity.update(content(state)) }
         } else {
             // REQ-UIX-020: フォアグラウンドでないと開始できない。
@@ -93,6 +95,7 @@ final class LiveActivityController {
             )
             activity = requested
             startedAt = Date()
+            lastPushedAt = Date()
             diagnostic = "開始しました id=\(requested.id.prefix(8)) / OS 上に \(systemActivityCount) 件"
             isHealthy = true
         } catch {
@@ -101,10 +104,24 @@ final class LiveActivityController {
         }
     }
 
+    // REQ-UIX-023: staleDate は「次に状態を確認できる保証がない時刻」であって、
+    // 「最後に状態が変わってからの経過時間」ではない。
+    // 状態が変わらないまま走り続けるセッションでもこちらを回し続けないと、
+    // アプリが前面にあって接続も生きているのに 90 秒で「情報が古い」と出る。
+    // 逆にアプリが suspend されればこの呼び出しごと止まり、意図どおり陳腐化する。
+    func refreshIfNeeded(
+        snapshot: StateSnapshot, clockOffset: TimeInterval, isForeground: Bool, serverName: String
+    ) {
+        guard activity != nil, let lastPushedAt else { return }
+        guard Date().timeIntervalSince(lastPushedAt) >= PomodoroActivityAttributes.staleRefreshInterval else { return }
+        sync(snapshot: snapshot, clockOffset: clockOffset, isForeground: isForeground, serverName: serverName)
+    }
+
     func end() {
         guard let activity else { return }
         self.activity = nil
         startedAt = nil
+        lastPushedAt = nil
         Task { await activity.end(nil, dismissalPolicy: .immediate) }
     }
 

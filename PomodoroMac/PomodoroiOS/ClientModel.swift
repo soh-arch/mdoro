@@ -85,9 +85,23 @@ final class ClientModel {
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(250))
-                await MainActor.run { self?.displayNow = Date() }
+                await MainActor.run {
+                    guard let self else { return }
+                    self.displayNow = Date()
+                    self.refreshLiveActivityIfNeeded()
+                }
             }
         }
+    }
+
+    // REQ-UIX-023: 接続が生きている限り「状態を確認できている」ので、staleDate を押し出す。
+    // 切断中は押し出さない。確認できていないのだから、古い扱いで正しい。
+    private func refreshLiveActivityIfNeeded() {
+        guard isConnected, let snapshot else { return }
+        liveActivity.refreshIfNeeded(
+            snapshot: snapshot, clockOffset: clockOffset,
+            isForeground: isForeground, serverName: client.serverName ?? "Mac"
+        )
     }
 
     // MARK: - 接続
