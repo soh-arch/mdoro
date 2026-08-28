@@ -553,12 +553,12 @@ final class AppModel {
         switch command.action {
         case .selectTask:
             guard let stableId = command.params?.stableId else {
-                reject(.invalidStateForAction, "No stableId", command)
+                reject(.missingParameter(.stableId), command)
                 return
             }
             // REQ-TSK-036: 現在の一覧に存在しない stableId は受け付けず、選択も変えない。
             guard tasks.item(id: stableId) != nil else {
-                reject(.taskNotFound, "That task no longer exists", command)
+                reject(.taskNotFound, command)
                 return
             }
             selectTask(id: stableId)
@@ -574,7 +574,7 @@ final class AppModel {
 
         case .updateSettings:
             guard let updated = command.params?.settings else {
-                reject(.invalidStateForAction, "No settings", command)
+                reject(.missingParameter(.settings), command)
                 return
             }
             // didSet が検証・永続化・状態機械への反映をまとめて行う
@@ -591,30 +591,33 @@ final class AppModel {
             activePresetId: presets.activePresetId,
             selectedTaskSnapshot: tasks.selectedTaskSnapshot
         )
-        // 10.2 / Decision 0034 / 0035: `message` は診断用。診断ログの `why` と同じ
-        // `case(domain:code)` で書く。**画面の文言は受け取る側が `code` から引く**ので、
-        // ここを変えても iPhone の表示は動かない。
         switch translated {
         case let .success(action):
-            if let error = send(action) {
-                server.broadcast(.error(ProtocolErrorPayload(
-                    code: ProtocolErrorCode(error),
-                    message: error.diagnosticSummary,
-                    relatedRequestId: command.clientRequestId
-                )))
-            }
+            if let error = send(action) { reject(error, command) }
         case let .failure(failure):
-            server.broadcast(.error(ProtocolErrorPayload(
-                code: failure.protocolErrorCode,
-                message: failure.diagnosticSummary,
-                relatedRequestId: command.clientRequestId
-            )))
+            reject(failure, command)
         }
     }
 
-    private func reject(_ code: ProtocolErrorCode, _ message: String, _ command: CommandPayload) {
+    // 10.2 / Decision 0034 / 0035: `message` は診断用。診断ログの `why` と同じ
+    // `case(domain:code)` で書く。**画面の文言は受け取る側が `code` から引く**ので、
+    // ここを変えても iPhone の表示は動かない。
+    //
+    // Taking the failure itself, rather than a code and a sentence, is what keeps that true:
+    // no parameter is left for prose, so a call site cannot write one by accident. Three did.
+    private func reject(_ failure: CommandTranslation.Failure, _ command: CommandPayload) {
         server.broadcast(.error(ProtocolErrorPayload(
-            code: code, message: message, relatedRequestId: command.clientRequestId
+            code: failure.protocolErrorCode,
+            message: failure.diagnosticSummary,
+            relatedRequestId: command.clientRequestId
+        )))
+    }
+
+    private func reject(_ error: TimerError, _ command: CommandPayload) {
+        server.broadcast(.error(ProtocolErrorPayload(
+            code: ProtocolErrorCode(error),
+            message: error.diagnosticSummary,
+            relatedRequestId: command.clientRequestId
         )))
     }
 
