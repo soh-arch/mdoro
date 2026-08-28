@@ -11,11 +11,13 @@
 Pomodoro_Timer/                        # プロジェクトルート
 ├── CLAUDE.md                          # 運用憲法
 ├── docs/
-│   ├── SPEC.md                        # 要件の正本（v2.8、242要件）
+│   ├── SPEC.md                        # 要件の正本（v2.9、242要件）
 │   ├── CONTEXT.md                     # 現在有効な方針の要約
 │   ├── DEVELOPMENT.md                 # このファイル
+│   ├── PUNCHLIST.md                   # 作業キューの正本
 │   └── decisions/                     # Decision Record
-├── .claude/agents/                    # implementer / reviewer
+├── AGENTS.md                          # 外部の貢献者とそのエージェント向け（英語）
+├── .claude/agents/                    # implementer / reviewer / spec-auditor / repo-auditor
 ├── buildServer.json                   # xcode-build-server の設定（Cursor の補完用）
 ├── Packages/MdoroCore/             # 共有コード。ここが主戦場
 │   ├── Package.swift
