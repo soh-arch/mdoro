@@ -17,15 +17,23 @@ final class DiagnosticLog {
 
     @ObservationIgnored private var file: DiagnosticLogFile?
 
-    static let directory: URL = {
+    static let defaultDirectory: URL = {
         let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library")
         return library.appendingPathComponent("Logs/Mdoro", isDirectory: true)
     }()
 
+    // Where this log writes, and what the settings screen points the user at. A parameter so
+    // a test can read back what was written without touching the log the user collects.
+    let directory: URL
+
+    init(directory: URL = DiagnosticLog.defaultDirectory) {
+        self.directory = directory
+    }
+
     func open(preset: Preset, settings: AppSettings) {
         file = DiagnosticLogFile(
-            directory: Self.directory,
+            directory: directory,
             header: DiagnosticHeader(
                 appVersion: Self.bundleValue("CFBundleShortVersionString"),
                 build: Self.bundleValue("CFBundleVersion"),

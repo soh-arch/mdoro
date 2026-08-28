@@ -116,14 +116,14 @@ struct SettingsView: View {
             Text("A record to attach to a bug report. **Task names, note contents, file paths and device names are never written.** You can paste it in public as it is.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            Text("Kept in: \(DiagnosticLog.directory.path)")
+            Text("Kept in: \(model.diagnostics.directory.path)")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
             HStack {
                 Button("Export…") { exportDiagnostics() }
                 Button("Show in Finder") {
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: DiagnosticLog.directory.path)
+                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: model.diagnostics.directory.path)
                 }
                 Spacer()
             }
