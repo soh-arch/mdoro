@@ -92,8 +92,10 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
+                // REQ-COL-001 / 002: the role, not the hue. The same `danger` the two lines
+                // in the diagnostics section below already use — nothing can be written.
                 if let logFileError {
-                    Text(logFileError).font(.footnote).foregroundStyle(.red)
+                    Text(logFileError).font(.footnote).foregroundStyle(theme.color(.danger, .text))
                 }
                 // REQ-LOG-020: 同時編集で競合しうることを設定画面に明記する。
                 Text("Editing the same file while it is being appended to will conflict. Do not leave the log open in an editor.")

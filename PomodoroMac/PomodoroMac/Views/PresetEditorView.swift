@@ -68,8 +68,9 @@ struct PresetEditorView: View {
     @ViewBuilder
     private func editor(for preset: Preset) -> some View {
         Form {
+            // REQ-COL-001 / 002: the role, not the hue. The edit was refused, so `danger`.
             if let errorMessage {
-                Text(errorMessage).font(.footnote).foregroundStyle(.red)
+                Text(errorMessage).font(.footnote).foregroundStyle(theme.color(.danger, .text))
             }
 
             Section {
@@ -128,11 +129,14 @@ struct PresetEditorView: View {
                 }
                 groupNote("Chosen from the macOS system sounds. **This choice only affects the Mac.** iPhone uses the iOS default sound. Silent applies to both.")
                 // 鳴らない理由がアプリの外にあるなら、アプリが言う。
+                // REQ-COL-001 / 002: the role, not the hue. Both lines say the same thing —
+                // notifications may not reach you, and the fix is outside this app — so they
+                // keep one role between them. `warning`: the timer itself runs either way.
                 if let problem = model.notificationPermission?.problem {
-                    Text(problem).font(.footnote).foregroundStyle(.orange)
+                    Text(problem).font(.footnote).foregroundStyle(theme.color(.warning, .text))
                 }
                 if let error = model.notificationAuthorizationError {
-                    Text(error).font(.footnote).foregroundStyle(.orange)
+                    Text(error).font(.footnote).foregroundStyle(theme.color(.warning, .text))
                 }
                 Toggle("Notify during Focus modes", isOn: binding(preset, \.timeSensitiveNotifications))
                 preNotificationEditor(preset)
@@ -156,9 +160,11 @@ struct PresetEditorView: View {
                     Text(describe(trigger, in: preset))
                     // REQ-NTF-021: 発火時刻がセッション開始以前になる場合はスケジュールされない旨を示す。
                     if !canFire(trigger, in: preset) {
+                        // REQ-COL-001 / 002: the role, not the hue. `warning`: the trigger is
+                        // valid, it just cannot fire while the session is this short.
                         Label("Will not fire at this session length", systemImage: "exclamationmark.triangle")
                             .font(.caption)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(theme.color(.warning, .text))
                     }
                     Spacer()
                     Button { removeTrigger(preset, at: index) } label: {
