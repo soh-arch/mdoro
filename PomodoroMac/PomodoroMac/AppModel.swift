@@ -262,7 +262,7 @@ final class AppModel {
             diagnostics.write("action.rejected", level: .warn, [
                 DiagnosticField("do", action.diagnosticName),
                 DiagnosticField("state", timer.runState.rawValue),
-                DiagnosticField("why", String(describing: failure.error)),
+                DiagnosticField("why", failure.error.diagnosticSummary),
             ])
             return failure.error
         }
@@ -403,8 +403,8 @@ final class AppModel {
             serverStartError = nil
         } catch {
             // REQ-SEC-005 / REQ-ERR-008: 待ち受けられない事実を隠さない。
-            // REQ-ERR-010 / Decision 0034: the cause goes to the diagnostic log as a code,
-            // because the screen is the only other place it could have gone.
+            // REQ-ERR-010 / Decision 0034: the screen keeps the fact and gives up the reason.
+            // The reason is a code now, and `server.start` below is where it goes instead.
             serverStartError = "Mdoro cannot listen for iPhone connections."
             diagnostics.write("server.start", level: .error, [
                 DiagnosticField("why", ErrorCode(error).summary("startFailed")),

@@ -2,8 +2,11 @@ import Foundation
 
 // REQ-ERR-010 / Decision 0034: a failure is recorded as a domain and a code, never as the
 // words the OS chose. `localizedDescription` follows the system locale and usually carries a
-// file name, so a value that cannot hold a string closes both leaks by construction rather
-// than by redaction (Decision 0018 takes the same shape).
+// file name, so what closes both leaks is the bridge, not the type: `init(_ error:)` is the
+// only way an OS failure gets in here, and it reads nothing but `domain` and `code`. The
+// other initialisers take values the app wrote itself. `ErrorReportingTests`
+// .aRefusalFromTheFileSystemKeepsOnlyItsDomainAndCode holds that bridge shut, by producing
+// the same failure in two folders the OS names differently and requiring one answer.
 public struct ErrorCode: Equatable, Hashable, Sendable, CustomStringConvertible {
 
     // Decision 0034: our own failures carry a domain too, so a reader of the diagnostic log
@@ -52,15 +55,22 @@ public extension ErrorCode {
     static let bookmarkCreationFailed = ErrorCode(own: 30)
     static let bookmarkResolutionFailed = ErrorCode(own: 31)
     static let accessDenied = ErrorCode(own: 32)
+    // 40–49: actions the timer refused. Owned by `TimerError.errorCode`, which switches
+    // exhaustively, so a new case cannot reach the diagnostic log without a number.
 }
 
-// REQ-ERR-010 / Decision 0034: the screen and the diagnostic log answer different questions.
-// The log wants a cause that is the same string in every locale; the screen wants to know
-// what happened and what to do next. One type, two answers, and no shared string between them.
+// REQ-ERR-010 / Decision 0034: anything that reaches the diagnostic log's `why` field
+// answers these two, whoever raised it. A reader must not be able to tell an OS failure
+// from one of ours by how it is written, so there is one shape and no exceptions.
 public protocol DiagnosableError: Error {
     var errorCode: ErrorCode { get }
     // `case(domain:code)`, e.g. `writeFailed(NSCocoaErrorDomain:513)`.
     var diagnosticSummary: String { get }
-    // Fixed English, per case (REQ-UIX-038). Never derived from the OS.
+}
+
+// The screen asks a different question than the log: what happened, and what to do next.
+// Only failures that actually reach a screen answer it — the sentence lives with the case
+// so the two outputs never share a string. Fixed English (REQ-UIX-038), never from the OS.
+public protocol ReportableError: DiagnosableError {
     var displayMessage: String { get }
 }

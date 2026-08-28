@@ -9,7 +9,7 @@ public enum StateStoreError: Error, Equatable, Sendable {
     case ioFailed(ErrorCode)
 }
 
-extension StateStoreError: DiagnosableError {
+extension StateStoreError: ReportableError {
 
     public var errorCode: ErrorCode {
         switch self {

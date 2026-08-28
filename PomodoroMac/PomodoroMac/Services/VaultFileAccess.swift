@@ -86,7 +86,7 @@ enum VaultFileAccess {
 
 // REQ-ERR-010 / Decision 0034: this failure never came from the OS, but the diagnostic log
 // must not show that. Same shape, same domain rule, a code fixed per case.
-extension VaultFileAccess.AccessError: DiagnosableError {
+extension VaultFileAccess.AccessError: ReportableError {
 
     var errorCode: ErrorCode {
         switch self {

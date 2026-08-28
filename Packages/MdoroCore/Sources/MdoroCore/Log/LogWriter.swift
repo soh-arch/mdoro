@@ -11,7 +11,7 @@ public enum LogWriteError: Error, Equatable, Sendable {
     case wouldModifyExistingLines
 }
 
-extension LogWriteError: DiagnosableError {
+extension LogWriteError: ReportableError {
 
     public var errorCode: ErrorCode {
         switch self {

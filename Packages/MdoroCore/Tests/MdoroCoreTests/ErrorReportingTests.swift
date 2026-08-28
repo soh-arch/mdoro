@@ -52,7 +52,7 @@ private func hasDiagnosticShape(_ summary: String) -> Bool {
         && Int(parts[1]) != nil
 }
 
-private let everyFailure: [any DiagnosableError] = [
+private let everyFailure: [any ReportableError] = [
     LogWriteError.invalidFilePath,
     LogWriteError.wouldModifyExistingLines,
     LogWriteError.readFailed(ErrorCode(domain: NSCocoaErrorDomain, code: NSFileReadNoSuchFileError)),
@@ -66,27 +66,38 @@ private let everyFailure: [any DiagnosableError] = [
 struct ErrorReportingTests {
 
     // The point of the change: the words the OS chose survive nowhere.
+    //
+    // Refuse the same write twice, in two folders the OS will name differently. Everything
+    // the app produces has to come out identical, and it can only do that if none of what
+    // the OS said got through. Comparing against the OS text directly cannot show this:
+    // the app's output is short and the OS's is long, so containment only ever runs one way.
     @Test func aRefusalFromTheFileSystemKeepsOnlyItsDomainAndCode() throws {
-        let directory = try unwritableDirectory()
-        defer { discard(directory) }
-        let url = directory.appendingPathComponent("MdoroLog.md")
+        var refusals: [(error: LogWriteError, url: URL, directory: URL, osWords: String)] = []
+        defer { refusals.forEach { discard($0.directory) } }
 
-        // Take the same refusal bare first, so the OS's own words are at hand to compare against.
-        var osWords = ""
-        do {
-            try Data("probe".utf8).write(to: url, options: .atomic)
-        } catch {
-            osWords = String(describing: error) + error.localizedDescription
-        }
-        try #require(!osWords.isEmpty, "the file system must actually refuse, or this test proves nothing")
+        for _ in 0..<2 {
+            let directory = try unwritableDirectory()
+            let url = directory.appendingPathComponent("MdoroLog.md")
 
-        var thrown: LogWriteError?
-        do {
-            try LogWriter(fileURL: url).append(sampleEntry())
-        } catch let error as LogWriteError {
-            thrown = error
+            // Take the same refusal bare first, so the OS's own words are on record.
+            var osWords = ""
+            do {
+                try Data("probe".utf8).write(to: url, options: .atomic)
+            } catch {
+                osWords = String(describing: error) + error.localizedDescription
+            }
+            try #require(!osWords.isEmpty, "the file system must actually refuse, or this proves nothing")
+
+            var thrown: LogWriteError?
+            do {
+                try LogWriter(fileURL: url).append(sampleEntry())
+            } catch let error as LogWriteError {
+                thrown = error
+            }
+            refusals.append((try #require(thrown), url, directory, osWords))
         }
-        let error = try #require(thrown)
+
+        let error = refusals[0].error
         guard case let .writeFailed(code) = error else {
             Issue.record("expected writeFailed, got \(error)")
             return
@@ -96,16 +107,61 @@ struct ErrorReportingTests {
         #expect(code.domain == NSCocoaErrorDomain, "the OS domain must survive")
         #expect(code.code == NSFileWriteNoPermissionError, "the OS code must survive")
         #expect(error.diagnosticSummary == "writeFailed(NSCocoaErrorDomain:513)")
-
-        // The payload has no room for a string at all. That is the guarantee, not a redaction pass.
         #expect(
             Mirror(reflecting: error).children.first?.value is ErrorCode,
-            "Decision 0034: the payload is a domain and a code, so the OS's words have nowhere to go"
+            "Decision 0034: `init(_ error:)` reads only the domain and the code, so that is all this holds"
         )
-        for produced in [error.diagnosticSummary, error.displayMessage, String(describing: error)] {
-            #expect(!osWords.contains(produced), "nothing the app produces may be a slice of the OS text")
-            #expect(!produced.contains(url.lastPathComponent), "REQ-ERR-010: no file names")
-            #expect(!produced.contains(directory.path), "REQ-ERR-010: no file paths")
+
+        // Two different folders, so the OS had two different things to say.
+        try #require(
+            refusals[0].osWords != refusals[1].osWords,
+            "the OS must name the folder, or this comparison proves nothing"
+        )
+        #expect(refusals[0].error == refusals[1].error, "the payload must not vary with the OS text")
+        #expect(refusals[0].error.diagnosticSummary == refusals[1].error.diagnosticSummary)
+        #expect(refusals[0].error.displayMessage == refusals[1].error.displayMessage)
+        #expect(String(describing: refusals[0].error) == String(describing: refusals[1].error))
+
+        for refusal in refusals {
+            for produced in [
+                refusal.error.diagnosticSummary, refusal.error.displayMessage, String(describing: refusal.error),
+            ] {
+                #expect(!produced.contains(refusal.url.lastPathComponent), "REQ-ERR-010: no file names")
+                #expect(!produced.contains(refusal.directory.path), "REQ-ERR-010: no file paths")
+            }
+        }
+    }
+
+    // A refused action is our own failure, and the log must not show that it is.
+    @Test func everyRefusedActionCarriesADomainAndACodeToo() {
+        for error in TimerError.allCases {
+            #expect(error.errorCode.domain == ErrorCode.ownDomain, "\(error) has no domain")
+            #expect(
+                hasDiagnosticShape(error.diagnosticSummary),
+                "not `case(domain:code)`: \(error.diagnosticSummary)"
+            )
+            #expect(
+                error.diagnosticSummary == "\(error)(\(error.errorCode))",
+                "the summary must name the case it came from"
+            )
+        }
+        let codes = TimerError.allCases.map(\.errorCode.code)
+        #expect(Set(codes).count == codes.count, "Decision 0034: a code means one thing")
+    }
+
+    // The one place these reach a reader is the diagnostic log's `why` field, and the
+    // whole point is that one spelling serves every source. Walk `allCases`, not a list.
+    @Test func aRefusedActionIsSpelledLikeAFailureFromTheOS() {
+        let fromTheOS = LogWriteError.writeFailed(ErrorCode(domain: NSCocoaErrorDomain, code: 513))
+        for error in TimerError.allCases {
+            #expect(
+                shape(of: error.diagnosticSummary) == shape(of: fromTheOS.diagnosticSummary),
+                "\(error.diagnosticSummary) is shaped differently from \(fromTheOS.diagnosticSummary)"
+            )
+            #expect(
+                DiagnosticField("why", error.diagnosticSummary).value == error.diagnosticSummary,
+                "the log format must not have to rewrite \(error.diagnosticSummary)"
+            )
         }
     }
 
@@ -196,7 +252,7 @@ struct ErrorReportingTests {
             .stateCorrupted, .stateUnsupportedSchemaVersion,
             .notificationsNotAllowed,
             .bookmarkCreationFailed, .bookmarkResolutionFailed, .accessDenied,
-        ]
+        ] + TimerError.allCases.map(\.errorCode)
         let allOurs = table.allSatisfy { $0.domain == ErrorCode.ownDomain }
         #expect(allOurs)
         #expect(Set(table.map(\.code)).count == table.count, "Decision 0034: a code means one thing")
