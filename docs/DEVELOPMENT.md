@@ -11,7 +11,7 @@
 Pomodoro_Timer/                        # プロジェクトルート
 ├── CLAUDE.md                          # 運用憲法
 ├── docs/
-│   ├── SPEC.md                        # 要件の正本（v2.9、242要件）
+│   ├── SPEC.md                        # 要件の正本（版数は SPEC 自身が持つ）
 │   ├── CONTEXT.md                     # 現在有効な方針の要約
 │   ├── DEVELOPMENT.md                 # このファイル
 │   ├── PUNCHLIST.md                   # 作業キューの正本

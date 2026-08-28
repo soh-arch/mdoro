@@ -20,7 +20,7 @@
 | **軸** | A〜J |
 | **レーン** | `agent`（コードだけで直る） / `human`（実機確認・Xcode 操作・判断が要る） |
 | **重大度** | `blocker` / `major` / `minor` |
-| **状態** | `open` → `doing` → `review` → `done` / `rejected` / `deferred` |
+| **状態** | `open` → `doing` → `review` → `done` / `rejected` / `deferred`。人間の採否だけが済んで着手前のものは **`決定済み`**（決定の内容は下の「決定済みの方針」表） |
 | **PR** | ブランチ名か PR 番号 |
 
 **却下と先送りには理由を1行残す。** 理由のない close をしない。
@@ -41,13 +41,16 @@
 | **H** | 他人の環境でビルドできるか | repo-auditor |
 | **I** | 私生活の写り込み（画像・履歴・パス） | repo-auditor |
 | **J** | ライセンスと第三者素材の出所 | repo-auditor |
+| **—** | 軸に紐づかないが根拠のある指摘（監査の途中で見つかったもの） | 両方 |
 
 ---
 
 ## 進行中・未着手
 
-**工程13b（仕様書の監査、軸 A / B / C / D）の結果を 2026-08-28 に起票。** 重大度順。
-軸 E〜J（コードとリポジトリ）は工程14b で追加する。
+**2026-08-28 の監査の結果を起票。** 重大度順。
+**POL-001〜023 は工程13b（`spec-auditor`、軸 A / B / C / D）**、
+**POL-024〜032 は工程14b の先行分（`repo-auditor`、軸 A / C）**。
+軸 E / F / H / I / J は工程14b の残りとして実施する。
 
 | ID | 症状 | 根拠 | 軸 | レーン | 重大度 | 状態 | PR |
 | :-- | :---- | :---- | :-- | :---- | :---- | :---- | :-- |
@@ -70,18 +73,20 @@
 | **POL-007** | REQ-TSK-015 が `[[...]]` と `#tag` を「Markdown 記法」と総称。REQ-LOG-013 は「Obsidian / Logseq **などが解釈する**」と書き分けている | REQ-LOG-013 / [0023](decisions/0023-markdown-first-not-obsidian-first.md) | B | agent | minor | done | `docs/spec-v2.10` |
 | **POL-008** | OPEN-018 の題が「**Obsidian 以外の**ツール固有記法」。Obsidian を基準点に置いている | [0023](decisions/0023-markdown-first-not-obsidian-first.md) / [0025](decisions/0025-standard-checkbox-syntax-only.md) | B | agent | minor | done | `docs/spec-v2.10` |
 | **POL-009** | REQ-LOG-015（Dataview / Tasks 形式での出力、MAY・見送り）が **Obsidian のプラグイン名を条文に持ったまま公開される**。監査役は「見送り済みは挙げない」規則により除外し、人間の判断に委ねた | [0023](decisions/0023-markdown-first-not-obsidian-first.md) / `CONTEXT.md` §6 | B | human | minor | done | `docs/spec-v2.10` |
-| **POL-024** | **ローカルネットワーク許可のダイアログ本文が日本語。** `INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mac と iPhone を接続するために使用します"` が4構成すべてに。**利用者が最初に見る文字列**。POL-014 の実物 | REQ-UIX-038 / [0022](decisions/0022-english-only-ui.md) | C | **human**（Xcode。[0013](decisions/0013-pbxproj-is-owned-by-xcode.md)） | blocker | open | — |
-| **POL-027** | **`LogTests` の3アサーションが常に真で、何も検証していない。** `contains("周回")` を見ているが `LogFormatter` は `Loop` しか出さない。REQ-LOG-011（周回は WORK の正常完了行のみ）が**テストで守られていない** | REQ-LOG-011 / `LogTests.swift:77-79` | C | agent | major | open | — |
+| **POL-024** | **ローカルネットワーク許可のダイアログ本文が日本語。** `INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mac と iPhone を接続するために使用します"` が4構成すべてに。**利用者が最初に見る文字列**。POL-014 の実物 | REQ-UIX-038 / [0022](decisions/0022-english-only-ui.md) | C | **human**（Xcode。[0013](decisions/0013-pbxproj-is-owned-by-xcode.md)） | blocker | done | #5 |
+| **POL-027** | **`LogTests` の3アサーションが常に真で、何も検証していない。** `contains("周回")` を見ているが `LogFormatter` は `Loop` しか出さない。REQ-LOG-011（周回は WORK の正常完了行のみ）が**テストで守られていない** | REQ-LOG-011 / `LogTests.swift:77-79` | — | agent | major | done | #6 |
 | **POL-025** | プリセット表示に**全角括弧**（U+FF08 / U+FF09）。`Standard（25 / 5 / 15）` と出る。コード7箇所＋カタログ4行。**アプリ内で唯一残った CJK 文字** | REQ-UIX-038 | C | agent | major | open | — |
-| **POL-026** | **テストの `@Suite` 表示名43件が全件日本語**、`#expect` の失敗メッセージ85件以上も日本語。CI 出力と貢献者の `swift test` が日本語になる。**コメントではないので工程14a では拾われない** | [0032](decisions/0032-code-comments-are-english.md) | C | agent | major | open | — |
+| **POL-026** | **テストの `@Suite` 表示名43件が全件日本語**、`#expect` の失敗メッセージ85件以上も日本語。CI 出力と貢献者の `swift test` が日本語になる。**コメントではないので工程14a では拾われない** | [0032](decisions/0032-code-comments-are-english.md) | C | agent | major | done | #7 |
 | **POL-028** | OS 由来の `error.localizedDescription` が画面と診断ログへそのまま流れる。日本語環境の Mac では日本語で返る。`String(describing:)` の生の enum 表記も画面に出る。**`why` にパスが混入する経路の疑いあり**（軸 E / I と重なる） | REQ-UIX-038 / [0018](decisions/0018-diagnostic-log-policy.md) | C | agent | major | open | — |
 | **POL-029** | アプリの文言40件以上が **String Catalog を経由していない**（Mac の通知本文が素のリテラル、iOS は `String(localized:)`）。表示言語は英語なので REQ-UIX-038 は破れていないが、**[0022](decisions/0022-english-only-ui.md) の設計意図（文言を1箇所に集める）が破れている** | [0022](decisions/0022-english-only-ui.md) | C | agent | minor | open | — |
 | **POL-030** | 診断ログは `sound=chime`、UI は `Glass`。**対応表は日本語の [0017](decisions/0017-system-notification-sounds.md) にしかなく、issue を読む第三者に同じものと分からない** | [0018](decisions/0018-diagnostic-log-policy.md) / [0017](decisions/0017-system-notification-sounds.md) | C | agent | minor | open | — |
 | **POL-031** | `Tools/make_icon.swift:186` の `print` に日本語が1行。同ファイルの他の `print` は全て英語 | [0032](decisions/0032-code-comments-are-english.md) | C | agent | minor | open | — |
+| **POL-032** | 作者のチーム ID `DEVELOPMENT_TEAM` が `project.pbxproj` に6箇所コミットされている。貢献者は毎回ローカルで書き換え、その差分を PR に含めない注意が要る | [0013](decisions/0013-pbxproj-is-owned-by-xcode.md) | H | **human**（Xcode） | minor | open | — |
+| **POL-033** | [0033](decisions/0033-unset-log-path-records-nothing.md) が `committedAt` の扱いを書いていなかった。立てないと復帰時に REQ-PER-003(d) へ落ち、**記録先が無いのに確認を求める** | REQ-PER-003 / REQ-LOG-019 / 第16章 | — | agent | blocker | done | `docs/audit-followup` |
 | **POL-015** | REQ-ERR-014 が OS 設定画面のパスを日本語で規定。英語化すると日本語ロケールの利用者の画面と一致しない。REQ-SEC-005 とも粒度が食い違う | REQ-ERR-014 / REQ-SEC-005 / 0.12節 | C | human | minor | done | `docs/spec-v2.10` |
 | **POL-021** | 非スコープの「複数ユーザー対応」が、人の話か端末の話か読めない。第14章「1対1接続」は端末の話 | [0021](decisions/0021-published-as-oss-named-mdoro.md) / 第14章 | D | agent | minor | done | `docs/spec-v2.10` |
 | **POL-022** | 「ユーザー」約30件 / 「利用者」約11件が混在。**一括置換は禁止**（macOS のユーザーアカウント等3件は対象外） | [0021](decisions/0021-published-as-oss-named-mdoro.md) / REQ-UIX-042 | D | agent | minor | open | — |
-| **POL-023** | REQ-PLT-009 が製品要件と**検証手順**を1条文に混ぜている。前者は利用者、後者は貢献者に宛てられており宛先が違う | `CLAUDE.md`（手順は DEVELOPMENT.md） | D | agent | minor | done | `docs/spec-v2.10` |
+| **POL-023** | REQ-PLT-009 が製品要件と**検証手順**を1条文に混ぜている。前者は利用者、後者は貢献者に宛てられており宛先が違う | `CLAUDE.md`（手順は DEVELOPMENT.md） | — | agent | minor | done | `docs/spec-v2.10` |
 
 ## 付録: 実装から回収した語（POL-013 の入力）
 
