@@ -86,6 +86,16 @@ xcrun simctl list devices available
 
 ---
 
+## ローカルネットワーク許可の検証
+
+**macOS には、許可状態を未決定へ戻す手段がない**（REQ-PLT-009）。一度許可または拒否すると、
+同じユーザーアカウントでは初回ダイアログを再現できない。
+
+**検証は別ユーザーアカウントか仮想環境で行う。** ad-hoc 署名では許可の同一性が保たれず、
+挙動が不安定になるため、Apple 発行の署名 ID で署名したビルドを使う。
+
+---
+
 ## 環境メモ
 
 - Xcode 26.6 / Swift 6.3。deployment target は macOS 26.0 / iOS 26.0。
@@ -96,10 +106,16 @@ xcrun simctl list devices available
 - **アプリ名は `Mdoro`**（[0021](decisions/0021-published-as-oss-named-mdoro.md)）。ターゲット名・bundle ID は
   改名済み（工程9、[0024](decisions/0024-rename-everything-to-mdoro.md)）。リポジトリ名は `mdoro`。
   リポジトリのフォルダ名だけは `Pomodoro_Timer` のままで、この文書のパスもそれに従う。
-- **アプリアイコンの正本は `Tools/mdoro-icon.svg`。** `swift Tools/make_icon.swift` が
-  両プラットフォームの `AppIcon.appiconset` を書き出す（iOS のライト・ダーク・ティントと macOS の10寸法）。
+- **アイコンの正本は SVG。** `swift Tools/make_icon.swift` が PNG を書き出す。
   描画は AppKit の SVG 対応に任せてあり、外部ツールは要らない。
   **PNG を手で置き換えず、SVG を直して回す**（色リテラルをビューに書かないのと同じ理由）。
+  - `Tools/mdoro-icon.svg` → 両プラットフォームの `AppIcon.appiconset`
+    （iOS のライト・ダーク・ティントと macOS の10寸法）
+  - `docs/images/icons/mdoro-menubar-{idle,running-60,paused}.svg` →
+    メニューバーの imageset 3つ。**メニューバーの正本だけは `docs/images/icons/` にある。**
+    3枚しか使わない（`MenuBarMark`）。画像を足すときは `make_icon.swift` の
+    `menuBarStates` と `MenuBarMark` の両方を変える
+    （名前が食い違うと、何も描かれないまま静かに失敗する。`MenuBarMarkTests` が検査する）
 - セットアップ手順書のリンクは `docs/PRIVATE-LINKS.md`（Git に入れていない）。
 
 Apple プラットフォームの制約（ATS、ローカルネットワーク許可、Live Activity、ファイル監視など）は

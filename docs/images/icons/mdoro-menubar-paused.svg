@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Mdoro paused">
+  <g fill="none" stroke="currentColor" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M33.3 26 H66.7 L86 36.9 V77.6 L50 97.9 L14 77.6 V36.9 Z" stroke-width="7"></path>
+    <path d="M27.5 55 H72.5" stroke-width="6"></path>
+    <path d="M28.3 68 H73.3" stroke-width="6"></path>
+    <path d="M51.5 42 L43 82" stroke-width="6"></path>
+    <path d="M62.5 42 L54 82" stroke-width="6"></path>
+  </g>
+  <path d="M63 25.5 C72 14 81.5 13.5 85 16 C85.8 22.5 79 28.5 67.5 27.6 Z" fill="currentColor"></path>
+</svg>
