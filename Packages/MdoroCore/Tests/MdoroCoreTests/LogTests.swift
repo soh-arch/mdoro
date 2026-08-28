@@ -73,10 +73,22 @@ struct LogFormatterTests {
     }
 
     // 周回は WORK の**正常完了行**のみ。
+    // REQ-LOG-011 は「WORK の正常完了行に含めること」という**肯定の MUST** しか定めていない。
+    // 「それ以外の行に出してはならない」の根拠は条文ではなく次の2つなので、併記しておく。
+    //   - 中断・スキップ: §4.5 操作の定義（どちらも周回数は「加算しない」）
+    //   - 休憩行・Stopped 行: §7.2 の出力例（SHORT_BREAK / LONG_BREAK / ⏹ Stopped のどれにも Loop がない）
+    //
+    // 出力される語は `Loop n/m`。同じ `loopCountAfterCompletion` を持つ完了行が周回を出すことを
+    // 対照として先に確かめ、以下の否定が「周回を出す条件が揃っているのに抑止されている」ことを示すようにする。
     @Test func loopCountIsOmittedForBreaksAndAbnormalEndings() {
-        #expect(!LogFormatter.line(for: entry(outcome: .aborted), calendar: calendar).contains("周回"))
-        #expect(!LogFormatter.line(for: entry(outcome: .skipped), calendar: calendar).contains("周回"))
-        #expect(!LogFormatter.line(for: entry(type: .longBreak, task: nil), calendar: calendar).contains("周回"))
+        #expect(LogFormatter.line(for: entry(), calendar: calendar).contains("Loop 1/4"),
+                "対照: 同じ入力の WORK 正常完了行には周回が付く")
+
+        #expect(!LogFormatter.line(for: entry(outcome: .aborted), calendar: calendar).contains("Loop"))
+        #expect(!LogFormatter.line(for: entry(outcome: .skipped), calendar: calendar).contains("Loop"))
+        // 休憩は2種とも見る。longBreak だけだと `sessionType != .longBreak` の実装を見逃す。
+        #expect(!LogFormatter.line(for: entry(type: .shortBreak, task: nil), calendar: calendar).contains("Loop"))
+        #expect(!LogFormatter.line(for: entry(type: .longBreak, task: nil), calendar: calendar).contains("Loop"))
     }
 
     // REQ-LOG-016: A 群がセッション中に編集されたらプリセット名に * を付す。
