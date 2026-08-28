@@ -14,14 +14,23 @@ final class NotificationScheduler {
 
     private static let preNotificationPrefix = "pre-notification."
 
+    // REQ-ERR-010 / Decision 0034: the caller needs both answers separately — a fixed
+    // sentence for the screen and a domain with a code for the diagnostic log. Returning
+    // one string forced the OS's own words into both.
+    enum AuthorizationOutcome: Sendable {
+        case granted
+        case notAllowed
+        case failed(ErrorCode)
+    }
+
     // **`try?` で捨てない。** 署名のないビルドではこの呼び出し自体が失敗し、
     // 握り潰すと「許可を求めることすらできていない」状態が見えなくなる。
-    func requestAuthorization() async -> String? {
+    func requestAuthorization() async -> AuthorizationOutcome {
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .sound])
-            return granted ? nil : "Notifications were not allowed."
+            return granted ? .granted : .notAllowed
         } catch {
-            return "Could not ask for notification permission: \(String(describing: error))"
+            return .failed(ErrorCode(error))
         }
     }
 

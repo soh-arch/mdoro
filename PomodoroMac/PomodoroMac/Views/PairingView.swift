@@ -30,8 +30,10 @@ struct PairingSection: View {
             }
 
             if let error = model.serverStartError {
-                // REQ-SEC-005 / REQ-ERR-014: 待ち受けられない事実と理由を隠さない。
-                Text("Cannot listen for connections: \(error)")
+                // REQ-SEC-005 / REQ-ERR-014: 待ち受けられない事実を隠さない。
+                // REQ-ERR-010 / Decision 0034: the model hands over a finished sentence.
+                // The reason is no longer here — it is a code in the diagnostic log.
+                Text(error)
                     .font(.footnote)
                     .foregroundStyle(.red)
                 Text("Check that this app is allowed in System Settings > Privacy & Security > Local Network.")

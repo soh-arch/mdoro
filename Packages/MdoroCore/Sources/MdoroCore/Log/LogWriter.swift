@@ -3,10 +3,49 @@ import Foundation
 public enum LogWriteError: Error, Equatable, Sendable {
     // REQ-LOG-002: 作成先ディレクトリが存在しない。REQ-LOG-021: Task.md と同一パス。
     case invalidFilePath
-    case readFailed(String)
-    case writeFailed(String)
+    // REQ-ERR-010 / Decision 0034: the OS failure is carried as a domain and a code.
+    // It never carries `localizedDescription`, which changes language and names files.
+    case readFailed(ErrorCode)
+    case writeFailed(ErrorCode)
     // 挿入以外の変更が起きようとした。
     case wouldModifyExistingLines
+}
+
+extension LogWriteError: ReportableError {
+
+    public var errorCode: ErrorCode {
+        switch self {
+        case .invalidFilePath: .logInvalidFilePath
+        case let .readFailed(code), let .writeFailed(code): code
+        case .wouldModifyExistingLines: .logWouldModifyExistingLines
+        }
+    }
+
+    public var diagnosticSummary: String { errorCode.summary(caseName) }
+
+    private var caseName: String {
+        switch self {
+        case .invalidFilePath: "invalidFilePath"
+        case .readFailed: "readFailed"
+        case .writeFailed: "writeFailed"
+        case .wouldModifyExistingLines: "wouldModifyExistingLines"
+        }
+    }
+
+    // REQ-ERR-004 / REQ-UIX-038: entries stay queued on failure (REQ-LOG-005), so each
+    // sentence says that too — otherwise the reader assumes the session was lost.
+    public var displayMessage: String {
+        switch self {
+        case .invalidFilePath:
+            "The folder set for the session log cannot be used. Choose it again in Settings."
+        case .readFailed:
+            "The existing session log could not be read, so nothing was written. Check that the file can be opened; unwritten entries stay queued."
+        case .writeFailed:
+            "The session log could not be written. Check that the folder still exists and has free space; unwritten entries stay queued."
+        case .wouldModifyExistingLines:
+            "Writing would have changed lines that are already in the session log, so nothing was written. Check the file around today's heading."
+        }
+    }
 }
 
 // REQ-LOG-001〜004 / 022: 実績ログへの追記。
@@ -52,7 +91,7 @@ public struct LogWriter: Sendable {
             do {
                 existing = try String(contentsOf: fileURL, encoding: .utf8)
             } catch {
-                throw LogWriteError.readFailed(error.localizedDescription)
+                throw LogWriteError.readFailed(ErrorCode(error))
             }
         } else {
             // REQ-LOG-002: ファイルが存在しない場合は新規作成する。
@@ -89,7 +128,7 @@ public struct LogWriter: Sendable {
             }
         } catch {
             try? fileManager.removeItem(at: temporaryURL)
-            throw LogWriteError.writeFailed(error.localizedDescription)
+            throw LogWriteError.writeFailed(ErrorCode(error))
         }
     }
 }
@@ -152,7 +191,7 @@ public final class LogWriteQueue: @unchecked Sendable {
                 lastError = error
                 break
             } catch {
-                lastError = .writeFailed(error.localizedDescription)
+                lastError = .writeFailed(ErrorCode(error))
                 break
             }
         }

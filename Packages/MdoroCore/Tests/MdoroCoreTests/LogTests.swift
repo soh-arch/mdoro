@@ -15,6 +15,12 @@ private func at(_ hour: Int, _ minute: Int) -> Date {
 
 private let logicalDay = calendar.date(from: DateComponents(year: 2026, month: 8, day: 24))!
 
+// REQ-ERR-010 / Decision 0034: these tests care that a write failed, not what refused it.
+// What the payload now guarantees is asserted in ErrorReportingTests.
+private let writeRefused = LogWriteError.writeFailed(
+    ErrorCode(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError)
+)
+
 private func entry(
     type: SessionType = .work,
     start: Date = at(9, 0),
@@ -347,20 +353,20 @@ struct LogWriteQueueTests {
         queue.enqueue(entry())
         queue.enqueue(entry(start: at(10, 0), end: at(10, 25)))
 
-        var result = queue.flush { _ in throw LogWriteError.writeFailed("disk") }
+        var result = queue.flush { _ in throw writeRefused }
         #expect(result.written == 0)
         #expect(result.pending == 2, "entries that failed to write stay queued")
         #expect(!result.shouldNotify)
 
-        result = queue.flush { _ in throw LogWriteError.writeFailed("disk") }
+        result = queue.flush { _ in throw writeRefused }
         #expect(result.consecutiveFailures == 2)
         #expect(!result.shouldNotify)
 
-        result = queue.flush { _ in throw LogWriteError.writeFailed("disk") }
+        result = queue.flush { _ in throw writeRefused }
         #expect(result.consecutiveFailures == LogWriteQueue.failureThreshold)
         #expect(result.shouldNotify, "REQ-ERR-004: notify on the third consecutive failure")
 
-        result = queue.flush { _ in throw LogWriteError.writeFailed("disk") }
+        result = queue.flush { _ in throw writeRefused }
         #expect(!result.shouldNotify, "must not keep notifying about the same ongoing failure")
     }
 
@@ -368,7 +374,7 @@ struct LogWriteQueueTests {
         let queue = LogWriteQueue()
         queue.enqueue(entry(start: at(9, 0), end: at(9, 25)))
         queue.enqueue(entry(start: at(10, 0), end: at(10, 25)))
-        _ = queue.flush { _ in throw LogWriteError.writeFailed("disk") }
+        _ = queue.flush { _ in throw writeRefused }
 
         var written: [Date] = []
         let result = queue.flush { written.append($0.startedAt) }
@@ -386,7 +392,7 @@ struct LogWriteQueueTests {
         var attempts = 0
         let result = queue.flush { _ in
             attempts += 1
-            if attempts == 2 { throw LogWriteError.writeFailed("disk") }
+            if attempts == 2 { throw writeRefused }
         }
         #expect(result.written == 1)
         #expect(result.pending == 1)

@@ -84,6 +84,42 @@ enum VaultFileAccess {
     }
 }
 
+// REQ-ERR-010 / Decision 0034: this failure never came from the OS, but the diagnostic log
+// must not show that. Same shape, same domain rule, a code fixed per case.
+extension VaultFileAccess.AccessError: ReportableError {
+
+    var errorCode: ErrorCode {
+        switch self {
+        case .bookmarkCreationFailed: .bookmarkCreationFailed
+        case .bookmarkResolutionFailed: .bookmarkResolutionFailed
+        case .accessDenied: .accessDenied
+        }
+    }
+
+    var diagnosticSummary: String { errorCode.summary(caseName) }
+
+    private var caseName: String {
+        switch self {
+        case .bookmarkCreationFailed: "bookmarkCreationFailed"
+        case .bookmarkResolutionFailed: "bookmarkResolutionFailed"
+        case .accessDenied: "accessDenied"
+        }
+    }
+
+    // A bookmark goes bad when the folder moves or is removed, so every sentence points
+    // the user back at the chooser rather than at a retry.
+    var displayMessage: String {
+        switch self {
+        case .bookmarkCreationFailed:
+            "Mdoro was not given access to that folder. Choose it again in Settings."
+        case .bookmarkResolutionFailed:
+            "The folder Mdoro was given access to can no longer be found. Choose it again in Settings."
+        case .accessDenied:
+            "Mdoro is no longer allowed into that folder. Choose it again in Settings."
+        }
+    }
+}
+
 // ブックマークの保管。パスは表示用に AppSettings が持つが、実際に到達できるのはこちらだけ。
 struct VaultBookmarks: Codable, Equatable, Sendable {
     var taskFile: Data?

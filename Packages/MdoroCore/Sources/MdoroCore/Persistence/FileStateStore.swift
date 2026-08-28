@@ -27,7 +27,7 @@ public struct FileStateStore: StateStore {
             try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
             return FileStateStore(fileURL: directory.appendingPathComponent(fileName))
         } catch {
-            throw StateStoreError.ioFailed(error.localizedDescription)
+            throw StateStoreError.ioFailed(ErrorCode(error))
         }
     }
 
@@ -51,7 +51,7 @@ public struct FileStateStore: StateStore {
         do {
             data = try Data(contentsOf: fileURL)
         } catch {
-            throw StateStoreError.ioFailed(error.localizedDescription)
+            throw StateStoreError.ioFailed(ErrorCode(error))
         }
 
         let state: PersistedState
@@ -75,7 +75,7 @@ public struct FileStateStore: StateStore {
         do {
             data = try Self.encoder.encode(state)
         } catch {
-            throw StateStoreError.ioFailed(error.localizedDescription)
+            throw StateStoreError.ioFailed(ErrorCode(error))
         }
 
         let directory = fileURL.deletingLastPathComponent()
@@ -93,7 +93,7 @@ public struct FileStateStore: StateStore {
             }
         } catch {
             try? fileManager.removeItem(at: temporaryURL)
-            throw StateStoreError.ioFailed(error.localizedDescription)
+            throw StateStoreError.ioFailed(ErrorCode(error))
         }
     }
 }

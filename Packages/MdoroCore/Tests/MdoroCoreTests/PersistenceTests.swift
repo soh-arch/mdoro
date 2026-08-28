@@ -4,6 +4,11 @@ import Foundation
 
 private let reference = Date(timeIntervalSince1970: 1_700_000_000)
 
+// REQ-ERR-010 / Decision 0034: only that a write failed matters here.
+private let writeRefused = LogWriteError.writeFailed(
+    ErrorCode(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError)
+)
+
 private func preset(work: Int = 25 * 60, interval: Int = 4) -> Preset {
     Preset(
         id: "preset-1", name: "Standard",
@@ -321,7 +326,7 @@ struct PendingLogPersistenceTests {
         let queue = LogWriteQueue()
         queue.enqueue(entry(reference))
         queue.enqueue(entry(reference.addingTimeInterval(1800)))
-        _ = queue.flush { _ in throw LogWriteError.writeFailed("disk") }
+        _ = queue.flush { _ in throw writeRefused }
         #expect(queue.pendingCount == 2)
 
         let store = InMemoryStateStore()

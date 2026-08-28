@@ -106,10 +106,21 @@ final class AppModel {
         diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
         diagnostics.write("app.start")
         Task {
-            notificationAuthorizationError = await notifications.requestAuthorization()
-            if let notificationAuthorizationError {
+            // REQ-ERR-010 / Decision 0034: the screen gets a sentence, the log gets a code.
+            switch await notifications.requestAuthorization() {
+            case .granted:
+                notificationAuthorizationError = nil
+            case .notAllowed:
+                notificationAuthorizationError =
+                    "Notifications are turned off for Mdoro. Turn them on in System Settings > Notifications."
                 diagnostics.write("notify.authorize", level: .warn, [
-                    DiagnosticField("why", notificationAuthorizationError),
+                    DiagnosticField("why", ErrorCode.notificationsNotAllowed.summary("notAllowed")),
+                ])
+            case let .failed(code):
+                notificationAuthorizationError =
+                    "Mdoro could not ask for permission to send notifications. Open System Settings > Notifications and allow them there."
+                diagnostics.write("notify.authorize", level: .warn, [
+                    DiagnosticField("why", code.summary("requestFailed")),
                 ])
             }
             await refreshNotificationPermission()
@@ -251,7 +262,7 @@ final class AppModel {
             diagnostics.write("action.rejected", level: .warn, [
                 DiagnosticField("do", action.diagnosticName),
                 DiagnosticField("state", timer.runState.rawValue),
-                DiagnosticField("why", String(describing: failure.error)),
+                DiagnosticField("why", failure.error.diagnosticSummary),
             ])
             return failure.error
         }
@@ -392,7 +403,12 @@ final class AppModel {
             serverStartError = nil
         } catch {
             // REQ-SEC-005 / REQ-ERR-008: 待ち受けられない事実を隠さない。
-            serverStartError = String(describing: error)
+            // REQ-ERR-010 / Decision 0034: the screen keeps the fact and gives up the reason.
+            // The reason is a code now, and `server.start` below is where it goes instead.
+            serverStartError = "Mdoro cannot listen for iPhone connections."
+            diagnostics.write("server.start", level: .error, [
+                DiagnosticField("why", ErrorCode(error).summary("startFailed")),
+            ])
         }
     }
 
@@ -583,9 +599,10 @@ final class AppModel {
         guard let bookmark = bookmarks.logFolder else {
             // 出力先が未設定でも記録は捨てず、キューへ残す。
             logWriteFailed = true
-            lastLogError = "No folder is set for the session log"
+            lastLogError = "No folder is set for the session log. Choose one in Settings; entries stay queued until then."
+            // REQ-ERR-010 / Decision 0034: `why` is always `case(domain:code)`.
             diagnostics.write("log.blocked", level: .warn, [
-                DiagnosticField("why", "noFolder"),
+                DiagnosticField("why", ErrorCode.logFolderNotSet.summary("noFolder")),
                 DiagnosticField("pending", logQueue.pendingCount),
             ])
             return
@@ -606,13 +623,14 @@ final class AppModel {
                 lastLogWriteAt = Date()
                 persist()
             }
-            lastLogError = result.lastError.map { String(describing: $0) }
+            // REQ-ERR-010 / Decision 0034: a sentence for the screen, a code for the log.
+            lastLogError = result.lastError?.displayMessage
             // **書いたことの証拠になる。**
             diagnostics.write("log.write", level: result.pending > 0 ? .warn : .info, [
                 DiagnosticField("written", result.written),
                 DiagnosticField("pending", result.pending),
                 DiagnosticField("file", DiagnosticRedaction.optionalDigest(settings.logFolderPath)),
-                DiagnosticField("why", result.lastError.map { String(describing: $0) } ?? "-"),
+                DiagnosticField("why", result.lastError?.diagnosticSummary ?? "-"),
             ])
             // REQ-ERR-004: 3回失敗した時点で通知する。
             if result.shouldNotify {
@@ -620,12 +638,16 @@ final class AppModel {
             }
         } catch {
             // **黙って失敗しない。**
+            // Only bookmark resolution and starting access land here (VaultFileAccess).
+            // REQ-ERR-010 / Decision 0034: keep the domain and the code, never the OS text.
             logWriteFailed = true
-            lastLogError = String(describing: error)
+            let failure = error as? VaultFileAccess.AccessError
+            lastLogError = failure?.displayMessage
+                ?? "The session log could not be written. Check the folder set in Settings; unwritten entries stay queued."
             diagnostics.write("log.write", level: .error, [
                 DiagnosticField("written", 0),
                 DiagnosticField("pending", logQueue.pendingCount),
-                DiagnosticField("why", String(describing: error)),
+                DiagnosticField("why", failure?.diagnosticSummary ?? ErrorCode(error).summary("unexpected")),
             ])
         }
     }
