@@ -16,7 +16,7 @@ private func atSpecPrecision(_ value: Double) -> Double {
     (value * 100).rounded() / 100
 }
 
-@Suite("カラートークンのコントラスト (REQ-COL-020)")
+@Suite("Color token contrast (REQ-COL-020)")
 struct ColorContrastTests {
 
     @Test func subtleStaysWithinSurfaceRange() {
@@ -26,7 +26,7 @@ struct ColorContrastTests {
                 for role in [HueRole.subtle, .subtleHover] {
                     let ratio = atSpecPrecision(p.color(hue, role).contrastRatio(against: p.bg))
                     #expect(ratio >= 1.10 && ratio <= 1.60,
-                            "\(mode)/\(hue)-\(role): \(ratio) は 1.10–1.60 の範囲外。面として認識できる最小差を守る")
+                            "\(mode)/\(hue)-\(role): \(ratio) is outside 1.10–1.60; a surface must stay just barely distinct from bg")
                 }
             }
         }
@@ -37,7 +37,7 @@ struct ColorContrastTests {
             let p = ColorPalette.palette(for: mode)
             for hue in ColorHue.allCases {
                 let ratio = atSpecPrecision(p.color(hue, .line).contrastRatio(against: p.bg))
-                #expect(ratio >= 2.00 && ratio <= 2.45, "\(mode)/\(hue)-line: \(ratio) は 2.00–2.45 の範囲外")
+                #expect(ratio >= 2.00 && ratio <= 2.45, "\(mode)/\(hue)-line: \(ratio) is outside 2.00–2.45")
             }
         }
     }
@@ -48,7 +48,7 @@ struct ColorContrastTests {
             let p = ColorPalette.palette(for: mode)
             for hue in ColorHue.allCases {
                 let ratio = p.color(hue, .graphic).contrastRatio(against: p.bg)
-                #expect(ratio >= 3.0, "\(mode)/\(hue)-graphic: \(ratio) が 3.0 を下回る")
+                #expect(ratio >= 3.0, "\(mode)/\(hue)-graphic: \(ratio) is below 3.0")
             }
         }
     }
@@ -62,9 +62,9 @@ struct ColorContrastTests {
                 for role in [HueRole.solid, .solidHover] {
                     let fill = p.color(hue, role)
                     #expect(fill.contrastRatio(against: p.bg) >= 4.5,
-                            "\(mode)/\(hue)-\(role): 対 bg \(fill.contrastRatio(against: p.bg))")
+                            "\(mode)/\(hue)-\(role): against bg \(fill.contrastRatio(against: p.bg))")
                     #expect(fill.contrastRatio(against: onSolid) >= 4.5,
-                            "\(mode)/\(hue)-\(role): 対 on-solid \(fill.contrastRatio(against: onSolid))")
+                            "\(mode)/\(hue)-\(role): against on-solid \(fill.contrastRatio(against: onSolid))")
                 }
             }
         }
@@ -121,12 +121,12 @@ struct ColorContrastTests {
         }()
         for (mode, name, color, expected) in anchors {
             let actual = color.contrastRatio(against: ColorPalette.palette(for: mode).bg)
-            #expect(abs(actual - expected) < 0.01, "\(mode)/\(name): 実測 \(actual) が 8.5.3 の記載 \(expected) と一致しない")
+            #expect(abs(actual - expected) < 0.01, "\(mode)/\(name): measured \(actual) does not match \(expected) as recorded in 8.5.3")
         }
     }
 }
 
-@Suite("色覚多様性下での識別性 (REQ-COL-020 / 021)")
+@Suite("Distinguishable under color vision deficiency (REQ-COL-020 / 021)")
 struct ColorVisionTests {
 
     private func sessionGraphics(_ mode: ColorMode) -> (focus: SRGBColor, short: SRGBColor, long: SRGBColor) {
@@ -144,7 +144,7 @@ struct ColorVisionTests {
                 ]
                 for (label, a, b) in pairs {
                     let delta = vision.simulate(a).deltaE(from: vision.simulate(b))
-                    #expect(delta >= 14, "\(mode)/\(vision)/\(label): ΔE \(delta) が 14 を下回る")
+                    #expect(delta >= 14, "\(mode)/\(vision)/\(label): ΔE \(delta) is below 14")
                 }
             }
         }
@@ -156,9 +156,9 @@ struct ColorVisionTests {
         for mode in allModes {
             let (focus, short, long) = sessionGraphics(mode)
             #expect(long.relativeLuminance < focus.relativeLuminance,
-                    "\(mode): Long \(long.relativeLuminance) は Focus \(focus.relativeLuminance) より暗いこと")
+                    "\(mode): Long \(long.relativeLuminance) must be darker than Focus \(focus.relativeLuminance)")
             #expect(focus.relativeLuminance < short.relativeLuminance,
-                    "\(mode): Focus \(focus.relativeLuminance) は Short \(short.relativeLuminance) より暗いこと")
+                    "\(mode): Focus \(focus.relativeLuminance) must be darker than Short \(short.relativeLuminance)")
         }
     }
 
@@ -166,13 +166,13 @@ struct ColorVisionTests {
     @Test func sessionLuminanceStepsAreSubstantial() {
         for mode in allModes {
             let (focus, short, long) = sessionGraphics(mode)
-            #expect(focus.relativeLuminance - long.relativeLuminance > 0.05, "\(mode): Long→Focus の段差が浅い")
-            #expect(short.relativeLuminance - focus.relativeLuminance > 0.05, "\(mode): Focus→Short の段差が浅い")
+            #expect(focus.relativeLuminance - long.relativeLuminance > 0.05, "\(mode): the Long-to-Focus luminance step is too shallow")
+            #expect(short.relativeLuminance - focus.relativeLuminance > 0.05, "\(mode): the Focus-to-Short luminance step is too shallow")
         }
     }
 }
 
-@Suite("役割マッピング (8.5.4 / REQ-COL-011 / 012)")
+@Suite("Role mapping (8.5.4 / REQ-COL-011 / 012)")
 struct ColorRoleTests {
 
     @Test func roleMappingFollowsSpec() {
@@ -201,17 +201,17 @@ struct ColorRoleTests {
     // セッション状態に使えるのは -graphic と -text のみ。バナー表現は warning に予約する。
     @Test func sessionRolesAreRestrictedToGraphicAndText() {
         for role in ColorRole.allCases where role.isSessionRole {
-            #expect(role.permittedRoles == [.graphic, .text], "\(role) に許される役が広すぎる")
-            #expect(!role.allowsBannerTreatment, "\(role) にバナー表現を許してはならない")
+            #expect(role.permittedRoles == [.graphic, .text], "\(role) permits too many hue roles")
+            #expect(!role.allowsBannerTreatment, "\(role) must not allow banner treatment")
         }
         #expect(ColorRole.warning.allowsBannerTreatment)
         #expect(ColorRole.warning.permittedRoles.contains(.subtle))
-        #expect(ColorRole.sessionLongBreak.hue == ColorRole.warning.hue, "同じ Ochre を共有していることが前提")
+        #expect(ColorRole.sessionLongBreak.hue == ColorRole.warning.hue, "the restriction assumes both share the Ochre hue")
     }
 
     // REQ-COL-010 / 013: 色だけに頼らせないため、進行リングの線種も種別ごとに変える。
     @Test func sessionTypesHaveDistinctRingStyles() {
         let styles = SessionType.allCases.map(\.progressRingStyle)
-        #expect(Set(styles).count == SessionType.allCases.count, "線種が重複している")
+        #expect(Set(styles).count == SessionType.allCases.count, "two session types share the same ring style")
     }
 }

@@ -117,25 +117,94 @@ try write(Data("""
 // MARK: - メニューバー
 
 // テンプレート画像として登録する。色は OS が地の明るさに合わせて決める（REQ-COL-022）。
-let menuBar = "\(repo)/PomodoroMac/PomodoroMac/Assets.xcassets/MenuBarIcon.imageset"
-print("menu bar")
-try FileManager.default.createDirectory(atPath: menuBar, withIntermediateDirectories: true)
-let glyph = try String(contentsOfFile: "\(repo)/Tools/mdoro-menubar.svg", encoding: .utf8)
-for (scale, px) in [(1, 16), (2, 32), (3, 48)] {
-    try write(fullBleed(image(glyph), px), "\(menuBar)/menu-bar-\(scale)x.png")
-}
-try write(Data("""
-{
-  "images" : [
-    { "filename" : "menu-bar-1x.png", "idiom" : "universal", "scale" : "1x" },
-    { "filename" : "menu-bar-2x.png", "idiom" : "universal", "scale" : "2x" },
-    { "filename" : "menu-bar-3x.png", "idiom" : "universal", "scale" : "3x" }
-  ],
-  "info" : { "author" : "xcode", "version" : 1 },
-  "properties" : { "template-rendering-intent" : "template" }
+// **形だけで状態を示す。** 3枚だけを使う。実を器に見立て、
+// 待機は満ちた実、進行中は水位、一時停止は空の器（REQ-UIX-030 / 035 / Decision 0031）。
+//
+// 正本は `docs/images/icons/` に置いた作者の SVG。ここは読むだけで、書き戻さない。
+let menuBarStates = [
+    ("MenuBarIdle", "mdoro-menubar-idle"),
+    ("MenuBarRunning", "mdoro-menubar-running-60"),
+    ("MenuBarPaused", "mdoro-menubar-paused"),
+]
+
+// メニューバーの高さは 24pt。慣例に従い 16〜18pt に収める。
+let menuBarPointSize = 18
+// 画布に対してインクが占める割合。SVG の余白をここで捨てる。
+let menuBarInkFill = 0.98
+
+// SVG の中で実際に描かれている範囲（viewBox の 100 座標系、y は上端から）。
+func inkBounds(_ img: NSImage, samples n: Int = 400) -> (x: Double, y: Double, w: Double, h: Double) {
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: n, pixelsHigh: n,
+                               bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                               isPlanar: false, colorSpaceName: .deviceRGB,
+                               bytesPerRow: 0, bitsPerPixel: 0)!
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    img.draw(in: NSRect(x: 0, y: 0, width: n, height: n))
+    NSGraphicsContext.restoreGraphicsState()
+
+    var minX = n, minY = n, maxX = -1, maxY = -1
+    for y in 0..<n {
+        for x in 0..<n {
+            guard let color = rep.colorAt(x: x, y: y), color.alphaComponent > 0.02 else { continue }
+            minX = min(minX, x); maxX = max(maxX, x)
+            minY = min(minY, y); maxY = max(maxY, y)
+        }
+    }
+    let unit = Double(n) / 100
+    return (Double(minX) / unit, Double(minY) / unit,
+            Double(maxX - minX + 1) / unit, Double(maxY - minY + 1) / unit)
 }
 
-""".utf8), "\(menuBar)/Contents.json")
+// 余白を捨ててインクを画布へ合わせる。
+//
+// **3枚には同じ変換をかけること。** 1枚ずつ切り詰めると、絵ごとにインクの幅が違うため
+// 拡大率がずれ、待機↔進行中↔一時停止の切り替わりで**印の大きさが跳ねる。**
+// そのため外接矩形は3枚の**和**を使う。
+func menuBarTile(_ img: NSImage, _ n: Int, ink: (x: Double, y: Double, w: Double, h: Double)) -> Data {
+    let k = Double(n) * menuBarInkFill / max(ink.w, ink.h)
+    let side = 100.0 * k
+    // `colorAt` は左上原点、描画は左下原点。y を裏返して中央へ置く。
+    let originX = Double(n) / 2 - (ink.x + ink.w / 2) * k
+    let originY = Double(n) / 2 - (side - (ink.y + ink.h / 2) * k)
+    return canvas(n) {
+        img.draw(in: NSRect(x: originX, y: originY, width: side, height: side))
+    }
+}
+
+print("menu bar")
+let menuBarImages = try menuBarStates.map { try image(String(
+    contentsOfFile: "\(repo)/docs/images/icons/\($0.1).svg", encoding: .utf8)) }
+
+var ink = inkBounds(menuBarImages[0])
+for img in menuBarImages.dropFirst() {
+    let b = inkBounds(img)
+    let right = max(ink.x + ink.w, b.x + b.w), bottom = max(ink.y + ink.h, b.y + b.h)
+    ink.x = min(ink.x, b.x); ink.y = min(ink.y, b.y)
+    ink.w = right - ink.x; ink.h = bottom - ink.y
+}
+print(String(format: "  ink x=%.1f y=%.1f w=%.1f h=%.1f (3枚の和)", ink.x, ink.y, ink.w, ink.h))
+
+for (index, state) in menuBarStates.enumerated() {
+    let dir = "\(repo)/PomodoroMac/PomodoroMac/Assets.xcassets/\(state.0).imageset"
+    try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    for scale in [1, 2, 3] {
+        try write(menuBarTile(menuBarImages[index], menuBarPointSize * scale, ink: ink),
+                  "\(dir)/menu-bar-\(scale)x.png")
+    }
+    try write(Data("""
+    {
+      "images" : [
+        { "filename" : "menu-bar-1x.png", "idiom" : "universal", "scale" : "1x" },
+        { "filename" : "menu-bar-2x.png", "idiom" : "universal", "scale" : "2x" },
+        { "filename" : "menu-bar-3x.png", "idiom" : "universal", "scale" : "3x" }
+      ],
+      "info" : { "author" : "xcode", "version" : 1 },
+      "properties" : { "template-rendering-intent" : "template" }
+    }
+
+    """.utf8), "\(dir)/Contents.json")
+}
 
 // MARK: - macOS
 

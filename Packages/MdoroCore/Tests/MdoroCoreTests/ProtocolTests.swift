@@ -4,7 +4,7 @@ import Foundation
 
 private let now = Date(timeIntervalSince1970: 1_700_000_000)
 
-@Suite("メッセージの符号化 (REQ-PRT-002 / 005 / 006)")
+@Suite("Message encoding (REQ-PRT-002 / 005 / 006)")
 struct MessageCodingTests {
 
     // REQ-PRT-002: type / messageId / sentAt は必須。
@@ -91,7 +91,7 @@ struct MessageCodingTests {
     }
 }
 
-@Suite("時刻同期 (REQ-COM-007 / 008 / 009)")
+@Suite("Time sync (REQ-COM-007 / 008 / 009)")
 struct TimeSyncTests {
 
     // REQ-COM-008 の式そのもの。
@@ -120,7 +120,7 @@ struct TimeSyncTests {
         var estimator = TimeSyncEstimator()
         estimator.add(TimeSyncSample(offset: 5, roundTrip: 0.4))
         estimator.add(TimeSyncSample(offset: 1, roundTrip: 0.05))
-        #expect(estimator.offset == 1, "いちばん速く返ってきたサンプルを採る")
+        #expect(estimator.offset == 1, "the sample with the fastest round trip must be used")
     }
 
     // 3件以上は直近7件の中央値。外れ値に引きずられない。
@@ -129,7 +129,7 @@ struct TimeSyncTests {
         for offset in [1.0, 1.1, 50.0, 1.2, 1.05] {
             estimator.add(TimeSyncSample(offset: offset, roundTrip: 0.1))
         }
-        #expect(estimator.offset == 1.1, "外れ値の 50 に引きずられない")
+        #expect(estimator.offset == 1.1, "the outlier 50 must not drag the median")
     }
 
     @Test func windowKeepsOnlyTheLastSeven() {
@@ -138,7 +138,7 @@ struct TimeSyncTests {
             estimator.add(TimeSyncSample(offset: Double(i), roundTrip: 0.1))
         }
         #expect(estimator.sampleCount == TimeSyncEstimator.windowSize)
-        #expect(estimator.offset == 16, "13...19 の中央値")
+        #expect(estimator.offset == 16, "the median of 13...19")
     }
 
     // REQ-COM-009: サーバー時刻を自端末の時計へ直す。
@@ -161,7 +161,7 @@ struct TimeSyncTests {
     }
 }
 
-@Suite("再接続とハートビート (REQ-COM-004 / 005)")
+@Suite("Reconnect and heartbeat (REQ-COM-004 / 005)")
 struct ReconnectTests {
 
     // REQ-COM-004: 初回1秒、上限30秒の指数バックオフ。
@@ -172,7 +172,7 @@ struct ReconnectTests {
         #expect(policy.nextDelay() == 4)
         #expect(policy.nextDelay() == 8)
         #expect(policy.nextDelay() == 16)
-        #expect(policy.nextDelay() == 30, "上限で頭打ち")
+        #expect(policy.nextDelay() == 30, "the backoff caps at 30 seconds")
         #expect(policy.nextDelay() == 30)
     }
 

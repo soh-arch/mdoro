@@ -13,7 +13,7 @@ private func context(_ text: String, selecting displayText: String? = nil) throw
     return ctx
 }
 
-@Suite("選択中タスクの状態 (REQ-TSK-034 / 036)")
+@Suite("State of the selected task (REQ-TSK-034 / 036)")
 struct SelectedTaskStateTests {
 
     @Test func judgementOrderIsNoneCompletedPresentMissing() throws {
@@ -37,8 +37,8 @@ struct SelectedTaskStateTests {
     @Test func showCompletedSettingDoesNotAffectTheJudgement() throws {
         let ctx = try context("- [x] 済んだもの", selecting: "済んだもの")
         #expect(ctx.selectedTaskState == .completed)
-        #expect(ctx.grouped(showCompleted: false).flatMap(\.items).isEmpty, "表示上は除外される")
-        #expect(ctx.selectedTaskState == .completed, "それでも missing にはならない")
+        #expect(ctx.grouped(showCompleted: false).flatMap(\.items).isEmpty, "it is filtered out of the visible list")
+        #expect(ctx.selectedTaskState == .completed, "but its state must still not be missing")
     }
 
     // REQ-TSK-036: 一覧に無い stableId は受け付けず、選択も変えない。
@@ -50,7 +50,7 @@ struct SelectedTaskStateTests {
     }
 }
 
-@Suite("再読み込みと選択の追従 (REQ-TSK-030〜035)")
+@Suite("Reload and selection follow-through (REQ-TSK-030–035)")
 struct TaskReloadTests {
 
     // REQ-TSK-030 / 031: 消えても自動的に選択を解除しない。
@@ -97,7 +97,7 @@ struct TaskReloadTests {
         #expect(selected.items[1].stableId.hasSuffix("#1"))
 
         let outcome = TaskReloader.reload(previous: selected, parsed: load("- [ ] 同じ本文"))
-        #expect(outcome.didFollow, "先行する重複が消えて ID がずれただけ")
+        #expect(outcome.didFollow, "a preceding duplicate disappeared, so the id merely shifted")
         #expect(outcome.context.selectedTaskState == .present)
     }
 
@@ -105,7 +105,7 @@ struct TaskReloadTests {
     @Test func blockIdNeedsNoFollowing() throws {
         let before = try context("- [ ] 仕様書のレビュー ^abc123", selecting: "仕様書のレビュー")
         let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] 全面的に書き直した文言 ^abc123"))
-        #expect(!outcome.didFollow, "ID が変わっていないので追従処理は走らない")
+        #expect(!outcome.didFollow, "the id did not change, so follow-through must not run")
         #expect(outcome.context.selectedTaskState == .present)
         #expect(outcome.context.selectedTaskSnapshot == "全面的に書き直した文言")
     }

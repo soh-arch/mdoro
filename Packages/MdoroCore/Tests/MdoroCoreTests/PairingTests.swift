@@ -9,7 +9,7 @@ private func hello(token: String? = nil, code: String? = nil, name: String = "iP
     HelloPayload(protocolVersion: version, deviceToken: token, pairingCode: code, deviceName: name)
 }
 
-@Suite("ペアリング (REQ-SEC-001 / 003 / REQ-ERR-006)")
+@Suite("Pairing (REQ-SEC-001 / 003 / REQ-ERR-006)")
 struct PairingSessionTests {
 
     @Test func codeIsSixDigits() {
@@ -48,11 +48,11 @@ struct PairingSessionTests {
         var session = PairingSession(code: "123456", startedAt: t0)
         for attempt in 1...4 {
             let outcome = session.verify("000000", now: t0)
-            #expect(outcome == .rejected(.invalidPairingCode), "\(attempt)回目")
+            #expect(outcome == .rejected(.invalidPairingCode), "attempt \(attempt)")
             #expect(!session.isLockedOut)
         }
         let fifth = session.verify("000000", now: t0)
-        #expect(fifth == .rejected(.pairingAttemptsExceeded), "5回目で打ち止め")
+        #expect(fifth == .rejected(.pairingAttemptsExceeded), "the fifth attempt locks pairing out")
         #expect(session.isLockedOut)
         // 打ち止め後は正しいコードでも通さない。当てずっぽうを続けさせない。
         let afterLockout = session.verify("123456", now: t0)
@@ -60,7 +60,7 @@ struct PairingSessionTests {
     }
 }
 
-@Suite("認証 (REQ-SEC-001 / 002 / 004 / REQ-PRT-004)")
+@Suite("Authentication (REQ-SEC-001 / 002 / 004 / REQ-PRT-004)")
 struct AuthenticatorTests {
 
     // REQ-SEC-003: ペアリングモードでないときのトークン無し接続は拒否する。
@@ -80,7 +80,7 @@ struct AuthenticatorTests {
         }
         #expect(token.deviceName == "iPhone")
         #expect(auth.issuedTokens.contains(token.value))
-        #expect(!auth.isPairingActive, "成功したらペアリングモードは閉じる")
+        #expect(!auth.isPairingActive, "pairing mode closes once a device is paired")
     }
 
     // REQ-SEC-002: 2回目以降はトークンで自動認証。ユーザー操作は要らない。
@@ -116,7 +116,7 @@ struct AuthenticatorTests {
         }
         let locked = auth.authenticate(hello(code: "000000"), now: t0)
         #expect(locked == .reject(.pairingAttemptsExceeded))
-        #expect(!auth.isPairingActive, "打ち止めでペアリングモードを終了する")
+        #expect(!auth.isPairingActive, "pairing mode ends when the attempt limit is reached")
     }
 
     // REQ-SEC-004: 既に別のクライアントが接続中なら、ユーザーの承認を待つ。
@@ -137,7 +137,7 @@ struct AuthenticatorTests {
     }
 }
 
-@Suite("コマンドの翻訳 (10.2 / REQ-PRT-003)")
+@Suite("Command translation (10.2 / REQ-PRT-003)")
 struct CommandTranslationTests {
 
     private func translate(_ action: CommandAction, _ params: CommandParams? = nil) -> Result<TimerAction, CommandTranslation.Failure> {
@@ -208,8 +208,8 @@ struct CommandTranslationTests {
         let stillRemembered = dedup.shouldProcess("a")
         #expect(!stillRemembered)
         let fourth = dedup.shouldProcess("d")
-        #expect(fourth, "容量を超えたら古いものから忘れる")
+        #expect(fourth, "the oldest id is forgotten once capacity is exceeded")
         let forgotten = dedup.shouldProcess("a")
-        #expect(forgotten, "忘れられた ID は再び処理される")
+        #expect(forgotten, "a forgotten id is processed again")
     }
 }

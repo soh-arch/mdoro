@@ -3,7 +3,7 @@ import Network
 @testable import MdoroiOS
 
 // **同じ Mac が「Name」「Name (2)」と重なって見える。** 消えきっていない Bonjour の広告である。
-@Suite("探索結果の重複まとめ")
+@Suite("Deduplicating discovery results")
 struct ServerBrowserDeduplicationTests {
 
     private func server(_ name: String) -> DiscoveredServer {

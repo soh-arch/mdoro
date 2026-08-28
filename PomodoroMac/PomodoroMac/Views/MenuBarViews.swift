@@ -2,23 +2,18 @@ import SwiftUI
 import MdoroCore
 
 // REQ-UIX-030 / 032 / 035 / REQ-COL-022: メニューバーのラベル。
-//
-// **メニューバーではアクセント色を使わない。** 地の明るさがユーザーの壁紙や外観設定で変わり、
-// コントラストを保証できないため（REQ-COL-022）。状態は**形（テンプレート画像）とテキスト**で示す。
+// **アクセント色を使わない。** 地の明るさが変わりコントラストを保証できない。
+// 状態は形（テンプレート画像）とテキストで示す。
 struct MenuBarLabelView: View {
     let model: AppModel
 
-    // メニューバーの時計もモデルが進める（MainWindowView と同じ理由）。
+    // 時計はモデルが進める。
     private var now: Date { model.displayNow }
 
     var body: some View {
         HStack(spacing: 4) {
-            // REQ-UIX-035: 未接続・再接続中は形状の違うアイコンにする。
-            if model.connection.menuBarUsesAppMark {
-                Image("MenuBarIcon")
-            } else {
-                Image(systemName: model.connection.menuBarSymbolName)
-            }
+            // REQ-UIX-035 / Decision 0031: 印が示すのは**実行状態**であって接続状態ではない。
+            Image(MenuBarMark.mark(for: model.timer.runState).assetName)
             if let text {
                 Text(text).monospacedDigit()
             }
@@ -43,20 +38,21 @@ struct MenuBarLabelView: View {
         }
     }
 
+    // REQ-UIX-038: 英語のみ。印が形で示す実行状態を、読み上げにも同じだけ言わせる。
     private var accessibilityLabel: String {
         let remaining = Format.spokenRemaining(model.remainingSeconds(at: now))
-        return "\(Format.sessionLabel(model.timer.sessionType))、\(remaining)、\(model.connection.label)"
+        return [Format.sessionLabel(model.timer.sessionType),
+                Format.runStateLabel(model.timer.runState),
+                remaining,
+                model.connection.label].joined(separator: ", ")
     }
 }
 
 // REQ-UIX-031 / Decision 0029: **危険度で階層を分ける。**
 //
-// 旧条文は操作を4つに絞っていたが、守っていたのは「誤操作」であって
-// 「メニューにあること」ではない。**確認を1段はさめば、深さは作れる。**
-//
 // 直下         … 取り返しのつく操作
 // 確認1段     … 中断・周回リセット（破壊的）
-// サブメニュー … 設定の一部（選ぶだけ。破壊的操作を含まない）
+// サブメニュー … 設定の一部（選ぶだけ）
 // 置かない     … プリセット編集・パス変更・ペアリング（不可逆か、外の世界に触る）
 struct MenuBarMenuContent: View {
     let model: AppModel
@@ -75,7 +71,7 @@ struct MenuBarMenuContent: View {
         case .idle, .finished:
             Button(nextSessionTitle) { model.startNextSession() }
         case .pendingDecision:
-            // 確認はメインウィンドウで行う（REQ-UIX-036 / REQ-PER-005）。
+            // REQ-UIX-036 / REQ-PER-005: 確認はメインウィンドウで行う。
             Text("A decision is needed")
             Button("Open the main window") { openMain() }
         }
@@ -108,7 +104,7 @@ struct MenuBarMenuContent: View {
         Divider()
 
         // --- 確認を1段はさむ ---
-        // **滑って押しても走らない。** 破壊的な操作を浅い場所に置かないための段。
+        // **滑って押しても走らない。**
         if isLive || model.timer.runState == .finished {
             Menu("Stop…") {
                 Button("Confirm stop") { model.send(.abort) }
@@ -122,13 +118,15 @@ struct MenuBarMenuContent: View {
 
         Divider()
 
+        // REQ-UIX-004 / Decision 0031: Mac 側の接続状態はここと下帯だけ。**読むだけの1行。**
+        Text("iPhone: \(model.connection.label)")
         SettingsLink { Text("Settings…") }
         Button("Open Main Window") { openMain() }
         Divider()
         Button("Quit") { NSApplication.shared.terminate(nil) }
     }
 
-    // 設定画面の一部を持ち出す。**選ぶだけで、外の世界には触らない。**
+    // **選ぶだけで、外の世界には触らない。**
     private var displayMenu: some View {
         Menu("Display") {
             Picker("Appearance", selection: Binding(
@@ -151,8 +149,7 @@ struct MenuBarMenuContent: View {
         }
     }
 
-    // REQ-TSK-004: タスクの選択はどちらの画面からでもできること。
-    // **一覧が長いときは打ち切る。** 縦長のメニューに1000件は載せられない。
+    // REQ-TSK-004: タスクの選択はどちらの画面からでもできること。**長い一覧は打ち切る。**
     @ViewBuilder
     private var taskMenu: some View {
         let sections = model.tasks.grouped(showCompleted: model.settings.showCompletedTasks)
@@ -174,7 +171,7 @@ struct MenuBarMenuContent: View {
                         }
                     }
                 }
-                // **選択の解除は最下段。** 上に置くと、タスクを選ぶつもりで押してしまう。
+                // **選択の解除は最下段。** 上だとタスクを選ぶつもりで押す。
                 if model.tasks.selectedTaskId != nil {
                     Divider()
                     Button("Clear selection") { model.clearTaskSelection() }

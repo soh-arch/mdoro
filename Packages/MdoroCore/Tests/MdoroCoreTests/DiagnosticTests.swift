@@ -18,7 +18,7 @@ private let header = DiagnosticHeader(
     openedAt: Date(timeIntervalSince1970: 1_756_000_000)
 )
 
-@Suite("診断ログの整形 (REQ-ERR-010)")
+@Suite("Diagnostic log formatting (REQ-ERR-010)")
 struct DiagnosticFormatTests {
 
     @Test func lineIsOneEventWithAlignedLevel() {
@@ -71,7 +71,7 @@ struct DiagnosticFormatTests {
     }
 }
 
-@Suite("診断ログの伏字 (Decision 0018)")
+@Suite("Diagnostic log redaction (Decision 0018)")
 struct DiagnosticRedactionTests {
 
     // 起動をまたいでも同じ値になること。`Hasher` は種が変わるので使えない。
@@ -94,7 +94,7 @@ struct DiagnosticRedactionTests {
     }
 }
 
-@Suite("診断ログのローテーション (Decision 0018)")
+@Suite("Diagnostic log rotation (Decision 0018)")
 struct DiagnosticRotationTests {
 
     @Test func doesNotRotateAnEmptyFile() {

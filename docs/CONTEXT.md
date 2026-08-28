@@ -13,7 +13,7 @@
 
 | 原則 | 根拠 |
 | :---- | :---- |
-| **`Task.md` へは一切書き込まない。** 実績は `PomodoroLog.md` へ挿入のみ（既存行の書き換え・削除は禁止）。ブックマークは `securityScopeAllowOnlyReadAccess` で読み取り専用として生成し、OS レベルでも担保する | [0002](decisions/0002-task-md-read-only.md) |
+| **`Task.md` へは一切書き込まない。** 実績は `MdoroLog.md` へ挿入のみ（既存行の書き換え・削除は禁止）。ブックマークは `securityScopeAllowOnlyReadAccess` で読み取り専用として生成し、OS レベルでも担保する | [0002](decisions/0002-task-md-read-only.md) |
 | **状態の正本は Mac。** iPhone は表示上のカウントダウン補間はしてよいが、**セッションの終了を確定してはならない。** 周回数の加算・ログ記録の判断は Mac だけが行う | [0001](decisions/0001-mac-as-single-source-of-truth.md) |
 | **時間は絶対時刻基準。** 残り秒数を同期しない。`sessionEndAt` を配って各端末が算出する。残り時間の算出には単調時計、`sessionEndAt` の生成とログ表記には壁時計を使う | [0001](decisions/0001-mac-as-single-source-of-truth.md) |
 | **色リテラルをビューに書かない。** 役割名（`sessionFocus`, `warning`, `danger`, `textPrimary`）で参照する | [0007](decisions/0007-oklch-color-system.md) |
@@ -228,8 +228,9 @@ iPhone 側に `.preferredColorScheme` が無く（Mac 側にはあった）、
 `timer.slash`（実在しない）を指定してメニューバー項目が消えた。
 `MdoroCore` の `SymbolNameTests` が全名称の実在を検証している。名前を増やしたらそこに足す。
 
-**アセット名も同じ失敗をする。** `Image("MenuBarIcon")` の名前を間違えても静かに何も出ない。
-アセットカタログ側は `Bundle(url:)?.image(forResource:)` で**ビルド成果物から引けるか**を見て確かめる
+**アセット名も同じ失敗をする。** `Image("MenuBarIdle")` の名前を間違えても静かに何も出ない。
+`MenuBarMarkTests` が imageset の実在とテンプレート指定を検査する。名前を増やしたらそこに足す。
+それでも不安なら `Bundle(url:)?.image(forResource:)` で**ビルド成果物から引けるか**を見る
 （2026-08-28、メニューバーの印を入れたときに確認した）。
 
 ### 似た名前の2つのタスク名スナップショット
@@ -560,6 +561,10 @@ iPhone はリスト、Mac は Form のまま、意味だけを揃える。
 6. 支援リンクの実装（About）。**済**（2026-08-28）
 7. 配布。**ソースからのビルドのみ**（2026-08-28 決定）。7日で失効することを README に書く
 8. `docs/` は日本語のまま公開する。README にその一文を置く
+9. **メニューバーの印。済**（2026-08-28）。待機 / 進行中 / 一時停止の3枚
+   （[0031](decisions/0031-the-menu-bar-mark-shows-the-session.md)、仕様 v2.9）。
+   **印は接続状態を示さない。** iPhone は背面に回れば切れるので、載せると常時「未接続」の顔になる。
+   正本は `docs/images/icons/`、書き出しは `swift Tools/make_icon.swift`
 
 #### 人間の Xcode 操作が要る作業
 
