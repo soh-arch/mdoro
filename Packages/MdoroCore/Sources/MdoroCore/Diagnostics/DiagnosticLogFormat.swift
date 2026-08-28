@@ -37,7 +37,7 @@ public struct DiagnosticHeader: Sendable, Equatable {
             DiagnosticField("interval", preset.longBreakInterval),
             DiagnosticField("extend", preset.extendSeconds),
             DiagnosticField("auto", preset.autoAdvance),
-            DiagnosticField("sound", preset.notificationSound.rawValue),
+            DiagnosticField("sound", preset.notificationSound.diagnosticValue),
             DiagnosticField("timeSensitive", preset.timeSensitiveNotifications),
             DiagnosticField("pre", preset.preNotifications.count),
             DiagnosticField("dayStart", settings.logicalDayStartHour),

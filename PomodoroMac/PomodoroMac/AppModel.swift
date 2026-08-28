@@ -127,7 +127,7 @@ final class AppModel {
     // REQ-NTF-006 / Decision 0019: 選んだ設定のまま通知を1件送る。
     func sendNotificationSoundTest(_ preset: Preset) {
         notifications.deliverSoundTest(preset: preset)
-        diagnostics.write("notify.test", [DiagnosticField("sound", preset.notificationSound.rawValue)])
+        diagnostics.write("notify.test", [DiagnosticField("sound", preset.notificationSound.diagnosticValue)])
     }
 
     func refreshNotificationPermission() async {
@@ -200,7 +200,7 @@ final class AppModel {
             )
             diagnostics.write("notify.finished", [
                 DiagnosticField("type", previousType.rawValue),
-                DiagnosticField("sound", preset.notificationSound.rawValue),
+                DiagnosticField("sound", preset.notificationSound.diagnosticValue),
                 DiagnosticField("timeSensitive", preset.timeSensitiveNotifications),
             ])
         }

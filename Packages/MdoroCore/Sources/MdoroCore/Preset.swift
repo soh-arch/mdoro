@@ -31,6 +31,10 @@ public enum NotificationSound: String, Equatable, Sendable, Codable, CaseIterabl
         case .silent: return "Silent"
         }
     }
+
+    // REQ-ERR-010 / Decision 0018: the log is read by a stranger on an issue, who has no table
+    // mapping the raw value (kept for compatibility by 10.3) to the name shown in settings.
+    public var diagnosticValue: String { "\(rawValue)(\(displayName))" }
 }
 
 public struct Preset: Equatable, Sendable, Codable, Identifiable {
