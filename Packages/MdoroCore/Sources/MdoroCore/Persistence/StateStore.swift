@@ -54,7 +54,21 @@ public extension StateStore {
     // REQ-PER-002 / 003: 読み込みと復元判定をまとめた起動時の入り口。
     // 保存が無ければ初期状態、あれば REQ-PER-003 の判定を通した状態を返す。
     func loadAndRestore(now: Date, settings: AppSettings = .default) throws -> TimerEngine.Reduction {
-        guard let saved = try load() else {
+        StateRestoration.reduction(from: try load(), now: now, settings: settings)
+    }
+}
+
+// REQ-ERR-017 / Decision 0035: reading and restoring are separate steps because a caller that
+// has to report the read's failure needs both halves of it — the failure and whatever it can
+// still show. Folding them together forced a second `load()` to get at the saved values, and
+// a second read is a second chance to fail differently.
+public enum StateRestoration {
+    public static func reduction(
+        from saved: PersistedState?,
+        now: Date,
+        settings: AppSettings = .default
+    ) -> TimerEngine.Reduction {
+        guard let saved else {
             let initial = PersistedState.initial(now: now, settings: settings)
             return TimerEngine.Reduction(context: initial.timer, presets: initial.presets, effects: [])
         }

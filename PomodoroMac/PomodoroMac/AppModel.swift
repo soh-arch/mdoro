@@ -52,6 +52,13 @@ final class AppModel {
     // REQ-TSK-032: 選択が自動追従したことを控えめに知らせる。
     private(set) var didFollowTaskSelection = false
 
+    // REQ-ERR-017 / Decision 0035: 復元の失敗は**起動時に1度**示す。
+    // 消せるのは利用者だけ。読まずに窓を開き直した人にもう一度出す。
+    private(set) var stateRestoreProblem: String?
+    // REQ-ERR-017 / Decision 0035: 保存の失敗は**解消するまで**出し続ける。
+    // 置き場所ごと作れなかった場合は解消しようがないので、そちらが優先して残る。
+    var stateSaveProblem: String? { (storeUnavailable ?? lastSaveFailure)?.displayMessage }
+
     // MARK: - 依存
 
     private let store: any StateStore
@@ -72,15 +79,34 @@ final class AppModel {
     private var watchedTaskURL: URL?
     private var tickTask: Task<Void, Never>?
 
+    // 保存先そのものが作れなかった。以降の保存はすべて失われるので、解消はしない。
+    private let storeUnavailable: StateStoreError?
+    // 直近の保存の失敗。次に書けたら消える。
+    private var lastSaveFailure: StateStoreError?
+    // 起動時の復元の失敗。診断ログはまだ開いていないので、`start()` まで持ち越して書く。
+    private var restoreFailure: StateStoreError?
+
     // MARK: - 生成
 
-    init(store: any StateStore, now: Date = Date()) {
+    init(store: any StateStore, now: Date = Date(), storeUnavailable: StateStoreError? = nil) {
         self.store = store
-        let restored = (try? store.loadAndRestore(now: now))
-        let saved = try? store.load()
+        self.storeUnavailable = storeUnavailable
 
-        self.timer = restored?.context ?? .idle(now: now)
-        self.presets = restored?.presets ?? .initial()
+        // REQ-ERR-017 / Decision 0035: **握り潰しは、失敗しないことと区別がつかない。**
+        // 読めなかったのか、保存が無かったのかで、その先の意味が違う。前者は画面に出す。
+        var saved: PersistedState?
+        var failure: StateStoreError?
+        do {
+            saved = try store.load()
+        } catch let error as StateStoreError {
+            failure = error
+        } catch {
+            failure = .ioFailed(ErrorCode(error))
+        }
+        let restored = StateRestoration.reduction(from: saved, now: now)
+
+        self.timer = restored.context
+        self.presets = restored.presets
         self.settings = saved?.settings ?? .default
         self.tasks = TaskContext(
             selectedTaskId: saved?.selectedTaskId,
@@ -89,22 +115,45 @@ final class AppModel {
         // REQ-LOG-005: 書き込めていないログを引き継ぐ。**捨てると二度と書かれない。**
         self.logQueue = LogWriteQueue(entries: saved?.pendingLogEntries ?? [])
         self.pendingLogCount = self.logQueue.pendingCount
+        self.restoreFailure = failure
+        self.stateRestoreProblem = failure?.displayMessage
 
         // REQ-PER-003(d): 復元で判断待ちになった場合、通知の取り消しなどの副作用も実行する。
-        apply(effects: restored?.effects ?? [])
+        apply(effects: restored.effects)
         persist()
     }
 
     convenience init() {
-        let store: any StateStore = (try? FileStateStore.inApplicationSupport()) ?? InMemoryStateStore()
-        self.init(store: store)
+        // REQ-ERR-017 / Decision 0035: 置き場所ごと作れないなら、以降の保存は**一度も**成功しない。
+        // 黙ってメモリへ落とすと、終了するまで気づけない。
+        do {
+            self.init(store: try FileStateStore.inApplicationSupport())
+        } catch let error as StateStoreError {
+            self.init(store: InMemoryStateStore(), storeUnavailable: error)
+        } catch {
+            self.init(store: InMemoryStateStore(), storeUnavailable: .ioFailed(ErrorCode(error)))
+        }
     }
+
+    // REQ-ERR-017 / Decision 0035: 復元の失敗は起動時に1度。読んだと言えるのは利用者だけ。
+    func acknowledgeStateRestoreProblem() { stateRestoreProblem = nil }
 
     // MARK: - ライフサイクル
 
     func start() {
         diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
         diagnostics.write("app.start")
+        // REQ-ERR-017 / Decision 0035: 起動より前に起きた失敗は、ログが開いた時点で書く。
+        if let restoreFailure {
+            diagnostics.write("state.restore", level: .error, [
+                DiagnosticField("why", restoreFailure.diagnosticSummary),
+            ])
+        }
+        if let storeUnavailable {
+            diagnostics.write("state.store", level: .error, [
+                DiagnosticField("why", storeUnavailable.diagnosticSummary),
+            ])
+        }
         Task {
             // REQ-ERR-010 / Decision 0034: the screen gets a sentence, the log gets a code.
             switch await notifications.requestAuthorization() {
@@ -755,17 +804,28 @@ final class AppModel {
     // MARK: - 永続化
 
     // REQ-PER-001: 状態が変化するたびに永続化する。
+    // REQ-ERR-017 / Decision 0035: 書けなかったことは、書けるようになるまで画面に出し続ける。
     private func persist() {
-        try? store.save(
-            PersistedState(
-                timer: timer,
-                presets: presets,
-                settings: settings,
-                selectedTaskId: tasks.selectedTaskId,
-                selectedTaskSnapshot: tasks.selectedTaskSnapshot,
-                pendingLogEntries: logQueue.pendingEntries,
-                savedAt: Date()
+        do {
+            try store.save(
+                PersistedState(
+                    timer: timer,
+                    presets: presets,
+                    settings: settings,
+                    selectedTaskId: tasks.selectedTaskId,
+                    selectedTaskSnapshot: tasks.selectedTaskSnapshot,
+                    pendingLogEntries: logQueue.pendingEntries,
+                    savedAt: Date()
+                )
             )
-        )
+            lastSaveFailure = nil
+        } catch {
+            // REQ-ERR-010 / Decision 0034: 画面には文、ログにはコード。
+            let failure = (error as? StateStoreError) ?? .ioFailed(ErrorCode(error))
+            lastSaveFailure = failure
+            diagnostics.write("state.save", level: .error, [
+                DiagnosticField("why", failure.diagnosticSummary),
+            ])
+        }
     }
 }
