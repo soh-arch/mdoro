@@ -4,9 +4,10 @@ import Foundation
 // words the OS chose. `localizedDescription` follows the system locale and usually carries a
 // file name, so what closes both leaks is the bridge, not the type: `init(_ error:)` is the
 // only way an OS failure gets in here, and it reads nothing but `domain` and `code`. The
-// other initialisers take values the app wrote itself. `ErrorReportingTests`
-// .aRefusalFromTheFileSystemKeepsOnlyItsDomainAndCode holds that bridge shut, by producing
-// the same failure in two folders the OS names differently and requiring one answer.
+// other initialisers take values the app wrote itself, and two stored fields leave nowhere
+// for a third. `ErrorReportingTests.aRefusalFromTheFileSystemKeepsOnlyItsDomainAndCode`
+// guards the half of that which varies with the file — it produces the same failure in two
+// folders the OS names differently and requires one answer. The rest is the two fields.
 public struct ErrorCode: Equatable, Hashable, Sendable, CustomStringConvertible {
 
     // Decision 0034: our own failures carry a domain too, so a reader of the diagnostic log
@@ -21,7 +22,9 @@ public struct ErrorCode: Equatable, Hashable, Sendable, CustomStringConvertible 
         self.code = code
     }
 
-    // Codes in the `Mdoro` domain are fixed per case. The table below owns every number.
+    // Codes in the `Mdoro` domain are fixed per case, and they are handed out in two places:
+    // the table below, and `TimerError.errorCode` in Effect.swift, which owns 40–49. Read
+    // both before taking a number — `everyCodeInOurOwnDomainMeansOneThing` walks the union.
     public init(own code: Int) {
         self.init(domain: Self.ownDomain, code: code)
     }
@@ -39,8 +42,9 @@ public struct ErrorCode: Equatable, Hashable, Sendable, CustomStringConvertible 
     public func summary(_ caseName: String) -> String { "\(caseName)(\(self))" }
 }
 
-// Decision 0034: fixed codes for the `Mdoro` domain. Allocated once here, never reused,
-// so a number found in an issue always means the same thing.
+// Decision 0034: fixed codes for the `Mdoro` domain. Allocated once, never reused, so a
+// number found in an issue always means the same thing. This is not the whole domain:
+// 40–49 are allocated with `TimerError` instead, at the bottom of this table.
 public extension ErrorCode {
     // 1–9: writing the session log.
     static let logInvalidFilePath = ErrorCode(own: 1)
@@ -69,8 +73,10 @@ public protocol DiagnosableError: Error {
 }
 
 // The screen asks a different question than the log: what happened, and what to do next.
-// Only failures that actually reach a screen answer it — the sentence lives with the case
-// so the two outputs never share a string. Fixed English (REQ-UIX-038), never from the OS.
+// A failure conforms when the sentence belongs with the case — one per case, so the screen
+// and the log never share a string. Fixed English (REQ-UIX-038), never from the OS.
+// Reaching a screen is not the test. `TimerError` reaches one, but `PresetEditorView` owns
+// that wording and folds several cases into a single line, so it stays diagnostic-only.
 public protocol ReportableError: DiagnosableError {
     var displayMessage: String { get }
 }

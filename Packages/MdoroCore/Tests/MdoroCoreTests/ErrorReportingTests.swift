@@ -68,9 +68,15 @@ struct ErrorReportingTests {
     // The point of the change: the words the OS chose survive nowhere.
     //
     // Refuse the same write twice, in two folders the OS will name differently. Everything
-    // the app produces has to come out identical, and it can only do that if none of what
-    // the OS said got through. Comparing against the OS text directly cannot show this:
-    // the app's output is short and the OS's is long, so containment only ever runs one way.
+    // the app produces has to come out identical, so nothing that varies with the file — a
+    // path, a name, or anything built from one — can have got through. That is the leak
+    // REQ-ERR-010 names, and it is as far as this comparison reaches: a constant slice of
+    // the OS's wording, the same on both runs, would pass here. What rules that out is that
+    // `ErrorCode` stores two fields and neither is a place to put one.
+    //
+    // Comparing the app's output against the OS text directly shows nothing either way: the
+    // output is short and the OS's is long, so containment only runs in the trivially true
+    // direction.
     @Test func aRefusalFromTheFileSystemKeepsOnlyItsDomainAndCode() throws {
         var refusals: [(error: LogWriteError, url: URL, directory: URL, osWords: String)] = []
         defer { refusals.forEach { discard($0.directory) } }
