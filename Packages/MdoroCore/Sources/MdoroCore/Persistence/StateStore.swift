@@ -5,7 +5,42 @@ public enum StateStoreError: Error, Equatable, Sendable {
     case corrupted
     // このビルドより新しいスキーマ。ダウングレード時に読み書きして壊さないための防壁。
     case unsupportedSchemaVersion(found: Int, supported: Int)
-    case ioFailed(String)
+    // REQ-ERR-010 / Decision 0034: a domain and a code, never the words the OS chose.
+    case ioFailed(ErrorCode)
+}
+
+extension StateStoreError: DiagnosableError {
+
+    public var errorCode: ErrorCode {
+        switch self {
+        case .corrupted: .stateCorrupted
+        case .unsupportedSchemaVersion: .stateUnsupportedSchemaVersion
+        case let .ioFailed(code): code
+        }
+    }
+
+    public var diagnosticSummary: String { errorCode.summary(caseName) }
+
+    private var caseName: String {
+        switch self {
+        case .corrupted: "corrupted"
+        case .unsupportedSchemaVersion: "unsupportedSchemaVersion"
+        case .ioFailed: "ioFailed"
+        }
+    }
+
+    // REQ-UIX-038 / Decision 0034: fixed English per case. The saved file is never
+    // overwritten on these, so every sentence points at the file rather than at a retry.
+    public var displayMessage: String {
+        switch self {
+        case .corrupted:
+            "The saved state could not be read. Mdoro left the file alone; move it aside to start from a clean state."
+        case .unsupportedSchemaVersion:
+            "The saved state was written by a newer version of Mdoro. Update Mdoro, or move the file aside to start from a clean state."
+        case .ioFailed:
+            "The saved state could not be read or written. Check that Mdoro's Application Support folder is available."
+        }
+    }
 }
 
 // REQ-PER-001 / 002: 永続化と復元の窓口。実体の差し替えでテストできるようにする。
