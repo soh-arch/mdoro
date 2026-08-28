@@ -92,7 +92,7 @@ struct MenuBarMenuContent: View {
                         model.send(.selectPreset(id: candidate.id))
                     } label: {
                         // REQ-UIX-008: 時間構成を併記する。
-                        Text("\(candidate.name)（\(Format.presetShape(candidate))）"
+                        Text("\(candidate.name) (\(Format.presetShape(candidate)))"
                              + (candidate.id == preset.id ? " ✓" : ""))
                     }
                 }

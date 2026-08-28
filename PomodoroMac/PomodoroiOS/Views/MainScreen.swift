@@ -173,9 +173,9 @@ struct MainScreen: View {
             HStack(spacing: 8) {
                 Text("Preset").font(.footnote).foregroundStyle(theme.textTertiary)
                 if presets.count >= 2 {
-                    Menu("\(preset.name)（\(Format.presetShape(preset))）") {
+                    Menu("\(preset.name) (\(Format.presetShape(preset)))") {
                         ForEach(presets) { candidate in
-                            Button("\(candidate.name)（\(Format.presetShape(candidate))）") {
+                            Button("\(candidate.name) (\(Format.presetShape(candidate)))") {
                                 model.send(.selectPreset, params: CommandParams(presetId: candidate.id))
                             }
                         }
@@ -183,7 +183,7 @@ struct MainScreen: View {
                     .disabled(!model.isConnected)
                 } else {
                     // REQ-PRS-013: 1件のときは切替 UI を出さない。追加は Mac 側で行う。
-                    Text("\(preset.name)（\(Format.presetShape(preset))）")
+                    Text("\(preset.name) (\(Format.presetShape(preset)))")
                         .foregroundStyle(theme.textPrimary)
                 }
                 Spacer()
