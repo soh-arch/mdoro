@@ -2,43 +2,7 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
-// Tests/MdoroCoreTests/ から5つ上がリポジトリのルート。
-private var repositoryRoot: URL {
-    var url = URL(fileURLWithPath: #filePath)
-    for _ in 0..<5 { url.deleteLastPathComponent() }
-    return url
-}
-
-private func source(_ path: String) throws -> String {
-    try String(contentsOf: repositoryRoot.appendingPathComponent(path), encoding: .utf8)
-}
-
-// A comment is exactly where a token can sit without doing anything, and these tests are
-// about what the code does, so comments come out before any of them looks.
-private func withoutComments(_ text: String) -> String {
-    text.split(separator: "\n", omittingEmptySubsequences: false)
-        .map { line -> Substring in
-            guard let marker = line.range(of: "//") else { return line }
-            return line[line.startIndex..<marker.lowerBound]
-        }
-        .joined(separator: "\n")
-}
-
-// Every .swift under a directory, keyed by file name, comments already stripped.
-private func swiftFiles(under directory: String, recursive: Bool = false) throws -> [String: String] {
-    let base = repositoryRoot.appendingPathComponent(directory)
-    let names: [String]
-    if recursive {
-        names = FileManager.default.enumerator(atPath: base.path)?
-            .compactMap { $0 as? String }.filter { $0.hasSuffix(".swift") } ?? []
-    } else {
-        names = try FileManager.default.contentsOfDirectory(atPath: base.path).filter { $0.hasSuffix(".swift") }
-    }
-    return try names.reduce(into: [:]) { result, name in
-        result[URL(fileURLWithPath: name).lastPathComponent] =
-            withoutComments(try String(contentsOf: base.appendingPathComponent(name), encoding: .utf8))
-    }
-}
+// リポジトリのソースを読む道具は `RepositorySources.swift`。
 
 private func temporaryDirectory() throws -> URL {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory())
