@@ -124,9 +124,6 @@
     "Cancel" : {
 
     },
-    "Cannot listen for connections: %@" : {
-
-    },
     "Change…" : {
 
     },
@@ -185,6 +182,9 @@
 
     },
     "Diagnostic log" : {
+
+    },
+    "Dismiss" : {
 
     },
     "Display" : {
@@ -335,6 +335,9 @@
 
     },
     "More in the main window" : {
+
+    },
+    "Moved aside as: %@" : {
 
     },
     "Name" : {
@@ -538,7 +541,7 @@
     "The connected device will be disconnected. Denied automatically after 60 seconds." : {
 
     },
-    "The diagnostic log cannot be written: %@" : {
+    "The diagnostic log cannot be written (%@). Nothing else is affected — quote this code in a bug report." : {
 
     },
     "The last preset cannot be deleted." : {
@@ -548,6 +551,9 @@
 
     },
     "The preset in use cannot be deleted." : {
+
+    },
+    "The previous state could not be restored" : {
 
     },
     "The session had already ended" : {
