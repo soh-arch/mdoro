@@ -125,13 +125,16 @@ struct SettingsView: View {
                 }
                 Spacer()
             }
+            // REQ-ERR-010 / Decision 0035: **画面にコードを出す唯一の場面。**
+            // この失敗のコードはログには書けない（ログが壊れている）。捨てるか、ここに出すかしかない。
             if let failure = model.diagnostics.lastFailure {
-                Text("The diagnostic log cannot be written: \(failure)")
+                Text("The diagnostic log cannot be written (\(failure.description)). Nothing else is affected — quote this code in a bug report.")
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(theme.color(.danger, .text))
+                    .textSelection(.enabled)
             }
             if let diagnosticsError {
-                Text(diagnosticsError).font(.footnote).foregroundStyle(.red)
+                Text(diagnosticsError).font(.footnote).foregroundStyle(theme.color(.danger, .text))
             }
         }
     }
@@ -145,7 +148,13 @@ struct SettingsView: View {
             try model.diagnostics.exportedText().write(to: url, atomically: true, encoding: .utf8)
             diagnosticsError = nil
         } catch {
-            diagnosticsError = String(describing: error)
+            // REQ-ERR-010 / Decision 0034: the screen gets a sentence, the log gets the code.
+            // Unlike the row above, this failure can be logged — the log itself still works —
+            // so Decision 0035's one exception does not reach here.
+            diagnosticsError = "Mdoro could not write the export to that location. Choose another folder and try again."
+            model.diagnostics.write("diagnostics.export", level: .warn, [
+                DiagnosticField("why", ErrorCode(error).summary("exportFailed")),
+            ])
         }
     }
 

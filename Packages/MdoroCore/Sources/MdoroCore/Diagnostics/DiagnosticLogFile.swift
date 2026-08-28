@@ -9,7 +9,10 @@ public final class DiagnosticLogFile: @unchecked Sendable {
     public var previousURL: URL { directory.appendingPathComponent(DiagnosticLogFormat.previousFileName) }
 
     // ログ自体が書けないことも黙らせない。
-    public private(set) var lastFailure: String?
+    // REQ-ERR-010 / Decision 0034 / 0035: a domain and a code, never the words the OS chose.
+    // This is the one failure whose code has nowhere to be written down — the log is the thing
+    // that is broken — so it goes to the settings screen instead, and it goes there as a code.
+    public private(set) var lastFailure: ErrorCode?
 
     private let header: DiagnosticHeader
     private let maxBytes: Int
@@ -35,7 +38,7 @@ public final class DiagnosticLogFile: @unchecked Sendable {
             try append(DiagnosticLogFormat.line(event) + "\n")
             lastFailure = nil
         } catch {
-            lastFailure = String(describing: error)
+            lastFailure = ErrorCode(error)
         }
     }
 
