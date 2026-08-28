@@ -325,6 +325,12 @@
     "Mdoro has no ads, no in-app purchases, and no analytics. If it is useful to you, this opens the page in your browser." : {
 
     },
+    "Mdoro is no longer allowed into that folder. Choose it again in Settings." : {
+
+    },
+    "Mdoro was not given access to that folder. Choose it again in Settings." : {
+
+    },
     "Menu bar" : {
 
     },
@@ -542,6 +548,9 @@
 
     },
     "The diagnostic log cannot be written (%@). Nothing else is affected — quote this code in a bug report." : {
+
+    },
+    "The folder Mdoro was given access to can no longer be found. Choose it again in Settings." : {
 
     },
     "The last preset cannot be deleted." : {
