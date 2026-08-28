@@ -15,7 +15,7 @@ private func symbolExists(_ name: String) -> Bool {
 
 // **存在しない SF Symbol 名は、エラーにならず何も描かれない。**
 // 実在しない名前を指定するとメニューバー項目が丸ごと消える。名前を増やしたらここに足すこと。
-@Suite("SF Symbol 名の実在 (REQ-UIX-030 / 035)")
+@Suite("SF Symbol names exist (REQ-UIX-030 / 035)")
 struct SymbolNameTests {
 
     // `peerSymbolName` は `#if os(macOS)` で分岐するため、テストを走らせた側の名前しか通らない。
@@ -29,16 +29,16 @@ struct SymbolNameTests {
                      "largecircle.fill.circle", "circle",
                      // Live Activity のセッション記号。
                      "cup.and.saucer", "moon.zzz"] {
-            #expect(symbolExists(name), "\(name) が実在しない")
+            #expect(symbolExists(name), "\(name) does not exist")
         }
     }
 
     @Test func connectionStatusSymbolsExist() {
         for status in ConnectionStatus.allCases {
             #expect(symbolExists(status.symbolName),
-                    "\(status): 画面用の \(status.symbolName) が実在しない")
+                    "\(status): on-screen symbol \(status.symbolName) does not exist")
             #expect(symbolExists(status.peerSymbolName),
-                    "\(status): 相手端末用の \(status.peerSymbolName) が実在しない")
+                    "\(status): peer-device symbol \(status.peerSymbolName) does not exist")
         }
     }
 

@@ -16,7 +16,7 @@ private func hasCommitLog(_ effects: [Effect]) -> Bool {
 
 // REQ-TIM-032 / REQ-TIM-005: 正味稼働時間が 60 秒未満のセッションはログに記録しない。
 // 境界の両側を押さえる。
-@Suite("短すぎるセッションは記録しない (REQ-TIM-032)")
+@Suite("Too-short sessions are not recorded (REQ-TIM-032)")
 struct ShortSessionTests {
 
     private func abort(after seconds: TimeInterval) throws -> [Effect] {
@@ -73,12 +73,12 @@ struct ShortSessionTests {
         let aborted = try TimerEngine.reduce(
             action: .abort, context: resumed.context, presets: presets, now: t0.addingTimeInterval(100)
         ).get()
-        #expect(!hasCommitLog(aborted.effects), "正味 30 秒なので記録しない")
+        #expect(!hasCommitLog(aborted.effects), "a net 30 seconds is under the threshold, so nothing is recorded")
     }
 }
 
 // 表示の一貫性。一時停止で残り時間が飛ぶと、動いているものが信用できなくなる。
-@Suite("一時停止で残り時間が変わらない")
+@Suite("Pausing does not change the remaining time")
 struct PauseRoundingTests {
 
     private func presets() -> PresetContext {
@@ -105,7 +105,7 @@ struct PauseRoundingTests {
             ).get().context
 
             #expect(paused.remainingSeconds == displayedWhileRunning,
-                    "+\(offsetMilliseconds)ms で一時停止したとき、表示が \(displayedWhileRunning) から動いてはならない")
+                    "pausing at +\(offsetMilliseconds)ms must not move the display away from \(displayedWhileRunning)")
         }
     }
 
