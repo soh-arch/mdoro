@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
-@Suite("読み込みの頑健性 (REQ-ERR-001 / 002 / 003)")
+@Suite("Robust loading (REQ-ERR-001 / 002 / 003)")
 struct TaskLoadRobustnessTests {
 
     // REQ-ERR-002: パースに失敗しても空リストで上書きしない。
@@ -18,9 +18,9 @@ struct TaskLoadRobustnessTests {
         try previous.select(id: parsed.items[0].stableId)
 
         let outcome = TaskReloader.reload(previous: previous, result: .failure(TaskParseError.undecodable))
-        #expect(outcome.context.items.count == 2, "REQ-ERR-002: 空リストで上書きしない")
-        #expect(outcome.context.selectedTaskState == .present, "選択を missing に落とさない")
-        #expect(outcome.context.loadFailed, "エラーを表示できるようにする")
+        #expect(outcome.context.items.count == 2, "REQ-ERR-002: must not overwrite the list with an empty one")
+        #expect(outcome.context.selectedTaskState == .present, "the selection must not drop to missing")
+        #expect(outcome.context.loadFailed, "the failure must be recorded so the UI can show it")
     }
 
     @Test func successfulReloadClearsTheErrorFlag() throws {
@@ -53,14 +53,14 @@ struct TaskLoadRobustnessTests {
     }
 }
 
-@Suite("パースの境界 (REQ-TSK-011 / 013 / 015 / 020)")
+@Suite("Parsing boundaries (REQ-TSK-011 / 013 / 015 / 020)")
 struct TaskParsingEdgeTests {
 
     // 見出しをまたいで親子関係を引き継がない。
     @Test func parentageDoesNotLeakAcrossHeadings() {
         let items = TaskParser.parse("## A\n- [ ] 親A\n\n## B\n    - [ ] Bの下の字下げ").items
         let leaked = items.first { $0.section == "B" }!
-        #expect(leaked.parentId == nil, "別の見出しのタスクを親にしてはならない")
+        #expect(leaked.parentId == nil, "a task under another heading must not become the parent")
     }
 
     // コードブロックの中は Markdown ではない。
@@ -84,7 +84,7 @@ struct TaskParsingEdgeTests {
     @Test func duplicateBlockIdsStayUnique() {
         let items = TaskParser.parse("- [ ] タスク ^abc\n- [ ] 別のタスク ^abc").items
         #expect(Set(items.map(\.stableId)).count == 2)
-        #expect(items[0].stableId == "abc", "先頭は接尾辞を付けず安定させる")
+        #expect(items[0].stableId == "abc", "the first occurrence keeps the bare id, with no suffix")
         #expect(items[0].idKind == .blockId)
     }
 
@@ -99,14 +99,14 @@ struct TaskParsingEdgeTests {
     @Test func displayTextStripsPairedEmphasisAndTags() {
         #expect(TaskParser.parse("- [ ] **強調** と `コード`").items[0].displayText == "強調 と コード")
         #expect(TaskParser.parse("- [ ] 買い物 #家事").items[0].displayText == "買い物",
-                "REQ-TSK-015: 生のタグ記法を残さない。ログ行にも入れない")
+                "REQ-TSK-015: raw tag syntax must not survive into the display text or the log line")
     }
 
     // REQ-TSK-022: 絵文字は表示形式によらず落とす。落ち方が揺れると stableId が揺れる。
     @Test func emojiAreRemovedRegardlessOfPresentation() {
         let plain = TaskParser.parse("- [ ] タスク").items[0].normalizedText
         for decorated in ["- [ ] タスク 🔥", "- [ ] タスク ❤️", "- [ ] タスク ☀", "- [ ] タスク 1️⃣"] {
-            #expect(TaskParser.parse(decorated).items[0].normalizedText == plain, "\(decorated) が正規化しきれていない")
+            #expect(TaskParser.parse(decorated).items[0].normalizedText == plain, "\(decorated) was not fully normalized")
         }
     }
 
@@ -115,7 +115,7 @@ struct TaskParsingEdgeTests {
     }
 }
 
-@Suite("ファイル監視 (REQ-TSK-002 / REQ-PLT-006)")
+@Suite("File watching (REQ-TSK-002 / REQ-PLT-006)")
 struct FileWatcherTests {
 
     private func makeDirectory() throws -> URL {
@@ -150,7 +150,7 @@ struct FileWatcherTests {
 
         let deadline = Date().addingTimeInterval(3)
         while counter.count == 0, Date() < deadline { usleep(20_000) }
-        #expect(counter.count >= 1, "inode が差し替わっても検知できること")
+        #expect(counter.count >= 1, "a change must be detected even when the inode is replaced")
     }
 
     // REQ-TSK-002: 300ms のデバウンスを挟む。連続保存のたびに読み直さない。
@@ -173,7 +173,7 @@ struct FileWatcherTests {
         let deadline = Date().addingTimeInterval(3)
         while counter.count == 0, Date() < deadline { usleep(20_000) }
         usleep(400_000)
-        #expect(counter.count == 1, "5回の保存が1回の再読み込みに束ねられること (実測 \(counter.count) 回)")
+        #expect(counter.count == 1, "5 saves must coalesce into 1 reload (observed \(counter.count))")
     }
 
     @Test func defaultDebounceIsThreeHundredMilliseconds() {

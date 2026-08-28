@@ -36,7 +36,7 @@ private func entry(
     )
 }
 
-@Suite("ログ1行の整形 (REQ-LOG-010〜017)")
+@Suite("Log line formatting (REQ-LOG-010–017)")
 struct LogFormatterTests {
 
     // 7.2 の出力例をそのまま再現できること。
@@ -82,7 +82,7 @@ struct LogFormatterTests {
     // 対照として先に確かめ、以下の否定が「周回を出す条件が揃っているのに抑止されている」ことを示すようにする。
     @Test func loopCountIsOmittedForBreaksAndAbnormalEndings() {
         #expect(LogFormatter.line(for: entry(), calendar: calendar).contains("Loop 1/4"),
-                "対照: 同じ入力の WORK 正常完了行には周回が付く")
+                "control: the same input on a completed WORK line does carry the loop")
 
         #expect(!LogFormatter.line(for: entry(outcome: .aborted), calendar: calendar).contains("Loop"))
         #expect(!LogFormatter.line(for: entry(outcome: .skipped), calendar: calendar).contains("Loop"))
@@ -133,7 +133,7 @@ struct LogFormatterTests {
             longBreakInterval: 4, logicalDate: day
         )
         #expect(LogFormatter.dayHeading(for: crossing.logicalDate, calendar: calendar) == "## 2026-08-24 (Mon)",
-                "終了が翌日でも、開始側の日付見出しへ記録する")
+                "a session ending the next day belongs under the heading of the day it started")
         #expect(LogFormatter.line(for: crossing, calendar: calendar).hasPrefix("- 03:50–04:15"))
     }
 
@@ -143,7 +143,7 @@ struct LogFormatterTests {
     }
 }
 
-@Suite("ログファイルへの挿入 (REQ-LOG-001 / 003 / 022)")
+@Suite("Inserting into the log file (REQ-LOG-001 / 003 / 022)")
 struct LogFileEditorTests {
 
     private func insert(into existing: String, _ line: String = "- 新しい行") throws -> String {
@@ -181,7 +181,7 @@ struct LogFileEditorTests {
         let index = lines.firstIndex(of: "- 新しい行")!
         #expect(lines[index - 1] == "- 既存の行2")
         #expect(lines[index + 1] == "")
-        #expect(lines[index + 2] == "## 2026-08-25 (Tue)", "翌日のセクションの前に入る")
+        #expect(lines[index + 2] == "## 2026-08-25 (Tue)", "the new line must land before the next day's section")
     }
 
     // **既存行は1行たりとも変えない。** これが第一原則。
@@ -202,11 +202,11 @@ struct LogFileEditorTests {
         """
         let result = try insert(into: existing)
         for line in existing.components(separatedBy: "\n") where !line.isEmpty {
-            #expect(result.contains(line), "既存行が失われた: \(line)")
+            #expect(result.contains(line), "an existing line was lost: \(line)")
         }
         let before = existing.components(separatedBy: "\n").filter { !$0.isEmpty }
         let after = result.components(separatedBy: "\n").filter { !$0.isEmpty && $0 != "- 新しい行" }
-        #expect(before == after, "既存行の順序と内容が保たれていない")
+        #expect(before == after, "the order and content of existing lines must be preserved")
     }
 
     // REQ-LOG-022: 見出しが外部で削除・改名されていたら、再作成してファイル末尾へ追記する。
@@ -227,29 +227,29 @@ struct LogFileEditorTests {
     @Test func renamedHeadingIsMatchedByItsDate() throws {
         let existing = "## 2026-08-24 (Monday)\n\n- 既存の行\n"
         let result = try insert(into: existing)
-        #expect(result.components(separatedBy: "## ").count == 2, "見出しを二重に作らない")
-        #expect(result.contains("## 2026-08-24 (Monday)"), "既存の見出しは書き換えない")
+        #expect(result.components(separatedBy: "## ").count == 2, "must not create a second heading for the same day")
+        #expect(result.contains("## 2026-08-24 (Monday)"), "must not rewrite the existing heading")
     }
 
     // REQ-LOG-003 / REQ-LOG-022: ユーザーが自分で書いた見出しに日付が含まれていても、当該見出しとみなさない。
     @Test func userHeadingContainingADateIsNotTreatedAsTheDaySection() throws {
         let existing = "## 週次レビュー 2026-08-24 の分\n\n- ユーザーのメモ\n"
         let result = try insert(into: existing)
-        #expect(result.contains("## 2026-08-24 (Mon)"), "日付見出しを新設する")
+        #expect(result.contains("## 2026-08-24 (Mon)"), "must create a new date heading")
         let lines = result.components(separatedBy: "\n")
         let memo = lines.firstIndex(of: "- ユーザーのメモ")!
         let inserted = lines.firstIndex(of: "- 新しい行")!
-        #expect(inserted > memo + 1, "ユーザーの節の中へ混入させない")
+        #expect(inserted > memo + 1, "must not insert into a section the user wrote")
     }
 
     // 既存行を1行でも失う挿入は、書き込む前に止める。第1原則を守る最後の砦。
     @Test func theGuardRejectsAnInsertionThatWouldLoseLines() {
         #expect(!LogFileEditor.preservesAllLines(
             original: ["a", "b"], updated: ["a", "新", "c"], insertedAt: 1, count: 1),
-                "既存行が書き換わった場合は通してはならない")
+                "a rewritten existing line must not pass the guard")
         #expect(!LogFileEditor.preservesAllLines(
             original: ["a", "b"], updated: ["a", "新"], insertedAt: 1, count: 1),
-                "行数が合わない場合は通してはならない")
+                "a mismatched line count must not pass the guard")
         #expect(LogFileEditor.preservesAllLines(
             original: ["a", "b"], updated: ["a", "新", "b"], insertedAt: 1, count: 1))
     }
@@ -258,7 +258,7 @@ struct LogFileEditorTests {
     @Test func crlfFilesKeepTheirLineEndings() throws {
         let existing = "## 2026-08-24 (Mon)\r\n\r\n- 既存の行\r\n"
         let result = try insert(into: existing)
-        #expect(!result.contains("- 既存の行\r\n- 新しい行\n"), "挿入行だけ LF にしない")
+        #expect(!result.contains("- 既存の行\r\n- 新しい行\n"), "the inserted line must not use LF in a CRLF file")
         #expect(result == "## 2026-08-24 (Mon)\r\n\r\n- 既存の行\r\n- 新しい行\r\n")
     }
 
@@ -269,7 +269,7 @@ struct LogFileEditorTests {
     }
 }
 
-@Suite("ログの書き込み (REQ-LOG-002 / 004 / 005 / 021)")
+@Suite("Writing the log file (REQ-LOG-002 / 004 / 005 / 021)")
 struct LogWriterTests {
 
     private func temporaryDirectory() -> URL {
@@ -313,7 +313,7 @@ struct LogWriterTests {
 
         try writer.append(entry(start: at(10, 0), end: at(10, 25), loopAfter: 2), calendar: calendar)
         let contents = try String(contentsOf: url, encoding: .utf8)
-        #expect(contents.contains("- ユーザーが手で書いた行"), "外部で加えられた行を失ってはならない")
+        #expect(contents.contains("- ユーザーが手で書いた行"), "a line added outside the app must not be lost")
         #expect(contents.contains("Loop 2/4"))
     }
 
@@ -339,7 +339,7 @@ struct LogWriterTests {
     }
 }
 
-@Suite("書き込み失敗時の再試行 (REQ-LOG-005 / REQ-ERR-004)")
+@Suite("Retrying a failed write (REQ-LOG-005 / REQ-ERR-004)")
 struct LogWriteQueueTests {
 
     @Test func failuresKeepEntriesQueuedAndNotifyOnTheThirdAttempt() {
@@ -349,7 +349,7 @@ struct LogWriteQueueTests {
 
         var result = queue.flush { _ in throw LogWriteError.writeFailed("disk") }
         #expect(result.written == 0)
-        #expect(result.pending == 2, "失敗した分はキューに残す")
+        #expect(result.pending == 2, "entries that failed to write stay queued")
         #expect(!result.shouldNotify)
 
         result = queue.flush { _ in throw LogWriteError.writeFailed("disk") }
@@ -358,10 +358,10 @@ struct LogWriteQueueTests {
 
         result = queue.flush { _ in throw LogWriteError.writeFailed("disk") }
         #expect(result.consecutiveFailures == LogWriteQueue.failureThreshold)
-        #expect(result.shouldNotify, "REQ-ERR-004: 3回失敗した時点で通知する")
+        #expect(result.shouldNotify, "REQ-ERR-004: notify on the third consecutive failure")
 
         result = queue.flush { _ in throw LogWriteError.writeFailed("disk") }
-        #expect(!result.shouldNotify, "同じ障害で鳴らし続けない")
+        #expect(!result.shouldNotify, "must not keep notifying about the same ongoing failure")
     }
 
     @Test func successDrainsTheQueueInOrderAndResetsTheCounter() {
@@ -375,7 +375,7 @@ struct LogWriteQueueTests {
         #expect(result.written == 2)
         #expect(result.pending == 0)
         #expect(result.consecutiveFailures == 0)
-        #expect(written == [at(9, 0), at(10, 0)], "時系列の記録なので順序を守る")
+        #expect(written == [at(9, 0), at(10, 0)], "the log is a time series, so write order must be preserved")
     }
 
     @Test func aFailureMidwayStopsAndKeepsTheRest() {
@@ -393,7 +393,7 @@ struct LogWriteQueueTests {
     }
 }
 
-@Suite("ログのタスク名は開始時点のスナップショット (REQ-LOG-023)")
+@Suite("The logged task name is the snapshot from session start (REQ-LOG-023)")
 struct LogTaskSnapshotTests {
 
     private func preset() -> Preset {

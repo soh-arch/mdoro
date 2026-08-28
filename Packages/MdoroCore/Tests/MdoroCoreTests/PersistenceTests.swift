@@ -25,7 +25,7 @@ private func startedWork(_ p: Preset, at start: Date = reference) throws -> Time
     ).get().context
 }
 
-@Suite("復元判定 (REQ-PER-003)")
+@Suite("Restore decision (REQ-PER-003)")
 struct RestoreTests {
 
     // (a) 確定済みは IDLE で復元し、ログを再度書かない。
@@ -41,7 +41,7 @@ struct RestoreTests {
 
         let restored = TimerEngine.restore(context: committed.context, presets: presets, now: endAt.addingTimeInterval(9 * 3600))
         #expect(restored.context.runState == .idle)
-        #expect(restored.effects.isEmpty, "REQ-PER-003(a): 確定済みのセッションのログを再度書いてはならない")
+        #expect(restored.effects.isEmpty, "REQ-PER-003(a): must not write the log again for an already committed session")
     }
 
     // (b) 終了時刻が未来ならそのまま RUNNING。
@@ -62,10 +62,10 @@ struct RestoreTests {
         let restored = TimerEngine.restore(context: started, presets: context(p), now: endAt.addingTimeInterval(30))
         #expect(restored.context.runState == .finished)
         #expect(restored.context.finishedAt == endAt)
-        #expect(restored.context.committedAt == nil, "猶予内なのでまだ確定してはならない")
+        #expect(restored.context.committedAt == nil, "still within the grace period, so it must not be committed yet")
         #expect(restored.effects.isEmpty)
         #expect(TimerEngine.isWithinExtensionWindow(restored.context, now: endAt.addingTimeInterval(30)),
-                "REQ-PER-003(c): 猶予内なら通常運転と同じく延長できる")
+                "REQ-PER-003(c): within the grace period, Extend stays available as in normal operation")
     }
 
     // (d) 猶予超過は必ずユーザーに聞く。黙って実績にしない。
@@ -78,8 +78,8 @@ struct RestoreTests {
         #expect(restored.context.runState == .pendingDecision)
         #expect(restored.context.pendingDecision?.reason == .restoredAfterEnd)
         #expect(restored.context.pendingDecision?.endedAt == endAt)
-        #expect(restored.context.committedAt == nil, "応答までログを記録してはならない")
-        #expect(restored.context.loopCount == 0, "応答まで周回数を加算してはならない")
+        #expect(restored.context.committedAt == nil, "must not write the log until the user answers")
+        #expect(restored.context.loopCount == 0, "must not increment the loop count until the user answers")
         #expect(restored.effects.isEmpty == false)
     }
 
@@ -91,11 +91,11 @@ struct RestoreTests {
         let wayLater = started.sessionEndAt!.addingTimeInterval(3 * 3600)
 
         let ticked = TimerEngine.tick(context: started, presets: presets, now: wayLater)
-        #expect(ticked.effects.count == 1, "tick() は猶予超過を完了として確定させる")
+        #expect(ticked.effects.count == 1, "tick() commits a session that ran past its grace period")
 
         let restored = TimerEngine.restore(context: started, presets: presets, now: wayLater)
         #expect(!restored.effects.contains { if case .commitLog = $0 { return true } else { return false } },
-                "REQ-PER-003(d): 復元では確定させず、判断を仰ぐ")
+                "REQ-PER-003(d): restore must ask the user instead of committing")
         #expect(restored.context.runState == .pendingDecision)
     }
 
@@ -112,7 +112,7 @@ struct RestoreTests {
         let endAt = started.sessionEndAt!
 
         let restored = TimerEngine.restore(context: started, presets: presets, now: endAt.addingTimeInterval(30))
-        #expect(restored.context.runState == .idle, "REQ-TIM-044: 休憩に猶予はない")
+        #expect(restored.context.runState == .idle, "REQ-TIM-044: a break has no grace period")
         #expect(restored.context.committedAt != nil)
         #expect(restored.effects.contains { if case .commitLog = $0 { return true } else { return false } })
     }
@@ -129,11 +129,11 @@ struct RestoreTests {
         #expect(restored.context.pendingDecision?.reason == .pausedTooLong)
 
         let soon = TimerEngine.restore(context: paused, presets: presets, now: reference.addingTimeInterval(2 * 3600))
-        #expect(soon.context.runState == .paused, "idleResetHours 未満なら一時停止のまま")
+        #expect(soon.context.runState == .paused, "below idleResetHours it stays PAUSED")
     }
 }
 
-@Suite("PENDING_DECISION の副作用と自動確定 (REQ-PER-004 / 008 / 009)")
+@Suite("PENDING_DECISION effects and auto-commit (REQ-PER-004 / 008 / 009)")
 struct PendingDecisionTests {
 
     private func restoredPending() throws -> (TimerContext, PresetContext) {
@@ -172,14 +172,14 @@ struct PendingDecisionTests {
         #expect(LogicalDay.date(for: nextDay, dayStartHour: 4) != pending.logicalDate)
 
         let rolled = TimerEngine.tick(context: pending, presets: presets, now: nextDay)
-        #expect(rolled.context.committedAt != nil, "論理日をまたいだら確定させる")
+        #expect(rolled.context.committedAt != nil, "crossing the logical day boundary must commit the session")
         guard case let .commitLog(entry) = rolled.effects.first else {
             Issue.record("commitLog が出ていない")
             return
         }
-        #expect(entry.outcome == .aborted, "REQ-PER-004: discard (中断扱い) として確定する")
+        #expect(entry.outcome == .aborted, "REQ-PER-004: discard commits with the aborted outcome, logged as Stopped")
         #expect(entry.endedAt == pending.pendingDecision?.endedAt,
-                "REQ-PER-004: 放置された実時間を含めず、異常検知時点を終了時刻とする")
+                "REQ-PER-004: the end time is when the anomaly was detected, not after the idle stretch")
         #expect(entry.elapsedSeconds <= 25 * 60)
     }
 
@@ -204,7 +204,7 @@ struct PendingDecisionTests {
             action: .updateSettings(shifted), context: pending, presets: presets,
             settings: .default, now: now
         ).get()
-        #expect(updated.context.committedAt == nil, "設定変更そのもので確定させてはならない")
+        #expect(updated.context.committedAt == nil, "a settings change alone must not commit the session")
         #expect(updated.context.runState == .pendingDecision)
 
         // 続けて tick しても、新しい境界を基準にしているので発火しない。
@@ -214,7 +214,7 @@ struct PendingDecisionTests {
     }
 }
 
-@Suite("永続化 (REQ-PER-001 / 002)")
+@Suite("Persistence (REQ-PER-001 / 002)")
 struct StateStoreTests {
 
     private func sample(now: Date = reference) throws -> PersistedState {
@@ -236,7 +236,7 @@ struct StateStoreTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = FileStateStore(fileURL: directory.appendingPathComponent("state.json"))
 
-        #expect(try store.load() == nil, "保存が無いときは nil。壊れているのとは区別する")
+        #expect(try store.load() == nil, "no saved state must return nil, which stays distinct from corrupted state")
 
         let state = try sample()
         try store.save(state)
@@ -299,12 +299,12 @@ struct StateStoreTests {
         let store = InMemoryStateStore()
         let restored = try store.loadAndRestore(now: reference)
         #expect(restored.context.runState == .idle)
-        #expect(restored.presets.presets.count == 1, "REQ-PRS-010: 同梱するのは「標準」だけ")
+        #expect(restored.presets.presets.count == 1, "REQ-PRS-010: only the Standard preset ships with the app")
         #expect(restored.presets.activePreset?.name == "Standard")
     }
 }
 
-@Suite("未書き込みログの永続化 (REQ-LOG-005)")
+@Suite("Persisting unwritten log entries (REQ-LOG-005)")
 struct PendingLogPersistenceTests {
 
     private func entry(_ start: Date) -> LogEntry {
@@ -338,7 +338,7 @@ struct PendingLogPersistenceTests {
         var written: [Date] = []
         let result = revived.flush { written.append($0.startedAt) }
         #expect(result.written == 2)
-        #expect(written == [reference, reference.addingTimeInterval(1800)], "順序も保つ")
+        #expect(written == [reference, reference.addingTimeInterval(1800)], "the queue order survives the restart")
     }
 
     // 項目を増やす前に保存されたファイルも読めること。
@@ -367,7 +367,7 @@ private extension JSONDecoder {
     }
 }
 
-@Suite("ホットキーの割り当て (REQ-UIX-033)")
+@Suite("Hot key bindings (REQ-UIX-033)")
 struct HotKeyBindingTests {
 
     // 修飾キーなしは受け付けない。単独キーを奪うと文字入力ができなくなる。
