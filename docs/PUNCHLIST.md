@@ -89,12 +89,12 @@
 | **POL-037** | **同じ穴が iPhone 側にも空いている。** `LiveActivityController.swift:177` の `diagnostic = "Could not start: \(String(describing: error))"` が `ClientModel.liveActivityProblem` 経由で画面へ。`CONTEXT.md` §2「片方のプラットフォームで踏んだ穴は、もう片方も見に行く」 | [0034](decisions/0034-os-errors-are-recorded-as-codes.md) / `CONTEXT.md` §2 | — | agent | major | done | `fix/failures-that-reach-someone` |
 | **POL-036** | 診断ログの書き出し先への保存失敗が原文のまま画面へ（`SettingsView.swift:148`） | [0034](decisions/0034-os-errors-are-recorded-as-codes.md) | — | agent | minor | done | `fix/failures-that-reach-someone` |
 | **POL-039** | `ProtocolErrorPayload(message:)` が列挙の生表記（`invalidStateForAction` 等）を iPhone へ送る。OS 由来ではないので今回の漏れには当たらないが、**人向けの文ではない**（`AppModel.swift:515, 522`） | [0034](decisions/0034-os-errors-are-recorded-as-codes.md) / REQ-UIX-038 | — | **human** | minor | done | `fix/failures-that-reach-someone` |
-| **POL-040** | **集中表示ビューでは拒否が見えない。** `fullScreenCover` なので `MainScreen` のオーバーレイが隠れる。REQ-UIX-010 が副次情報を4種に限定しており、行を足すと条文に触れる | REQ-UIX-010 / REQ-ERR-016 | — | **human** | major | open | — |
-| **POL-044** | **メニューバー常駐なので、起動時にウィンドウが閉じていると復元失敗の帯がその場では見えない。** 閉じるまで残るので「1度示す」は満たすが、通知にするかは条文にない | REQ-ERR-017 / [0035](decisions/0035-a-failure-needs-somewhere-to-arrive.md) | — | **human** | minor | open | — |
+| **POL-040** | **集中表示ビューでは拒否が見えない。** `fullScreenCover` なので `MainScreen` のオーバーレイが隠れる。REQ-UIX-010 が副次情報を4種に限定しており、行を足すと条文に触れる | REQ-UIX-010 / REQ-ERR-016 | — | **human** | major | 決定済み | `docs/audit-leftovers` |
+| **POL-044** | **メニューバー常駐なので、起動時にウィンドウが閉じていると復元失敗の帯がその場では見えない。** 閉じるまで残るので「1度示す」は満たすが、通知にするかは条文にない | REQ-ERR-017 / [0035](decisions/0035-a-failure-needs-somewhere-to-arrive.md) | — | **human** | minor | 決定済み | `docs/audit-leftovers` |
 | **POL-041** | **ビューに色リテラルが残っている。** `.red` が `SettingsView:96`、`PresetEditorView`（4箇所）、`PairingView:38`。`CLAUDE.md`「色リテラルをビューに書かない」 | `CLAUDE.md` / [0007](decisions/0007-oklch-color-system.md) / REQ-COL-001 | — | agent | minor | open | — |
-| **POL-043** | Live Activity の開始失敗のコードを捨てている（iOS に診断ログが無いため）。**[0035](decisions/0035-a-failure-needs-somewhere-to-arrive.md) の「画面にコードを出す唯一の場面」を2箇所に広げるか**の判断 | [0035](decisions/0035-a-failure-needs-somewhere-to-arrive.md) / [0018](decisions/0018-diagnostic-log-policy.md) | — | **human** | minor | open | — |
+| **POL-043** | Live Activity の開始失敗のコードを捨てている（iOS に診断ログが無いため）。**[0035](decisions/0035-a-failure-needs-somewhere-to-arrive.md) の「画面にコードを出す唯一の場面」を2箇所に広げるか**の判断 | [0035](decisions/0035-a-failure-needs-somewhere-to-arrive.md) / [0018](decisions/0018-diagnostic-log-policy.md) | — | **human** | minor | rejected | — |
 | **POL-042** | `ProtocolErrorPayload(message:)` の2箇所が `String(describing:)` のまま（`AppModel.swift`）。漏洩ではないが、[0034](decisions/0034-os-errors-are-recorded-as-codes.md) の「自前のエラーも同じ形で出す」に沿うなら `diagnosticSummary` が筋。`CommandTranslation.Failure` の適合作業が要る | [0034](decisions/0034-os-errors-are-recorded-as-codes.md) | — | agent | minor | open | — |
-| **POL-045** | **2つの MUST が同じ場面で両立しない。** `.ioFailed` で保存が止まる間、REQ-LOG-005「キューを永続化すること」が成立しない。REQ-ERR-017（v2.15）は「画面に示して保存を止める」と明示しており、実装は条文どおり。**条文の側に調停がない** | REQ-LOG-005 / REQ-ERR-017 / [0036](decisions/0036-an-unreadable-state-file-is-set-aside.md) | — | **human** | major | open | — |
+| **POL-045** | **2つの MUST が同じ場面で両立しない。** `.ioFailed` で保存が止まる間、REQ-LOG-005「キューを永続化すること」が成立しない。REQ-ERR-017（v2.15）は「画面に示して保存を止める」と明示しており、実装は条文どおり。**条文の側に調停がない** | REQ-LOG-005 / REQ-ERR-017 / [0036](decisions/0036-an-unreadable-state-file-is-set-aside.md) | — | **human** | major | 決定済み | `docs/audit-leftovers` |
 | **POL-046** | `stateSaveProblem` が `persistBlockedBy` を含むことを守るテストが無い。**コードは正しいが、外しても242件すべて通過する。** 帯を閉じた後、保存が止まっていることが画面のどこにも残らなくなる | REQ-ERR-017 | — | agent | minor | done | #12 |
 | **POL-015** | REQ-ERR-014 が OS 設定画面のパスを日本語で規定。英語化すると日本語ロケールの利用者の画面と一致しない。REQ-SEC-005 とも粒度が食い違う | REQ-ERR-014 / REQ-SEC-005 / 0.12節 | C | human | minor | done | `docs/spec-v2.10` |
 | **POL-021** | 非スコープの「複数ユーザー対応」が、人の話か端末の話か読めない。第14章「1対1接続」は端末の話 | [0021](decisions/0021-published-as-oss-named-mdoro.md) / 第14章 | D | agent | minor | done | `docs/spec-v2.10` |
@@ -136,4 +136,4 @@
 
 | ID | 症状 | 判断 | 理由 |
 | :-- | :---- | :---- | :---- |
-| — | — | — | — |
+| **POL-043** | Live Activity の開始失敗のコードを捨てている（iOS に診断ログが無い） | **現状維持** | 込み入った内容であり、起きる可能性も低い。**いまは機能と方針の堅牢性を優先する**（2026-08-28）。例外を広げると「画面にコードを出さない」原則が2箇所目で緩み、3箇所目の歯止めがなくなる。最も多い原因（許可がない）は画面の文が案内している |
