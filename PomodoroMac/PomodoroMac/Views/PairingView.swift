@@ -21,7 +21,7 @@ struct PairingSection: View {
                 }
             } else {
                 HStack {
-                    Text(model.connection.label)
+                    Text(Format.connectionLabel(model.connection))
                     Spacer()
                     Button("Start pairing") { model.beginPairing() }
                 }

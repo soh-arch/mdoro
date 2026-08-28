@@ -44,7 +44,7 @@ struct MenuBarLabelView: View {
         return [Format.sessionLabel(model.timer.sessionType),
                 Format.runStateLabel(model.timer.runState),
                 remaining,
-                model.connection.label].joined(separator: ", ")
+                Format.connectionLabel(model.connection)].joined(separator: ", ")
     }
 }
 
@@ -119,7 +119,7 @@ struct MenuBarMenuContent: View {
         Divider()
 
         // REQ-UIX-004 / Decision 0031: Mac 側の接続状態はここと下帯だけ。**読むだけの1行。**
-        Text("iPhone: \(model.connection.label)")
+        Text("iPhone: \(Format.connectionLabel(model.connection))")
         SettingsLink { Text("Settings…") }
         Button("Open Main Window") { openMain() }
         Divider()

@@ -162,7 +162,7 @@ struct MainWindowView: View {
             let status = model.connection
             // **ここから設定へ行けるようにする。**
             SettingsLink {
-                Label(status.label, systemImage: status.peerSymbolName)
+                Label(Format.connectionLabel(status), systemImage: status.peerSymbolName)
                     .foregroundStyle(theme.color(status.colorRole, .text))
             }
             .buttonStyle(.plain)

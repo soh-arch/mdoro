@@ -111,6 +111,9 @@
     "Confirm stop" : {
 
     },
+    "Connected" : {
+
+    },
     "Connection" : {
 
     },
@@ -226,6 +229,9 @@
     "Name" : {
 
     },
+    "Not connected" : {
+
+    },
     "Notifications" : {
 
     },
@@ -260,6 +266,9 @@
 
     },
     "Quit" : {
+
+    },
+    "Reconnecting" : {
 
     },
     "Record as completed" : {

@@ -68,6 +68,16 @@ enum Format {
         }
     }
 
+    // REQ-UIX-004: 接続状態の言葉。**区分と役は `ConnectionStatus`、言葉はここ。**
+    // iPhone 側の `Format` も同じ3語を自分で持つ。
+    static func connectionLabel(_ status: ConnectionStatus) -> String {
+        switch status {
+        case .connected: return String(localized: "Connected")
+        case .reconnecting: return String(localized: "Reconnecting")
+        case .disconnected: return String(localized: "Not connected")
+        }
+    }
+
     // REQ-UIX-008: プリセットの時間構成を併記する。
     static func presetShape(_ preset: Preset) -> String {
         "\(preset.workSeconds / 60) / \(preset.shortBreakSeconds / 60) / \(preset.longBreakSeconds / 60)"
