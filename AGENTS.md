@@ -7,7 +7,8 @@ Humans: `README.md` is the place to start. Contributors' agents: read this file 
 
 A focus-session timer for macOS and iOS that stays inside your LAN.
 The Mac holds the timer state; the iPhone shows it and drives it.
-Mdoro reads a Markdown task file **read-only** and appends finished sessions to a log file.
+Mdoro reads a Markdown task file **read-only** and records finished sessions in a log file,
+inserting lines and never rewriting the ones already there.
 No cloud, no account, no telemetry.
 
 - **Mac**: SwiftUI, macOS 26+. Menu bar item plus a main window. WebSocket server.
@@ -16,8 +17,9 @@ No cloud, no account, no telemetry.
 
 ## Three rules that are never relaxed
 
-1. **Never write to the task file.** Sessions are appended to the log file only; existing
-   lines are never rewritten or deleted. The security-scoped bookmark for the task file is
+1. **Never write to the task file.** Sessions go into the log file by insertion only —
+   existing lines are never rewritten or deleted, and the insertion point is not always
+   the end of the file, because entries belong under the heading for their logical day. The security-scoped bookmark for the task file is
    created with `securityScopeAllowOnlyReadAccess`, so the OS enforces it too.
 2. **The Mac owns the state.** The iPhone may interpolate the countdown for display, but it
    must never decide that a session has ended. Loop counting and log writing happen on the Mac.
@@ -30,6 +32,8 @@ Breaking any of these damages either the user's own files or the consistency of 
 ## Build and test
 
 The shared package is where the rules live, and it builds without Xcode. Start there.
+**It targets macOS 26 / iOS 26**, so `swift test` needs macOS 26 or later even though it
+needs no Xcode project.
 
 ```bash
 (cd Packages/MdoroCore && swift test)
@@ -47,8 +51,9 @@ iOS app on the simulator:
 set -o pipefail && xcodebuild -project ./PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroiOS -destination 'platform=iOS Simulator,name=iPhone 17' build | xcbeautify
 ```
 
-Xcode 26.6 / Swift 6.3. Signing uses a personal team, so set your own `DEVELOPMENT_TEAM`
-in Xcode before building the apps. Local notifications need no capability, but they do need
+Xcode 26.6 / Swift 6.3. Signing uses a personal team, and **the maintainer's team id is
+committed in `project.pbxproj`** — set your own in Xcode before building the apps, and keep
+that change out of your pull request. Local notifications need no capability, but they do need
 a valid signature — an unsigned build will not deliver them.
 
 ## Where code goes
