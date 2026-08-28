@@ -629,7 +629,7 @@
 				INFOPLIST_FILE = PomodoroMac/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mdoro;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mac と iPhone を接続するために使用します";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mdoro connects your Mac and iPhone over your local network.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -674,7 +674,7 @@
 				INFOPLIST_FILE = PomodoroMac/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mdoro;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mac と iPhone を接続するために使用します";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mdoro connects your Mac and iPhone over your local network.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -746,7 +746,7 @@
 				INFOPLIST_FILE = PomodoroiOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mdoro;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mac と iPhone を接続するために使用します";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mdoro connects your Mac and iPhone over your local network.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -785,7 +785,7 @@
 				INFOPLIST_FILE = PomodoroiOS/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Mdoro;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mac と iPhone を接続するために使用します";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mdoro connects your Mac and iPhone over your local network.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
