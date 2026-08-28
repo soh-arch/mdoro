@@ -5,23 +5,79 @@ Mac をタイマー状態の正本、iPhone を表示・操作端末とする、
 Obsidian / Logseq など、md を素のファイルとして扱う道具であればよい（特定ツール専用ではない）。
 
 **GitHub で OSS として公開する。** 名称は `Mdoro`。対象は Markdown でタスクを管理する利用者。
-アプリが生成する文字列は英語のみ（コードコメントと `docs/` は日本語）。
+アプリが生成する文字列・コードコメント・commit メッセージは英語。**`docs/` だけが日本語**
+（[0022](docs/decisions/0022-english-only-ui.md) / [0032](docs/decisions/0032-code-comments-are-english.md)）。
 
 - **Mac**: SwiftUI / macOS 26+。メニューバー常駐＋メインウィンドウ。WebSocket サーバー。
 - **iPhone**: SwiftUI / iOS 26+。表示と操作。Live Activity。
-- **通信**: Network.framework（Bonjour `_pomodoro._tcp` + WebSocket / JSON）。
+- **通信**: Network.framework（Bonjour `_mdoro._tcp` + WebSocket / JSON）。
 
 このファイルは**すべての Agent に共通する運用規律**だけを定める。
 手順・環境・現在の状態はここに書かない。
 
 | 知りたいこと | 参照先 |
 | :---- | :---- |
-| 要件（何を作るか） | `docs/SPEC.md`（v2.8、242要件）**唯一の正** |
+| 要件（何を作るか） | `docs/SPEC.md`（v2.9、242要件）**唯一の正** |
 | 現在有効な方針・制約・未決事項・作業状態 | `docs/CONTEXT.md` |
 | なぜそう決めたか | `docs/decisions/` |
 | ビルド手順・プロジェクト構成・環境 | `docs/DEVELOPMENT.md` |
+| いま何を潰すか（作業キュー） | `docs/PUNCHLIST.md` |
 
 ---
+
+## 開発体制
+
+**Markdown 駆動・役割分離型の AI 開発オーケストレーション**で開発する
+（[0011](docs/decisions/0011-claude-code-as-orchestrator.md)）。
+
+**Markdown が共通の作業契約である。** 何を作るか（`docs/SPEC.md`）、どう作るか（このファイル）、
+なぜそう決めたか（`docs/decisions/`）、いまどうなっているか（`docs/CONTEXT.md`）は、
+すべてリポジトリ内の Markdown にある。**会話の中で合意した内容は、ファイルに落ちるまで存在しない。**
+セッションが変われば会話は失われるが、ファイルは誰が引き継いでも同じ前提を与える。
+
+**役割を分ける。一人二役をしない。**
+
+| 役 | 担当 |
+| :---- | :---- |
+| **人間** | 仕様・設計の最終決定。PR の merge |
+| **オーケストレーター**（このセッションの Claude Code） | 仕様書・`docs/` の編集、作業の分解と割り当て、結果の統合、commit と PR |
+| **実装役**（`.claude/agents/implementer.md`） | 一意に決まった要件の実装。1回に1件 |
+| **検証役**（`.claude/agents/reviewer.md`） | 独立コンテキストで成果物のみを見る。**直さない** |
+| **監査役**（`.claude/agents/spec-auditor.md` ほか） | 軸を1本指定されて通読し、列挙する。**直さない・起票しない** |
+
+分ける理由は、**実装した者は自分の実装を検証できない**からである。
+意図を知っている者が読むと、書かれていない前提を補って読んでしまう。
+検証役に実装時のやりとりを渡さないのは、そのためである。
+
+役を増やすときは `.claude/agents/` にファイルを置く。
+**各役の禁止事項（直さない・編集しない・起票しない）を必ず明記する。**
+
+**このファイルは内部向け、`AGENTS.md` は外部向けである。**
+外部の貢献者とそのエージェント（Codex / Cursor / Copilot などは `AGENTS.md` を読む）が
+必要とするのは、ビルド手順・3原則・PR 規則であって、内部の運用規律ではない。
+`AGENTS.md` は**英語**で書く（[0032](docs/decisions/0032-code-comments-are-english.md)）。
+**両方に同じことを書かない。**
+
+## 変更の通し方
+
+**`main` へ直接書き込まない。PR を通す。**
+
+1. 作業ごとにブランチを切る。**1 PR = 1つの目的**（1件の修正、1本の軸、1つの工程）
+2. commit は Conventional Commits・英語。根拠の要件IDを書く
+3. CI（`swift test`）が通ること
+4. 独立コンテキストの検証役を通し、**指摘が解消していること**
+5. **merge は人間が行う**
+
+急ぎでも 1〜5 を飛ばさない。飛ばした場合は、飛ばしたことを報告する。
+
+**`docs/PUNCHLIST.md` に無い作業を始めない。** 起票していない修正は、
+別の作業と重複するか、先に入った変更に上書きされる。
+
+**却下・先送りにも理由を1行残す。** 何を採らないと決めたかは、採ると決めたことと同じだけ残す。
+
+**並列にしてよいのは読み取り専用の監査だけである。コードを書く作業は直列で行う。**
+ビルド資源（DerivedData・シミュレータ・実機の iPhone・LAN 上で一意な Bonjour サービス名）は
+単一であり、2体が同時にビルドすれば踏み合う。ファイルを分けても隔離は成立しない。
 
 ## 権限
 
@@ -69,7 +125,7 @@ Obsidian / Logseq など、md を素のファイルとして扱う道具であ�
 
 要件IDは `REQ-{COM,SEC,PLT,TIM,NTF,TSK,LOG,UIX,COL,PRS,CFG,PRT,PER,ERR,NFR}-nnn`。
 **コードコメントと commit メッセージには根拠の要件IDを書く**
-（例: `// REQ-TIM-035: FINISHED からの脱出先は常に IDLE`）。
+（例: `// REQ-TIM-035: the only way out of FINISHED is IDLE`）。
 
 仕様書を変更するときは、**必ず影響する他章を確認してから**変更する。
 過去に2回、1章だけ編集して矛盾を作っている（v2.1 のプリセット追加、v2.4 の状態遷移マトリクス新設）。
@@ -89,7 +145,7 @@ Obsidian / Logseq など、md を素のファイルとして扱う道具であ�
 
 ## 動かしてはいけない3原則
 
-1. **`Task.md` へは一切書き込まない。** 実績は `PomodoroLog.md` へ挿入のみ（既存行の書き換え・削除は禁止）。
+1. **`Task.md` へは一切書き込まない。** 実績は `MdoroLog.md` へ挿入のみ（既存行の書き換え・削除は禁止）。
    ブックマークは `securityScopeAllowOnlyReadAccess` で読み取り専用として生成し、OS レベルでも担保する。
 2. **状態の正本は Mac。** iPhone は表示上のカウントダウン補間はしてよいが、
    **セッションの終了を確定してはならない。** 周回数の加算・ログ記録の判断は Mac だけが行う。
