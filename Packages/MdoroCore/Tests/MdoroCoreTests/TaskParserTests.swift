@@ -25,7 +25,7 @@ private let sample = """
 本文行
 """
 
-@Suite("タスクのパース (REQ-TSK-010〜016)")
+@Suite("Task parsing (REQ-TSK-010–016)")
 struct TaskParserTests {
 
     @Test func onlyCheckboxListItemsBecomeTasks() {
@@ -55,7 +55,7 @@ struct TaskParserTests {
         let completed = result.items.filter(\.isCompleted).map(\.displayText)
         #expect(completed.contains("第5章"))
         #expect(completed.contains("完了したもの"))
-        #expect(completed.contains("取り消したもの"), "[-] も完了として扱う")
+        #expect(completed.contains("取り消したもの"), "[-] counts as completed as well")
         #expect(!completed.contains("仕様書のレビュー"))
     }
 
@@ -87,7 +87,7 @@ struct TaskParserTests {
         """
         let items = TaskParser.parse(text).items
         #expect(items.map(\.depth) == [0, 1, 1, 2])
-        #expect(items[2].parentId == items[0].stableId, "丸めた結果、親は深さ0のタスク")
+        #expect(items[2].parentId == items[0].stableId, "after rounding down, the parent is the depth-0 task")
     }
 
     @Test func tabIndentIsAlsoAUnit() {
@@ -127,7 +127,7 @@ struct TaskParserTests {
     }
 }
 
-@Suite("タスクID (REQ-TSK-020〜023)")
+@Suite("Task IDs (REQ-TSK-020–023)")
 struct TaskIdTests {
 
     // REQ-TSK-020 / 023: ブロック ID があれば優先し、種別を保持する。
@@ -135,7 +135,7 @@ struct TaskIdTests {
         let item = TaskParser.parse("- [ ] ブロックIDつき ^task-1").items[0]
         #expect(item.stableId == "task-1")
         #expect(item.idKind == .blockId)
-        #expect(!item.displayText.contains("^task-1"), "ブロックIDは本文ではない")
+        #expect(!item.displayText.contains("^task-1"), "the block ID is not part of the display text")
     }
 
     @Test func contentHashIsUsedWhenNoBlockId() {

@@ -4,7 +4,7 @@ import Testing
 
 // **存在しないアセット名は、エラーにならず何も描かれない。**
 // 名前を増やしたら `Tools/make_icon.swift` を回し、ここで実在を確かめること。
-@Suite("メニューバーの印 (REQ-UIX-030 / 035)")
+@Suite("Menu bar mark (REQ-UIX-030 / 035)")
 struct MenuBarMarkTests {
 
     // Tests/MdoroCoreTests/ から5つ上がリポジトリのルート。
@@ -18,11 +18,11 @@ struct MenuBarMarkTests {
         for mark in MenuBarMark.allCases {
             let imageSet = Self.assetsDirectory.appendingPathComponent("\(mark.assetName).imageset")
             #expect(FileManager.default.fileExists(atPath: imageSet.path),
-                    "\(mark.assetName).imageset が無い。Tools/make_icon.swift を回すこと")
+                    "\(mark.assetName).imageset is missing; run Tools/make_icon.swift")
             // テンプレート画像でないと、地の明るさに追随せず黒いままになる（REQ-COL-022）。
             let contents = try String(contentsOf: imageSet.appendingPathComponent("Contents.json"), encoding: .utf8)
             #expect(contents.contains("\"template-rendering-intent\" : \"template\""),
-                    "\(mark.assetName) がテンプレート画像として登録されていない")
+                    "\(mark.assetName) is not registered as a template image")
         }
     }
 
@@ -32,7 +32,7 @@ struct MenuBarMarkTests {
         let found = try FileManager.default
             .contentsOfDirectory(atPath: Self.assetsDirectory.path)
             .filter { $0.hasPrefix("MenuBar") }
-        #expect(Set(found) == expected, "余分な imageset がある: \(Set(found).subtracting(expected))")
+        #expect(Set(found) == expected, "unused imageset left behind: \(Set(found).subtracting(expected))")
     }
 
     // REQ-UIX-035 と同じ理由。同じ絵を使い回すと、状態の区別にならない。
@@ -51,7 +51,7 @@ struct MenuBarMarkTests {
             .pendingDecision: .paused,
         ]
         for (state, mark) in expected {
-            #expect(MenuBarMark.mark(for: state) == mark, "\(state) の印が \(MenuBarMark.mark(for: state))")
+            #expect(MenuBarMark.mark(for: state) == mark, "\(state) maps to \(MenuBarMark.mark(for: state))")
         }
         // RunState が増えたらここも増やす。網羅していることを数で担保する。
         #expect(expected.count == 5)
