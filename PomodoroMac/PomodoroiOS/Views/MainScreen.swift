@@ -40,6 +40,18 @@ struct MainScreen: View {
                 .padding(20)
             }
             .background(theme.background)
+            // REQ-ERR-016 / Decision 0035: 拒否は**操作の直後に気づく場所**へ出す。
+            // 帯を本文に挟むと、タスク一覧まで送った状態で押した拒否が画面の外に出る。
+            // 手の届く下端に重ねれば、どこを見ていても目に入る。
+            .overlay(alignment: .bottom) {
+                if let refusal = model.lastRefusal {
+                    RefusalNotice(code: refusal)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 12)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: model.lastRefusal)
             .navigationTitle("Mdoro")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -191,6 +203,34 @@ struct MainScreen: View {
             .font(.callout)
 
         }
+    }
+}
+
+// REQ-ERR-016 / Decision 0035: Mac が受理しなかった操作を、iPhone が自分の言葉で示す。
+//
+// **文言は `code` から引く。** 送られてきた `message` は診断用であり（10.2）、
+// 送る側が相手の画面の文言を決めない。
+struct RefusalNotice: View {
+    @Environment(\.theme) private var theme
+    @Environment(ClientModel.self) private var model
+    let code: ProtocolErrorCode
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle")
+            Text(code.displayMessage)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Dismiss") { model.acknowledgeRefusal() }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.color(.accentPrimary, .text))
+        }
+        .font(.footnote)
+        .foregroundStyle(theme.color(.warning, .text))
+        .padding(12)
+        // REQ-COL-011: 帯（-subtle の地に -line の枠）は warning に予約されている。
+        .background(theme.color(.warning, .subtle))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.color(.warning, .line)))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 

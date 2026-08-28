@@ -121,7 +121,7 @@ public struct SessionEventPayload: Equatable, Sendable, Codable {
 }
 
 // 10.2 error.code。TimerError から変換して送る。
-public enum ProtocolErrorCode: String, Equatable, Sendable, Codable {
+public enum ProtocolErrorCode: String, Equatable, Sendable, Codable, CaseIterable {
     case invalidStateForAction
     case extendWindowClosed
     case presetLimitReached
@@ -149,6 +149,52 @@ public enum ProtocolErrorCode: String, Equatable, Sendable, Codable {
         case .cannotDeleteLastPreset: self = .cannotDeleteLastPreset
         case .cannotDeleteActivePreset: self = .cannotDeleteActivePreset
         case .taskNotFound: self = .taskNotFound
+        }
+    }
+}
+
+// REQ-ERR-016 / 10.2 / Decision 0035: the sender does not choose the words on the receiver's
+// screen. `error.message` is diagnostic, so the side that has a screen keeps its own sentence
+// per code and reads nothing else off the wire.
+//
+// The switch is exhaustive on purpose. A `default` would let a code added to 10.2 arrive with
+// nothing to say, which is the silence REQ-ERR-016 was extended to close;
+// `everyRefusalTheMacCanSendHasSomethingToSay` walks `allCases` and would still pass.
+// No digits: a number on this screen reads as a code, and Decision 0035 allows exactly one
+// screen to show one — the diagnostic log's own write failure, which is not this.
+public extension ProtocolErrorCode {
+    var displayMessage: String {
+        switch self {
+        case .invalidStateForAction:
+            "Your Mac did not accept that. The timer is not in a state where it applies."
+        case .extendWindowClosed:
+            "Too late to extend. The window closes one minute after the session ends."
+        case .presetLimitReached:
+            "Your Mac already holds the maximum number of presets. Remove one there first."
+        case .presetNameDuplicate:
+            "Another preset already uses that name."
+        case .presetNameInvalid:
+            "A preset name has to be between one and thirty characters."
+        case .cannotDeleteActivePreset:
+            "The preset in use cannot be removed. Switch to another one first."
+        case .cannotDeleteLastPreset:
+            "The last preset cannot be removed."
+        case .presetNotFound:
+            "That preset is no longer on your Mac."
+        case .settingOutOfRange:
+            "That value is outside the range your Mac accepts."
+        case .invalidFilePath:
+            "Your Mac cannot use that folder for the session log. Choose another one there."
+        case .invalidPresetOrder:
+            "The new order did not match the presets your Mac holds. Nothing changed."
+        case .taskFileUnavailable:
+            "Your Mac cannot read the task file. Check it in Settings on your Mac."
+        case .taskNotFound:
+            "That task is no longer in the list. Reload the tasks and pick it again."
+        case .logWriteFailed:
+            "Your Mac could not write the session log. Check the log folder in Settings on your Mac."
+        case .protocolVersionMismatch:
+            "This iPhone and your Mac are running different versions of Mdoro. Update both."
         }
     }
 }

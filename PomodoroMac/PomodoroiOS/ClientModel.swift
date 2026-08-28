@@ -17,7 +17,10 @@ final class ClientModel {
     private(set) var taskList: TaskListPayload?
     private(set) var status: MdoroClient.Status = .idle
     private(set) var servers: [DiscoveredServer] = []
-    private(set) var lastError: String?
+    // REQ-ERR-016 / 10.2 / Decision 0035: **受け取った拒否は画面に出す。** 押しても何も起きない、
+    // という状態を残さない。持つのはコードだけ — `error.message` は診断用で、Mac が iPhone の
+    // 画面の文言を決めない。iPhone に診断ログは無い（Decision 0018）ので、`message` は捨てる。
+    private(set) var lastRefusal: ProtocolErrorCode?
     // REQ-PER-011: 永続化された状態を表示するときは取得時刻を併記する。
     private(set) var snapshotReceivedAt: Date?
     private(set) var localNetworkDenied = false
@@ -132,7 +135,7 @@ final class ClientModel {
             },
             receivedTaskList: { [weak self] in self?.taskList = $0 },
             receivedEvent: { _ in },
-            receivedError: { [weak self] in self?.lastError = $0.message },
+            receivedError: { [weak self] in self?.lastRefusal = $0.code },
             issuedToken: { token, serverName in
                 TokenKeychain.save(token, serverName: serverName)
             }
@@ -141,7 +144,7 @@ final class ClientModel {
 
     func submitPairingCode(_ code: String) {
         guard let server = servers.first(where: { $0.name == connectedServerName }) ?? servers.first else { return }
-        lastError = nil
+        lastRefusal = nil
         connect(to: server, pairingCode: code)
     }
 
@@ -194,8 +197,14 @@ final class ClientModel {
     // REQ-COM-013: 切断中は操作系 UI を無効化する。
     func send(_ action: CommandAction, params: CommandParams? = nil) {
         guard isConnected else { return }
+        // REQ-ERR-016: 次の操作を出した時点で、前の拒否の話は終わっている。
+        // 同じ操作がまた断られれば、応答として出し直される。
+        lastRefusal = nil
         client.send(command: action, params: params)
     }
+
+    // REQ-ERR-016: 読んだと言えるのは利用者だけ。**時間で消さない。**
+    func acknowledgeRefusal() { lastRefusal = nil }
 
     // MARK: - ペアリングの解除
 
