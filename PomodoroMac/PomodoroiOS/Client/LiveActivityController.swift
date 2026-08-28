@@ -174,7 +174,12 @@ final class LiveActivityController {
             diagnostic = "Started id=\(requested.id.prefix(8)) / \(systemActivityCount) known to the system"
             isHealthy = true
         } catch {
-            diagnostic = "Could not start: \(String(describing: error))"
+            // REQ-ERR-010 / Decision 0034: **OS の原文をそのまま画面へ出さない。** 言語がロケールに
+            // 追従するうえ、ファイル名や識別子を含むことがある。この文字列は `ClientModel` 経由で
+            // iPhone の画面に出る（Decision 0035 の POL-037）。
+            // 診断ログは Mac だけの仕組み（Decision 0018）なので、コードの行き先はここにはない。
+            // Decision 0035 が画面へのコード出力を認めたのは Mac の診断ログ1箇所だけなので、落とす。
+            diagnostic = String(localized: "Could not start. Check that Live Activities are allowed for Mdoro in iOS Settings")
             isHealthy = false
         }
     }

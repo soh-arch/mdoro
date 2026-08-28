@@ -31,6 +31,12 @@ struct MainWindowView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 20) {
+            // REQ-ERR-017 / Decision 0035: 復元の失敗は起動時に1度。
+            // **セッションとプリセットが失われたことは、黙っていてよいことではない。**
+            if let problem = model.stateRestoreProblem {
+                StateRestoreBanner(message: problem, setAsidePath: model.stateSetAsidePath)
+            }
+
             // REQ-SEC-004: 接続要求の確認。タイマーの操作より前に出す。
             if let requester = model.pendingConnectionRequest {
                 ConnectionRequestBanner(deviceName: requester)
@@ -177,10 +183,61 @@ struct MainWindowView: View {
                     .textSelection(.enabled)
                     .help(model.lastLogError ?? "")
             }
+            // REQ-ERR-017 / Decision 0035: 保存の失敗はログ書き込みの失敗と同じ扱い。**消えるまで出す。**
+            if let problem = model.stateSaveProblem {
+                Divider().frame(height: 12)
+                Label(problem, systemImage: "externaldrive.badge.exclamationmark")
+                    .foregroundStyle(theme.color(.warning, .text))
+                    .textSelection(.enabled)
+                    // 一行に収める。**行が伸びると接続状態が押し出される。** 全文は help に残す。
+                    .lineLimit(1)
+                    .help(problem)
+            }
             Spacer()
         }
         .font(.footnote)
         .foregroundStyle(theme.textSecondary)
+    }
+}
+
+// REQ-ERR-017 / Decision 0035: 復元に失敗したことを起動時に1度だけ示す。
+//
+// **帯にしたのは、ステータス行が「解消するまで」の場所だからである。** 保存の失敗はそちらへ出す。
+// 復元の失敗はもう起きてしまっていて、消えるのを待てない — 読んだと言えるのは利用者だけなので、
+// 閉じるまで残す。シートにしないのは、タイマーを操作できなくなるほどの事ではないため。
+struct StateRestoreBanner: View {
+    @Environment(\.theme) private var theme
+    @Environment(AppModel.self) private var model
+    let message: String
+    // REQ-ERR-017 / Decision 0036: 退避先。名前に日時が入るので、文言とは別に出す。
+    let setAsidePath: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("The previous state could not be restored", systemImage: "exclamationmark.triangle")
+                .font(.headline)
+                .foregroundStyle(theme.color(.warning, .text))
+            Text(message)
+                .font(.callout)
+                .foregroundStyle(theme.textSecondary)
+                .textSelection(.enabled)
+            // **退避したと言うだけでは足りない。** 取りに行ける場所を出す。
+            if let setAsidePath {
+                Text("Moved aside as: \(setAsidePath)")
+                    .font(.footnote)
+                    .foregroundStyle(theme.textTertiary)
+                    .textSelection(.enabled)
+                    .lineLimit(2)
+                    .truncationMode(.head)
+            }
+            Button("Dismiss") { model.acknowledgeStateRestoreProblem() }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // REQ-COL-011: 帯（-subtle の地に -line の枠）は warning に予約されている。
+        .background(theme.color(.warning, .subtle))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.color(.warning, .line)))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 

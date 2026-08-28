@@ -12,7 +12,8 @@ import MdoroCore
 final class DiagnosticLog {
 
     // ログ自体が書けないことも黙らせない。
-    private(set) var lastFailure: String?
+    // REQ-ERR-010 / Decision 0035: this code's only reader is the settings screen.
+    private(set) var lastFailure: ErrorCode?
 
     @ObservationIgnored private var file: DiagnosticLogFile?
 

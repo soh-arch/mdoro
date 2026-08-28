@@ -60,6 +60,7 @@ private let everyFailure: [any ReportableError] = [
     StateStoreError.corrupted,
     StateStoreError.unsupportedSchemaVersion(found: 9, supported: 1),
     StateStoreError.ioFailed(ErrorCode(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError)),
+    StateStoreError.couldNotSetAside(ErrorCode(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError)),
 ]
 
 @Suite("OS errors are recorded as codes, not as their own words (REQ-ERR-010 / Decision 0034)")
