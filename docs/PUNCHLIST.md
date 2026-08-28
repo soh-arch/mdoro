@@ -52,7 +52,7 @@
 | ID | 症状 | 根拠 | 軸 | レーン | 重大度 | 状態 | PR |
 | :-- | :---- | :---- | :-- | :---- | :---- | :---- | :-- |
 | **POL-010** | 条文が日本語の UI 文言そのものを規定している箇所が **19件**。REQ-UIX-038（MUST）と正面衝突 | REQ-UIX-038 / [0022](decisions/0022-english-only-ui.md) | C | human | blocker | open | — |
-| **POL-011** | 10.3 の `notificationSound` が `chime` / `bell` / `wood`。**macOS に実在しない音**。0.12 の確定（`Glass` / `Submarine` / `Pop`）と食い違う。プロトコルの enum なので両端で食い違うと繋がらない | 0.12節 / REQ-NTF-006 / [0017](decisions/0017-system-notification-sounds.md) | C | human | blocker | open | — |
+| **POL-011** | 10.3 の `notificationSound`（`chime` / `bell` / `wood`）は**コードの raw 値と一致しており、条文は誤っていない**（2026-08-28、repo-auditor が確認）。欠けているのは**表示名の対応表**。UI は `Glass` / `Submarine` / `Pop` を出すが、条文にその対応がない | 0.12節 / REQ-NTF-006 / [0017](decisions/0017-system-notification-sounds.md) / `Preset.swift:6-32` | C | human | major | open | — |
 | **POL-001** | 表題が「システム要件定義・仕様書：**ポモドーロタイマー**」。公開リポジトリで最初に読まれる1行が旧名 | [0021](decisions/0021-published-as-oss-named-mdoro.md) / [0024](decisions/0024-rename-everything-to-mdoro.md) | A | agent | major | open | — |
 | **POL-002** | 1.1「目的」が製品を「ポモドーロタイマー」と定義。**同じ節の2行下で 0021 を引きながら、0021 が避けると決めた語で自分を名乗っている** | [0021](decisions/0021-published-as-oss-named-mdoro.md) | A | agent | major | open | — |
 | **POL-006** | 9.4 の背景が置き場所を **`Vault`** と呼ぶ。Obsidian の固有名詞。9.3 は `taskFilePath` / `logFolderPath` を持つだけで Vault という単位は存在しない | [0023](decisions/0023-markdown-first-not-obsidian-first.md) / 9.3 | B | agent | major | open | — |
@@ -70,10 +70,34 @@
 | **POL-007** | REQ-TSK-015 が `[[...]]` と `#tag` を「Markdown 記法」と総称。REQ-LOG-013 は「Obsidian / Logseq **などが解釈する**」と書き分けている | REQ-LOG-013 / [0023](decisions/0023-markdown-first-not-obsidian-first.md) | B | agent | minor | open | — |
 | **POL-008** | OPEN-018 の題が「**Obsidian 以外の**ツール固有記法」。Obsidian を基準点に置いている | [0023](decisions/0023-markdown-first-not-obsidian-first.md) / [0025](decisions/0025-standard-checkbox-syntax-only.md) | B | agent | minor | open | — |
 | **POL-009** | REQ-LOG-015（Dataview / Tasks 形式での出力、MAY・見送り）が **Obsidian のプラグイン名を条文に持ったまま公開される**。監査役は「見送り済みは挙げない」規則により除外し、人間の判断に委ねた | [0023](decisions/0023-markdown-first-not-obsidian-first.md) / `CONTEXT.md` §6 | B | human | minor | 決定済み | — |
+| **POL-024** | **ローカルネットワーク許可のダイアログ本文が日本語。** `INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Mac と iPhone を接続するために使用します"` が4構成すべてに。**利用者が最初に見る文字列**。POL-014 の実物 | REQ-UIX-038 / [0022](decisions/0022-english-only-ui.md) | C | **human**（Xcode。[0013](decisions/0013-pbxproj-is-owned-by-xcode.md)） | blocker | open | — |
+| **POL-027** | **`LogTests` の3アサーションが常に真で、何も検証していない。** `contains("周回")` を見ているが `LogFormatter` は `Loop` しか出さない。REQ-LOG-011（周回は WORK の正常完了行のみ）が**テストで守られていない** | REQ-LOG-011 / `LogTests.swift:77-79` | C | agent | major | open | — |
+| **POL-025** | プリセット表示に**全角括弧**（U+FF08 / U+FF09）。`Standard（25 / 5 / 15）` と出る。コード7箇所＋カタログ4行。**アプリ内で唯一残った CJK 文字** | REQ-UIX-038 | C | agent | major | open | — |
+| **POL-026** | **テストの `@Suite` 表示名43件が全件日本語**、`#expect` の失敗メッセージ85件以上も日本語。CI 出力と貢献者の `swift test` が日本語になる。**コメントではないので工程14a では拾われない** | [0032](decisions/0032-code-comments-are-english.md) | C | agent | major | open | — |
+| **POL-028** | OS 由来の `error.localizedDescription` が画面と診断ログへそのまま流れる。日本語環境の Mac では日本語で返る。`String(describing:)` の生の enum 表記も画面に出る。**`why` にパスが混入する経路の疑いあり**（軸 E / I と重なる） | REQ-UIX-038 / [0018](decisions/0018-diagnostic-log-policy.md) | C | agent | major | open | — |
+| **POL-029** | アプリの文言40件以上が **String Catalog を経由していない**（Mac の通知本文が素のリテラル、iOS は `String(localized:)`）。表示言語は英語なので REQ-UIX-038 は破れていないが、**[0022](decisions/0022-english-only-ui.md) の設計意図（文言を1箇所に集める）が破れている** | [0022](decisions/0022-english-only-ui.md) | C | agent | minor | open | — |
+| **POL-030** | 診断ログは `sound=chime`、UI は `Glass`。**対応表は日本語の [0017](decisions/0017-system-notification-sounds.md) にしかなく、issue を読む第三者に同じものと分からない** | [0018](decisions/0018-diagnostic-log-policy.md) / [0017](decisions/0017-system-notification-sounds.md) | C | agent | minor | open | — |
+| **POL-031** | `Tools/make_icon.swift:186` の `print` に日本語が1行。同ファイルの他の `print` は全て英語 | [0032](decisions/0032-code-comments-are-english.md) | C | agent | minor | open | — |
 | **POL-015** | REQ-ERR-014 が OS 設定画面のパスを日本語で規定。英語化すると日本語ロケールの利用者の画面と一致しない。REQ-SEC-005 とも粒度が食い違う | REQ-ERR-014 / REQ-SEC-005 / 0.12節 | C | human | minor | open | — |
 | **POL-021** | 非スコープの「複数ユーザー対応」が、人の話か端末の話か読めない。第14章「1対1接続」は端末の話 | [0021](decisions/0021-published-as-oss-named-mdoro.md) / 第14章 | D | agent | minor | open | — |
 | **POL-022** | 「ユーザー」約30件 / 「利用者」約11件が混在。**一括置換は禁止**（macOS のユーザーアカウント等3件は対象外） | [0021](decisions/0021-published-as-oss-named-mdoro.md) / REQ-UIX-042 | D | agent | minor | open | — |
 | **POL-023** | REQ-PLT-009 が製品要件と**検証手順**を1条文に混ぜている。前者は利用者、後者は貢献者に宛てられており宛先が違う | `CLAUDE.md`（手順は DEVELOPMENT.md） | D | agent | minor | open | — |
+
+## 付録: 実装から回収した語（POL-013 の入力）
+
+**2026-08-28、repo-auditor 軸 C がコードから回収。** 第16章の表記欄はこれを正とする。
+
+| 概念 | 実際の英語表記 | 出どころ |
+| :---- | :---- | :---- |
+| 集中表示ビュー | **画面に表題はない。** 遷移ボタンのラベルだけが `Full Screen` | `MainScreen.swift:57` |
+| 周回 | 画面 `1 / 4`（**語を添えない**）/ 読み上げ `Loop 1 of 4` / ログ `Loop 1/4` / Live Activity コンパクト `1/4` | `SessionHeaderView.swift:35,38` ほか |
+| 一時停止 / 再開 | ボタン `Pause` / `Resume`、状態表示 `Paused` | `MainWindowView.swift:110,115` |
+| 有効なプリセット | ラベルは `Preset`。値は `名前 (25 / 5 / 15)` | `PresetBarView.swift:14` |
+| 中断 | ボタン `Stop`、メニューバーは `Stop…` → `Confirm stop`、ログ `⏹ Stopped`、復帰確認 `Record as stopped` | `MainWindowView.swift:113` ほか |
+| 予告通知 | 設定 `Heads-up (n / 2)`、**通知本文は `Ending soon` / `About N min left`** | `PresetEditorView.swift:152` |
+| 未分類 | `(Uncategorized)`（半角括弧） | `TaskParser.swift:14` |
+| 既定プリセット | `Standard` | `Preset.swift:85` |
+| 通知音 | UI `Default` / `Glass` / `Submarine` / `Pop` / `Silent`、raw `default` / `chime` / `bell` / `wood` / `silent` | `Preset.swift:6-32` |
 
 ## 決定済みの方針（人間の採否・2026-08-28）
 
