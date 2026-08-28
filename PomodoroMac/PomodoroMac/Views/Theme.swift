@@ -1,8 +1,7 @@
 import SwiftUI
 import MdoroCore
 
-// REQ-COL-001 / 002: ビューは色リテラルを書かず、役割名で色を引く。
-// 実際の値は MdoroCore の ColorPalette（仕様書 8.5.3）が唯一の出典。
+// REQ-COL-001 / 002: ビューは色リテラルを書かず、役割名で色を引く。値の出典は ColorPalette（8.5.3）。
 struct Theme {
     let palette: ColorPalette
 
@@ -56,6 +55,17 @@ enum Format {
 
     static func sessionLabel(_ type: SessionType) -> String {
         NotificationScheduler.label(for: type)
+    }
+
+    // 読み上げ用。印が形で示している実行状態を、言葉でも言う。
+    static func runStateLabel(_ state: RunState) -> String {
+        switch state {
+        case .idle: return "Not running"
+        case .running: return "Running"
+        case .paused: return "Paused"
+        case .finished: return "Ended"
+        case .pendingDecision: return "Needs a decision"
+        }
     }
 
     // REQ-UIX-008: プリセットの時間構成を併記する。
