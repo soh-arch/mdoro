@@ -1,8 +1,6 @@
 import Foundation
 
-// REQ-TIM: 4章の状態機械。`canAccept` はマトリクス(4.6)のみを参照する純粋関数、
-// `reduce` / `tick` が副作用(周回数・確定・延長など)を計算する。
-// 実際のログ書き込み・通知・ファイル入出力は行わず、Effect として呼び出し側に委譲する。
+// REQ-TIM: 4章の状態機械。ログ書き込み・通知・ファイル入出力は行わず、Effect として呼び出し側へ渡す。
 public enum TimerEngine {
     // REQ-TIM-043: FINISHED の猶予はプリセット非依存の固定値。REQ-TIM-046 の受付ウィンドウと一致させる。
     public static let extensionGraceSeconds: TimeInterval = 60
@@ -19,8 +17,7 @@ public enum TimerEngine {
         StateTransitionMatrix.canAccept(action, in: runState)
     }
 
-    // REQ-TIM-046: 延長受付ウィンドウ。RUNNING / PAUSED は残り 5 分以下、FINISHED は終了から 1 分以内。
-    // 「押した時点」ではなく「区切りを意識している時点」でのみ延長できるようにするための制約 (Decision 0010)。
+    // REQ-TIM-046 / Decision 0010: RUNNING / PAUSED は残り 5 分以下、FINISHED は終了から 1 分以内。
     public static func isWithinExtensionWindow(_ context: TimerContext, now: Date) -> Bool {
         switch context.runState {
         case .running:
@@ -38,8 +35,7 @@ public enum TimerEngine {
 
     // MARK: - PENDING_DECISION
 
-    // REQ-PER-008 / 009: PENDING_DECISION へ入るときは、発火時刻を過ぎた通知を取り消し、
-    // Live Activity を終了させる。再スケジュールは行わない。
+    // REQ-PER-008 / 009: 通知を取り消し、Live Activity を終了させる。再スケジュールはしない。
     static let pendingDecisionEffects: [Effect] = [.cancelScheduledNotifications, .endLiveActivity]
 
     static func enterPendingDecision(
@@ -58,10 +54,7 @@ public enum TimerEngine {
 
     // MARK: - 起動時の復元 (REQ-PER-002 / 003)
 
-    // 永続化された状態から復元する。tick() と分けているのは、`tick()` が
-    // 「アプリが動き続けている前提」で猶予超過を完了として確定させるのに対し、
-    // 復元時は不在中に終わっていたセッションを無条件に完了扱いしてはならないため (REQ-PER-003(d))。
-    // 同じ経路を使うと、閉じている間に過ぎたセッションが黙って実績になる。
+    // REQ-PER-003(d): tick() と分ける。不在中に終わっていたセッションを、無条件に完了扱いしてはならない。
     public static func restore(
         context: TimerContext,
         presets: PresetContext,
@@ -77,8 +70,7 @@ public enum TimerEngine {
             return Reduction(context: ctx, presets: presets, effects: [])
 
         case .paused:
-            // 一時停止は終了時刻を持たない。放置しすぎた場合の判定は resume 時の
-            // REQ-TIM-033 と同じ規則で、ここでも先に確認へ倒す。
+            // REQ-TIM-033: 一時停止は終了時刻を持たない。放置しすぎたら確認へ倒す。
             guard let pausedAt = ctx.pausedAt,
                   now.timeIntervalSince(pausedAt) >= Double(settings.idleResetHours) * 3600 else {
                 return Reduction(context: ctx, presets: presets, effects: [])
@@ -130,9 +122,7 @@ public enum TimerEngine {
         let finishedAt = ctx.finishedAt ?? endAt
         ctx.lastUpdatedAt = now
 
-        // (c) 猶予内 → FINISHED のまま復元する。残り猶予は finishedAt から UI が算出する。
-        //     ただし休憩には猶予がなく到達と同時に確定する (REQ-TIM-044) ため、WORK に限る。
-        //     猶予を過ぎていない休憩は、待たせる理由がないのでここで確定させる。
+        // (c) 猶予内 → WORK は FINISHED のまま復元する。休憩は猶予を持たないのでここで確定させる (REQ-TIM-044)。
         if now.timeIntervalSince(finishedAt) <= extensionGraceSeconds {
             if ctx.sessionType == .work {
                 return Reduction(context: ctx, presets: presets, effects: [])
@@ -253,8 +243,7 @@ public enum TimerEngine {
             ctx = startSession(type: type, preset: preset, settings: settings, now: now, context: ctx, taskSnapshot: nil)
 
         case .pause:
-            // 表示に合わせて切り上げる。表示側が切り上げ、ここが切り捨てだと、
-            // 一時停止した瞬間に残り時間が1秒減って見える。
+            // 表示側と同じく切り上げる。切り捨てると一時停止した瞬間に残りが1秒減って見える。
             ctx.remainingSeconds = max(0, Int((ctx.sessionEndAt ?? now).timeIntervalSince(now).rounded(.up)))
             ctx.pausedAt = now
             ctx.runState = .paused
@@ -306,7 +295,6 @@ public enum TimerEngine {
             case .paused:
                 ctx.remainingSeconds = (ctx.remainingSeconds ?? 0) + extendSeconds
             case .finished:
-                // 猶予超過は tick() が先に確定させ、受付ウィンドウは上のガードが担保する。
                 // REQ-TIM-042: 加算済みの周回数を取り消したうえで RUNNING へ戻す。
                 ctx.loopCount = max(0, ctx.loopCount - 1)
                 ctx.nextSessionType = standardNextSessionType(after: .work, loopCount: ctx.loopCount, longBreakInterval: activePreset.longBreakInterval)
@@ -370,17 +358,14 @@ public enum TimerEngine {
             }
 
         case let .updateSettings(updated):
-            // REQ-PER-004: `logicalDayStartHour` の設定変更に起因する logicalDate の変化では
-            // PENDING_DECISION の自動確定を発火させてはならない。境界そのものが動いただけで、
-            // 日をまたいだわけではないため、比較の基準を新しい境界へ張り替える。
+            // REQ-PER-004: 境界が動いただけで日は跨いでいない。比較の基準を張り替え、自動確定させない。
             if updated.logicalDayStartHour != settings.logicalDayStartHour {
                 ctx.logicalDate = LogicalDay.date(for: now, dayStartHour: updated.logicalDayStartHour)
                 ctx.lastUpdatedAt = now
             }
 
         case .selectTask, .clearTaskSelection, .reloadTasks:
-            // タスク一覧 (第6章) の保持は TaskContext の担当。
-            // 状態遷移マトリクス上は常に受理されることのみをここで保証する。
+            // タスク一覧の保持は TaskContext の担当。ここは受理することだけを保証する。
             break
 
         case let .selectPreset(id):
@@ -494,8 +479,7 @@ public enum TimerEngine {
         let elapsed = computeElapsedSeconds(context: context, endedAt: endedAt)
         let interval = presets.activePreset?.longBreakInterval ?? 4
 
-        // REQ-LOG-019: IDLE へ遷移する前に committedAt を設定し、「確定済みのセッション」を
-        // 呼び出し側が識別できるようにする。
+        // REQ-LOG-019: IDLE へ遷移する前に committedAt を立てる。
         var committed = context
         committed.committedAt = now
 
@@ -581,9 +565,7 @@ public enum TimerEngine {
     }
 
     // REQ-PRS-012: 連番付与、30文字超は末尾切り詰め。
-    // 切り詰めは base 側で行い、常に連番 (" \(suffix)") が残る余地を確保する。
-    // base 側を削らずに丸ごと 30 文字へ切り詰めると、連番が失われて base と同一の
-    // candidate になり、hasNameConflict が永久に真のままハングしていた。
+    // **切り詰めるのは base 側。** 全体を 30 文字へ丸めると連番が落ち、候補が base と同一になって無限に回る。
     static func uniqueName(base: String, in presets: PresetContext) -> String {
         guard presets.hasNameConflict(base) else { return base }
         var suffix = 2

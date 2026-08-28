@@ -19,8 +19,7 @@ public enum StateTransitionMatrix {
         case .abort:
             return [.running, .paused, .finished]
         case .extend:
-            // ※2: sessionType が WORK の場合のみ、※3: 猶予内かつ未確定の場合のみ。
-            // RunState のみでは判定しきれない条件は TimerEngine.reduce 側の追加ガードで扱う。
+            // WORK 限定・猶予内という条件は TimerEngine.reduce のガードが見る。
             return [.running, .paused, .finished]
         case .resetLoopCount:
             return [.idle, .running, .paused, .finished]

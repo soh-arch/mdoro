@@ -1,9 +1,7 @@
 import Foundation
 
 // REQ-ERR-010 / Decision 0018: ログの見た目と、ファイルを切り替える判断。
-//
-// 想定する読み手は**issue に貼られたログを初めて見る第三者**である。
-// 1行1イベント・固定幅のレベル・grep しやすいコード語で組む。
+// 読み手は issue に貼られたログを初めて見る第三者。1行1イベント・固定幅のレベル・grep しやすい語で組む。
 
 public struct DiagnosticHeader: Sendable, Equatable {
     public var appVersion: String
@@ -30,7 +28,7 @@ public struct DiagnosticHeader: Sendable, Equatable {
         self.settings = settings
     }
 
-    // ヘッダが無いログは再現できない。OSS では報告者と修正者が別人になる。
+    // ヘッダが無いログは再現できない。
     public static func settingsFields(preset: Preset, settings: AppSettings) -> [DiagnosticField] {
         [
             DiagnosticField("work", preset.workSeconds),
@@ -68,7 +66,7 @@ public enum DiagnosticLogFormat {
         return parts.joined(separator: " ")
     }
 
-    // 記録しないと決めたことは、決めただけでは伝わらない。**ファイル自身に書く。**
+    // 記録しないと決めたことを、**ファイル自身に書く。**
     public static func header(_ header: DiagnosticHeader) -> String {
         var lines = [
             "# Mdoro diagnostic log",
@@ -94,8 +92,7 @@ public enum DiagnosticLogFormat {
     private static let formatter = TimestampFormatter()
 }
 
-// `ISO8601DateFormatter` は Sendable ではないので、共有するなら自分で囲う。
-// 出力を予測できることが大事なので、`FormatStyle` へ逃げずにこちらを使う。
+// `ISO8601DateFormatter` は Sendable ではないので自分で囲う。出力を予測できることを優先する。
 private final class TimestampFormatter: @unchecked Sendable {
     private let lock = NSLock()
     private let formatter: ISO8601DateFormatter
@@ -108,7 +105,7 @@ private final class TimestampFormatter: @unchecked Sendable {
     func string(from date: Date) -> String {
         lock.lock()
         defer { lock.unlock() }
-        // 稼働中の時間帯変更に追随する。行にオフセットが出るので、ずれても読み取れる。
+        // 稼働中の時間帯変更に追随する。行にオフセットが出る。
         formatter.timeZone = .current
         return formatter.string(from: date)
     }

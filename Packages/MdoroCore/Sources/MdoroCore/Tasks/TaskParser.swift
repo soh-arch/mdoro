@@ -82,10 +82,8 @@ public enum TaskParser {
                 base = TaskTextNormalizer.contentHash(normalized)
                 idKind = .contentHash
             }
-            // 同一ハッシュ内での出現順 (REQ-TSK-021)。
-            // ブロック ID がユーザーの操作で重複することもあり、その場合も一意にしておかないと
-            // 2件目が選択できなくなり、UI の ForEach も破綻する。
-            // 先頭の1件は接尾辞を付けず、ブロック ID の見た目と安定性を保つ。
+            // REQ-TSK-021: 同一ハッシュ内での出現順。ブロック ID は重複しうるので同じ規則で一意にする。
+            // 先頭の1件だけ接尾辞を付けず、ブロック ID の見た目を保つ。
             let occurrence = idOccurrences[base, default: 0]
             idOccurrences[base] = occurrence + 1
             let stableId = (idKind == .blockId && occurrence == 0) ? base : "\(base)#\(occurrence)" 
@@ -113,12 +111,9 @@ public enum TaskParser {
         return TaskParseResult(items: items, wasTruncated: truncated)
     }
 
-    // REQ-ERR-003: 5MB を超えるファイルは先頭 5MB のみを読む。
-    // マルチバイト文字の途中で切れても落ちないよう、末尾の不完全なバイト列は捨てる。
-    //
-    // REQ-ERR-002: 解釈できなかった場合は throw する。**空の結果を返してはならない。**
-    // 空リストを返すと、呼び出し側が「タスクが0件になった」と受け取り、直前まで読めていた
-    // 一覧を上書きしてしまう (Obsidian の保存途中を読んだだけでも起こる)。
+    // REQ-ERR-003: 先頭 5MB のみを読む。末尾の不完全なバイト列は捨てる。
+    // REQ-ERR-002: 解釈できなければ throw する。**空の結果を返してはならない。**
+    // 0件と受け取られると、直前まで読めていた一覧を上書きしてしまう。
     public static func parse(data: Data) throws -> TaskParseResult {
         let limited = data.count > maxBytes ? data.prefix(maxBytes) : data[...]
         var slice = Data(limited)

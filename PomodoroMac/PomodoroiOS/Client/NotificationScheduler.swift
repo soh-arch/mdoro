@@ -2,17 +2,14 @@ import Foundation
 import UserNotifications
 import MdoroCore
 
-// REQ-NTF-002: iPhone 側の通知は **WebSocket 経由のメッセージに依存してはならない。**
-// `sessionEndAt` に対する絶対時刻トリガーのローカル通知として**事前にスケジュール**する。
-//
-// ロック中・バックグラウンドでは WebSocket が OS に止められるため、これ以外に手段がない
-// （`docs/CONTEXT.md` §3 の確定事項）。
+// REQ-NTF-002: iPhone 側の通知は **WebSocket に依存してはならない。**
+// ロック中・背面では WebSocket が OS に止められるため、絶対時刻トリガーで事前にスケジュールする。
 @MainActor
 final class NotificationScheduler {
 
     private let center = UNUserNotificationCenter.current()
     private var scheduledIds: [String] = []
-    // 同じ内容で何度も組み直さないための指紋。REQ-NTF-003 の (a)(b) を1つにまとめたもの。
+    // REQ-NTF-003 の (a)(b) を1つにまとめた指紋。同じ内容で組み直さない。
     private var lastSignature: String?
 
     private static let endPrefix = "session-end."
@@ -34,7 +31,7 @@ final class NotificationScheduler {
             return
         }
 
-        // 走っていないセッションに通知は要らない。
+        // 走っていないセッションに通知は要らない
         guard timer.runState == .running,
               let serverEndAt = timer.sessionEndAt,
               let serverStartedAt = timer.sessionStartedAt else {
@@ -94,8 +91,7 @@ final class NotificationScheduler {
     }
 
     private func add(_ content: UNNotificationContent, at fireDate: Date, identifier: String) {
-        // REQ-COM-014: **`DateComponents.timeZone` を明示的に設定する。**
-        // 設定しないと、タイムゾーン変更やサマータイム移行で発火時刻がずれる。
+        // REQ-COM-014: **`timeZone` を明示する。** 無いとタイムゾーン変更や夏時間で発火がずれる。
         var components = Calendar.current.dateComponents(
             [.year, .month, .day, .hour, .minute, .second], from: fireDate
         )
@@ -120,10 +116,7 @@ final class NotificationScheduler {
     }
 
     // REQ-NTF-006 / Decision 0020: **iPhone は OS の既定音のみ。**
-    // iOS に `/System/Library/Sounds` は無く（実機ランタイムで確認）、
-    // `UNNotificationSound(named:)` はアプリバンドルと Library/Sounds しか見ないため、
-    // 0017 の対応表（Glass / Submarine / Pop）は macOS 専用である。
-    // 鳴らす／鳴らさないの判断だけは共通なので、無音はここでも効く。
+    // iOS に `/System/Library/Sounds` は無いので、0017 の対応表は macOS 専用。無音だけは共通。
     private static func sound(for sound: NotificationSound) -> UNNotificationSound? {
         sound.isSilent ? nil : .default
     }

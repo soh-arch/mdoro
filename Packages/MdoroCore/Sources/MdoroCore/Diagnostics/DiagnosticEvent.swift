@@ -2,9 +2,8 @@ import Foundation
 
 // REQ-ERR-010 / Decision 0018: 診断ログに載せる1件。
 //
-// **利用者由来の文字列をここへ入れないこと。** タスク名・見出し・本文・パス・
-// サーバー名・端末名・IP アドレスは、書き出しのときではなく**書き込みの時点で**落とす。
-// 伏字処理を持たなければ、伏字処理のバグで漏れることもない。
+// **利用者由来の文字列をここへ入れないこと。** タスク名・見出し・本文・パス・サーバー名・
+// 端末名・IP アドレスは、書き出しのときではなく**書き込みの時点で**落とす。
 
 public enum DiagnosticLevel: String, Sendable, Equatable, CaseIterable {
     case info = "INFO"
@@ -61,8 +60,7 @@ public enum DiagnosticRedaction {
         String(stableId.suffix(4))
     }
 
-    // ファイルはパスのダイジェストで追う。同じ設定を使い続けているかは分かり、
-    // どこの何かは分からない。プロセスをまたいで安定させたいので FNV-1a を使う
+    // ファイルはパスのダイジェストで追う。プロセスをまたいで安定させるため FNV-1a を使う
     // （Swift の `Hasher` は起動ごとに種が変わる）。
     public static func digest(_ value: String) -> String {
         var hash: UInt32 = 2_166_136_261

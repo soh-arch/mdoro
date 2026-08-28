@@ -1,9 +1,7 @@
 import SwiftUI
 import MdoroCore
 
-// REQ-UIX-010〜014: 集中表示ビュー。
-//
-// v1.0 の「StandBy モード」を実現可能な形に置き換えたもの（Decision 0005）。
+// REQ-UIX-010〜014 / Decision 0005: 集中表示ビュー。
 // **視界に入る情報を極限まで減らす**のが目的なので、副次情報を足さないこと。
 struct FocusView: View {
     @Environment(ClientModel.self) private var model
@@ -11,7 +9,7 @@ struct FocusView: View {
 
     // REQ-UIX-014: 焼き付き防止のため 5 分ごとに ±8pt 平行移動させる。
     @State private var drift: CGSize = .zero
-    // 戻り方の案内。**常時は出さない。** 出しっぱなしは集中表示の趣旨に反する。
+    // 戻り方の案内。**常時は出さない。**
     @State private var isExitHintVisible = false
     @State private var hintTimer: Task<Void, Never>?
     @State private var driftTimer: Task<Void, Never>?
@@ -32,9 +30,7 @@ struct FocusView: View {
             ZStack {
                 theme.background.ignoresSafeArea()
 
-                // **3つの塊を離して置く。** 固定の間隔だと、横向きでは詰まり、
-                // 縦向きでは中途半端な位置に寄る。Spacer に配らせて、
-                // 狭いときは潰れる（`minLength: 0`）ようにしておく。
+                // **3つの塊を離して置く。** 固定の間隔だと向きによって詰まる。Spacer に配らせる。
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
                     secondary(height: secondaryHeight)
@@ -53,7 +49,7 @@ struct FocusView: View {
                     Spacer(minLength: 0)
                     controls(height: secondaryHeight)
                     Spacer(minLength: 0)
-                    // REQ-UIX-011: 戻り方はダブルタップだけ。**試した人にだけ、そっと教える。**
+                    // REQ-UIX-011: 戻り方はダブルタップだけ。
                     exitHint(height: secondaryHeight)
                 }
                 .offset(drift)
@@ -63,13 +59,12 @@ struct FocusView: View {
             .contentShape(Rectangle())
             // REQ-UIX-011: 通常画面へ戻るのは明示操作。**ダブルタップが先に判定される。**
             .onTapGesture(count: 2) { dismiss() }
-            // 1回叩いた、あるいは払った — どちらも「戻ろうとした」合図とみなす。
+            // 1回叩いた・払った、どちらも「戻ろうとした」合図とみなす。
             .onTapGesture { showExitHint() }
             .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { _ in showExitHint() })
         }
         .statusBarHidden()
-        // REQ-COL-030: 集中表示ビューはシステムの外観にかかわらず常にダークのパレット。
-        // 器の側も揃えておかないと、標準コントロールだけが明るいまま残る。
+        // REQ-COL-030: 常にダークのパレット。器も揃えないと標準コントロールだけ明るく残る。
         .preferredColorScheme(.dark)
         .onAppear {
             // REQ-UIX-012: 自動画面ロックを抑止する。
@@ -77,7 +72,7 @@ struct FocusView: View {
             startDrift()
         }
         .onDisappear {
-            // **必ず解除する。** 付けっぱなしにすると画面が永久に消えなくなる。
+            // **必ず解除する。** 付けっぱなしだと画面が永久に消えない。
             UIApplication.shared.isIdleTimerDisabled = false
             driftTimer?.cancel()
             driftTimer = nil
@@ -87,9 +82,7 @@ struct FocusView: View {
     }
 
     // REQ-COL-013: 色に加えて**線種**でも種別を分ける（Focus 実線 / Short 細実線 / Long 二重）。
-    //
-    // リングではなくバーなのは、集中表示ビューの数字が短辺の 40% 以上を占めるため（REQ-UIX-010）。
-    // 横向きでは、その数字を囲めるリングが短辺に収まらない。
+    // リングではなくバーなのは、REQ-UIX-010 の数字を囲めるリングが横向きで短辺に収まらないため。
     @ViewBuilder
     private func progressBar(width: CGFloat) -> some View {
         let role = timer.sessionType.colorRole
@@ -97,7 +90,7 @@ struct FocusView: View {
         let thickness: CGFloat = style == .thin ? 3 : 6
         VStack(spacing: 3) {
             bar(width: width, height: thickness, role: role)
-            // 二重線は長い休憩だけ。色を失っても形で分かる。
+            // 二重線は長い休憩だけ。
             if style == .double { bar(width: width, height: 2, role: role) }
         }
         .opacity(timer.runState == .idle ? 0 : 1)
@@ -105,9 +98,7 @@ struct FocusView: View {
 
     private func bar(width: CGFloat, height: CGFloat, role: ColorRole) -> some View {
         ZStack(alignment: .leading) {
-            // **軌道は中立の色にする。** セッション種別に使ってよいのは `-graphic` と `-text` だけで
-            //（REQ-COL-011）、`-line` を渡すと `ColorRole.color(_:in:)` の precondition で落ちる。
-            // 実際に落とした（2026-08-28、実機で集中表示ビューが真っ暗になった）。
+            // **軌道は中立の色にする。** REQ-COL-011 により `-line` を渡すと precondition で落ちる。
             Capsule().fill(theme.borderSubtle)
             Capsule()
                 .fill(theme.color(role, .graphic))
@@ -116,7 +107,7 @@ struct FocusView: View {
         .frame(width: width, height: height)
     }
 
-    // 経過の割合。**残り時間から出す** — 進行の正本は Mac にあり、ここは映すだけ。
+    // 経過の割合。**残り時間から出す。** 進行の正本は Mac にある。
     private var progress: CGFloat {
         let total: Int
         switch timer.sessionType {
@@ -131,8 +122,7 @@ struct FocusView: View {
 
     @ViewBuilder
     private func exitHint(height: CGFloat) -> some View {
-        // 中立の面に置く。**色を帯びた地は使わない** — 帯は注意を要する状態に予約されている
-        //（REQ-UIX-046）。これは注意ではなく案内である。
+        // REQ-UIX-046: **色を帯びた地は使わない。** これは注意ではなく案内である。
         Text("Double-tap to go back")
             .font(.system(size: height * 0.7))
             .foregroundStyle(theme.textSecondary)
@@ -193,7 +183,7 @@ struct FocusView: View {
             default:
                 EmptyView()
             }
-            // 延長は WORK 以外では非表示（REQ-TIM-040 により休憩に延長はない）。
+            // REQ-TIM-040: 休憩に延長はないので WORK 以外では非表示。
             if timer.sessionType == .work {
                 Button("+\(preset.extendSeconds / 60) min") { model.send(.extend) }
                     .accessibilityLabel("Extend by \(preset.extendSeconds / 60) minutes")

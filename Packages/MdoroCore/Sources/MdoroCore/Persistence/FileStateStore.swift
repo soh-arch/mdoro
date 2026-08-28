@@ -1,10 +1,7 @@
 import Foundation
 
 // REQ-PER-001 / 002: アプリコンテナ内の JSON として永続化する。
-//
-// 書き込みは同一ディレクトリ内の一時ファイルを経由し `FileManager.replaceItemAt` で差し替える。
-// REQ-PLT-004 が扱うのはログファイルだが、理由は同じで、サンドボックス下では
-// ディレクトリを跨ぐ rename が失敗する。状態ファイルにも同じ規律を適用する。
+// 書き込みは同一ディレクトリ内の一時ファイル経由。**サンドボックス下ではディレクトリを跨ぐ rename が失敗する。**
 public struct FileStateStore: StateStore {
     public let fileURL: URL
 
@@ -12,11 +9,10 @@ public struct FileStateStore: StateStore {
         self.fileURL = fileURL
     }
 
-    // FileManager は Sendable ではないため保持しない。呼び出しごとに既定のインスタンスを使う。
+    // FileManager は Sendable ではないため保持しない。
     private var fileManager: FileManager { .default }
 
-    // Application Support 配下。サンドボックス下ではコンテナ内に解決されるため、
-    // セキュリティスコープ付きブックマークは不要。
+    // Application Support 配下。サンドボックスではコンテナ内に解決されるのでブックマークは要らない。
     public static func inApplicationSupport(
         directoryName: String = "Mdoro",
         fileName: String = "state.json"

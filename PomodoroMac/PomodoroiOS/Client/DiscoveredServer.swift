@@ -2,8 +2,7 @@ import Foundation
 import Network
 import MdoroCore
 
-// REQ-COM-003 / REQ-ERR-005: Bonjour で Mac を探す。
-// 複数見つかった場合は一覧を提示してユーザーに選ばせるため、結果は配列で保持する。
+// REQ-COM-003 / REQ-ERR-005: Bonjour で Mac を探す。複数見つかったら選ばせるので配列で持つ。
 struct DiscoveredServer: Identifiable, Equatable, Sendable {
     let id: String
     let name: String
@@ -20,8 +19,7 @@ final class ServerBrowser {
     private(set) var servers: [DiscoveredServer] = []
 
     var onChange: (([DiscoveredServer]) -> Void)?
-    // REQ-PLT-008 / REQ-ERR-014: ローカルネットワーク許可を問い合わせる API は無い。
-    // NWBrowser の -65570 で検出する。
+    // REQ-PLT-008 / REQ-ERR-014: 許可を問い合わせる API は無い。NWBrowser の -65570 で検出する。
     var onLocalNetworkDenied: (() -> Void)?
 
     func start() {
@@ -54,14 +52,9 @@ final class ServerBrowser {
         browser = nil
     }
 
-    // **同じ Mac が「Lychee」「Lychee (2)」「Lychee (3)」と3つ見えることがある。**
-    //
-    // これは履歴ではない。Bonjour の広告である。アプリのプロセスが不意に終わると
-    // 登録がすぐには消えず、次に起動したプロセスは名前が衝突するので
-    // macOS が `(2)`, `(3)` と付け直す。**古いほうが番号が小さい。**
-    //
-    // 番号を外した名前で束ね、**いちばん新しい（番号の大きい）ものだけを残す。**
-    // 選び間違えても接続に失敗するだけで、古い広告は時間が経てば消える。
+    // **同じ Mac が「Name」「Name (2)」「Name (3)」と複数見えることがある。**
+    // プロセスが不意に終わると Bonjour の登録がすぐには消えず、macOS が番号を付け直す。
+    // **古いほうが番号が小さい。** 番号を外した名前で束ね、いちばん新しいものだけを残す。
     nonisolated static func deduplicated(_ servers: [DiscoveredServer]) -> [DiscoveredServer] {
         var newest: [String: (suffix: Int, server: DiscoveredServer)] = [:]
         var order: [String] = []
@@ -76,7 +69,7 @@ final class ServerBrowser {
         return order.compactMap { newest[$0]?.server }
     }
 
-    // 「Lychee (3)」→ ("Lychee", 3)、「Lychee」→ ("Lychee", 1)
+    // 「Name (3)」→ ("Name", 3)、「Name」→ ("Name", 1)
     nonisolated static func splitDuplicateSuffix(_ name: String) -> (base: String, suffix: Int) {
         guard name.hasSuffix(")"), let open = name.lastIndex(of: "(") else { return (name, 1) }
         let inside = name[name.index(after: open)..<name.index(before: name.endIndex)]

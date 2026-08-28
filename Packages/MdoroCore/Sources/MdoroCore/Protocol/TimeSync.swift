@@ -1,9 +1,7 @@
 import Foundation
 
 // REQ-COM-007 / 008 / 009: 端末間の時計オフセットを NTP 方式で測る。
-//
-// 絶対時刻同期がこの設計の根幹である以上（3原則の3つ目）、Mac と iPhone の時計差を
-// 補正しないと「終了絶対時刻」という基準そのものが端末間でずれる。
+// 補正しないと「終了絶対時刻」という基準そのものが端末間でずれる（3原則の3つ目）。
 public struct TimeSyncSample: Equatable, Sendable {
     public let offset: TimeInterval
     public let roundTrip: TimeInterval
@@ -37,7 +35,7 @@ public struct TimeSyncEstimator: Equatable, Sendable {
     public var sampleCount: Int { accepted.count }
 
     public mutating func add(_ sample: TimeSyncSample) {
-        // 遅延の大きいサンプルは、オフセットの推定を素直に狂わせる。
+        // 遅延の大きいサンプルはオフセットの推定を狂わせる。
         guard sample.roundTrip <= Self.maxRoundTrip else { return }
         accepted.append(sample)
         if accepted.count > Self.windowSize {
@@ -48,7 +46,7 @@ public struct TimeSyncEstimator: Equatable, Sendable {
     public var offset: TimeInterval {
         guard !accepted.isEmpty else { return 0 }
         guard accepted.count >= Self.minimumSamplesForMedian else {
-            // まだ数が揃わないうちは、いちばん速く返ってきたものが最も信用できる。
+            // 数が揃わないうちは、いちばん速く返ってきたものを使う。
             return accepted.min { $0.roundTrip < $1.roundTrip }?.offset ?? 0
         }
         let sorted = accepted.map(\.offset).sorted()
@@ -87,7 +85,7 @@ public struct ReconnectPolicy: Equatable, Sendable {
         return delay
     }
 
-    // 接続に成功したら振り出しに戻す。戻し忘れると、一度荒れた回線が延々と30秒待ちになる。
+    // **接続に成功したら振り出しに戻す。** 忘れると一度荒れた回線が延々と30秒待ちになる。
     public mutating func reset() {
         attempt = 0
     }

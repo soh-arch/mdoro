@@ -7,7 +7,6 @@ import MdoroCore
 //
 // **セッションの完了を確定しない**（REQ-COM-012 / 3原則の2つ目）。
 // 表示上のカウントダウンは続けてよいが、周回数の加算もログ記録も行わない。
-// 判断はすべて Mac が行い、ここはその結果を映すだけ。
 @MainActor
 @Observable
 final class ClientModel {
@@ -25,15 +24,13 @@ final class ClientModel {
     private(set) var displayNow = Date()
     // REQ-NTF-011: 通知から起動した直後は、同期が取れるまで断定的に表示しない。
     private(set) var isAwaitingFirstSync = false
-    // 問題があるときだけ理由を返す。正常時は nil。
-    // **失敗を黙らせないこと。** 実機で「何も出ない」に何度も苦しめられた。
+    // 問題があるときだけ理由を返す。**失敗を黙らせない。**
     var liveActivityProblem: String? { liveActivity.isHealthy ? nil : liveActivity.diagnostic }
 
     // 集中表示ビューを出しているか（REQ-UIX-013）。
     var isFocusViewPresented = false
 
     // REQ-COL-003 / Decision 0027: **外観はこの端末だけの設定。** Mac へは送らない。
-    // 見ている画面の明るさは、見ている人の手元の事情で決まる。
     private(set) var appearance: AppearancePreference = .system
 
     private let client = MdoroClient()
@@ -42,8 +39,7 @@ final class ClientModel {
     // REQ-UIX-020: 開始できるのはフォアグラウンドにある間だけ。
     private var isForeground = true
     // **復元したスナップショット（REQ-PER-010）は、何時間前のものか分からない。**
-    // Live Activity へ流してよいのは、接続中に受け取ったものだけである。
-    // ここを見ずに流したため、終わったセッションが凍ったままロック画面に残っていた（2026-08-27、実機）。
+    // Live Activity へ流してよいのは、接続中に受け取ったものだけ。
     private var hasLiveSnapshot = false
     private let browser = ServerBrowser()
     private var ticker: Task<Void, Never>?
@@ -53,13 +49,12 @@ final class ClientModel {
     func start() {
         Task { await notifications.requestAuthorization() }
         // 前のプロセスが残した Live Activity は、接続できなければ畳む。
-        // **復元したスナップショットで正当化しない**（それは何時間前のものか分からない）。
         liveActivity.discardOrphansIfUnconfirmed()
         restoreAppearance()
         restoreLastSnapshot()
         browser.onChange = { [weak self] found in
             self?.servers = found
-            // 1台だけ見つかったなら黙って繋ぐ。複数なら選ばせる（REQ-ERR-005）。
+            // REQ-ERR-005: 1台なら黙って繋ぎ、複数なら選ばせる。
             if found.count == 1, self?.status == .idle { self?.connect(to: found[0]) }
         }
         browser.onLocalNetworkDenied = { [weak self] in self?.localNetworkDenied = true }
@@ -74,8 +69,7 @@ final class ClientModel {
         liveActivity.end()
     }
 
-    // REQ-UIX-020: バックグラウンド中に Mac 側で始まったセッションは、
-    // フォアグラウンドへ復帰した時点で開始する。
+    // REQ-UIX-020: 背面で始まったセッションは、復帰した時点で開始する。
     func setForeground(_ foreground: Bool) {
         isForeground = foreground
         guard foreground, isConnected, hasLiveSnapshot, let snapshot else { return }
@@ -99,8 +93,7 @@ final class ClientModel {
         }
     }
 
-    // REQ-UIX-023: 接続が生きている限り「状態を確認できている」ので、staleDate を押し出す。
-    // 切断中は押し出さない。確認できていないのだから、古い扱いで正しい。
+    // REQ-UIX-023: 接続が生きている間だけ staleDate を押し出す。切断中は古い扱いで正しい。
     private func refreshLiveActivityIfNeeded() {
         guard isConnected, hasLiveSnapshot, let snapshot else { return }
         liveActivity.refreshIfNeeded(
@@ -117,8 +110,7 @@ final class ClientModel {
                 guard let self else { return }
                 self.status = status
                 guard !self.isConnected else { return }
-                // 切れたら Live Activity の操作を落とす（REQ-COM-013）。
-                // **手元の状態は「最後に見た値」に落ちたので、これで新しく開始もしない。**
+                // REQ-COM-013: 切れたら操作を落とす。**手元の値で新しく開始もしない。**
                 self.hasLiveSnapshot = false
                 self.liveActivity.setConnected(false)
             },
@@ -130,7 +122,6 @@ final class ClientModel {
                 self.isAwaitingFirstSync = false
                 self.persistSnapshot(snapshot)
                 // REQ-NTF-003 / 009: 状態を受け取るたびに通知を組み直す。
-                // 接続していない間に始まったセッションも、ここで初めて組まれる。
                 self.notifications.reschedule(for: snapshot, clockOffset: self.clockOffset)
                 // REQ-UIX-020 / 022: アプリが動いている間だけ Live Activity を追随させる。
                 self.liveActivity.sync(
@@ -169,8 +160,7 @@ final class ClientModel {
 
     // MARK: - 残り時間
 
-    // REQ-COM-009 / 011 / 012: サーバー時刻にオフセットを当てて算出する。
-    // 表示は 00:00 に達しても、**完了として扱わない**。
+    // REQ-COM-009 / 011 / 012: サーバー時刻にオフセットを当てる。**00:00 でも完了として扱わない。**
     func remainingSeconds() -> Int {
         guard let timer = snapshot?.timer else { return 0 }
         switch timer.runState {
@@ -185,8 +175,7 @@ final class ClientModel {
         }
     }
 
-    // 表示が 00:00 に達したが Mac から次の状態が届いていない、という状態。
-    // REQ-COM-012: ここで完了を確定してはならない。「同期待ち」として示す。
+    // REQ-COM-012: 00:00 に達しても完了を確定してはならない。「同期待ち」として示す。
     var isAwaitingSync: Bool {
         guard let timer = snapshot?.timer, timer.runState == .running else { return false }
         return remainingSeconds() == 0
@@ -210,14 +199,13 @@ final class ClientModel {
 
     // MARK: - ペアリングの解除
 
-    // 覚えている Mac の名前。解除できるかの判定にも使う。
+    // 覚えている Mac の名前。
     var pairedServerName: String? {
         guard let name = client.serverName ?? servers.first?.name else { return nil }
         return TokenKeychain.load(serverName: name) == nil ? nil : name
     }
 
-    // **端末の登録を捨てる。** 次につなぐときは、また6桁のコードから始まる。
-    // 失うのはトークンだけで、タイマーの状態は Mac 側にある（3原則の2つ目）。
+    // **端末の登録を捨てる。** 失うのはトークンだけで、タイマーの状態は Mac 側にある。
     func forgetPairedMac() {
         if let name = pairedServerName { TokenKeychain.delete(serverName: name) }
         client.disconnect()

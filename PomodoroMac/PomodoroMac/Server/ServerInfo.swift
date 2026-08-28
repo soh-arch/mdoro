@@ -3,9 +3,7 @@ import Network
 import MdoroCore
 
 // REQ-COM-002: Bonjour 発見後のサーバー情報取得。
-//
-// **認証を要さない代わりに、状態や設定を一切含めない。**
-// LAN 内の誰でも叩けるため、ここに状態を載せると REQ-SEC-003 が意味を失う。
+// **認証を要さない代わりに、状態や設定を一切含めない。** LAN 内の誰でも叩ける。
 struct ServerInfo: Codable, Equatable, Sendable {
     var serverName: String
     var protocolVersion: Int
@@ -15,17 +13,14 @@ struct ServerInfo: Codable, Equatable, Sendable {
 }
 
 // 最小の HTTP サーバー。`GET /info` だけに応じる。
-//
-// WebSocket と同じポートに相乗りさせると、Network.framework の自動アップグレードを外して
-// ハンドシェイクを手で実装することになる。得るものに対して割に合わないため、
-// **HTTP は別ポートで待ち受け、Bonjour はこちらを広告する**。
-// クライアントは `/info` で WebSocket のポートを知る。
+// WebSocket と同じポートに相乗りさせるとハンドシェイクを手で書くことになるため、
+// **HTTP は別ポートで待ち受け、Bonjour はこちらを広告する。**
 final class InfoHTTPServer: @unchecked Sendable {
     private var listener: NWListener?
     private let queue = DispatchQueue(label: "MdoroMac.InfoHTTP")
 
-    // **応答はネットワーク側のキューで組み立てられる。**
-    // ここから MainActor の状態を読むと `MainActor.assumeIsolated` が落ちる（実際に落とした）。
+    // **応答はネットワーク側のキューで組み立てられる。** ここから MainActor の状態を読めない。
+    // `MainActor.assumeIsolated` で読もうとするとトラップして落ちる（実際に落とした）。
     // 値を押し込む形にして、応答側はロック越しに読むだけにする。
     private let lock = NSLock()
     private var info: ServerInfo

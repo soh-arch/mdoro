@@ -5,17 +5,16 @@ public enum LogWriteError: Error, Equatable, Sendable {
     case invalidFilePath
     case readFailed(String)
     case writeFailed(String)
-    // 挿入以外の変更が起きようとした。既存行を守るための最後の砦。
+    // 挿入以外の変更が起きようとした。
     case wouldModifyExistingLines
 }
 
 // REQ-LOG-001〜004 / 022: 実績ログへの追記。
-//
-// **このアプリが利用者のファイルへ書き込む唯一の経路である。** Task.md へ書く手段はどこにも持たない。
+// **このアプリが利用者のファイルへ書き込む唯一の経路である。**
 public struct LogWriter: Sendable {
     public let fileURL: URL
-    // 3原則の1つ目を書き込みのたびに確かめるために持つ。設定画面のバリデーション
-    // (REQ-LOG-021) だけに頼ると、呼び忘れ・設定値の破損・シンボリックリンクで素通りする。
+    // REQ-LOG-021 を書き込みのたびに確かめるために持つ。
+    // 設定画面の検証だけに頼ると、呼び忘れ・設定値の破損・シンボリックリンクで素通りする。
     public let taskFileURL: URL?
     public let options: LogFormatter.Options
 
@@ -77,7 +76,7 @@ public struct LogWriter: Sendable {
     }
 
     // REQ-LOG-004 / REQ-PLT-004: 一時ファイルへ書き出してから差し替える。
-    // 一時ファイルは**同一ディレクトリ内**に置く。サンドボックス下でディレクトリを跨ぐ rename は失敗する。
+    // **同一ディレクトリ内**に置く。サンドボックス下でディレクトリを跨ぐ rename は失敗する。
     private func writeAtomically(_ contents: String) throws {
         let directory = fileURL.deletingLastPathComponent()
         let temporaryURL = directory.appendingPathComponent(".\(fileURL.lastPathComponent).\(UUID().uuidString).tmp")
@@ -104,7 +103,7 @@ public final class LogWriteQueue: @unchecked Sendable {
         public var written: Int
         public var pending: Int
         public var consecutiveFailures: Int
-        // 3回失敗に達した。ユーザーへ通知する。
+        // 3回失敗に達した。
         public var shouldNotify: Bool
         public var lastError: LogWriteError?
     }

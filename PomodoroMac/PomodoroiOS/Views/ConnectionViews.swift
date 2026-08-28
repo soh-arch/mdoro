@@ -2,15 +2,12 @@ import SwiftUI
 import MdoroCore
 
 // REQ-UIX-004 / REQ-COM-013: 接続状態を常時視認できること。
-// 切断中は「Mac に接続していません」と明示する。
 struct ConnectionBanner: View {
     @Environment(\.theme) private var theme
     @Environment(ClientModel.self) private var model
     @State private var pairingCode = ""
 
-    // REQ-UIX-046: 帯は**注意を要する状態にだけ**使う。
-    // 正常につながっているあいだ「問題ありません」と全幅で言う要素を置かない。
-    // REQ-UIX-004 は、点と短いラベルで満たす。
+    // REQ-UIX-046: 帯は**注意を要する状態にだけ**使う。正常時は点と短いラベルで足りる。
     private var needsAttention: Bool {
         !model.isConnected || model.isAwaitingFirstSync || model.liveActivityProblem != nil
     }
@@ -55,7 +52,7 @@ struct ConnectionBanner: View {
                     .foregroundStyle(theme.color(.warning, .text))
             }
 
-            // Live Activity が出せない理由は隠さない。正常なら何も出さない。
+            // Live Activity が出せない理由は隠さない。
             if let problem = model.liveActivityProblem {
                 Text("Live Activity: \(problem)")
                     .font(.caption)
@@ -237,9 +234,7 @@ struct TaskListSectionView: View {
                         HStack(spacing: 8) {
                             // REQ-TSK-014: 子タスクは字下げして並べる。
                             if item.depth > 0 { Spacer().frame(width: CGFloat(item.depth) * 16) }
-                            // REQ-COL-010: 形（塗りつぶし／輪郭）で区別したうえで、色も足す。
-                            // 白黒だけだと、一覧の中でどれが選ばれているか一目で分からない。
-                            // 意味を持つ図形なので `-graphic`（背景に対し 3.0 以上）を使う。
+                            // REQ-COL-010: 形で区別したうえで色も足す。意味を持つ図形なので `-graphic`。
                             let isSelected = model.snapshot?.task.selectedTaskId == item.stableId
                             Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
                                 .foregroundStyle(isSelected

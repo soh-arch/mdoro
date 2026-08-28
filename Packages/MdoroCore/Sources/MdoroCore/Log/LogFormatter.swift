@@ -14,7 +14,6 @@ public enum LogFormatter {
     }
 
     // REQ-UIX-038: 曜日はロケールに左右させず、英語3文字で固定する。
-    // ファイルの見た目が環境で変わると差分が読みにくくなる。
     static let weekdaySymbols = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
     // REQ-LOG-003: `## YYYY-MM-DD (Day)`
@@ -28,15 +27,12 @@ public enum LogFormatter {
                       components.year ?? 0, components.month ?? 0, components.day ?? 0, weekday)
     }
 
-    // REQ-LOG-003: 見出しが当該論理日のものかを判定する。
+    // REQ-LOG-003 / REQ-LOG-022 / Decision 0014: 日付が読めれば、曜日が書き換えられていても
+    // 同一の見出しとみなす。**曜日の書き換えは REQ-LOG-022 の「改名」には当たらない。**
+    // 別物として末尾に作り直すと、同じ日の見出しが2つ並んで記録が分断される。
     //
-    // 日付が読めれば、曜日部分が書き換えられていても同一の見出しとみなす (Decision 0014)。
-    // REQ-LOG-022 の「改名」には当たらない。末尾に作り直すと同じ日の見出しが2つ並び、
-    // 記録が分断される。
-    //
-    // 日付は `## ` の直後に限る。行のどこかにあれば一致とすると、
-    // ユーザーが自分で書いた `## 週次レビュー 2026-08-24 の分` のような見出しに一致し、
-    // **ユーザーの節の中へログ行を混入させる。**
+    // **日付は `## ` の直後に限る。** 行のどこかにあれば一致とすると、
+    // `## 週次レビュー 2026-08-24 の分` のような見出しに一致し、ユーザーの節へログ行を混入させる。
     public static func headingMatches(_ line: String, logicalDate: Date, calendar: Calendar = .current) -> Bool {
         guard let dateRange = line.range(of: #"^##[ \t]+(\d{4}-\d{2}-\d{2})"#, options: .regularExpression) else {
             return false
@@ -54,7 +50,7 @@ public enum LogFormatter {
         return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
     }
 
-    // 実経過時間は分で表す。秒は最も近い分へ丸める (切り捨てにすると完了直後の 24m59s が 24m になる)。
+    // 秒は最も近い分へ丸める。切り捨てると完了直後の 24m59s が 24m になる。
     static func minutes(_ seconds: Int) -> Int {
         Int((Double(seconds) / 60).rounded())
     }
@@ -73,8 +69,7 @@ public enum LogFormatter {
         case .aborted: parts.append("⏹ Stopped")
         }
 
-        // REQ-LOG-011: WORK の正常完了行には、完了後の周回数を n / longBreakInterval で含める。
-        // n は REQ-TIM-025 と同じ剰余表現とし、UI の表示と一致させる。
+        // REQ-LOG-011: 完了後の周回数を n / longBreakInterval で含める。n は REQ-TIM-025 と同じ剰余表現。
         if entry.sessionType == .work, entry.outcome == .completed,
            let loopCount = entry.loopCountAfterCompletion, loopCount > 0, entry.longBreakInterval > 0 {
             let display = ((loopCount - 1) % entry.longBreakInterval) + 1
@@ -97,8 +92,7 @@ public enum LogFormatter {
         return parts.joined(separator: " ")
     }
 
-    // REQ-LOG-013: 既定ではリンクにならないプレーンテキストとして出力する。
-    // 本文に [[...]] が含まれていた場合にリンク化してしまわないよう、括弧を落とす。
+    // REQ-LOG-013: 本文の [[...]] が意図せずリンクにならないよう括弧を落とす。
     static func plainTaskName(_ text: String) -> String {
         text.replacingOccurrences(of: "[[", with: "")
             .replacingOccurrences(of: "]]", with: "")

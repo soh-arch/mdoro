@@ -47,8 +47,7 @@ struct MainScreen: View {
                         Label("Settings", systemImage: "gearshape")
                     }
                 }
-                // iOS 26 は隣り合うツールバー項目を1つの枠にまとめる。
-                // **役割が違うので、分けて見せる。**
+                // iOS 26 は隣り合うツールバー項目を1つの枠にまとめる。**役割が違うので分ける。**
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 ToolbarItem(placement: .topBarTrailing) {
                     // REQ-UIX-013: 通常画面からの明示操作で集中表示ビューへ。
@@ -62,10 +61,8 @@ struct MainScreen: View {
             }
         }
         .environment(\.theme, theme)
-        // REQ-COL-003: 設定でライト固定・ダーク固定も選べる。**Mac 側にはあり、ここに無かった。**
-        // 無いと、地と文字は自前のパレット、ナビゲーションバーと標準コントロールは OS の外観、
-        // という食い違いが起きる。実機では**タイトルが白く飛び、有効なボタンが無効に見えた**
-        // （2026-08-27、スクリーンショットで確認）。
+        // REQ-COL-003: ライト固定・ダーク固定を器にも効かせる。
+        // 効かせないと、地と文字は自前のパレット、ナビゲーションバーは OS の外観、という食い違いが起きる。
         .preferredColorScheme(preferredScheme)
         .fullScreenCover(isPresented: Bindable(model).isFocusViewPresented) {
             FocusView()
@@ -101,14 +98,12 @@ struct MainScreen: View {
     }
 
     // REQ-COM-013: 切断中は操作系 UI を無効化する。
-    // REQ-UIX-044: ボタンの色は役割名から引く。**OS の既定に委ねない。**
-    // 委ねていたために、有効な副次ボタンと無効なボタンが同じ見た目になっていた（2026-08-27、実機）。
+    // REQ-UIX-044: ボタンの色は役割名から引く。**OS の既定に委ねると有効と無効が同じ見た目になる。**
     @ViewBuilder
     private var controls: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // REQ-UIX-045 は Mac に限る（Decision 0028）。
-            // **iPhone の画面は一等地であり、説明で埋めない。**
-            // 押せない理由は Mac の設定画面と、読み上げのラベルが持つ。
+            // Decision 0028: REQ-UIX-045 は Mac に限る。**iPhone の画面は説明で埋めない。**
+            // 押せない理由は Mac の設定画面と読み上げラベルが持つ。
             buttonRow
         }
         .buttonStyle(.bordered)
@@ -143,7 +138,7 @@ struct MainScreen: View {
             }
             Spacer()
         }
-        // **ボタンの文字を折り返させない。** 折れると行の高さが揃わず、押す場所が読めなくなる。
+        // **ボタンの文字を折り返させない。**
         .lineLimit(1)
         .disabled(!model.isConnected)
     }

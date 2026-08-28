@@ -32,8 +32,7 @@ public struct ConnectionState: Equatable, Sendable, Codable {
 }
 
 // 10.2 stateSnapshot のペイロード。
-// clockOffsetMs / roundTripMs は**含めない**。クライアントが自分で測る値であり、
-// サーバーが配ると測定の意味がなくなる（REQ-COM-007〜009）。
+// REQ-COM-007〜009: clockOffsetMs / roundTripMs は**含めない**。クライアントが自分で測る値である。
 public struct StateSnapshot: Equatable, Sendable, Codable {
     public var timer: TimerContext
     public var task: TaskContext

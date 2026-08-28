@@ -15,8 +15,7 @@ public struct TaskContext: Equatable, Sendable, Codable {
     public var selectedTaskId: String?
     // REQ-TSK-031: 最後に既知だった本文。消失後もログにはこれを記録する。
     public var selectedTaskSnapshot: String?
-    // REQ-ERR-002 / REQ-ERR-001: 直近の読み込みが失敗したか。UI にエラーを表示するために持つ。
-    // 失敗しても items は直前に成功した内容のまま残る。
+    // REQ-ERR-001 / 002: 直近の読み込みが失敗したか。失敗しても items は直前の内容のまま残る。
     public var loadFailed: Bool
 
     public init(
@@ -42,7 +41,7 @@ public struct TaskContext: Equatable, Sendable, Codable {
     }
 
     // REQ-TSK-034: `showCompletedTasks` は本判定に影響してはならない。
-    // 表示上除外されているだけのタスクを missing と誤判定しないため、items は完了済みも含めて持つ。
+    // 表示上隠れているだけのタスクを missing と誤判定しないよう、items は完了済みも含めて持つ。
     public var selectedTaskState: SelectedTaskState {
         guard selectedTaskId != nil else { return .none }
         guard let task = selectedTask else { return .missing }
@@ -81,12 +80,9 @@ public enum TaskReloader {
 
     // REQ-TSK-030 / 031 / 032 / 035: 再読み込みで選択をどう扱うか。
     //
-    // 選択は勝手に外さない。消えたように見えても、文言の推敲で stableId が変わっただけのことがある
-    // (contentHash 方式では、同一本文の先行する行が消えるだけでも変わる: REQ-TSK-035)。
+    // **選択は勝手に外さない。** 消えたように見えても、文言の推敲で stableId が変わっただけのことがある。
     // 追従先が一意に定まるときだけ引き継ぎ、定まらなければ missing のまま維持する。
-    // REQ-ERR-002: パースに失敗した場合は、直前に成功したタスク一覧を保持し続ける。
-    // **空リストで上書きしないこと。** Obsidian の保存途中を読んだだけでも失敗しうるため、
-    // ここで空に落とすと選択中タスクが missing へ転落する。
+    // REQ-ERR-002: パースに失敗したら直前の一覧を保持する。**空リストで上書きしないこと。**
     public static func reload(
         previous: TaskContext,
         result: Result<TaskParseResult, Error>
@@ -128,10 +124,9 @@ public enum TaskReloader {
             return TaskReloadOutcome(context: context, followedFrom: nil, followedTo: nil)
         }
 
-        // 候補は「今回新しく現れた行」。加えて、REQ-TSK-035 の取りこぼしを拾う。
-        // contentHash 方式では、同一本文の重複のうち先行するものが消えると後続の ID がずれる。
-        // このとき残った行の ID は以前から存在しているため「新規出現」に入らず、
-        // 素朴に絞ると追従できない。本文が一致する行は、ID が既知でも候補に含める。
+        // 候補は「今回新しく現れた行」。加えて REQ-TSK-035 の取りこぼしを拾う。
+        // 同一本文の重複のうち先行するものが消えると後続の ID がずれるが、その ID は既知なので
+        // 「新規出現」に入らない。本文が一致する行は、ID が既知でも候補に含める。
         let previousIds = Set(previous.items.map(\.stableId))
         let candidates = parsed.items.filter {
             !previousIds.contains($0.stableId) || $0.normalizedText == reference.normalizedText
@@ -162,8 +157,7 @@ public enum TaskReloader {
                     best = (candidate, distance)
                     bestIsAmbiguous = false
                 } else if distance == current.distance {
-                    // 本文が完全に一致する候補が複数あっても、どれを選んでも記録される本文は同じ。
-                    // 曖昧としてはねるのは、文言が違う候補が並んだときだけでよい。
+                    // 本文が完全に一致するなら、どれを選んでも記録される本文は同じ。
                     if distance > 0 { bestIsAmbiguous = true }
                 }
             } else {

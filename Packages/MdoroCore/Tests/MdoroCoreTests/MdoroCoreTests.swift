@@ -422,7 +422,7 @@ struct SettingsApplicationTests {
 
 @Suite("レビュー指摘 (2026-08-25)")
 struct ReviewFixTests {
-    // 1. uniqueName の無限ループ: 30文字ちょうどの名前を複製するとハングしていた。
+    // uniqueName: 30文字ちょうどの名前を複製しても回り続けないこと。
     @Test func duplicatePresetOfMaxLengthNameDoesNotHangAndStaysWithinLimit() {
         let longName = String(repeating: "あ", count: 30)
         let preset = makePreset(id: "long", name: longName)

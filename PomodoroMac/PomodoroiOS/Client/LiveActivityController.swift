@@ -3,13 +3,13 @@ import ActivityKit
 import Observation
 import MdoroCore
 
-// REQ-UIX-020 / 022 / 028: Live Activity の開始・更新・終了。
+// REQ-UIX-020 / 022 / 028 / Decision 0009: Live Activity の開始・更新・終了。
 //
-// 開始できるのは**アプリがフォアグラウンドにある間だけ**、更新できるのは
-// **アプリが running である間だけ**（`docs/CONTEXT.md` §3 の確定事項 / Decision 0009）。
-// ここを MUST に戻す実装を書かないこと。
-// @Observable にしないと、状態が変わってもビューが読み直さない。
-// 実機で「理由すら表示されない」状態になったのはこれが原因のひとつ。
+// 開始できるのは**フォアグラウンドにある間だけ**、更新できるのは**running である間だけ**。
+// これはプラットフォームの制約であり、MUST に戻す実装を書かないこと。
+//
+// `@Observable` を外すとコンパイルは通るが、状態が変わってもビューが読み直さず、
+// **Live Activity を出せない理由が画面から消える。**
 @MainActor
 @Observable
 final class LiveActivityController {
@@ -17,19 +17,16 @@ final class LiveActivityController {
     private var activity: Activity<MdoroActivityAttributes>?
     private var startedAt: Date?
     private var lastPushedAt: Date?
-    // 最後に渡した内容と、そのときに置いた期限。
-    // 接続が落ちたときは、内容だけ直して**期限は押し出さない**ために要る。
+    // 最後に渡した内容と期限。接続が落ちたら内容だけ直して**期限は押し出さない**。
     private var lastState: MdoroActivityAttributes.ContentState?
     private var currentStaleDate: Date?
 
-    // **何が起きたかを常に文字で残す。**
-    // 「エラーが無い」と「そもそも呼ばれていない」は別物で、
-    // 後者を無表示にしていたため実機で切り分けられなかった。
+    // **何が起きたかを常に文字で残す。**「エラーが無い」と「呼ばれていない」は別物。
     private(set) var diagnostic: String = "Not started yet"
     // 正常に動いているときは黙る。問題があるときだけ画面に出す。
     private(set) var isHealthy = false
 
-    // OS が把握している自アプリの Live Activity 数。0 なら本当に存在しない。
+    // OS が把握している自アプリの Live Activity 数。
     var systemActivityCount: Int { Activity<MdoroActivityAttributes>.activities.count }
 
     // REQ-UIX-028: アクティブ8時間の上限。超えたら復帰時に新しく開始し直す。
@@ -39,11 +36,10 @@ final class LiveActivityController {
         ActivityAuthorizationInfo().areActivitiesEnabled
     }
 
-    // スナップショットを受けて、開始・更新・終了のどれかへ寄せる。
+    // 開始・更新・終了のどれかへ寄せる。
     //
-    // `isConnected` は**呼び出し側の今の接続状態**であり、スナップショットに入っている値ではない。
-    // スナップショットの `connection` は Mac が自分について語った値で、
-    // それを受け取れなくなった後も残り続ける。
+    // `isConnected` は**呼び出し側の今の接続状態**。スナップショットの `connection` は
+    // Mac が自分について語った値で、受け取れなくなった後も残り続ける。
     func sync(
         snapshot: StateSnapshot, clockOffset: TimeInterval,
         isForeground: Bool, isConnected: Bool, serverName: String
@@ -72,7 +68,6 @@ final class LiveActivityController {
         )
 
         if let activity {
-            // 上限を超えたぶんは作り直す。
             if let startedAt, Date().timeIntervalSince(startedAt) > Self.maximumLifetime, isForeground {
                 Task { await activity.end(nil, dismissalPolicy: .immediate) }
                 self.activity = nil
@@ -83,16 +78,13 @@ final class LiveActivityController {
             isHealthy = true
             push(state, extendingStaleDate: isConnected)
         } else {
-            // REQ-UIX-020: フォアグラウンドでないと開始できない。
-            // バックグラウンド中に Mac 側で始まったセッションは、復帰時にここで開始される。
+            // REQ-UIX-020: フォアグラウンドでないと開始できない。背面で始まったものは復帰時にここへ来る。
             start(state: state, serverName: serverName, isForeground: isForeground, isConnected: isConnected)
         }
     }
 
-    // REQ-COM-013 / REQ-UIX-024: 繋がっていないなら、操作できるように見せない。
-    //
-    // **`staleDate` は押し出さない。** 状態を確認できなくなったのだから、
-    // 期限が来て「情報が古い可能性があります」と出るのが正しい（REQ-UIX-023）。
+    // REQ-COM-013 / REQ-UIX-024: 繋がっていないなら操作できるように見せない。
+    // REQ-UIX-023: **`staleDate` は押し出さない。** 確認できていないのだから期限が来て正しい。
     func setConnected(_ connected: Bool) {
         guard activity != nil, var state = lastState, state.isConnected != connected else { return }
         state.isConnected = connected
@@ -100,14 +92,12 @@ final class LiveActivityController {
     }
 
     // 起動時にロック画面へ残っているものは、**今の状態かどうか確かめようがない。**
-    // 接続して状態を受け取れれば引き取って直せるので、少しだけ待つ。
-    // **待って来なければ畳む。** 確かめられないものを、正しい顔で残しておかない。
-    // セッションが本当に走っていれば、接続直後に開始し直される（REQ-UIX-020）。
+    // 少しだけ待ち、**来なければ畳む。** 走っていれば接続直後に開始し直される（REQ-UIX-020）。
     func discardOrphansIfUnconfirmed(within delay: TimeInterval = 10) {
         guard activity == nil, !Activity<MdoroActivityAttributes>.activities.isEmpty else { return }
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
-            // この間に生きたスナップショットが来ていれば、引き取られている。
+            // この間に生きたスナップショットが来ていれば引き取られている。
             guard let self, self.activity == nil else { return }
             self.diagnostic = "Dismissed a leftover Live Activity: its state could not be confirmed"
             self.isHealthy = true
@@ -115,19 +105,18 @@ final class LiveActivityController {
         }
     }
 
-    // アプリのプロセスが落ちても、Live Activity はロック画面に残る。
-    // 起動し直したときに拾い直さないと、**凍ったままの古い1件の横に新しい1件が並ぶ。**
-    // 引き取れば、次の更新でそのまま正しい内容へ戻せる。
+    // プロセスが落ちても Live Activity はロック画面に残る。
+    // 拾い直さないと、**凍ったままの古い1件の横に新しい1件が並ぶ。**
     private func adoptOrphanedActivity() {
         guard activity == nil else { return }
         let existing = Activity<MdoroActivityAttributes>.activities
         guard let survivor = existing.first else { return }
         activity = survivor
         lastState = survivor.content.state
-        // 本当の開始時刻は残っていない。8時間の寿命（REQ-UIX-028）はここから測り直す。
+        // 本当の開始時刻は残っていない。REQ-UIX-028 の寿命はここから測り直す。
         startedAt = Date()
         lastPushedAt = nil
-        // 前のプロセスが置いた期限をそのまま引き継ぐ。**期限なしで引き取らない。**
+        // **期限なしで引き取らない。** 前のプロセスが置いた期限を引き継ぐ。
         currentStaleDate = survivor.content.staleDate
         // 2件以上あったら畳む。**1つの状態に2つの表示があってはならない。**
         for duplicate in existing.dropFirst() {
@@ -144,8 +133,7 @@ final class LiveActivityController {
             lastPushedAt = Date()
         }
         guard let activity else { return }
-        // 期限を持っていないなら、今この瞬間を期限にする。
-        // **確認できていない状態を、期限なしで正しいものとして残さない**（REQ-UIX-023）。
+        // REQ-UIX-023: 期限が無いなら今この瞬間を期限にする。**期限なしで残さない。**
         let deadline = currentStaleDate ?? Date()
         Task { await activity.update(ActivityContent(state: state, staleDate: deadline)) }
     }
@@ -154,10 +142,8 @@ final class LiveActivityController {
         state: MdoroActivityAttributes.ContentState,
         serverName: String, isForeground: Bool, isConnected: Bool
     ) {
-        // **状態の正本は Mac**（3原則の2つ目）。繋がっていない間に手元にあるのは
-        // 「最後に見た値」でしかなく、復元したスナップショット（REQ-PER-010）に至っては
-        // 何時間前のものか分からない。これで開始すると、
-        // **とうに終わったセッションが、正しい顔で、動かないままロック画面に居座る。**
+        // **状態の正本は Mac。** 繋がっていない間に手元にあるのは「最後に見た値」でしかない。
+        // これで開始すると、**とうに終わったセッションが動かないままロック画面に居座る。**
         guard isConnected else {
             diagnostic = String(localized: "Starts once connected to your Mac")
             isHealthy = true
@@ -165,7 +151,7 @@ final class LiveActivityController {
         }
         // REQ-UIX-020: フォアグラウンドでないと開始できない（プラットフォーム制約）。
         guard isForeground else {
-            // これは制約であって不具合ではない（REQ-UIX-020）。騒がない。
+            // REQ-UIX-020 の制約であって不具合ではない。騒がない。
             diagnostic = String(localized: "Can only start while the app is in the foreground")
             isHealthy = true
             return
@@ -193,11 +179,9 @@ final class LiveActivityController {
         }
     }
 
-    // REQ-UIX-023: staleDate は「次に状態を確認できる保証がない時刻」であって、
-    // 「最後に状態が変わってからの経過時間」ではない。
-    // 状態が変わらないまま走り続けるセッションでもこちらを回し続けないと、
-    // アプリが前面にあって接続も生きているのに 90 秒で「情報が古い」と出る。
-    // 逆にアプリが suspend されればこの呼び出しごと止まり、意図どおり陳腐化する。
+    // REQ-UIX-023: staleDate は「次に確認できる保証がない時刻」であって経過時間ではない。
+    // 回し続けないと、前面で接続が生きていても 90 秒で「情報が古い」と出る。
+    // suspend されればこの呼び出しごと止まり、意図どおり陳腐化する。
     func refreshIfNeeded(
         snapshot: StateSnapshot, clockOffset: TimeInterval,
         isForeground: Bool, isConnected: Bool, serverName: String
@@ -210,8 +194,7 @@ final class LiveActivityController {
         )
     }
 
-    // **OS 上にあるものを全部畳む。** 自分が握っている1件だけを畳むと、
-    // 前のプロセスが残した残骸が凍ったまま居座る。
+    // **OS 上にあるものを全部畳む。** 1件だけだと前のプロセスの残骸が居座る。
     func end() {
         activity = nil
         startedAt = nil
@@ -237,8 +220,7 @@ final class LiveActivityController {
         let timer = snapshot.timer
         let preset = snapshot.presets.activePreset ?? Preset.standard()
 
-        // REQ-COM-009: サーバー時刻を端末の時計へ直してから渡す。
-        // 拡張側では時計合わせができない（REQ-UIX-026）。
+        // REQ-COM-009 / REQ-UIX-026: 拡張側では時計合わせができないので、ここで直して渡す。
         let localStart = serverStart.addingTimeInterval(-clockOffset)
         let localEnd: Date
         var pauseTime: Date?
@@ -261,8 +243,7 @@ final class LiveActivityController {
             loopDisplay: timer.displayLoop(longBreakInterval: preset.longBreakInterval),
             longBreakInterval: preset.longBreakInterval,
             taskName: timer.sessionTaskSnapshot ?? snapshot.task.selectedTaskSnapshot,
-            // **スナップショットの中の接続状態ではない。** そちらは Mac が自分について語った値で、
-            // 受け取れなくなった後も真のまま残る。ここで要るのは、この端末が今どうかである。
+            // **スナップショットの中の接続状態ではない。** 要るのは、この端末が今どうかである。
             isConnected: isConnected
         )
     }

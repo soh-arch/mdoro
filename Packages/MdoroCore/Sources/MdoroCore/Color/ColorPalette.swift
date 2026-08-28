@@ -6,7 +6,7 @@ public enum ColorMode: String, CaseIterable, Sendable {
     case dark
 }
 
-// 8.5.2 の色相。ビューはこれを直接参照しない (REQ-COL-002)。参照するのは ColorRole。
+// REQ-COL-002 / 8.5.2: ビューはこれを直接参照しない。参照するのは ColorRole。
 public enum ColorHue: String, CaseIterable, Sendable {
     case ink    // 藍 235°
     case sage   // 青磁 142°
@@ -14,7 +14,7 @@ public enum ColorHue: String, CaseIterable, Sendable {
     case clay   // 弁柄 30°
 }
 
-// 8.5.3 の5役。役を取り違えるとコントラスト保証が消えるため、用途ごとに別の値として持つ。
+// 8.5.3 の5役。**役を取り違えるとコントラスト保証が消える。**
 public enum HueRole: String, CaseIterable, Sendable {
     case subtle
     case subtleHover

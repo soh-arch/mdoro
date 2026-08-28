@@ -26,7 +26,7 @@ struct MdoroiOSApp: App {
     }
 }
 
-// 通知タップの受け口。前面にいるあいだも通知を出す。
+// 通知タップの受け口。
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     var onNotificationOpened: (() -> Void)?
 
@@ -37,7 +37,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         await MainActor.run { onNotificationOpened?() }
     }
 
-    // アプリを開いたままでも区切りは知らせる。黙ると通知の意味がない。
+    // 前面にいるあいだも区切りは知らせる。
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification

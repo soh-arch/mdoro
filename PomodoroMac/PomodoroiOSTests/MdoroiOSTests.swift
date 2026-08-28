@@ -2,8 +2,7 @@ import Testing
 import Network
 @testable import MdoroiOS
 
-// **同じ Mac が「Lychee」「Lychee (2)」と重なって見える問題**（2026-08-28、実機で報告）。
-// 履歴ではなく、消えきっていない Bonjour の広告である。
+// **同じ Mac が「Name」「Name (2)」と重なって見える。** 消えきっていない Bonjour の広告である。
 @Suite("探索結果の重複まとめ")
 struct ServerBrowserDeduplicationTests {
 

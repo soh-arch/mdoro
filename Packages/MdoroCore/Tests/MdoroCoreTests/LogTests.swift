@@ -210,10 +210,8 @@ struct LogFileEditorTests {
         #expect(result.contains("- 前日の行"))
     }
 
-    // Decision 0014: 曜日部分を書き換えられていても、日付が読めれば同じ日として扱う。
-    // 見出しを2つ作って記録を分断しない。REQ-LOG-022 の「改名」には当たらない。
-    //
-    // **利用者は自分のログを自分で編集する。** 曜日を書き直されても、その日の行はそこへ入る。
+    // Decision 0014: 曜日を書き換えられていても、日付が読めれば同じ日として扱う。
+    // **利用者は自分のログを自分で編集する。** 見出しを2つ作って記録を分断しない。
     @Test func renamedHeadingIsMatchedByItsDate() throws {
         let existing = "## 2026-08-24 (Monday)\n\n- 既存の行\n"
         let result = try insert(into: existing)
@@ -221,7 +219,7 @@ struct LogFileEditorTests {
         #expect(result.contains("## 2026-08-24 (Monday)"), "既存の見出しは書き換えない")
     }
 
-    // REQ-LOG-003: ユーザーが自分で書いた見出しに日付が含まれていても、当該見出しとみなさない。
+    // REQ-LOG-003 / REQ-LOG-022: ユーザーが自分で書いた見出しに日付が含まれていても、当該見出しとみなさない。
     @Test func userHeadingContainingADateIsNotTreatedAsTheDaySection() throws {
         let existing = "## 週次レビュー 2026-08-24 の分\n\n- ユーザーのメモ\n"
         let result = try insert(into: existing)

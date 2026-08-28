@@ -2,14 +2,12 @@ import Foundation
 
 // REQ-LOG-001 / 003 / 022: ログファイルへの「行の挿入」だけを行う純粋関数。
 //
-// このファイルはユーザーの保管場所の中にあり、ユーザー自身も編集する。
-// 既存行を1行でも書き換えれば、アプリの外にあるユーザーの資産を壊す。
-// そのため挿入位置の計算と、**既存行が保存されていることの検証**をここに閉じ込め、
-// 入出力を持つ側 (LogWriter) から分離している。
+// このファイルはユーザー自身も編集する。**既存行を1行でも書き換えればユーザーの資産を壊す。**
+// 挿入位置の計算と既存行の保存検証をここに閉じ込め、入出力を持つ LogWriter から分離する。
 public enum LogFileEditor {
 
     public enum EditError: Error, Equatable, Sendable {
-        // 挿入の結果、既存行が消えた・変わった。到達したら実装の誤りなので書き込みを中止する。
+        // 既存行が消えた・変わった。到達したら実装の誤りなので書き込みを中止する。
         case wouldModifyExistingLines
     }
 
@@ -58,8 +56,8 @@ public enum LogFileEditor {
             insertedLines = [line]
             insertIndex = position
         } else {
-            // REQ-LOG-022: 見出しが外部で削除・改名されていた場合は、見出しを再作成して
-            // **ファイル末尾へ**追記する。既存の行を復元・修正しようとしてはならない。
+            // REQ-LOG-022: 見出しが外部で消えていたら再作成して**ファイル末尾へ**追記する。
+            // 既存の行を復元・修正しようとしてはならない。
             var prefix: [String] = []
             if let last = lines.last, !last.trimmingCharacters(in: .whitespaces).isEmpty {
                 prefix.append("")
@@ -70,8 +68,7 @@ public enum LogFileEditor {
 
         lines.insert(contentsOf: insertedLines, at: insertIndex)
 
-        // **挿入以外のことをしていないことを、書き込む前に確かめる。**
-        // 意図ではなく検査で守る。ここを通らなければファイルには触れない。
+        // **挿入以外のことをしていないことを、書き込む前に確かめる。** 意図ではなく検査で守る。
         guard preservesAllLines(original: original, updated: lines, insertedAt: insertIndex, count: insertedLines.count) else {
             throw EditError.wouldModifyExistingLines
         }
