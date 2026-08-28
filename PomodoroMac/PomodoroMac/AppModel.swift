@@ -58,10 +58,14 @@ final class AppModel {
     // REQ-ERR-017 / Decision 0036: 退避先。**どこへ行ったかまで言わないと退避したことにならない。**
     private(set) var stateSetAsidePath: String?
     // REQ-ERR-017 / Decision 0035: 保存の失敗は**解消するまで**出し続ける。
-    // 解消しようのないもの（置き場所が作れない・保存が止まっている）が、都度の失敗より前に出る。
-    // **保存を止めたなら、止めたと言う。** `persist()` が降りる経路では都度の失敗が立たない。
+    // **保存を止めたなら、止めたと言う。** `persist()` が `mayPersist` で降りる経路では
+    // 都度の失敗が立たないので、止めた理由を渡さないとステータス行が黙る。順序は MdoroCore 側。
     var stateSaveProblem: String? {
-        (storeUnavailable ?? persistBlockedBy ?? lastSaveFailure)?.displayMessage
+        PersistenceStatus.problemMessage(
+            storeUnavailable: storeUnavailable,
+            persistBlockedBy: persistBlockedBy,
+            lastSaveFailure: lastSaveFailure
+        )
     }
 
     // MARK: - 依存

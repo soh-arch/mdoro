@@ -91,6 +91,18 @@ private final class SpyStateStore: StateStore, @unchecked Sendable {
     }
 }
 
+// A launch that ends with saving stopped: the read fails, and nothing can be moved out of
+// the way (either because it must not be, or because the move itself failed).
+private struct StoppedStateStore: StateStore {
+    let readFailure: StateStoreError
+
+    func load() throws -> PersistedState? { throw readFailure }
+    func save(_ state: PersistedState) throws {}
+    func setAsideUnreadableState() throws -> URL? {
+        throw StateStoreError.couldNotSetAside(ErrorCode(domain: NSCocoaErrorDomain, code: 513))
+    }
+}
+
 // Refuses everything, the way a container that has gone missing would.
 private struct RefusingStateStore: StateStore {
     func load() throws -> PersistedState? { throw StateStoreError.corrupted }
@@ -208,6 +220,108 @@ struct FailuresThatReachSomeoneTests {
         #expect(!startup.mayPersist, "REQ-ERR-017: nothing may be written over it either")
         #expect(startup.persistBlockedBy == unreachable.failure, "the status line has to know why saving stopped")
         #expect(startup.displayMessage == unreachable.failure.displayMessage)
+    }
+
+    // Decision 0036: **日時だけでは足りない。** Two breakages inside one second want the same
+    // name, and `moveItem` refuses an occupied one — which would stop saving for the rest of
+    // the day over a name. The counter is what avoids that.
+    //
+    // Waiting for a real collision would make this test depend on which second it runs in, so
+    // the collision is built: the name for the current second and the next two are taken
+    // before the call, and whichever the store reaches for is already there.
+    @Test func aSetAsideNeverTakesAnEarlierOnesName() throws {
+        let directory = try temporaryDirectory()
+        defer { discard(directory) }
+        let fileURL = directory.appendingPathComponent("state.json")
+        try Data("the state that broke".utf8).write(to: fileURL)
+
+        let now = Date()
+        let occupied = try (0...2).map { offset -> URL in
+            let stamp = FileStateStore.stampFormatter.string(from: now.addingTimeInterval(Double(offset)))
+            let url = directory.appendingPathComponent("state.json.unreadable-\(stamp)")
+            try Data("an earlier set-aside".utf8).write(to: url)
+            return url
+        }
+
+        let startup = FileStateStore(fileURL: fileURL).loadForStartup(now: now)
+
+        let setAsideAt = try #require(
+            startup.setAsideAt,
+            "the name was taken, so without the counter the move throws and saving stops"
+        )
+        #expect(setAsideAt.lastPathComponent.hasSuffix("-2"), "got \(setAsideAt.lastPathComponent)")
+        #expect(!occupied.contains(setAsideAt))
+        #expect(startup.mayPersist)
+        for url in occupied {
+            #expect(try String(contentsOf: url, encoding: .utf8) == "an earlier set-aside",
+                    "an earlier set-aside was written over")
+        }
+        #expect(try String(contentsOf: setAsideAt, encoding: .utf8) == "the state that broke")
+    }
+
+    // MARK: - REQ-ERR-017: saving stops, and the status line says so
+
+    // Three reasons can stand at once and they do not expire alike, so the order is fixed
+    // where it can be run. The case that matters most is the quiet one: an `.ioFailed` read
+    // sets nothing aside and lets no save run, so unless the reason that stopped it is passed
+    // through, every candidate is nil and the status line has nothing to show.
+    @Test func aStoppedSaveIsNeverSilentOnTheStatusLine() {
+        let unavailable = StateStoreError.ioFailed(ErrorCode(domain: NSCocoaErrorDomain, code: 513))
+        let blocked = StateStoreError.couldNotSetAside(ErrorCode(domain: NSCocoaErrorDomain, code: 513))
+        let lastSave = StateStoreError.corrupted
+
+        // 何も起きていなければ黙る。
+        #expect(PersistenceStatus.problemMessage(
+            storeUnavailable: nil, persistBlockedBy: nil, lastSaveFailure: nil) == nil)
+
+        // 止まっている理由だけが立っている状態。**ここで nil を返すと、画面から消える。**
+        #expect(PersistenceStatus.problemMessage(
+            storeUnavailable: nil, persistBlockedBy: blocked, lastSaveFailure: nil
+        ) == blocked.displayMessage)
+
+        // 解消しようのないものが先。都度の失敗は次に書けたら消えるので後ろ。
+        #expect(PersistenceStatus.problemMessage(
+            storeUnavailable: unavailable, persistBlockedBy: blocked, lastSaveFailure: lastSave
+        ) == unavailable.displayMessage)
+        #expect(PersistenceStatus.problemMessage(
+            storeUnavailable: nil, persistBlockedBy: blocked, lastSaveFailure: lastSave
+        ) == blocked.displayMessage)
+        #expect(PersistenceStatus.problemMessage(
+            storeUnavailable: nil, persistBlockedBy: nil, lastSaveFailure: lastSave
+        ) == lastSave.displayMessage)
+
+        // 起動の結果から直に引く。**保存が止まる起動で、黙るものが1つも無いこと。**
+        let stopped: [StateStoreError] = [
+            .ioFailed(ErrorCode(domain: NSCocoaErrorDomain, code: 256)),
+            .couldNotSetAside(ErrorCode(domain: NSCocoaErrorDomain, code: 513)),
+        ]
+        for failure in stopped {
+            let startup = StoppedStateStore(readFailure: failure).loadForStartup(now: Date())
+            #expect(!startup.mayPersist, "\(failure) has to stop saving")
+            #expect(PersistenceStatus.problemMessage(
+                storeUnavailable: nil,
+                persistBlockedBy: startup.persistBlockedBy,
+                lastSaveFailure: nil
+            ) != nil, "REQ-ERR-017: saving is stopped and the status line says nothing")
+        }
+    }
+
+    // The one line the test above cannot execute, because `stateSaveProblem` lives in the Mac
+    // target: the model has to hand over every candidate. Dropping `persistBlockedBy` from the
+    // call compiles and passes everything else, and the screen goes quiet exactly when saving
+    // has stopped for good.
+    @Test func theStatusLineIsWiredToEveryReasonSavingCanStop() throws {
+        let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
+        let declaration = try #require(appModel.range(of: "var stateSaveProblem"))
+        let rest = appModel[declaration.lowerBound...]
+        let body = rest.range(of: "\n\n").map { String(rest[..<$0.lowerBound]) } ?? String(rest)
+
+        for candidate in ["storeUnavailable", "persistBlockedBy", "lastSaveFailure"] {
+            #expect(
+                body.contains(candidate),
+                "REQ-ERR-017: `\(candidate)` never reaches the status line — \(body)"
+            )
+        }
     }
 
     // Decision 0036 rewrote two of these, so the sentence and the behaviour are checked together:

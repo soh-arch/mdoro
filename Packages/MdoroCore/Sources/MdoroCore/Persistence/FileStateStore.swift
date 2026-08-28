@@ -98,7 +98,9 @@ public struct FileStateStore: StateStore {
     }
 
     // A file name, so it is fixed and not the reader's locale (REQ-UIX-038).
-    private static let stampFormatter: DateFormatter = {
+    // Not private: the test that proves two set-asides cannot collide has to build the same
+    // name this does, and a copy of the format would drift away from it without saying so.
+    static let stampFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd-HHmmss"

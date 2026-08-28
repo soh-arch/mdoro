@@ -161,6 +161,25 @@ public extension StateStore {
     }
 }
 
+// REQ-ERR-017 / Decision 0035 / 0036: 保存について画面が出す1文。
+//
+// Three reasons can stand at once, and they do not expire alike: a store that could not be
+// made and a file that may not be written over never resolve, while a single failed write is
+// gone as soon as one succeeds. **The ones that cannot resolve go first.**
+//
+// No argument has a default. A caller that leaves one out would compile, and the screen would
+// go quiet while saving stayed stopped — which is the whole failure this requirement exists
+// to prevent. Making every candidate explicit is what keeps that from being a silent edit.
+public enum PersistenceStatus {
+    public static func problemMessage(
+        storeUnavailable: StateStoreError?,
+        persistBlockedBy: StateStoreError?,
+        lastSaveFailure: StateStoreError?
+    ) -> String? {
+        (storeUnavailable ?? persistBlockedBy ?? lastSaveFailure)?.displayMessage
+    }
+}
+
 // REQ-ERR-017 / Decision 0035: reading and restoring are separate steps because a caller that
 // has to report the read's failure needs both halves of it — the failure and whatever it can
 // still show. Folding them together forced a second `load()` to get at the saved values, and
