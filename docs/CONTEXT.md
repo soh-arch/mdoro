@@ -13,7 +13,7 @@
 
 | 原則 | 根拠 |
 | :---- | :---- |
-| **`Task.md` へは一切書き込まない。** 実績は `PomodoroLog.md` へ挿入のみ（既存行の書き換え・削除は禁止）。ブックマークは `securityScopeAllowOnlyReadAccess` で読み取り専用として生成し、OS レベルでも担保する | [0002](decisions/0002-task-md-read-only.md) |
+| **`Task.md` へは一切書き込まない。** 実績は `MdoroLog.md` へ挿入のみ（既存行の書き換え・削除は禁止）。ブックマークは `securityScopeAllowOnlyReadAccess` で読み取り専用として生成し、OS レベルでも担保する | [0002](decisions/0002-task-md-read-only.md) |
 | **状態の正本は Mac。** iPhone は表示上のカウントダウン補間はしてよいが、**セッションの終了を確定してはならない。** 周回数の加算・ログ記録の判断は Mac だけが行う | [0001](decisions/0001-mac-as-single-source-of-truth.md) |
 | **時間は絶対時刻基準。** 残り秒数を同期しない。`sessionEndAt` を配って各端末が算出する。残り時間の算出には単調時計、`sessionEndAt` の生成とログ表記には壁時計を使う | [0001](decisions/0001-mac-as-single-source-of-truth.md) |
 | **色リテラルをビューに書かない。** 役割名（`sessionFocus`, `warning`, `danger`, `textPrimary`）で参照する | [0007](decisions/0007-oklch-color-system.md) |
