@@ -7,6 +7,9 @@ import MdoroCore
 //
 // 開始できるのは**フォアグラウンドにある間だけ**、更新できるのは**running である間だけ**。
 // これはプラットフォームの制約であり、MUST に戻す実装を書かないこと。
+//
+// `@Observable` を外すとコンパイルは通るが、状態が変わってもビューが読み直さず、
+// **Live Activity を出せない理由が画面から消える。**
 @MainActor
 @Observable
 final class LiveActivityController {

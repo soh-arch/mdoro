@@ -20,6 +20,7 @@ final class InfoHTTPServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "MdoroMac.InfoHTTP")
 
     // **応答はネットワーク側のキューで組み立てられる。** ここから MainActor の状態を読めない。
+    // `MainActor.assumeIsolated` で読もうとするとトラップして落ちる（実際に落とした）。
     // 値を押し込む形にして、応答側はロック越しに読むだけにする。
     private let lock = NSLock()
     private var info: ServerInfo

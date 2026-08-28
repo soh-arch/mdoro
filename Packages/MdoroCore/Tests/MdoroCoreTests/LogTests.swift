@@ -219,7 +219,7 @@ struct LogFileEditorTests {
         #expect(result.contains("## 2026-08-24 (Monday)"), "既存の見出しは書き換えない")
     }
 
-    // REQ-LOG-003: ユーザーが自分で書いた見出しに日付が含まれていても、当該見出しとみなさない。
+    // REQ-LOG-003 / REQ-LOG-022: ユーザーが自分で書いた見出しに日付が含まれていても、当該見出しとみなさない。
     @Test func userHeadingContainingADateIsNotTreatedAsTheDaySection() throws {
         let existing = "## 週次レビュー 2026-08-24 の分\n\n- ユーザーのメモ\n"
         let result = try insert(into: existing)
