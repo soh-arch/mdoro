@@ -73,6 +73,24 @@ private func sampleEntry() -> LogEntry {
     )
 }
 
+// Fails a read with whatever it was handed, and remembers whether the set-aside was asked
+// for. Recording the question rather than its result is what lets the branch be checked in
+// both directions: a store that refuses to move the file cannot tell "not asked" from "asked
+// and failed".
+private final class SpyStateStore: StateStore, @unchecked Sendable {
+    let failure: StateStoreError
+    private(set) var setAsideWasAsked = false
+
+    init(failing failure: StateStoreError) { self.failure = failure }
+
+    func load() throws -> PersistedState? { throw failure }
+    func save(_ state: PersistedState) throws {}
+    func setAsideUnreadableState() throws -> URL? {
+        setAsideWasAsked = true
+        return URL(fileURLWithPath: "/tmp/mdoro-tests/state.json.unreadable-19700101-000000")
+    }
+}
+
 // Refuses everything, the way a container that has gone missing would.
 private struct RefusingStateStore: StateStore {
     func load() throws -> PersistedState? { throw StateStoreError.corrupted }
@@ -161,6 +179,37 @@ struct FailuresThatReachSomeoneTests {
         #expect(shown != StateStoreError.corrupted.displayMessage)
     }
 
+    // Decision 0036: **読めなかったことと、壊れていることは別である。** Only a file whose content
+    // cannot be interpreted is moved. A disk that did not answer says nothing about the bytes,
+    // and moving that file pushes intact data off under another name.
+    //
+    // Both directions are covered, so inverting the branch fails here either way: the two
+    // unusable-content cases must ask, and the I/O case must not.
+    @Test func onlyAFileWhoseContentIsUnusableIsMovedAside() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+        for failure: StateStoreError in [.corrupted, .unsupportedSchemaVersion(found: 99, supported: 1)] {
+            let store = SpyStateStore(failing: failure)
+            let startup = store.loadForStartup(now: now)
+            #expect(store.setAsideWasAsked, "\(failure) leaves an unreadable file where the next save lands")
+            #expect(startup.setAsideAt != nil)
+            #expect(startup.mayPersist, "the file is out of the way, so saving carries on")
+            #expect(startup.persistBlockedBy == nil)
+        }
+
+        // 一時的な I/O の失敗。**無事なデータを別名へ追いやらない。**
+        let unreachable = SpyStateStore(failing: .ioFailed(ErrorCode(domain: NSCocoaErrorDomain, code: 256)))
+        let startup = unreachable.loadForStartup(now: now)
+        #expect(!unreachable.setAsideWasAsked, "Decision 0036: a file that was merely unreachable is left alone")
+        #expect(startup.setAsideAt == nil)
+        #expect(startup.setAsideFailure == nil)
+
+        // **退避しないことと、上書きしてよいことは別である。**
+        #expect(!startup.mayPersist, "REQ-ERR-017: nothing may be written over it either")
+        #expect(startup.persistBlockedBy == unreachable.failure, "the status line has to know why saving stopped")
+        #expect(startup.displayMessage == unreachable.failure.displayMessage)
+    }
+
     // Decision 0036 rewrote two of these, so the sentence and the behaviour are checked together:
     // what the screen claims happened to the file has to be what happened to it.
     @Test func theSentencesSayWhatBecameOfTheFile() {
@@ -169,6 +218,11 @@ struct FailuresThatReachSomeoneTests {
             .displayMessage.contains("moved the file aside"))
         #expect(StateStoreError.couldNotSetAside(ErrorCode(own: 0))
             .displayMessage.contains("could not move the unreadable file aside"))
+        // Nothing is moved on an I/O failure, so nothing may claim it was.
+        let unreachable = StateStoreError.ioFailed(ErrorCode(domain: NSCocoaErrorDomain, code: 256))
+        #expect(!unreachable.displayMessage.contains("moved the file aside"))
+        #expect(!unreachable.displayMessage.contains("aside"))
+
         // v2.14 の文。**事実と逆だった。**
         for failure in [StateStoreError.corrupted, .unsupportedSchemaVersion(found: 9, supported: 1)] {
             #expect(!failure.displayMessage.contains("left the file alone"))

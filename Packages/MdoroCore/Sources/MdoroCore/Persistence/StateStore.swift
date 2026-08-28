@@ -38,6 +38,17 @@ extension StateStoreError: ReportableError {
         }
     }
 
+    // Decision 0036: **読めなかったことと、壊れていることは別である。**
+    // 中身が解釈できないものだけを退避する。ディスクが一時的に応答しなかっただけのファイルを
+    // 動かせば、**正常なデータを別名へ追いやる。** 網羅の switch なので、case が増えたときに
+    // どちら側かを決めないとコンパイルが通らない。
+    var meansTheContentIsUnusable: Bool {
+        switch self {
+        case .corrupted, .unsupportedSchemaVersion: true
+        case .ioFailed, .couldNotSetAside: false
+        }
+    }
+
     // REQ-UIX-038 / Decision 0034: fixed English per case.
     // Decision 0036: the file is never overwritten, so these say what became of it. The
     // sentence carries no location — the name is stamped with the time it was made, so the
@@ -98,8 +109,17 @@ public struct StateStartup {
     // 退避先。取りに行ける場所として画面に出す。
     public let setAsideAt: URL?
 
-    // Decision 0036: 退避できなかったファイルの上には書かない。
-    public var mayPersist: Bool { setAsideFailure == nil }
+    // Decision 0036: 保存を止めている理由。**退避しないことと、上書きしてよいことは別である** —
+    // I/O が応答しなかったファイルは動かさないが、その上に書きもしない。
+    // nil を返すのは、読めたときと、退避し終えたときだけ。
+    public var persistBlockedBy: StateStoreError? {
+        guard let readFailure else { return nil }
+        guard readFailure.meansTheContentIsUnusable else { return readFailure }
+        return setAsideFailure
+    }
+
+    // Decision 0036: 退避できていないファイルの上には書かない。
+    public var mayPersist: Bool { persistBlockedBy == nil }
 
     // 画面に出す1文。退避できなかったのなら、退避したと書いてある文は出せない。
     public var displayMessage: String? { (setAsideFailure ?? readFailure)?.displayMessage }
@@ -118,10 +138,10 @@ public extension StateStore {
             readFailure = .ioFailed(ErrorCode(error))
         }
 
-        // Decision 0036: 読めなかったファイルは、続行する前に退避する。
+        // Decision 0036: **中身が読めないファイルだけ**、続行する前に退避する。
         var setAsideAt: URL?
         var setAsideFailure: StateStoreError?
-        if readFailure != nil {
+        if readFailure?.meansTheContentIsUnusable == true {
             do {
                 setAsideAt = try setAsideUnreadableState()
             } catch let error as StateStoreError {

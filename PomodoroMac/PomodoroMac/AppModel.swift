@@ -58,9 +58,10 @@ final class AppModel {
     // REQ-ERR-017 / Decision 0036: 退避先。**どこへ行ったかまで言わないと退避したことにならない。**
     private(set) var stateSetAsidePath: String?
     // REQ-ERR-017 / Decision 0035: 保存の失敗は**解消するまで**出し続ける。
-    // 解消しようのないもの（置き場所が作れない・退避できない）が、都度の失敗より前に出る。
+    // 解消しようのないもの（置き場所が作れない・保存が止まっている）が、都度の失敗より前に出る。
+    // **保存を止めたなら、止めたと言う。** `persist()` が降りる経路では都度の失敗が立たない。
     var stateSaveProblem: String? {
-        (storeUnavailable ?? setAsideFailure ?? lastSaveFailure)?.displayMessage
+        (storeUnavailable ?? persistBlockedBy ?? lastSaveFailure)?.displayMessage
     }
 
     // MARK: - 依存
@@ -89,10 +90,13 @@ final class AppModel {
     private var lastSaveFailure: StateStoreError?
     // 起動時の復元の失敗。診断ログはまだ開いていないので、`start()` まで持ち越して書く。
     private var restoreFailure: StateStoreError?
-    // Decision 0036: 読めないファイルを退避できなかった理由。ステータス行が出し続ける。
+    // Decision 0036: 読めないファイルを退避できなかった理由。診断ログへ書く。
     private var setAsideFailure: StateStoreError?
-    // Decision 0036: 退避できなかったファイルの上には書かない。**以降いっさい保存しない。**
-    private let mayPersist: Bool
+    // Decision 0036: 保存を止めている理由。退避できなかった場合と、**I/O が応答しなかった場合**。
+    // 後者は退避もしないので、これが無いとステータス行が何も言わないまま保存だけ止まる。
+    private let persistBlockedBy: StateStoreError?
+    // Decision 0036: 上に書いてよいファイルではない。**以降いっさい保存しない。**
+    private var mayPersist: Bool { persistBlockedBy == nil }
 
     // MARK: - 生成
 
@@ -118,7 +122,7 @@ final class AppModel {
         self.pendingLogCount = self.logQueue.pendingCount
         self.restoreFailure = startup.readFailure
         self.setAsideFailure = startup.setAsideFailure
-        self.mayPersist = startup.mayPersist
+        self.persistBlockedBy = startup.persistBlockedBy
         self.stateSetAsidePath = startup.setAsideAt?.path
         self.stateRestoreProblem = startup.displayMessage
 
