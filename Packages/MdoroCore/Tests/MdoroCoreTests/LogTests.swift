@@ -72,11 +72,16 @@ struct LogFormatterTests {
         #expect(LogFormatter.line(for: entry(loopAfter: 8), calendar: calendar).contains("Loop 4/4"))
     }
 
-    // 周回は WORK の**正常完了行**のみ。
+    // REQ-LOG-011: 周回は WORK の**正常完了行**のみ。
+    // 出力される語は `Loop n/m`。同じ `loopCountAfterCompletion` を持つ完了行が周回を出すことを
+    // 対照として先に確かめ、以下の否定が「周回を出す条件が揃っているのに抑止されている」ことを示すようにする。
     @Test func loopCountIsOmittedForBreaksAndAbnormalEndings() {
-        #expect(!LogFormatter.line(for: entry(outcome: .aborted), calendar: calendar).contains("周回"))
-        #expect(!LogFormatter.line(for: entry(outcome: .skipped), calendar: calendar).contains("周回"))
-        #expect(!LogFormatter.line(for: entry(type: .longBreak, task: nil), calendar: calendar).contains("周回"))
+        #expect(LogFormatter.line(for: entry(), calendar: calendar).contains("Loop 1/4"),
+                "対照: 同じ入力の WORK 正常完了行には周回が付く")
+
+        #expect(!LogFormatter.line(for: entry(outcome: .aborted), calendar: calendar).contains("Loop"))
+        #expect(!LogFormatter.line(for: entry(outcome: .skipped), calendar: calendar).contains("Loop"))
+        #expect(!LogFormatter.line(for: entry(type: .longBreak, task: nil), calendar: calendar).contains("Loop"))
     }
 
     // REQ-LOG-016: A 群がセッション中に編集されたらプリセット名に * を付す。
