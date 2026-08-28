@@ -183,7 +183,7 @@ for img in menuBarImages.dropFirst() {
     ink.x = min(ink.x, b.x); ink.y = min(ink.y, b.y)
     ink.w = right - ink.x; ink.h = bottom - ink.y
 }
-print(String(format: "  ink x=%.1f y=%.1f w=%.1f h=%.1f (3枚の和)", ink.x, ink.y, ink.w, ink.h))
+print(String(format: "  ink x=%.1f y=%.1f w=%.1f h=%.1f (union of 3)", ink.x, ink.y, ink.w, ink.h))
 
 for (index, state) in menuBarStates.enumerated() {
     let dir = "\(repo)/PomodoroMac/PomodoroMac/Assets.xcassets/\(state.0).imageset"

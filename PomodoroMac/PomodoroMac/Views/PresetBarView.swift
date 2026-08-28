@@ -22,17 +22,17 @@ struct PresetBarView: View {
                             model.send(.selectPreset(id: preset.id))
                         } label: {
                             // REQ-UIX-008: 時間構成を併記する。
-                            Text("\(preset.name)（\(Format.presetShape(preset))）")
+                            Text("\(preset.name) (\(Format.presetShape(preset)))")
                         }
                     }
                 } label: {
-                    Text("\(active.name)（\(Format.presetShape(active))）")
+                    Text("\(active.name) (\(Format.presetShape(active)))")
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
             } else {
                 // REQ-PRS-013: 1件のときは切替 UI を出さず「追加」への導線にする。
-                Text("\(active.name)（\(Format.presetShape(active))）")
+                Text("\(active.name) (\(Format.presetShape(active)))")
                     .foregroundStyle(theme.textPrimary)
                 SettingsLink {
                     Text("Add").foregroundStyle(theme.color(.accentPrimary, .text))
