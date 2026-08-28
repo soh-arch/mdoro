@@ -194,14 +194,16 @@ final class AppModel {
             case .granted:
                 notificationAuthorizationError = nil
             case .notAllowed:
-                notificationAuthorizationError =
-                    "Notifications are turned off for Mdoro. Turn them on in System Settings > Notifications."
+                notificationAuthorizationError = String(
+                    localized: "Notifications are turned off for Mdoro. Turn them on in System Settings > Notifications."
+                )
                 diagnostics.write("notify.authorize", level: .warn, [
                     DiagnosticField("why", ErrorCode.notificationsNotAllowed.summary("notAllowed")),
                 ])
             case let .failed(code):
-                notificationAuthorizationError =
-                    "Mdoro could not ask for permission to send notifications. Open System Settings > Notifications and allow them there."
+                notificationAuthorizationError = String(
+                    localized: "Mdoro could not ask for permission to send notifications. Open System Settings > Notifications and allow them there."
+                )
                 diagnostics.write("notify.authorize", level: .warn, [
                     DiagnosticField("why", code.summary("requestFailed")),
                 ])
@@ -489,7 +491,7 @@ final class AppModel {
             // REQ-SEC-005 / REQ-ERR-008: 待ち受けられない事実を隠さない。
             // REQ-ERR-010 / Decision 0034: the screen keeps the fact and gives up the reason.
             // The reason is a code now, and `server.start` below is where it goes instead.
-            serverStartError = "Mdoro cannot listen for iPhone connections."
+            serverStartError = String(localized: "Mdoro cannot listen for iPhone connections.")
             diagnostics.write("server.start", level: .error, [
                 DiagnosticField("why", ErrorCode(error).summary("startFailed")),
             ])
@@ -640,7 +642,7 @@ final class AppModel {
             sourcePath: settings.taskFilePath,
             itemCount: tasks.items.count,
             isTruncated: tasks.wasTruncated,
-            parseError: tasks.loadFailed ? "Could not read the task file" : nil
+            parseError: tasks.loadFailed ? String(localized: "Could not read the task file") : nil
         )
     }
 
@@ -689,7 +691,9 @@ final class AppModel {
         guard let bookmark = bookmarks.logFolder else {
             // 出力先が未設定でも記録は捨てず、キューへ残す。
             logWriteFailed = true
-            lastLogError = "No folder is set for the session log. Choose one in Settings; entries stay queued until then."
+            lastLogError = String(
+                localized: "No folder is set for the session log. Choose one in Settings; entries stay queued until then."
+            )
             // REQ-ERR-010 / Decision 0034: `why` is always `case(domain:code)`.
             diagnostics.write("log.blocked", level: .warn, [
                 DiagnosticField("why", ErrorCode.logFolderNotSet.summary("noFolder")),
@@ -732,8 +736,9 @@ final class AppModel {
             // REQ-ERR-010 / Decision 0034: keep the domain and the code, never the OS text.
             logWriteFailed = true
             let failure = error as? VaultFileAccess.AccessError
-            lastLogError = failure?.displayMessage
-                ?? "The session log could not be written. Check the folder set in Settings; unwritten entries stay queued."
+            lastLogError = failure?.displayMessage ?? String(
+                localized: "The session log could not be written. Check the folder set in Settings; unwritten entries stay queued."
+            )
             diagnostics.write("log.write", level: .error, [
                 DiagnosticField("written", 0),
                 DiagnosticField("pending", logQueue.pendingCount),

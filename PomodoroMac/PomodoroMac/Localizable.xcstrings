@@ -14,6 +14,9 @@
         }
       }
     },
+    "%@ has ended" : {
+
+    },
     "%@ is trying to connect" : {
 
     },
@@ -51,6 +54,9 @@
     "About" : {
 
     },
+    "About %lld min left" : {
+
+    },
     "Add" : {
 
     },
@@ -67,6 +73,9 @@
 
     },
     "at %lld%% elapsed" : {
+
+    },
+    "Banners are turned off for this app in macOS Settings." : {
 
     },
     "Behavior" : {
@@ -93,6 +102,9 @@
     "Check that this app is allowed in System Settings > Privacy & Security > Local Network." : {
 
     },
+    "Check the destination in Settings. The timer keeps running." : {
+
+    },
     "Choose a preset" : {
 
     },
@@ -117,6 +129,9 @@
     "Connection" : {
 
     },
+    "Could not read the task file" : {
+
+    },
     "Dark" : {
 
     },
@@ -133,6 +148,9 @@
 
     },
     "Editing the same file while it is being appended to will conflict. Do not leave the log open in an editor." : {
+
+    },
+    "Ending soon" : {
 
     },
     "Enter this code in the iPhone app (%lld s left)" : {
@@ -154,6 +172,9 @@
 
     },
     "Flow" : {
+
+    },
+    "Focus" : {
 
     },
     "Followed the selection" : {
@@ -195,6 +216,9 @@
     "Light" : {
 
     },
+    "Long Break" : {
+
+    },
     "Loop %lld of %lld" : {
       "localizations" : {
         "en" : {
@@ -209,6 +233,12 @@
 
     },
     "Mdoro" : {
+
+    },
+    "Mdoro cannot listen for iPhone connections." : {
+
+    },
+    "Mdoro could not ask for permission to send notifications. Open System Settings > Notifications and allow them there." : {
 
     },
     "Mdoro has no ads, no in-app purchases, and no analytics. If it is useful to you, this opens the page in your browser." : {
@@ -229,10 +259,25 @@
     "Name" : {
 
     },
+    "Next: %@" : {
+
+    },
+    "No folder is set for the session log. Choose one in Settings; entries stay queued until then." : {
+
+    },
     "Not connected" : {
 
     },
+    "Notification test" : {
+
+    },
     "Notifications" : {
+
+    },
+    "Notifications are turned off for Mdoro. Turn them on in System Settings > Notifications." : {
+
+    },
+    "Notifications for this app are turned off in macOS Settings (%@)." : {
 
     },
     "Notify during Focus modes" : {
@@ -304,6 +349,9 @@
     "Settings…" : {
 
     },
+    "Short Break" : {
+
+    },
     "Shortcuts" : {
 
     },
@@ -317,6 +365,9 @@
 
     },
     "Skip" : {
+
+    },
+    "Sound is turned off for this app in macOS Settings. No choice made here will play." : {
 
     },
     "Source" : {
@@ -373,7 +424,16 @@
     "The menu bar uses shape and text instead of color, because its background brightness changes." : {
 
     },
+    "The session log cannot be written" : {
+
+    },
+    "The session log could not be written. Check the folder set in Settings; unwritten entries stay queued." : {
+
+    },
     "This file is never written to. It is opened read-only." : {
+
+    },
+    "This is what you get at each boundary." : {
 
     },
     "Time and task" : {
