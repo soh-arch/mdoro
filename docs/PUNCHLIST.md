@@ -51,16 +51,16 @@
 
 | ID | 症状 | 根拠 | 軸 | レーン | 重大度 | 状態 | PR |
 | :-- | :---- | :---- | :-- | :---- | :---- | :---- | :-- |
-| **POL-010** | 条文が日本語の UI 文言そのものを規定している箇所が **19件**。REQ-UIX-038（MUST）と正面衝突 | REQ-UIX-038 / [0022](decisions/0022-english-only-ui.md) | C | human | blocker | open | — |
-| **POL-011** | 10.3 の `notificationSound`（`chime` / `bell` / `wood`）は**コードの raw 値と一致しており、条文は誤っていない**（2026-08-28、repo-auditor が確認）。欠けているのは**表示名の対応表**。UI は `Glass` / `Submarine` / `Pop` を出すが、条文にその対応がない | 0.12節 / REQ-NTF-006 / [0017](decisions/0017-system-notification-sounds.md) / `Preset.swift:6-32` | C | human | major | open | — |
+| **POL-010** | 条文が日本語の UI 文言そのものを規定している箇所が **19件**。REQ-UIX-038（MUST）と正面衝突 | REQ-UIX-038 / [0022](decisions/0022-english-only-ui.md) | C | human | blocker | done | `docs/spec-v2.10` |
+| **POL-011** | 10.3 の `notificationSound`（`chime` / `bell` / `wood`）は**コードの raw 値と一致しており、条文は誤っていない**（2026-08-28、repo-auditor が確認）。欠けているのは**表示名の対応表**。UI は `Glass` / `Submarine` / `Pop` を出すが、条文にその対応がない | 0.12節 / REQ-NTF-006 / [0017](decisions/0017-system-notification-sounds.md) / `Preset.swift:6-32` | C | human | major | done | `docs/spec-v2.10` |
 | **POL-001** | 表題が「システム要件定義・仕様書：**ポモドーロタイマー**」。公開リポジトリで最初に読まれる1行が旧名 | [0021](decisions/0021-published-as-oss-named-mdoro.md) / [0024](decisions/0024-rename-everything-to-mdoro.md) | A | agent | major | done | `docs/spec-v2.10` |
 | **POL-002** | 1.1「目的」が製品を「ポモドーロタイマー」と定義。**同じ節の2行下で 0021 を引きながら、0021 が避けると決めた語で自分を名乗っている** | [0021](decisions/0021-published-as-oss-named-mdoro.md) | A | agent | major | done | `docs/spec-v2.10` |
 | **POL-006** | 9.4 の背景が置き場所を **`Vault`** と呼ぶ。Obsidian の固有名詞。9.3 は `taskFilePath` / `logFolderPath` を持つだけで Vault という単位は存在しない | [0023](decisions/0023-markdown-first-not-obsidian-first.md) / 9.3 | B | agent | major | done | `docs/spec-v2.10` |
-| **POL-012** | 既定プリセット名「標準」が条文本体に **11件**。7.2 のログ例だけ `[Standard]`。**同じ仕様書に既定プリセット名が2つある** | 0.12節 / [0022](decisions/0022-english-only-ui.md) | C | agent | major | open | — |
-| **POL-013** | 工程10 で確定した語 9件のうち、**条文から引けるのは2件だけ**。残りは改訂履歴 0.12 にしかない | [decisions/README.md](decisions/README.md)「反映」 | C | human | major | open | — |
-| **POL-014** | Info.plist の usage description の言語がどの条文にも規定されていない。**利用者が最初に読むアプリの文章**なのに REQ-UIX-038 の列挙に含まれない | REQ-UIX-038 / REQ-PLT-001 | C | agent | major | open | — |
-| **POL-016** | 1.1 の背景が「**個人開発**かつローカル環境での運用に特化」。同期競合を排除しているのは開発体制ではなく [0001](decisions/0001-mac-as-single-source-of-truth.md) | [0021](decisions/0021-published-as-oss-named-mdoro.md) / [0001](decisions/0001-mac-as-single-source-of-truth.md) | D | human | major | open | — |
-| **POL-017** | 第14章の背景が「**個人利用**における」。「作者1人」とも「1人の利用者の2端末」とも読める | [0021](decisions/0021-published-as-oss-named-mdoro.md) / REQ-NFR-008 | D | human | major | open | — |
+| **POL-012** | 既定プリセット名「標準」が条文本体に **11件**。7.2 のログ例だけ `[Standard]`。**同じ仕様書に既定プリセット名が2つある** | 0.12節 / [0022](decisions/0022-english-only-ui.md) | C | agent | major | done | `docs/spec-v2.10` |
+| **POL-013** | 工程10 で確定した語 9件のうち、**条文から引けるのは2件だけ**。残りは改訂履歴 0.12 にしかない | [decisions/README.md](decisions/README.md)「反映」 | C | human | major | done | `docs/spec-v2.10` |
+| **POL-014** | Info.plist の usage description の言語がどの条文にも規定されていない。**利用者が最初に読むアプリの文章**なのに REQ-UIX-038 の列挙に含まれない | REQ-UIX-038 / REQ-PLT-001 | C | agent | major | done | `docs/spec-v2.10` |
+| **POL-016** | 1.1 の背景が「**個人開発**かつローカル環境での運用に特化」。同期競合を排除しているのは開発体制ではなく [0001](decisions/0001-mac-as-single-source-of-truth.md) | [0021](decisions/0021-published-as-oss-named-mdoro.md) / [0001](decisions/0001-mac-as-single-source-of-truth.md) | D | human | major | done | `docs/spec-v2.10` |
+| **POL-017** | 第14章の背景が「**個人利用**における」。「作者1人」とも「1人の利用者の2端末」とも読める | [0021](decisions/0021-published-as-oss-named-mdoro.md) / REQ-NFR-008 | D | human | major | done | `docs/spec-v2.10` |
 | **POL-018** | 1.3 の配布欄が「**TestFlight 配布を想定**」のまま。0021 は「ソースからのビルドのみ」と確定済み。OPEN-021 も未決のまま残っている | [0021](decisions/0021-published-as-oss-named-mdoro.md) | D | human | major | done | `docs/spec-v2.10` |
 | **POL-019** | 第14章が Time Sensitive 通知を「利用できない**可能性がある**」。REQ-NTF-005 は「成立しない」と実機確認済み。**配布がソースのみである以上、全利用者が該当する** | REQ-NTF-005 / [0021](decisions/0021-published-as-oss-named-mdoro.md) | D | agent | major | done | `docs/spec-v2.10` |
 | **POL-020** | **パス未設定のまま使い始めた状態の条文がない。** 既定値は「未設定」で全利用者がそこから始まるが、条文は「一度設定した後」を前提にしている。未設定のまま確定に至ったときキューに積むかが引けない | REQ-ERR-001 / REQ-LOG-002 / REQ-LOG-005 / 9.3 | D | human | major | done | `docs/spec-v2.10` |
@@ -78,7 +78,7 @@
 | **POL-029** | アプリの文言40件以上が **String Catalog を経由していない**（Mac の通知本文が素のリテラル、iOS は `String(localized:)`）。表示言語は英語なので REQ-UIX-038 は破れていないが、**[0022](decisions/0022-english-only-ui.md) の設計意図（文言を1箇所に集める）が破れている** | [0022](decisions/0022-english-only-ui.md) | C | agent | minor | open | — |
 | **POL-030** | 診断ログは `sound=chime`、UI は `Glass`。**対応表は日本語の [0017](decisions/0017-system-notification-sounds.md) にしかなく、issue を読む第三者に同じものと分からない** | [0018](decisions/0018-diagnostic-log-policy.md) / [0017](decisions/0017-system-notification-sounds.md) | C | agent | minor | open | — |
 | **POL-031** | `Tools/make_icon.swift:186` の `print` に日本語が1行。同ファイルの他の `print` は全て英語 | [0032](decisions/0032-code-comments-are-english.md) | C | agent | minor | open | — |
-| **POL-015** | REQ-ERR-014 が OS 設定画面のパスを日本語で規定。英語化すると日本語ロケールの利用者の画面と一致しない。REQ-SEC-005 とも粒度が食い違う | REQ-ERR-014 / REQ-SEC-005 / 0.12節 | C | human | minor | open | — |
+| **POL-015** | REQ-ERR-014 が OS 設定画面のパスを日本語で規定。英語化すると日本語ロケールの利用者の画面と一致しない。REQ-SEC-005 とも粒度が食い違う | REQ-ERR-014 / REQ-SEC-005 / 0.12節 | C | human | minor | done | `docs/spec-v2.10` |
 | **POL-021** | 非スコープの「複数ユーザー対応」が、人の話か端末の話か読めない。第14章「1対1接続」は端末の話 | [0021](decisions/0021-published-as-oss-named-mdoro.md) / 第14章 | D | agent | minor | done | `docs/spec-v2.10` |
 | **POL-022** | 「ユーザー」約30件 / 「利用者」約11件が混在。**一括置換は禁止**（macOS のユーザーアカウント等3件は対象外） | [0021](decisions/0021-published-as-oss-named-mdoro.md) / REQ-UIX-042 | D | agent | minor | open | — |
 | **POL-023** | REQ-PLT-009 が製品要件と**検証手順**を1条文に混ぜている。前者は利用者、後者は貢献者に宛てられており宛先が違う | `CLAUDE.md`（手順は DEVELOPMENT.md） | D | agent | minor | done | `docs/spec-v2.10` |
