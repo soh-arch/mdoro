@@ -61,7 +61,8 @@ struct SettingsView: View {
         Form {
             // REQ-TSK-005: 監視対象ファイルのパスは設定画面から選べ、Vault の場所に依存しない。
             Section("Task file (read-only)") {
-                filePathRow(path: self.model.settings.taskFilePath, placeholder: "Not set") {
+                filePathRow(path: self.model.settings.taskFilePath,
+                            placeholder: String(localized: "Not set")) {
                     chooseTaskFile()
                 }
                 // REQ-TSK-024
@@ -75,7 +76,8 @@ struct SettingsView: View {
 
             Section("Where the session log is written") {
                 // Decision 0015: 原子的な書き込み (REQ-LOG-004) に同じフォルダへの許可が要る。
-                filePathRow(path: self.model.settings.logFolderPath, placeholder: "No folder set") {
+                filePathRow(path: self.model.settings.logFolderPath,
+                            placeholder: String(localized: "No folder set")) {
                     chooseLogFolder()
                 }
                 HStack {
@@ -153,13 +155,17 @@ struct SettingsView: View {
             // REQ-ERR-010 / Decision 0034: the screen gets a sentence, the log gets the code.
             // Unlike the row above, this failure can be logged — the log itself still works —
             // so Decision 0035's one exception does not reach here.
-            diagnosticsError = "Mdoro could not write the export to that location. Choose another folder and try again."
+            diagnosticsError = String(
+                localized: "Mdoro could not write the export to that location. Choose another folder and try again."
+            )
             model.diagnostics.write("diagnostics.export", level: .warn, [
                 DiagnosticField("why", ErrorCode(error).summary("exportFailed")),
             ])
         }
     }
 
+    // `path` は利用者のファイルパスなので `Text` は verbatim のまま。
+    // placeholder は呼び出し側でカタログから引く。
     private func filePathRow(path: String?, placeholder: String, choose: @escaping () -> Void) -> some View {
         HStack {
             Text(path ?? placeholder)
@@ -172,7 +178,7 @@ struct SettingsView: View {
     }
 
     private func chooseTaskFile() {
-        guard let url = openPanel(message: "Choose the task file to watch") else { return }
+        guard let url = openPanel(message: String(localized: "Choose the task file to watch")) else { return }
         model.setTaskFile(url)
         logFileError = nil
     }
@@ -184,7 +190,9 @@ struct SettingsView: View {
             logFileError = nil
         } catch {
             // REQ-LOG-021: Task.md と同一のファイルは指定できない。
-            logFileError = "This folder cannot be used: it points at the task file, or it cannot be written to."
+            logFileError = String(
+                localized: "This folder cannot be used: it points at the task file, or it cannot be written to."
+            )
         }
     }
 
@@ -202,12 +210,12 @@ struct SettingsView: View {
     // 選んだフォルダへの書き込み許可がないと、原子的書き込みの一時ファイルを作れない。
     private func folderPanel() -> URL? {
         let panel = NSOpenPanel()
-        panel.message = "Choose a folder for the session log"
+        panel.message = String(localized: "Choose a folder for the session log")
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
-        panel.prompt = "Use this folder"
+        panel.prompt = String(localized: "Use this folder")
         return panel.runModal() == .OK ? panel.url : nil
     }
 

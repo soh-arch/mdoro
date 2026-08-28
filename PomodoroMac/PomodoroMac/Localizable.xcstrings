@@ -14,6 +14,9 @@
         }
       }
     },
+    "%@ (unavailable)" : {
+
+    },
     "%@ has ended" : {
 
     },
@@ -33,7 +36,20 @@
     "%lld min left" : {
 
     },
+    "%lld minutes %lld seconds left" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld minutes %2$lld seconds left"
+          }
+        }
+      }
+    },
     "%lld not yet written" : {
+
+    },
+    "%lld seconds left" : {
 
     },
     "+%lld min" : {
@@ -46,6 +62,9 @@
 
     },
     "A decision is needed" : {
+
+    },
+    "A long pause was detected" : {
 
     },
     "A record to attach to a bug report. **Task names, note contents, file paths and device names are never written.** You can paste it in public as it is." : {
@@ -69,7 +88,19 @@
     "Allow" : {
 
     },
+    "Another preset already has that name." : {
+
+    },
     "Appearance" : {
+
+    },
+    "Applies **from the next session**. The end time of a running session does not change." : {
+
+    },
+    "Applies **immediately, including to a running session**." : {
+
+    },
+    "Applies immediately. The log keeps the name from when the session started." : {
 
     },
     "at %lld%% elapsed" : {
@@ -105,10 +136,22 @@
     "Check the destination in Settings. The timer keeps running." : {
 
     },
+    "Choose a file to watch in Settings." : {
+
+    },
+    "Choose a folder for the session log" : {
+
+    },
     "Choose a preset" : {
 
     },
+    "Choose the task file to watch" : {
+
+    },
     "Choose…" : {
+
+    },
+    "Chosen from the macOS system sounds. **This choice only affects the Mac.** iPhone uses the iOS default sound. Silent applies to both." : {
 
     },
     "Clear" : {
@@ -147,7 +190,13 @@
     "Display" : {
 
     },
+    "Each extension" : {
+
+    },
     "Editing the same file while it is being appended to will conflict. Do not leave the log open in an editor." : {
+
+    },
+    "Ended" : {
 
     },
     "Ending soon" : {
@@ -163,6 +212,9 @@
 
     },
     "Extending" : {
+
+    },
+    "Extending opens in the last 5 minutes" : {
 
     },
     "File name" : {
@@ -201,6 +253,26 @@
     "iPhone: %@" : {
 
     },
+    "It ended at %@ (actual %lld min). Record it as completed?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "It ended at %1$@ (actual %2$lld min). Record it as completed?"
+          }
+        }
+      }
+    },
+    "It has been paused since %@ (actual %lld min)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "It has been paused since %1$@ (actual %2$lld min)."
+          }
+        }
+      }
+    },
     "Kept in: %@" : {
 
     },
@@ -219,6 +291,9 @@
     "Long Break" : {
 
     },
+    "Long break every" : {
+
+    },
     "Loop %lld of %lld" : {
       "localizations" : {
         "en" : {
@@ -228,6 +303,9 @@
           }
         }
       }
+    },
+    "loops" : {
+
     },
     "Mac notification sound" : {
 
@@ -239,6 +317,9 @@
 
     },
     "Mdoro could not ask for permission to send notifications. Open System Settings > Notifications and allow them there." : {
+
+    },
+    "Mdoro could not write the export to that location. Choose another folder and try again." : {
 
     },
     "Mdoro has no ads, no in-app purchases, and no analytics. If it is useful to you, this opens the page in your browser." : {
@@ -259,13 +340,31 @@
     "Name" : {
 
     },
+    "Needs a decision" : {
+
+    },
     "Next: %@" : {
 
     },
     "No folder is set for the session log. Choose one in Settings; entries stay queued until then." : {
 
     },
+    "No folder set" : {
+
+    },
+    "No task file selected" : {
+
+    },
+    "No tasks found" : {
+
+    },
     "Not connected" : {
+
+    },
+    "Not running" : {
+
+    },
+    "Not set" : {
 
     },
     "Notification test" : {
@@ -310,7 +409,13 @@
     "Presets" : {
 
     },
+    "Press a key" : {
+
+    },
     "Quit" : {
+
+    },
+    "Reads lines written as `- [ ] task`. Headings (##) group them." : {
 
     },
     "Reconnecting" : {
@@ -335,6 +440,9 @@
 
     },
     "Resume it" : {
+
+    },
+    "Running" : {
 
     },
     "Send a test" : {
@@ -364,6 +472,9 @@
     "Showing the first %lld" : {
 
     },
+    "Showing what was read last time." : {
+
+    },
     "Skip" : {
 
     },
@@ -380,6 +491,9 @@
 
     },
     "Start Next" : {
+
+    },
+    "Start Next (%@)" : {
 
     },
     "Start pairing" : {
@@ -415,13 +529,28 @@
     "Tasks" : {
 
     },
+    "That action was not accepted." : {
+
+    },
+    "That is outside the allowed range." : {
+
+    },
     "The connected device will be disconnected. Denied automatically after 60 seconds." : {
 
     },
     "The diagnostic log cannot be written: %@" : {
 
     },
+    "The last preset cannot be deleted." : {
+
+    },
     "The menu bar uses shape and text instead of color, because its background brightness changes." : {
+
+    },
+    "The preset in use cannot be deleted." : {
+
+    },
+    "The session had already ended" : {
 
     },
     "The session log cannot be written" : {
@@ -430,7 +559,13 @@
     "The session log could not be written. Check the folder set in Settings; unwritten entries stay queued." : {
 
     },
+    "The session log is not being written" : {
+
+    },
     "This file is never written to. It is opened read-only." : {
+
+    },
+    "This folder cannot be used: it points at the task file, or it cannot be written to." : {
 
     },
     "This is what you get at each boundary." : {
@@ -446,6 +581,12 @@
 
     },
     "Up to 10 presets" : {
+
+    },
+    "Up to 10 presets." : {
+
+    },
+    "Use this folder" : {
 
     },
     "Version" : {

@@ -101,7 +101,7 @@ struct MainWindowView: View {
     private var extendDisabledReason: String? {
         guard model.timer.sessionType == .work, model.timer.runState != .idle else { return nil }
         guard !TimerEngine.isWithinExtensionWindow(model.timer, now: now) else { return nil }
-        return "Extending opens in the last 5 minutes"
+        return String(localized: "Extending opens in the last 5 minutes")
     }
 
     @ViewBuilder
@@ -178,7 +178,8 @@ struct MainWindowView: View {
             }
             if model.logWriteFailed {
                 Divider().frame(height: 12)
-                Label(model.lastLogError ?? "The session log is not being written", systemImage: "exclamationmark.triangle")
+                Label(model.lastLogError ?? String(localized: "The session log is not being written"),
+                      systemImage: "exclamationmark.triangle")
                     .foregroundStyle(theme.color(.warning, .text))
                     .textSelection(.enabled)
                     .help(model.lastLogError ?? "")
@@ -272,11 +273,12 @@ struct PendingDecisionView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    private var title: String {
+    // iPhone 側の `PendingDecisionCard` と同じ2つの題を使う。
+    private var title: LocalizedStringKey {
         pending.reason == .restoredAfterEnd ? "The session had already ended" : "A long pause was detected"
     }
 
-    private var detail: String {
+    private var detail: LocalizedStringKey {
         let minutes = pending.elapsedSeconds / 60
         let time = pending.endedAt.formatted(date: .abbreviated, time: .shortened)
         return pending.reason == .restoredAfterEnd

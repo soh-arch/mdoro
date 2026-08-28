@@ -91,9 +91,7 @@ struct MenuBarMenuContent: View {
                     Button {
                         model.send(.selectPreset(id: candidate.id))
                     } label: {
-                        // REQ-UIX-008: 時間構成を併記する。
-                        Text("\(candidate.name) (\(Format.presetShape(candidate)))"
-                             + (candidate.id == preset.id ? " ✓" : ""))
+                        Text(presetMenuTitle(candidate))
                     }
                 }
             }
@@ -182,8 +180,16 @@ struct MenuBarMenuContent: View {
 
     private static let taskMenuLimit = 20
 
+    // REQ-UIX-008: 時間構成を併記する。
+    // **文言は連結の前に引く。** `Text` に String を渡すと verbatim 初期化子に解決され、
+    // 抽出されない（Decision 0022）。印の ✓ は語ではないので、そのまま繋いでよい。
+    private func presetMenuTitle(_ candidate: Preset) -> String {
+        let shaped = String(localized: "\(candidate.name) (\(Format.presetShape(candidate)))")
+        return candidate.id == preset.id ? shaped + " ✓" : shaped
+    }
+
     private var nextSessionTitle: String {
-        "Start Next (\(Format.sessionLabel(model.timer.nextSessionType)))"
+        String(localized: "Start Next (\(Format.sessionLabel(model.timer.nextSessionType)))")
     }
 
     private func startNext() {

@@ -50,7 +50,9 @@ enum Format {
     }
 
     static func spokenRemaining(_ seconds: Int) -> String {
-        seconds >= 60 ? "\(seconds / 60) minutes \(seconds % 60) seconds left" : "\(seconds) seconds left"
+        seconds >= 60
+            ? String(localized: "\(seconds / 60) minutes \(seconds % 60) seconds left")
+            : String(localized: "\(seconds) seconds left")
     }
 
     static func sessionLabel(_ type: SessionType) -> String {
@@ -60,11 +62,11 @@ enum Format {
     // 読み上げ用。印が形で示している実行状態を、言葉でも言う。
     static func runStateLabel(_ state: RunState) -> String {
         switch state {
-        case .idle: return "Not running"
-        case .running: return "Running"
-        case .paused: return "Paused"
-        case .finished: return "Ended"
-        case .pendingDecision: return "Needs a decision"
+        case .idle: return String(localized: "Not running")
+        case .running: return String(localized: "Running")
+        case .paused: return String(localized: "Paused")
+        case .finished: return String(localized: "Ended")
+        case .pendingDecision: return String(localized: "Needs a decision")
         }
     }
 
