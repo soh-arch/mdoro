@@ -149,8 +149,8 @@ struct CommandTranslationTests {
 
     // 10.2: startBreak の sessionType は必須。省略できない。
     @Test func startBreakRequiresItsSessionType() {
-        #expect(translate(.startBreak) == .failure(.missingParameter("sessionType")))
-        #expect(translate(.startBreak, CommandParams(sessionType: .work)) == .failure(.invalidParameter("sessionType")))
+        #expect(translate(.startBreak) == .failure(.missingParameter(.sessionType)))
+        #expect(translate(.startBreak, CommandParams(sessionType: .work)) == .failure(.invalidParameter(.sessionType)))
         #expect(translate(.startBreak, CommandParams(sessionType: .longBreak))
                 == .success(.startBreak(type: .longBreak, presetId: "p")))
     }
@@ -161,7 +161,7 @@ struct CommandTranslationTests {
                 == .success(.confirmRestoredSession(.continueSession)))
         #expect(translate(.confirmRestoredSession, CommandParams(decision: .complete))
                 == .success(.confirmRestoredSession(.complete)))
-        #expect(translate(.confirmRestoredSession) == .failure(.missingParameter("decision")))
+        #expect(translate(.confirmRestoredSession) == .failure(.missingParameter(.decision)))
     }
 
     @Test func startWorkCarriesTheCurrentSelection() {
@@ -169,10 +169,10 @@ struct CommandTranslationTests {
     }
 
     @Test func presetCommandsRequireTheirIdentifiers() {
-        #expect(translate(.selectPreset) == .failure(.missingParameter("presetId")))
-        #expect(translate(.deletePreset) == .failure(.missingParameter("presetId")))
-        #expect(translate(.reorderPresets) == .failure(.missingParameter("orderedIds")))
-        #expect(translate(.createPreset) == .failure(.missingParameter("preset")))
+        #expect(translate(.selectPreset) == .failure(.missingParameter(.presetId)))
+        #expect(translate(.deletePreset) == .failure(.missingParameter(.presetId)))
+        #expect(translate(.reorderPresets) == .failure(.missingParameter(.orderedIds)))
+        #expect(translate(.createPreset) == .failure(.missingParameter(.preset)))
     }
 
     @Test func parameterlessCommandsTranslateDirectly() {

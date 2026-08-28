@@ -432,14 +432,56 @@ struct FailuresThatReachSomeoneTests {
         #expect(wiring == ["ClientModel.swift"], "the refusal is now taken in elsewhere too: \(wiring)")
     }
 
-    // What the Mac actually puts in `message` is the case name of its own error. If a sentence
-    // on the iPhone ever equalled one, the wording would have crossed the wire after all.
+    // What the Mac actually puts in `message` is its own failure written as `case(domain:code)`
+    // (Decision 0034). If a sentence on the iPhone ever contained one, the wording would have
+    // crossed the wire after all.
     @Test func theSentenceOnScreenIsNeverTheWordTheMacSent() {
+        var sent = TimerError.allCases.map(\.diagnosticSummary)
+        sent += CommandTranslation.Parameter.allCases.flatMap {
+            [
+                CommandTranslation.Failure.missingParameter($0).diagnosticSummary,
+                CommandTranslation.Failure.invalidParameter($0).diagnosticSummary,
+            ]
+        }
+        for code in ProtocolErrorCode.allCases {
+            let shown = code.displayMessage
+            for sentAsMessage in sent {
+                #expect(shown != sentAsMessage)
+                #expect(!shown.contains(sentAsMessage), "the wire's wording survived into the screen: \(code)")
+            }
+        }
+    }
+
+    // POL-042 changed what `message` carries, and nothing on the iPhone may move with it.
+    // The screen reads `code`, so pinning the route from a refusal to the code it is sent
+    // under is what fails if the sentence someone sees changes; the summary is checked not
+    // to appear in it, which is the only way the new payload could have leaked through.
+    @Test func rewritingTheWireMessageLeavesTheiPhonesSentenceWhereItWas() {
+        let route: [TimerError: ProtocolErrorCode] = [
+            .invalidStateForAction: .invalidStateForAction,
+            .extendWindowClosed: .extendWindowClosed,
+            .settingOutOfRange: .settingOutOfRange,
+            .presetNotFound: .presetNotFound,
+            .presetLimitReached: .presetLimitReached,
+            .presetNameConflict: .presetNameDuplicate,
+            .cannotDeleteLastPreset: .cannotDeleteLastPreset,
+            .cannotDeleteActivePreset: .cannotDeleteActivePreset,
+            .taskNotFound: .taskNotFound,
+        ]
+        #expect(route.count == TimerError.allCases.count, "a refusal has appeared with no route to a code")
         for error in TimerError.allCases {
-            let sentAsMessage = String(describing: error)
-            let shown = ProtocolErrorCode(error).displayMessage
-            #expect(shown != sentAsMessage)
-            #expect(!shown.contains(sentAsMessage), "the wire's wording survived into the screen: \(error)")
+            #expect(ProtocolErrorCode(error) == route[error], "\(error) now reaches a different sentence")
+        }
+        // A malformed command keeps its own code as well — `protocolErrorCode`, not the one
+        // Decision 0034 added, which is the mix-up the two names exist to prevent.
+        for parameter in CommandTranslation.Parameter.allCases {
+            for failure in [
+                CommandTranslation.Failure.missingParameter(parameter),
+                CommandTranslation.Failure.invalidParameter(parameter),
+            ] {
+                #expect(failure.protocolErrorCode == .invalidStateForAction)
+                #expect(!failure.protocolErrorCode.displayMessage.contains(failure.diagnosticSummary))
+            }
         }
     }
 
@@ -473,13 +515,13 @@ struct FailuresThatReachSomeoneTests {
 
     // Every place the pre-release audit found them. Nothing in these files needs them: what
     // reaches a reader here is a code (the diagnostic log's own write, Decision 0035's one
-    // exception) or a fixed English sentence. `AppModel` is not on the list — the two
-    // `String(describing:)` left there spell our own error enums into `error.message`, whose
-    // only payloads are parameter names this repository writes as literals ("sessionType",
-    // "decision"). 10.2 keeps that field diagnostic and no screen reads it.
+    // exception) or a fixed English sentence. `AppModel` joined the list with POL-042 — the
+    // two `String(describing:)` it kept spelled our own error enums into `error.message`,
+    // which held no OS text but was the last thing written in a shape of its own.
     @Test func theWordsTheOSChoseReachNoScreen() throws {
         let files = [
             "Packages/MdoroCore/Sources/MdoroCore/Diagnostics/DiagnosticLogFile.swift",
+            "PomodoroMac/PomodoroMac/AppModel.swift",
             "PomodoroMac/PomodoroMac/Views/SettingsView.swift",
             "PomodoroMac/PomodoroiOS/Client/LiveActivityController.swift",
             "PomodoroMac/PomodoroiOS/ClientModel.swift",

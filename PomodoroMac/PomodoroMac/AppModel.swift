@@ -579,19 +579,22 @@ final class AppModel {
             activePresetId: presets.activePresetId,
             selectedTaskSnapshot: tasks.selectedTaskSnapshot
         )
+        // 10.2 / Decision 0034 / 0035: `message` は診断用。診断ログの `why` と同じ
+        // `case(domain:code)` で書く。**画面の文言は受け取る側が `code` から引く**ので、
+        // ここを変えても iPhone の表示は動かない。
         switch translated {
         case let .success(action):
             if let error = send(action) {
                 server.broadcast(.error(ProtocolErrorPayload(
                     code: ProtocolErrorCode(error),
-                    message: String(describing: error),
+                    message: error.diagnosticSummary,
                     relatedRequestId: command.clientRequestId
                 )))
             }
         case let .failure(failure):
             server.broadcast(.error(ProtocolErrorPayload(
-                code: failure.errorCode,
-                message: String(describing: failure),
+                code: failure.protocolErrorCode,
+                message: failure.diagnosticSummary,
                 relatedRequestId: command.clientRequestId
             )))
         }

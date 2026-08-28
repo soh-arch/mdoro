@@ -4,13 +4,60 @@ import Foundation
 // **通信層に判断を持たせない。** 形の変換だけを行い、受理可否は状態機械が決める。
 public enum CommandTranslation {
 
-    public enum Failure: Error, Equatable, Sendable {
-        case missingParameter(String)
-        case invalidParameter(String)
+    // 10.2: the fields a `command` can carry. A case rather than a string literal at each
+    // call, because Decision 0034 needs somewhere to hang a code: the case name of a failure
+    // says what went wrong with a field, and the code says which field, so `case(domain:code)`
+    // holds without spending the resolution the decision says not to lose.
+    public enum Parameter: String, Equatable, Sendable, CaseIterable {
+        case sessionType
+        case decision
+        case stableId
+        case settings
+        case presetId
+        case preset
+        case orderedIds
 
-        public var errorCode: ProtocolErrorCode {
+        // 50–59 in the `Mdoro` domain. Handed out here, like 40–49 are with `TimerError`;
+        // `ErrorCode.swift` holds the rest of the table.
+        public var errorCode: ErrorCode {
+            switch self {
+            case .sessionType: ErrorCode(own: 50)
+            case .decision: ErrorCode(own: 51)
+            case .stableId: ErrorCode(own: 52)
+            case .settings: ErrorCode(own: 53)
+            case .presetId: ErrorCode(own: 54)
+            case .preset: ErrorCode(own: 55)
+            case .orderedIds: ErrorCode(own: 56)
+            }
+        }
+    }
+
+    // REQ-ERR-010 / Decision 0034: one of ours, written the way an OS failure is written.
+    public enum Failure: Error, Equatable, Sendable, DiagnosableError {
+        case missingParameter(Parameter)
+        case invalidParameter(Parameter)
+
+        // 10.2: what the iPhone gets in `error.code`, which is where its wording comes from.
+        // Named apart from `errorCode` because that one answers the diagnostic log instead.
+        public var protocolErrorCode: ProtocolErrorCode {
             switch self {
             case .missingParameter, .invalidParameter: return .invalidStateForAction
+            }
+        }
+
+        public var errorCode: ErrorCode {
+            switch self {
+            case let .missingParameter(parameter), let .invalidParameter(parameter):
+                return parameter.errorCode
+            }
+        }
+
+        // Spelled out rather than reflected: `String(describing:)` would carry the payload
+        // into the case name and break the one shape every failure is written in.
+        public var diagnosticSummary: String {
+            switch self {
+            case .missingParameter: return errorCode.summary("missingParameter")
+            case .invalidParameter: return errorCode.summary("invalidParameter")
             }
         }
     }
@@ -28,9 +75,9 @@ public enum CommandTranslation {
 
         case .startBreak:
             // 10.2: sessionType は必須。省略できない。
-            guard let type = params.sessionType else { return .failure(.missingParameter("sessionType")) }
+            guard let type = params.sessionType else { return .failure(.missingParameter(.sessionType)) }
             guard type == .shortBreak || type == .longBreak else {
-                return .failure(.invalidParameter("sessionType"))
+                return .failure(.invalidParameter(.sessionType))
             }
             return .success(.startBreak(type: type, presetId: activePresetId))
 
@@ -42,7 +89,7 @@ public enum CommandTranslation {
         case .resetLoopCount: return .success(.resetLoopCount)
 
         case .confirmRestoredSession:
-            guard let decision = params.decision else { return .failure(.missingParameter("decision")) }
+            guard let decision = params.decision else { return .failure(.missingParameter(.decision)) }
             switch decision {
             case .complete: return .success(.confirmRestoredSession(.complete))
             case .discard: return .success(.confirmRestoredSession(.discard))
@@ -51,38 +98,38 @@ public enum CommandTranslation {
             }
 
         case .selectTask:
-            guard let stableId = params.stableId else { return .failure(.missingParameter("stableId")) }
+            guard let stableId = params.stableId else { return .failure(.missingParameter(.stableId)) }
             return .success(.selectTask(snapshot: stableId))
 
         case .clearTaskSelection: return .success(.clearTaskSelection)
         case .reloadTasks: return .success(.reloadTasks)
 
         case .updateSettings:
-            guard let settings = params.settings else { return .failure(.missingParameter("settings")) }
+            guard let settings = params.settings else { return .failure(.missingParameter(.settings)) }
             return .success(.updateSettings(settings))
 
         case .selectPreset:
-            guard let presetId = params.presetId else { return .failure(.missingParameter("presetId")) }
+            guard let presetId = params.presetId else { return .failure(.missingParameter(.presetId)) }
             return .success(.selectPreset(id: presetId))
 
         case .createPreset:
-            guard let preset = params.preset else { return .failure(.missingParameter("preset")) }
+            guard let preset = params.preset else { return .failure(.missingParameter(.preset)) }
             return .success(.createPreset(preset))
 
         case .duplicatePreset:
-            guard let presetId = params.presetId else { return .failure(.missingParameter("presetId")) }
+            guard let presetId = params.presetId else { return .failure(.missingParameter(.presetId)) }
             return .success(.duplicatePreset(id: presetId))
 
         case .updatePreset:
-            guard let preset = params.preset else { return .failure(.missingParameter("preset")) }
+            guard let preset = params.preset else { return .failure(.missingParameter(.preset)) }
             return .success(.updatePreset(preset))
 
         case .deletePreset:
-            guard let presetId = params.presetId else { return .failure(.missingParameter("presetId")) }
+            guard let presetId = params.presetId else { return .failure(.missingParameter(.presetId)) }
             return .success(.deletePreset(id: presetId))
 
         case .reorderPresets:
-            guard let orderedIds = params.orderedIds else { return .failure(.missingParameter("orderedIds")) }
+            guard let orderedIds = params.orderedIds else { return .failure(.missingParameter(.orderedIds)) }
             return .success(.reorderPresets(order: orderedIds))
 
         case .restoreDefaultPreset:
