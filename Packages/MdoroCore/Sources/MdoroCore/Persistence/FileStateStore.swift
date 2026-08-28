@@ -70,6 +70,41 @@ public struct FileStateStore: StateStore {
         return state
     }
 
+    // REQ-ERR-017 / Decision 0036: 読めなかったファイルを上書きせずに退避する。
+    //
+    // The stamp is what keeps a second breakage from eating the first one's evidence, and
+    // `moveItem` refuses an occupied name rather than overwriting — so two failures inside one
+    // second get a counter instead of a thrown error, which would stop saving for the day.
+    public func setAsideUnreadableState() throws -> URL? {
+        guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
+
+        let directory = fileURL.deletingLastPathComponent()
+        let stamp = Self.stampFormatter.string(from: Date())
+        var destination = directory.appendingPathComponent("\(fileURL.lastPathComponent).unreadable-\(stamp)")
+        var attempt = 2
+        while fileManager.fileExists(atPath: destination.path), attempt <= 100 {
+            destination = directory.appendingPathComponent(
+                "\(fileURL.lastPathComponent).unreadable-\(stamp)-\(attempt)"
+            )
+            attempt += 1
+        }
+
+        do {
+            try fileManager.moveItem(at: fileURL, to: destination)
+        } catch {
+            throw StateStoreError.couldNotSetAside(ErrorCode(error))
+        }
+        return destination
+    }
+
+    // A file name, so it is fixed and not the reader's locale (REQ-UIX-038).
+    private static let stampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter
+    }()
+
     public func save(_ state: PersistedState) throws {
         let data: Data
         do {

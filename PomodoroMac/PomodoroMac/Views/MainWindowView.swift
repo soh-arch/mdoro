@@ -34,7 +34,7 @@ struct MainWindowView: View {
             // REQ-ERR-017 / Decision 0035: 復元の失敗は起動時に1度。
             // **セッションとプリセットが失われたことは、黙っていてよいことではない。**
             if let problem = model.stateRestoreProblem {
-                StateRestoreBanner(message: problem)
+                StateRestoreBanner(message: problem, setAsidePath: model.stateSetAsidePath)
             }
 
             // REQ-SEC-004: 接続要求の確認。タイマーの操作より前に出す。
@@ -209,6 +209,8 @@ struct StateRestoreBanner: View {
     @Environment(\.theme) private var theme
     @Environment(AppModel.self) private var model
     let message: String
+    // REQ-ERR-017 / Decision 0036: 退避先。名前に日時が入るので、文言とは別に出す。
+    let setAsidePath: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -219,6 +221,15 @@ struct StateRestoreBanner: View {
                 .font(.callout)
                 .foregroundStyle(theme.textSecondary)
                 .textSelection(.enabled)
+            // **退避したと言うだけでは足りない。** 取りに行ける場所を出す。
+            if let setAsidePath {
+                Text("Moved aside as: \(setAsidePath)")
+                    .font(.footnote)
+                    .foregroundStyle(theme.textTertiary)
+                    .textSelection(.enabled)
+                    .lineLimit(2)
+                    .truncationMode(.head)
+            }
             Button("Dismiss") { model.acknowledgeStateRestoreProblem() }
         }
         .padding(14)

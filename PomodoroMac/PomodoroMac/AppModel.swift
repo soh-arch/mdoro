@@ -55,9 +55,13 @@ final class AppModel {
     // REQ-ERR-017 / Decision 0035: 復元の失敗は**起動時に1度**示す。
     // 消せるのは利用者だけ。読まずに窓を開き直した人にもう一度出す。
     private(set) var stateRestoreProblem: String?
+    // REQ-ERR-017 / Decision 0036: 退避先。**どこへ行ったかまで言わないと退避したことにならない。**
+    private(set) var stateSetAsidePath: String?
     // REQ-ERR-017 / Decision 0035: 保存の失敗は**解消するまで**出し続ける。
-    // 置き場所ごと作れなかった場合は解消しようがないので、そちらが優先して残る。
-    var stateSaveProblem: String? { (storeUnavailable ?? lastSaveFailure)?.displayMessage }
+    // 解消しようのないもの（置き場所が作れない・退避できない）が、都度の失敗より前に出る。
+    var stateSaveProblem: String? {
+        (storeUnavailable ?? setAsideFailure ?? lastSaveFailure)?.displayMessage
+    }
 
     // MARK: - 依存
 
@@ -85,6 +89,10 @@ final class AppModel {
     private var lastSaveFailure: StateStoreError?
     // 起動時の復元の失敗。診断ログはまだ開いていないので、`start()` まで持ち越して書く。
     private var restoreFailure: StateStoreError?
+    // Decision 0036: 読めないファイルを退避できなかった理由。ステータス行が出し続ける。
+    private var setAsideFailure: StateStoreError?
+    // Decision 0036: 退避できなかったファイルの上には書かない。**以降いっさい保存しない。**
+    private let mayPersist: Bool
 
     // MARK: - 生成
 
@@ -92,21 +100,14 @@ final class AppModel {
         self.store = store
         self.storeUnavailable = storeUnavailable
 
-        // REQ-ERR-017 / Decision 0035: **握り潰しは、失敗しないことと区別がつかない。**
-        // 読めなかったのか、保存が無かったのかで、その先の意味が違う。前者は画面に出す。
-        var saved: PersistedState?
-        var failure: StateStoreError?
-        do {
-            saved = try store.load()
-        } catch let error as StateStoreError {
-            failure = error
-        } catch {
-            failure = .ioFailed(ErrorCode(error))
-        }
-        let restored = StateRestoration.reduction(from: saved, now: now)
+        // REQ-ERR-017 / Decision 0035 / 0036: **握り潰しは、失敗しないことと区別がつかない。**
+        // 読み込み・退避・復元は MdoroCore の1手順にまとまっている（REQ-PRT-001）。
+        // 順序が要点である — 先に復元して後から保存すると、退避すべきファイルを潰す。
+        let startup = store.loadForStartup(now: now)
+        let saved = startup.saved
 
-        self.timer = restored.context
-        self.presets = restored.presets
+        self.timer = startup.reduction.context
+        self.presets = startup.reduction.presets
         self.settings = saved?.settings ?? .default
         self.tasks = TaskContext(
             selectedTaskId: saved?.selectedTaskId,
@@ -115,11 +116,14 @@ final class AppModel {
         // REQ-LOG-005: 書き込めていないログを引き継ぐ。**捨てると二度と書かれない。**
         self.logQueue = LogWriteQueue(entries: saved?.pendingLogEntries ?? [])
         self.pendingLogCount = self.logQueue.pendingCount
-        self.restoreFailure = failure
-        self.stateRestoreProblem = failure?.displayMessage
+        self.restoreFailure = startup.readFailure
+        self.setAsideFailure = startup.setAsideFailure
+        self.mayPersist = startup.mayPersist
+        self.stateSetAsidePath = startup.setAsideAt?.path
+        self.stateRestoreProblem = startup.displayMessage
 
         // REQ-PER-003(d): 復元で判断待ちになった場合、通知の取り消しなどの副作用も実行する。
-        apply(effects: restored.effects)
+        apply(effects: startup.reduction.effects)
         persist()
     }
 
@@ -149,9 +153,20 @@ final class AppModel {
                 DiagnosticField("why", restoreFailure.diagnosticSummary),
             ])
         }
+        if let setAsideFailure {
+            diagnostics.write("state.setAside", level: .error, [
+                DiagnosticField("why", setAsideFailure.diagnosticSummary),
+            ])
+        }
         if let storeUnavailable {
             diagnostics.write("state.store", level: .error, [
                 DiagnosticField("why", storeUnavailable.diagnosticSummary),
+            ])
+        }
+        // init の `persist()` はログが開く前に走る。**そこで落ちた1件だけ記録が無かった。**
+        if let lastSaveFailure {
+            diagnostics.write("state.save", level: .error, [
+                DiagnosticField("why", lastSaveFailure.diagnosticSummary),
             ])
         }
         Task {
@@ -806,6 +821,9 @@ final class AppModel {
     // REQ-PER-001: 状態が変化するたびに永続化する。
     // REQ-ERR-017 / Decision 0035: 書けなかったことは、書けるようになるまで画面に出し続ける。
     private func persist() {
+        // Decision 0036: 退避できなかったファイルの上には、一度も書かない。
+        // **読めないことと、消してよいことは別である。** 止まっていることは status 行が言い続ける。
+        guard mayPersist else { return }
         do {
             try store.save(
                 PersistedState(
