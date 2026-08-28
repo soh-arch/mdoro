@@ -1,17 +1,14 @@
 import Foundation
 
 // REQ-ERR-010 / Decision 0018: 追記のみ・2世代のログファイル。
-//
-// **古い行を削除する処理を持たない。** 「読んで、一部を捨てて、書き戻す」は
-// このアプリが最も持ちたくない形をしている（[0002] `Task.md` へは書き込まない）。
-// 上限に達したらリネームするだけにすれば、日付のパースも書き戻しも要らない。
+// **古い行を削除する処理を持たない。** 上限に達したらリネームするだけにする。
 public final class DiagnosticLogFile: @unchecked Sendable {
 
     public let directory: URL
     public var currentURL: URL { directory.appendingPathComponent(DiagnosticLogFormat.currentFileName) }
     public var previousURL: URL { directory.appendingPathComponent(DiagnosticLogFormat.previousFileName) }
 
-    // ログ自体が書けないことは黙って捨てない（CONTEXT「失敗を黙らせない」）。
+    // ログ自体が書けないことも黙らせない。
     public private(set) var lastFailure: String?
 
     private let header: DiagnosticHeader

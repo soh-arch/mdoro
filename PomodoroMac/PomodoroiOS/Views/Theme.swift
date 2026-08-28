@@ -15,7 +15,7 @@ struct Theme {
         self.palette = .palette(for: mode)
     }
 
-    // 集中表示ビューは低輝度の暗色基調に固定する（REQ-UIX-014 / 8.5.6）。
+    // REQ-UIX-014 / 8.5.6: 集中表示ビューは低輝度の暗色基調に固定する。
     init(focusView: Bool) {
         self.palette = .dark
     }

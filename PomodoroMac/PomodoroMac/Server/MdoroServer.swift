@@ -2,16 +2,13 @@ import Foundation
 import Network
 import MdoroCore
 
-// REQ-COM-001 / 002: Mac を親（サーバー）、iPhone を子（クライアント）とする。
-// 状態同期は WebSocket（JSON）で行う。
-//
-// **このクラスはドメインの判断を持たない。** 受け取ったメッセージを上位へ渡し、
-// 上位が決めた結果を送り返すだけにする。状態の正本は `TimerEngine` にある（3原則の2つ目）。
+// REQ-COM-001 / 002: Mac を親（サーバー）、iPhone を子とする。状態同期は WebSocket（JSON）。
+// **このクラスはドメインの判断を持たない。** 受け取ったメッセージを上位へ渡すだけにする。
 @MainActor
 final class MdoroServer {
 
     struct Callbacks {
-        // hello を受けた。認証の判断は上位（Authenticator）が行う。
+        // 認証の判断は上位（Authenticator）が行う。
         var authenticate: (HelloPayload) -> Authenticator.Decision
         var handleCommand: (CommandPayload) -> Void
         var provideSnapshot: () -> StateSnapshot
@@ -38,16 +35,14 @@ final class MdoroServer {
 
     // MARK: - 起動
 
-    // **ポートが確定してから返す。** 確定前に返すと、Bonjour の TXT に載せる
-    // WebSocket ポートが 0 になり、クライアントが接続先を知る手段を失う。
+    // **ポートが確定してから返す。** 確定前に返すと Bonjour の TXT に載る値が 0 になる。
     func start(callbacks: Callbacks) async throws -> UInt16 {
         self.callbacks = callbacks
 
         let parameters = NWParameters.tcp
         parameters.includePeerToPeer = false
         let websocket = NWProtocolWebSocket.Options()
-        // 相手からの ping には Network.framework に返させる。
-        // アプリ層のハートビート (REQ-COM-005) とは別物なので、こちらは自動でよい。
+        // 相手からの ping は Network.framework に返させる。アプリ層のハートビート (REQ-COM-005) とは別物。
         websocket.autoReplyPing = true
         parameters.defaultProtocolStack.applicationProtocols.insert(websocket, at: 0)
 
@@ -81,8 +76,7 @@ final class MdoroServer {
     // MARK: - 接続
 
     private func accept(_ incoming: NWConnection) {
-        // REQ-SEC-004: 既に別のクライアントが繋がっている場合、
-        // 受理の可否は authenticate 側（＝ユーザーの承認）が決める。ここでは繋いで hello を待つ。
+        // REQ-SEC-004: 受理の可否は authenticate 側が決める。ここでは繋いで hello を待つ。
         incoming.stateUpdateHandler = { [weak self] state in
             Task { @MainActor in
                 switch state {
@@ -109,8 +103,7 @@ final class MdoroServer {
                    let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition)
                     as? NWProtocolWebSocket.Metadata,
                    metadata.opcode == .text || metadata.opcode == .binary {
-                    // text / binary の両方を JSON として読む。片方だけ受けると、
-                    // 送り方を間違えたクライアントが**何の反応もないまま**繋がったように見える。
+                    // text / binary の両方を JSON として読む。
                     self.handle(data, from: connection)
                 }
                 self.receive(on: connection)
@@ -142,9 +135,8 @@ final class MdoroServer {
             send(.timeSyncPong(TimeSyncPayload(t1: payload.t1, t2: t2, t3: Date())), to: source)
 
         case .heartbeat:
-            // REQ-COM-005: サーバー側の「相手が生きている」判定はこれで更新する。
-            // 10.2 の Server → Client にハートビートの種別が無いため、返信はしない。
-            // クライアント側の生存判定は WebSocket の ping/pong（autoReplyPing）が担う。
+            // REQ-COM-005: 10.2 に Server → Client のハートビートが無いので返信はしない。
+            // クライアント側の生存判定は WebSocket の ping/pong が担う。
             lastHeartbeatAt = Date()
 
         case let .command(payload):
@@ -168,8 +160,7 @@ final class MdoroServer {
             connectedDeviceName = payload.deviceName
             lastHeartbeatAt = Date()
             send(.welcome(WelcomePayload(deviceToken: token.value, serverName: Host.current().localizedName ?? "Mac")), to: source)
-            // **接続済みにしてからスナップショットを取る。**
-            // 順番を逆にすると、クライアントが最初に受け取る状態が「未接続」になる。
+            // **接続済みにしてからスナップショットを取る。** 逆だと最初の状態が「未接続」になる。
             callbacks?.connectionChanged(
                 ConnectionState(isConnected: true, lastHeartbeatAt: lastHeartbeatAt, peerDeviceName: payload.deviceName)
             )
@@ -178,8 +169,7 @@ final class MdoroServer {
             if let tasks = callbacks?.provideTaskList() { send(.taskList(tasks), to: source) }
 
         case .needsUserApproval:
-            // REQ-SEC-004: 承認されるまで受け入れない。**接続は開いたまま待たせる。**
-            // ここで切ると、ユーザーが「許可」を押しても相手はもういない。
+            // REQ-SEC-004: **接続は開いたまま待たせる。** 切ると「許可」を押しても相手はもういない。
             pendingApproval.map { $0.connection.cancel() }
             pendingApproval = (source, payload)
             startApprovalTimeout()
@@ -189,7 +179,7 @@ final class MdoroServer {
         }
     }
 
-    // REQ-SEC-004: 60秒で自動的に拒否する。放置された確認が接続を掴んだままにならないようにする。
+    // REQ-SEC-004: 60秒で自動的に拒否する。
     private func startApprovalTimeout() {
         approvalTimeout?.cancel()
         approvalTimeout = Task { [weak self] in
@@ -199,7 +189,7 @@ final class MdoroServer {
         }
     }
 
-    // ユーザーの回答を受けて、待たせていた接続要求を片づける。
+    // 待たせていた接続要求を片づける。
     func resolvePendingApproval(approved: Bool) {
         approvalTimeout?.cancel()
         approvalTimeout = nil
@@ -211,7 +201,7 @@ final class MdoroServer {
                                                         message: "The connection was not approved")), to: pending.connection)
             return
         }
-        // 承認されたので、既存接続を切ってから改めて認証させる。
+        // 既存接続を切ってから改めて認証させる。
         connection?.cancel()
         connection = nil
         connectedDeviceName = nil
@@ -232,8 +222,7 @@ final class MdoroServer {
         send(message, to: connection, thenClose: false)
     }
 
-    // 拒否の理由は**送り終えてから**切る。送信直後に cancel すると、
-    // まだ流れていないフレームごと捨てられ、クライアントは理由を知らないまま切断される。
+    // 拒否の理由は**送り終えてから**切る。直後に cancel すると理由が届かない。
     private func sendThenClose(_ message: ServerMessage, to connection: NWConnection) {
         send(message, to: connection, thenClose: true)
     }
@@ -285,7 +274,7 @@ final class MdoroServer {
 
 
 // NWListener が ready になるまで待ち、確定したポートを返す。
-// 状態ハンドラは自前のキューで走るため、継続の二重再開を箱で防ぐ。
+// 状態ハンドラは自前のキューで走るので、継続の二重再開を箱で防ぐ。
 enum ListenerReadiness {
     private final class Once: @unchecked Sendable {
         private let lock = NSLock()

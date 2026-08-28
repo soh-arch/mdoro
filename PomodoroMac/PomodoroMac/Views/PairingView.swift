@@ -12,8 +12,7 @@ struct PairingSection: View {
                     Text(formatted(code))
                         .font(.system(size: 34, weight: .medium, design: .rounded).monospacedDigit())
                         .textSelection(.enabled)
-                    // REQ-SEC-003: 3分間のみ有効。残り時間を出さないと、
-                    // 入力している最中に失効しても理由が分からない。
+                    // REQ-SEC-003: 3分間のみ有効。残り時間を出さないと失効の理由が分からない。
                     Text("Enter this code in the iPhone app (\(model.pairingRemainingSeconds) s left)")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -42,7 +41,7 @@ struct PairingSection: View {
         }
     }
 
-    // 6桁は3桁ずつに割ると読み上げやすく、入力の取り違えが減る。
+    // 3桁ずつに割ると読み上げやすい。
     private func formatted(_ code: String) -> String {
         guard code.count == 6 else { return code }
         let middle = code.index(code.startIndex, offsetBy: 3)
@@ -50,8 +49,7 @@ struct PairingSection: View {
     }
 }
 
-// REQ-SEC-004: 既に別のクライアントが接続中の状態で新たな接続要求があった場合、
-// Mac 側に確認を表示し、ユーザーが承認した場合のみ受け入れる。
+// REQ-SEC-004: 接続中に新たな要求が来たら確認を出し、承認された場合のみ受け入れる。
 // **確認は60秒でタイムアウトし、既定は拒否。**
 struct ConnectionRequestBanner: View {
     @Environment(\.theme) private var theme

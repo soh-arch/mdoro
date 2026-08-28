@@ -3,9 +3,7 @@ import Network
 import MdoroCore
 
 // REQ-COM-001: iPhone は子（クライアント）。
-//
-// **このクラスはセッションの完了を確定しない**（REQ-COM-012 / 3原則の2つ目）。
-// 受け取った状態をそのまま上へ渡すだけで、周回数の加算もログ記録も行わない。
+// **セッションの完了を確定しない**（REQ-COM-012）。受け取った状態をそのまま上へ渡すだけ。
 @MainActor
 final class MdoroClient {
 
@@ -67,7 +65,7 @@ final class MdoroClient {
               case let .service(name, type, domain, interface) = target.endpoint else { return }
         status = (status == .connected) ? .reconnecting : .connecting
 
-        // Bonjour が示すホストへ、TXT で得た同期用ポートで繋ぐ。
+        // Bonjour が示すホストへ、TXT で得たポートで繋ぐ。
         _ = (name, type, domain, interface)
         let host = NWEndpoint.hostPort(
             host: NWEndpoint.Host("\(name).local"),
@@ -112,7 +110,7 @@ final class MdoroClient {
 
     private func sendHello() {
         let token = target.map { TokenKeychain.load(serverName: $0.name) } ?? nil
-        // トークンが無く、ペアリングコードも渡されていないなら、入力を促す。
+        // トークンもコードも無いなら入力を促す。
         if token == nil, pairingCode == nil {
             status = .needsPairing
             return
@@ -153,7 +151,7 @@ final class MdoroClient {
 
         case let .authFailed(payload):
             status = .failed(payload.code)
-            // 使えないトークンは捨てる。持ち続けると毎回同じ失敗を繰り返す。
+            // 使えないトークンは捨てる。
             if payload.code == .unknownDeviceToken, let target {
                 TokenKeychain.delete(serverName: target.name)
             }

@@ -18,7 +18,6 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var bindable = model
-        // 並びは「タイマーの形 → 読み書きするファイル → 相手の端末 → 規則 → 見た目」。
         // 触る頻度が高いものほど手前に置く。
         TabView(selection: $bindable.settingsTab) {
             PresetEditorView()
@@ -51,8 +50,7 @@ struct SettingsView: View {
 
     // MARK: - 接続
 
-    // 「iPhone との接続」は動作の設定ではない。独立したタブに置き、
-    // メインウィンドウの接続表示から直接ここへ来られるようにする（REQ-UIX-004）。
+    // REQ-UIX-004: 接続は動作の設定ではないので独立したタブに置く。
     private var connectionTab: some View {
         Form { PairingSection() }.formStyle(.grouped)
     }
@@ -76,8 +74,7 @@ struct SettingsView: View {
             }
 
             Section("Where the session log is written") {
-                // Decision 0015: フォルダを選ばせ、ファイル名は設定で持つ。
-                // 原子的な書き込み (REQ-LOG-004) に、同じフォルダへの書き込み許可が要るため。
+                // Decision 0015: 原子的な書き込み (REQ-LOG-004) に同じフォルダへの許可が要る。
                 filePathRow(path: self.model.settings.logFolderPath, placeholder: "No folder set") {
                     chooseLogFolder()
                 }
@@ -111,8 +108,7 @@ struct SettingsView: View {
         .formStyle(.grouped)
     }
 
-    // REQ-ERR-010 / Decision 0018: 記録しないと決めたことは、決めただけでは伝わらない。
-    // **何を書かないかを、書き出す導線の隣に置く。**
+    // REQ-ERR-010 / Decision 0018: **何を書かないかを、書き出す導線の隣に置く。**
     private var diagnosticsSection: some View {
         Section("Diagnostic log") {
             Text("A record to attach to a bug report. **Task names, note contents, file paths and device names are never written.** You can paste it in public as it is.")

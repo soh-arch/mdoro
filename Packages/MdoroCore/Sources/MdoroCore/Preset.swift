@@ -1,10 +1,7 @@
 import Foundation
 
 // REQ-CFG: 9.2 プリセットに含まれる項目 / 10.3 Preset
-// REQ-NTF-006: 通知音を数種類から選べ、無音（触覚のみ）も選べること。
-//
-// Decision 0017: 音源は macOS のシステムサウンドを流用する。
-// 独自音源を作るほどの必然性がなく、ユーザーが既に聞き慣れた音のほうが用途に合う。
+// REQ-NTF-006 / Decision 0017: 通知音は macOS のシステムサウンドを流用し、無音も選べる。
 public enum NotificationSound: String, Equatable, Sendable, Codable, CaseIterable {
     case `default`
     case chime
@@ -18,7 +15,6 @@ public enum NotificationSound: String, Equatable, Sendable, Codable, CaseIterabl
         case .default: return nil
         case .chime: return "Glass.aiff"
         case .bell: return "Submarine.aiff"
-        // Tink は 0.56 秒の極めて小さなチック音で、通知音として実質聞こえない（実機で確認）。
         case .wood: return "Pop.aiff"
         case .silent: return nil
         }
@@ -98,7 +94,7 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
         )
     }
 
-    // REQ-CFG-018: プロトコル経由で範囲外の値を受信した場合は適用しないため、まず検証できるようにする。
+    // REQ-CFG-018: 範囲外の値は適用しない。
     public func isWithinValidRanges() -> Bool {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (1...30).contains(trimmedName.count) else { return false }
@@ -107,7 +103,7 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
         guard (60...(60 * 60)).contains(longBreakSeconds) else { return false }
         guard (2...12).contains(longBreakInterval) else { return false }
         guard (60...(30 * 60)).contains(extendSeconds) else { return false }
-        // REQ-NTF-020: トリガは 0〜2 個。各トリガの値域は PreNotification 側で検証する。
+        // REQ-NTF-020: トリガは 0〜2 個。値域は PreNotification が見る。
         guard preNotifications.count <= 2 else { return false }
         guard preNotifications.allSatisfy({ $0.isWithinValidRanges }) else { return false }
         return true

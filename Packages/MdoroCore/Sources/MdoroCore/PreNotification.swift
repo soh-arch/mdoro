@@ -20,8 +20,7 @@ public enum PreNotification: Equatable, Sendable, Hashable {
         }
     }
 
-    // REQ-NTF-020: セッションの開始・終了絶対時刻から発火時刻を求める。
-    // 経過割合はセッション長に対する比率なので、延長後は延びた長さに追随する (REQ-NTF-022)。
+    // REQ-NTF-020 / 022: 経過割合はセッション長に対する比率なので、延長後は延びた長さに追随する。
     public func fireDate(sessionStartedAt: Date, sessionEndAt: Date) -> Date {
         switch self {
         case let .beforeEnd(seconds):
@@ -33,8 +32,7 @@ public enum PreNotification: Equatable, Sendable, Hashable {
     }
 }
 
-// 予告通知は Mac と iPhone の双方が同じ結果を出す必要があるため、
-// 発火時刻の決定を共有コードに置く (REQ-PRT-001)。実際のスケジュールは呼び出し側が行う。
+// REQ-PRT-001: 両端末が同じ結果を出すよう、発火時刻の決定を共有コードに置く。
 public enum PreNotificationSchedule {
     // 2つのトリガが接近しているとみなす間隔 (REQ-NTF-023)。
     public static let minimumSpacingSeconds: TimeInterval = 60
@@ -67,7 +65,7 @@ public enum PreNotificationSchedule {
     }
 }
 
-// 通信・永続化での表現を安定させるため、合成された Codable ではなく明示的に定義する (10.3)。
+// 10.3: 通信・永続化での表現を固定するため、Codable を明示的に書く。
 extension PreNotification: Codable {
     private enum CodingKeys: String, CodingKey {
         case type, seconds, percent

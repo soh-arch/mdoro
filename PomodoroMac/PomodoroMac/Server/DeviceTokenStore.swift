@@ -1,7 +1,6 @@
 import Foundation
 
 // REQ-SEC-002: 発行済みトークンを再起動をまたいで覚えておく。
-// これが消えると、iPhone は毎回ペアリングからやり直しになる。
 enum DeviceTokenStore {
     private static let key = "issuedDeviceTokens"
 

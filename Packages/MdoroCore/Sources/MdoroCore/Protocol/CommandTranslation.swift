@@ -1,9 +1,7 @@
 import Foundation
 
-// 10.2 の `command` を `TimerAction` に翻訳する。
-//
-// **通信層に判断を持たせない。** ここは形の変換だけを行い、受理可否は状態機械が決める
-// （REQ-ERR-016 / 4.6 マトリクス）。
+// REQ-ERR-016 / 10.2: `command` を `TimerAction` に翻訳する。
+// **通信層に判断を持たせない。** 形の変換だけを行い、受理可否は状態機械が決める。
 public enum CommandTranslation {
 
     public enum Failure: Error, Equatable, Sendable {
@@ -94,9 +92,7 @@ public enum CommandTranslation {
 }
 
 // REQ-PRT-003: 同一 clientRequestId の再送を無視する。
-//
-// 再接続直後にクライアントが取りこぼしを再送することがある。冪等にしないと、
-// 「延長」が二重に効いたり、周回数が余分に動いたりする。
+// 冪等にしないと、再接続直後の再送で「延長」が二重に効いたり周回数が余分に動いたりする。
 public struct RequestDeduplicator: Sendable {
     private var seen: [String] = []
     private var seenSet: Set<String> = []

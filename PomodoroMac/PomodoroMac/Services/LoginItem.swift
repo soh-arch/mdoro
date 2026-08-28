@@ -1,14 +1,13 @@
 import Foundation
 import ServiceManagement
 
-// 常駐アプリの標準的な設定項目（Decision 0016）。
-// メニューバーに常駐する道具は、ログイン時に立ち上がっていないと使われない。
+// Decision 0016: 常駐アプリの標準的な設定項目。
 enum LoginItem {
     static var isEnabled: Bool {
         SMAppService.mainApp.status == .enabled
     }
 
-    // 失敗しても致命的ではないので、成否だけ返して UI が実態を映せるようにする。
+    // 成否だけ返し、UI に実態を映させる。
     @discardableResult
     static func setEnabled(_ enabled: Bool) -> Bool {
         do {

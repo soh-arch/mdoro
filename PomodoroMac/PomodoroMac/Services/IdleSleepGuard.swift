@@ -1,10 +1,7 @@
 import Foundation
 
-// REQ-PER-006: RUNNING の間は Mac の**アイドルスリープ**を抑止する。
-// ディスプレイのスリープは抑止しない。画面が暗くなること自体は集中の妨げにならない。
-//
-// 蓋を閉じる・メニューからのスリープ・電源設定によるスリープは抑止できない。
-// それらは REQ-PER-003 の復帰処理（`TimerEngine.restore`）が扱う。抑止は best effort でよい。
+// REQ-PER-006: RUNNING の間だけ**アイドルスリープ**を抑止する。ディスプレイのスリープは抑止しない。
+// 蓋を閉じるなど抑止できない経路は REQ-PER-003 の復帰処理が扱うので、best effort でよい。
 final class IdleSleepGuard {
     private var activity: NSObjectProtocol?
 

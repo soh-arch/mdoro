@@ -3,17 +3,13 @@ import Carbon.HIToolbox
 import MdoroCore
 
 // REQ-UIX-033: グローバルショートカット。
-//
 // `RegisterEventHotKey`（Carbon）を使う。**アクセシビリティ権限を要求しない**のが理由。
-// `NSEvent.addGlobalMonitorForEvents` は権限が要り、タイマーを一時停止したいだけの機能に
-// 「このアプリにコンピュータの制御を許可しますか」を出すのは釣り合わない。
 @MainActor
 final class HotKeyCenter {
-    // 割り当てられる操作。増やすときは id が重ならないようにする。
+    // 増やすときは id を重ねないこと。
     enum Slot: UInt32, CaseIterable {
         case pauseResume = 1
         case showWindow = 2
-        // Decision 0029: ウィンドウを開かずに次へ進める。
         case startNext = 3
         case skip = 4
     }
@@ -40,8 +36,7 @@ final class HotKeyCenter {
             0,
             &ref
         )
-        // 他アプリが同じ組み合わせを押さえている場合はここで失敗する。
-        // 黙って無効になるので、呼び出し側が結果を見て UI に出す。
+        // 他アプリが同じ組み合わせを押さえていると失敗する。**黙って無効になるので UI に出す。**
         if status == noErr, let ref {
             refs[slot] = ref
         }
@@ -95,7 +90,7 @@ final class HotKeyCenter {
         return carbon
     }
 
-    // 表示用の記号。設定画面で「いま何が割り当てられているか」を読めるようにする。
+    // 設定画面に出す表示用の記号。
     static func displayName(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String?) -> String {
         var text = ""
         if modifiers.contains(.control) { text += "⌃" }

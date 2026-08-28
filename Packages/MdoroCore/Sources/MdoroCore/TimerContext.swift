@@ -23,9 +23,7 @@ public struct TimerContext: Equatable, Sendable, Codable {
     public var pendingDecision: PendingDecision?
     public var lastUpdatedAt: Date
 
-    // REQ-LOG-023: ログのタスク名はセッション開始時点のスナップショットを用いる。
-    // 仕様書 10.3 の TimerContext 表には現れないが、TaskContext 全体（第6章）は今回のスコープ外のため、
-    // ログ確定に必要な最小限のスナップショットのみをここに保持する。
+    // REQ-LOG-023: ログのタスク名はセッション開始時点のスナップショット。
     public var sessionTaskSnapshot: String?
 
     public init(
@@ -136,19 +134,15 @@ public enum MenuBarDisplayMode: String, Equatable, Sendable, Codable, CaseIterab
 }
 
 // REQ-CFG: 9.3 アプリ全体に属する項目（プリセット非依存）。
-//
-// ファイルパスや論理日境界は作業スタイルによって変わるものではないため、プリセットに含めない。
 // 有効なプリセットの識別子は `PresetContext.activePresetId` が唯一の正であり、ここには持たない。
 public struct AppSettings: Equatable, Sendable, Codable {
     public var appearance: AppearancePreference
     public var focusViewDimmed: Bool
     public var logicalDayStartHour: Int
     public var idleResetHours: Int
-    // パスそのものは持たず、セキュリティスコープ付きブックマークを Mac 側が保持する (REQ-PLT-003)。
-    // ここには表示用のパスだけを置く。
+    // REQ-PLT-003: 実体はセキュリティスコープ付きブックマーク。ここには表示用のパスだけを置く。
     public var taskFilePath: String?
-    // REQ-LOG-001 / Decision 0015: 出力先は**フォルダ**とファイル名に分けて持つ。
-    // サンドボックスでは、ファイル単位の許可では原子的書き込みに要る一時ファイルを同じ場所に作れない。
+    // REQ-LOG-001 / Decision 0015: 出力先はフォルダとファイル名に分けて持つ。
     public var logFolderPath: String?
     public var logFileName: String
     public var showCompletedTasks: Bool
@@ -160,11 +154,10 @@ public struct AppSettings: Equatable, Sendable, Codable {
     public var pauseResumeHotKey: HotKeyBinding?
     // メインウィンドウを前面に出すホットキー。既定は未設定 (Decision 0016)。
     public var showWindowHotKey: HotKeyBinding?
-    // REQ-UIX-033 / Decision 0029: ウィンドウを開かずに進められるように。
-    // **中断とリセットには割り当てない。** 確認を1段はさめない経路に、破壊的操作を置かない。
+    // REQ-UIX-033 / Decision 0029: **中断とリセットには割り当てない。** 確認をはさめない経路に破壊的操作を置かない。
     public var startNextHotKey: HotKeyBinding?
     public var skipHotKey: HotKeyBinding?
-    // 標準的な常駐アプリの設定項目 (Decision 0016)。
+    // Decision 0016
     public var launchAtLogin: Bool
 
     public init(
@@ -221,9 +214,7 @@ public struct AppSettings: Equatable, Sendable, Codable {
         return !trimmed.isEmpty && !trimmed.contains("/") && !trimmed.hasPrefix(".")
     }
 
-    // 設定項目を増やしたときに、古い保存ファイルが読めなくなるのを避ける。
-    // 欠けている項目は既定値で補う。REQ-PER-002 の「起動時に復元する」が
-    // 設定追加のたびに壊れると、ユーザーはセッションごと失う。
+    // REQ-PER-002: 欠けている項目は既定値で補う。設定を増やしても古い保存ファイルを読めるようにする。
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = AppSettings.default

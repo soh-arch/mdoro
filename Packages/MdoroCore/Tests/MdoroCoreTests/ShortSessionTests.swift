@@ -15,9 +15,7 @@ private func hasCommitLog(_ effects: [Effect]) -> Bool {
 }
 
 // REQ-TIM-032 / REQ-TIM-005: 正味稼働時間が 60 秒未満のセッションはログに記録しない。
-//
-// この規定を知らずに「中断してもログが出ない」を不具合として追いかけたことがある。
-// 境界の両側を押さえておく。
+// 境界の両側を押さえる。
 @Suite("短すぎるセッションは記録しない (REQ-TIM-032)")
 struct ShortSessionTests {
 

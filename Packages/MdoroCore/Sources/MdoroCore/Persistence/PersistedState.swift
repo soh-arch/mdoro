@@ -1,7 +1,6 @@
 import Foundation
 
-// REQ-PER-001: 状態が変化するたびに永続化する対象一式。
-// 「何を保存するか」をここに集約しておかないと、保存漏れが復元時にしか表面化しない。
+// REQ-PER-001: 永続化する対象一式。**保存漏れは復元時にしか表面化しない。**
 public struct PersistedState: Equatable, Sendable, Codable {
     // 将来スキーマを変えたときに、古い形式を黙って壊さないための版数。
     public static let currentSchemaVersion = 1

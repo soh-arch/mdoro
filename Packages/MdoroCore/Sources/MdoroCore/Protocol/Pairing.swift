@@ -1,9 +1,7 @@
 import Foundation
 
-// REQ-SEC-001 / 003 / REQ-ERR-006: ペアリングと認証。
-//
-// 「Mac 1台対 iPhone 1台」を原則に掲げる以上、LAN 内の任意の端末から
-// 接続・操作できる状態ではその原則が担保されない（3.2 背景・理由）。
+// REQ-SEC-001 / 003 / REQ-ERR-006 / 3.2: ペアリングと認証。
+// 「Mac 1台対 iPhone 1台」の原則は、LAN 内の任意の端末が繋げる状態では担保されない。
 public struct PairingSession: Equatable, Sendable {
     // REQ-SEC-003: ペアリングモードは明示的に開始したときのみ、かつ3分間のみ有効。
     public static let validity: TimeInterval = 3 * 60
@@ -19,7 +17,7 @@ public struct PairingSession: Equatable, Sendable {
         self.startedAt = startedAt
     }
 
-    // 6桁。総当たりが現実的でない長さではないので、有効期間と試行回数の両方で守る。
+    // 6桁は総当たりできる長さなので、有効期間と試行回数の両方で守る。
     public static func generateCode(using generator: () -> Int = { Int.random(in: 0...999_999) }) -> String {
         String(format: "%06d", generator() % 1_000_000)
     }
@@ -39,14 +37,14 @@ public struct PairingSession: Equatable, Sendable {
         case rejected(AuthFailureCode)
     }
 
-    // 入力されたコードを照合する。失敗回数はこの構造体が数える。
+    // 失敗回数はこの構造体が数える。
     public mutating func verify(_ candidate: String, now: Date) -> Outcome {
         if isLockedOut { return .rejected(.pairingAttemptsExceeded) }
         if isExpired(now: now) { return .rejected(.pairingModeNotActive) }
 
         guard candidate == code else {
             failedAttempts += 1
-            // 5回目で打ち止め。以降は理由を変えて、コードの当てずっぽうを続けさせない。
+            // 5回目で打ち止め。以降は理由を変える。
             return .rejected(isLockedOut ? .pairingAttemptsExceeded : .invalidPairingCode)
         }
         return .accepted
@@ -66,12 +64,12 @@ public struct DeviceToken: Equatable, Sendable, Codable, Hashable {
     }
 
     public static func generate() -> String {
-        // 推測できない長さにする。ペアリングコードと違い、有効期限で守らないため。
+        // 有効期限で守らないので、推測できない長さにする。
         (0..<4).map { _ in UUID().uuidString.replacingOccurrences(of: "-", with: "") }.joined().prefix(64).description
     }
 }
 
-// サーバー側の認証判断。接続の受理可否をここに集約し、通信層は結果に従うだけにする。
+// 接続の受理可否をここに集約し、通信層は結果に従うだけにする。
 public struct Authenticator: Equatable, Sendable {
     public private(set) var issuedTokens: Set<String> = []
     public private(set) var pairing: PairingSession?
@@ -123,7 +121,7 @@ public struct Authenticator: Equatable, Sendable {
         }
 
         let outcome = session.verify(code, now: now)
-        // 失敗回数を持ち帰る。ここを書き戻し忘れると回数制限が効かない。
+        // **失敗回数を書き戻す。** 忘れると回数制限が効かない。
         pairing = session.isLockedOut ? nil : session
 
         switch outcome {

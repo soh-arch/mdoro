@@ -2,7 +2,6 @@ import SwiftUI
 import MdoroCore
 
 // REQ-UIX-007: 有効なプリセット名を常時表示し、2件以上なら2タップ以内で切り替えられること。
-// 設定画面を経由させない。
 struct PresetBarView: View {
     @Environment(\.theme) private var theme
     @Environment(AppModel.self) private var model
@@ -17,7 +16,6 @@ struct PresetBarView: View {
                 .foregroundStyle(theme.textTertiary)
 
             if presets.count >= 2 {
-                // 1タップでメニュー、もう1タップで選択。
                 Menu {
                     ForEach(presets) { preset in
                         Button {

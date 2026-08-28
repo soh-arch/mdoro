@@ -1,8 +1,7 @@
 import Foundation
 
-// REQ-COL-020: コントラスト比と ΔE を自動検証するため、色を計算可能な値として保持する。
-// 8.5 のトークン表は hex で書かれているが、hex は生成物であり (REQ-COL-005)、
-// 比較・検証はすべてここでの数値変換を通して行う。
+// REQ-COL-005 / 020: コントラスト比と ΔE を自動検証するため、色を計算可能な値として持つ。
+// hex は生成物であり、比較・検証はすべてここでの数値変換を通す。
 public struct SRGBColor: Equatable, Sendable, Hashable {
     public let red: Double
     public let green: Double
@@ -14,8 +13,7 @@ public struct SRGBColor: Equatable, Sendable, Hashable {
         self.blue = blue
     }
 
-    // 8.5.3 のトークン表をそのまま書き写せるようにする。不正な文字列は設計時に気づくべき誤りなので
-    // Optional にせず停止させる。
+    // 不正な文字列は設計時に気づくべき誤りなので、Optional にせず停止させる。
     public init(hex: String) {
         let digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
         precondition(digits.count == 6, "hex must have 6 digits: \(hex)")
@@ -56,7 +54,7 @@ public struct SRGBColor: Equatable, Sendable, Hashable {
 
     // MARK: - 輝度とコントラスト
 
-    // WCAG 2.x の相対輝度。REQ-COL-021 が順序の維持を求める「絶対輝度」もこの値を指す (8.5.5)。
+    // REQ-COL-021 / 8.5.5: WCAG 2.x の相対輝度。「絶対輝度」もこの値を指す。
     public var relativeLuminance: Double {
         let (r, g, b) = linear
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
@@ -71,8 +69,7 @@ public struct SRGBColor: Equatable, Sendable, Hashable {
 
     // MARK: - OKLab
 
-    // 8.5.5 の ΔE は OKLab 上のユークリッド距離。知覚的に均等な空間で測るため、
-    // 色相が失われたときに明度差が効いているかを正しく評価できる。
+    // 8.5.5: ΔE は OKLab 上のユークリッド距離。知覚的に均等な空間で測る。
     public var oklab: (L: Double, a: Double, b: Double) {
         let (r, g, b) = linear
         let l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
@@ -86,7 +83,7 @@ public struct SRGBColor: Equatable, Sendable, Hashable {
         )
     }
 
-    // 8.5.5 の表記に合わせ 100 倍した値を返す (「10 未満で混同リスク」の尺度)。
+    // 8.5.5 の表記に合わせ 100 倍して返す（10 未満で混同リスク）。
     public func deltaE(from other: SRGBColor) -> Double {
         let a = oklab, b = other.oklab
         let dL = a.L - b.L, da = a.a - b.a, db = a.b - b.b

@@ -6,7 +6,7 @@ struct MainWindowView: View {
     @Environment(\.colorScheme) private var systemScheme
     @Environment(AppModel.self) private var model
 
-    // 時計はモデルが進める。ビュー側の Timer は発火せず表示が固まった。
+    // 時計はモデルが進める。ビュー側の Timer は発火しない。
     private var now: Date { model.displayNow }
 
     private var theme: Theme { Theme(appearance: model.settings.appearance, systemScheme: systemScheme) }
@@ -14,9 +14,7 @@ struct MainWindowView: View {
 
     var body: some View {
         // **内容が窓より高いと、SwiftUI は黙って上を切る。**
-        // 接続要求や PENDING_DECISION の帯が増えたとき、いちばん上の帯が
-        // タイトルバーに食い込んで読めなくなっていた（2026-08-28、実機）。
-        // 伸び縮みする部分をスクロールに入れ、**状態表示は下に固定する。**
+        // 伸び縮みする部分をスクロールに入れ、状態表示は下に固定する。
         VStack(spacing: 0) {
             ScrollView { content }
             Divider().overlay(theme.borderSubtle)
@@ -82,8 +80,7 @@ struct MainWindowView: View {
     private var controls: some View {
         let state = model.timer.runState
         VStack(alignment: .leading, spacing: 8) {
-            // REQ-UIX-045: 無効にした操作には、無効である理由を示す。
-            // ツールチップは「気づいた人にしか届かない」ので、画面に出す。
+            // REQ-UIX-045: 無効にした操作には理由を示す。ツールチップではなく画面に出す。
             controlRow(state)
             if let reason = extendDisabledReason {
                 Text(reason).font(.caption).foregroundStyle(theme.textTertiary)
@@ -136,8 +133,7 @@ struct MainWindowView: View {
     @ViewBuilder
     private var extendButton: some View {
         if model.timer.sessionType == .work {
-            // 文言は短くてよい（下に理由が出る。REQ-UIX-045）が、
-            // **読み上げでは何のボタンか分からなくなる**ので、そちらには意味を残す。
+            // 文言は短くてよい（理由は下に出る）が、読み上げには意味を残す。
             Button("+\(preset.extendSeconds / 60) min") { model.send(.extend) }
                 .accessibilityLabel("Extend by \(preset.extendSeconds / 60) minutes")
                 .disabled(!TimerEngine.isWithinExtensionWindow(model.timer, now: now))
@@ -158,7 +154,7 @@ struct MainWindowView: View {
     private var statusBar: some View {
         HStack(spacing: 8) {
             let status = model.connection
-            // 接続でつまずいた人が最初に見るのはここ。**ここから設定へ行けるようにする。**
+            // **ここから設定へ行けるようにする。**
             SettingsLink {
                 Label(status.label, systemImage: status.peerSymbolName)
                     .foregroundStyle(theme.color(status.colorRole, .text))
@@ -213,7 +209,7 @@ struct PendingDecisionView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // REQ-COL-011: バナー表現（-subtle の地に -line の枠）は warning に予約されている。
+        // REQ-COL-011: 帯（-subtle の地に -line の枠）は warning に予約されている。
         .background(theme.color(.warning, .subtle))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.color(.warning, .line)))
         .clipShape(RoundedRectangle(cornerRadius: 8))

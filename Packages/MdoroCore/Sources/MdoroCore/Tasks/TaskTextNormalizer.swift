@@ -1,11 +1,10 @@
 import Foundation
 import CryptoKit
 
-// REQ-TSK-022: 正規化は決められた順序で行う。順序を変えると、装飾だけが違う同一タスクが
-// 別物として扱われ、選択が外れる。
+// REQ-TSK-022: 正規化は決められた順序で行う。**順序を変えると装飾だけが違う同一タスクが別物になる。**
 public enum TaskTextNormalizer {
 
-    // 行末の Obsidian ブロック ID (^abc123)。本文の一部ではないので、表示・正規化の前に外す。
+    // 行末のブロック ID (^abc123)。本文の一部ではないので表示・正規化の前に外す。
     static let blockIdPattern = try! NSRegularExpression(pattern: #"\s+\^([A-Za-z0-9-]+)\s*$"#)
     // REQ-TSK-010: タスク行の判定。リストマーカーとチェックボックス。
     static let taskLinePattern = try! NSRegularExpression(pattern: #"^([ \t]*)[-*+]\s+\[(.)\]\s+"#)
@@ -14,8 +13,8 @@ public enum TaskTextNormalizer {
     private static let wikiLinkPattern = try! NSRegularExpression(pattern: #"\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]"#)
     private static let markdownLinkPattern = try! NSRegularExpression(pattern: #"\[([^\]]*)\]\([^)]*\)"#)
     private static let tagPattern = try! NSRegularExpression(pattern: #"(?<![^\s])#[^\s#]+"#)
-    // 対になっている強調だけを外す。無条件に記号を落とすと `snake_case_name` や `2*3` が壊れ、
-    // その本文がそのまま selectedTaskSnapshot → PomodoroLog.md へ書かれてしまう。
+    // **対になっている強調だけを外す。** 無条件に記号を落とすと `snake_case_name` や `2*3` が壊れ、
+    // その本文がそのままログへ書かれる。
     private static let pairedEmphasisPatterns = [
         try! NSRegularExpression(pattern: #"\*\*\*([^*\n]+)\*\*\*"#),
         try! NSRegularExpression(pattern: #"\*\*([^*\n]+)\*\*"#),
@@ -34,7 +33,7 @@ public enum TaskTextNormalizer {
     }
 
     // `[[ノート|表示名]]` は表示名を、`[[ノート]]` はノート名を残す。
-    // テンプレート置換では「別名があればそちら」という選択が書けないため、手で組み立てる。
+    // テンプレート置換では「別名があればそちら」が書けないので手で組み立てる。
     static func replacingWikiLinks(_ text: String) -> String {
         let range = NSRange(text.startIndex..., in: text)
         var result = text
@@ -61,8 +60,8 @@ public enum TaskTextNormalizer {
         return (body, String(line[idRange]))
     }
 
-    // REQ-TSK-015: 表示用。生の記法をそのまま表示しない。
-    // タグも落とす。残すとログ行に `#家事` が入り、Obsidian 側でタグとして解釈されてしまう。
+    // REQ-TSK-015: 生の記法をそのまま表示しない。
+    // タグも落とす。残すとログ行に入り、md 側でタグとして解釈される。
     public static func displayText(fromBody body: String) -> String {
         var text = body
         text = replacingWikiLinks(text)
@@ -82,9 +81,8 @@ public enum TaskTextNormalizer {
         return result
     }
 
-    // REQ-TSK-022: (1) マーカーとチェックボックスの除去は呼び出し側で済ませた body を受け取る。
-    // (2) 前後の空白除去 → (3) リンクを表示テキストへ → (4) タグ・絵文字・強調記号の除去
-    // → (5) 連続空白の統合 → (6) NFKC。
+    // REQ-TSK-022: (2) 前後の空白除去 → (3) リンクを表示テキストへ → (4) タグ・絵文字・強調記号の除去
+    // → (5) 連続空白の統合 → (6) NFKC。(1) マーカーの除去は呼び出し側で済ませてある。
     public static func normalize(body: String) -> String {
         var text = body.trimmingCharacters(in: .whitespacesAndNewlines)
         text = replacingWikiLinks(text)
@@ -103,8 +101,7 @@ public enum TaskTextNormalizer {
         var index = 0
         while index < scalars.count {
             let scalar = scalars[index]
-            // キーキャップ列 (1️⃣ = "1" + VS16 + U+20E3)。土台の数字も絵文字の一部なので一緒に落とす。
-            // 数字そのものは本文に残したいので、列として検出したときだけ落とす。
+            // キーキャップ列 (1️⃣ = "1" + VS16 + U+20E3)。数字は本文に残したいので、列のときだけ落とす。
             if isKeycapBase(scalar), let end = keycapSequenceEnd(scalars, from: index) {
                 index = end
                 continue
@@ -134,7 +131,7 @@ public enum TaskTextNormalizer {
     }
 
     static func isEmojiScalar(_ scalar: Unicode.Scalar) -> Bool {
-        // 異体字セレクタ・ZWJ・キーキャップの結合文字。単体では見えないが残すと本文が揺れる。
+        // 異体字セレクタ・ZWJ・結合文字。単体では見えないが残すと本文が揺れる。
         if (0xFE00...0xFE0F).contains(scalar.value) || scalar.value == 0x200D || scalar.value == 0x20E3 {
             return true
         }
@@ -142,9 +139,7 @@ public enum TaskTextNormalizer {
         if properties.isEmojiModifier || properties.isEmojiModifierBase || properties.isEmojiPresentation {
             return true
         }
-        // `isEmoji` は ASCII の数字・#・* にも真になる。記号領域に限って拾う。
-        // これを外すと、既定でテキスト表示の絵文字 (❤ ☀ など) が残り、
-        // 絵文字の種類によって stableId が変わったり変わらなかったりする。
+        // `isEmoji` は ASCII の数字・#・* にも真になるので、記号領域に限って拾う。
         return properties.isEmoji && scalar.value >= 0x2000
     }
 

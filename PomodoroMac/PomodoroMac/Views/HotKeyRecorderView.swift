@@ -2,8 +2,7 @@ import SwiftUI
 import AppKit
 import MdoroCore
 
-// REQ-UIX-033: ホットキーの割り当て UI。
-// 既定は未割り当て。押されたキーをその場で記録する。
+// REQ-UIX-033: ホットキーの割り当て UI。既定は未割り当て。
 struct HotKeyRecorderView: View {
     @Binding var binding: HotKeyBinding?
     let isActive: Bool
@@ -34,7 +33,7 @@ struct HotKeyRecorderView: View {
     private var label: String {
         if isRecording { return "Press a key" }
         guard let binding else { return "Not set" }
-        // 他アプリに取られている場合は、割り当ててあるのに効かない。それを隠さない。
+        // 他アプリに取られていると、割り当ててあるのに効かない。それを隠さない。
         return isActive ? binding.displayName : "\(binding.displayName) (unavailable)"
     }
 
@@ -49,7 +48,7 @@ struct HotKeyRecorderView: View {
                 stopRecording()
                 return nil
             }
-            // 修飾キーなしは受け付けない。単独キーを奪うと文字入力ができなくなる。
+            // 修飾キーなしは受け付けない。単独キーを奪うと文字入力ができなくなる
             guard !modifiers.isEmpty else { return nil }
 
             binding = HotKeyBinding(

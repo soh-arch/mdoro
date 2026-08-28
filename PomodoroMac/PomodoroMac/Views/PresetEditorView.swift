@@ -23,7 +23,7 @@ struct PresetEditorView: View {
                 Text("Choose a preset").foregroundStyle(.secondary).padding()
             }
         }
-        // 設定は macOS 側でいつでも変えられる。開くたびに見に行く。
+        // 設定は macOS 側でいつでも変わる。開くたびに見に行く。
         .task { await model.refreshNotificationPermission() }
     }
 
@@ -82,8 +82,7 @@ struct PresetEditorView: View {
             }
 
             Section {
-                // REQ-COL-011: セッション種別には `-text` を用いてよい（帯は使わない）。
-                // REQ-COL-010: 色だけで区別しない — 名前が併記されているので満たす。
+                // REQ-COL-010 / 011: 種別には `-text` のみ。名前を併記するので色だけに頼らない。
                 minuteStepper("Focus", binding(preset, \.workSeconds), range: 1...180, role: .sessionFocus)
                 minuteStepper("Short Break", binding(preset, \.shortBreakSeconds), range: 1...60, role: .sessionShortBreak)
                 minuteStepper("Long Break", binding(preset, \.longBreakSeconds), range: 1...60, role: .sessionLongBreak)
@@ -95,14 +94,12 @@ struct PresetEditorView: View {
             }
 
             Section {
-                // 数値の入力は「ラベル・数値・増減・単位」の並びに揃える（REQ-UIX-047）。
-                // `loops` は `min` と同じ位置に来る単位である。
+                // REQ-UIX-047: 「ラベル・数値・増減・単位」の並びに揃える。
                 countStepper("Long break every", binding(preset, \.longBreakInterval),
                              range: 2...12, unit: "loops")
                 minuteStepper("Each extension", binding(preset, \.extendSeconds), range: 1...30)
-                // REQ-TIM-011（SHOULD）は未実装であり、`autoAdvance` を読むコードは存在しない。
-                // **実装していない機能の操作盤を出さない**（Decision 0026、旧 OPEN-023）。
-                // 実装するときは、REQ-TIM-043（autoAdvance は猶予を放棄する）と一緒に戻すこと。
+                // REQ-TIM-011（SHOULD）は未実装。**実装していない機能の操作盤を出さない。**
+                // 実装するときは REQ-TIM-043 と一緒に戻すこと。
             } header: {
                 Text("Flow")
             } footer: {
@@ -111,11 +108,10 @@ struct PresetEditorView: View {
             }
 
             Section {
-                // Picker と Button を素の HStack に並べると、Form の中で上端に張り付く。
-                // `LabeledContent` に入れると、ラベルと操作が行の中心で揃う。
+                // 素の HStack だと Form の中で上端に張り付く。`LabeledContent` で行の中心に揃える。
                 LabeledContent {
                     HStack {
-                        // Decision 0020: 音色の選択は Mac 専用。共通設定と誤解させない。
+                        // Decision 0020: 音色の選択は Mac 専用。
                         Picker("", selection: binding(preset, \.notificationSound)) {
                             ForEach(NotificationSound.allCases, id: \.self) { sound in
                                 Text(sound.displayName).tag(sound)
@@ -123,7 +119,7 @@ struct PresetEditorView: View {
                         }
                         .labelsHidden()
                         .fixedSize()
-                        // Decision 0019: 音源を直接鳴らさず、本番と同じ通知を1件送る。
+                        // Decision 0019: 本番と同じ経路で通知を1件送る。
                         Button("Send a test") { model.sendNotificationSoundTest(preset) }
                             .help("Sends one notification with this setting")
                     }
@@ -174,7 +170,7 @@ struct PresetEditorView: View {
 
             if preset.preNotifications.count < 2 {
                 Menu("Add a trigger") {
-                    // 承認済みの刻み（Decision 0012）: 残り1〜15分を1分単位。
+                    // Decision 0012: 残り1〜15分を1分単位。
                     Menu("By time left") {
                         ForEach(1...15, id: \.self) { minutes in
                             Button("\(minutes) min left") { addTrigger(preset, .beforeEnd(seconds: minutes * 60)) }
@@ -208,7 +204,7 @@ struct PresetEditorView: View {
         ).isEmpty
     }
 
-    // REQ-UIX-009: 適用タイミング（9.5 の A / B / C 群）を視覚的に区別するための注記。
+    // REQ-UIX-009: 適用タイミング（9.5 の A / B / C 群）の注記。
     private func groupNote(_ markdown: String) -> some View {
         Text(.init(markdown))
             .font(.footnote)
@@ -233,9 +229,8 @@ struct PresetEditorView: View {
     ) -> some View {
         // REQ-CFG-011 / 012: UI は分単位、内部は秒。直接入力とステッパーの両方を出す。
         HStack {
-            // REQ-COL-011: セッション種別に使ってよいのは `-graphic`（図形）と `-text`（文字）だけ。
-            // **帯は使えない。** 色付きの文字だけでは弱かったので、図形を添えて持ち上げる
-            //（2026-08-28、実機で「分かりづらい」と報告）。
+            // REQ-COL-011: 使ってよいのは `-graphic` と `-text` だけ。**帯は使えない。**
+            // 色付きの文字だけでは弱いので図形を添える。
             if let role {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(theme.color(role, .graphic))
@@ -261,7 +256,7 @@ struct PresetEditorView: View {
         }
     }
 
-    // 分ではない数値（周回など）。並びは minuteStepper と同じにする。
+    // 分ではない数値（周回など）。並びは minuteStepper と揃える。
     private func countStepper(
         _ title: String, _ value: Binding<Int>, range: ClosedRange<Int>, unit: String
     ) -> some View {

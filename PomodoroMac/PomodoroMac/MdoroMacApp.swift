@@ -15,7 +15,7 @@ struct MdoroMacApp: App {
             MainWindowView()
                 .environment(model)
                 .task {
-                    // ウィンドウを開く手段は Scene 側にしかないので、ここで渡す。
+                    // ウィンドウを開く手段は Scene 側にしかない。
                     model.onShowWindowRequested = {
                         NSApplication.shared.activate(ignoringOtherApps: true)
                         openWindow(id: Self.mainWindowId)
@@ -41,10 +41,7 @@ struct MdoroMacApp: App {
 
 
 // REQ-NTF-001: アプリを前面に出したままでも区切りは知らせる。
-//
-// **macOS はアプリが最前面のあいだ、この委譲が無いと通知を出さない。** バナーも音も出ない。
-// iPhone 側には最初から置いていたが Mac 側に無く、
-// 「Focus が終わっても Mac だけ鳴らない」の原因になっていた（2026-08-27、実機で報告）。
+// **macOS はアプリが最前面のあいだ、この委譲が無いと通知を出さない。**
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,

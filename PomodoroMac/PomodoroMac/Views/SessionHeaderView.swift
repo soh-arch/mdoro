@@ -2,8 +2,7 @@ import SwiftUI
 import MdoroCore
 
 // REQ-UIX-002 / 003 / 013: セッション種別を色と文言の両方で示し、周回数を n / interval で表示する。
-// REQ-COL-011: セッション状態に使えるのは -graphic と -text のみ。バナー表現（-subtle + -line）は
-// warning に予約されているため、ここでは使わない。ColorRole が型で拒否する。
+// REQ-COL-011: 使えるのは -graphic と -text のみ。帯は warning に予約されており ColorRole が拒否する。
 struct SessionHeaderView: View {
     @Environment(\.theme) private var theme
     let sessionType: SessionType
@@ -15,7 +14,7 @@ struct SessionHeaderView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            // REQ-COL-013: 色に加えて線種でも区別する。色だけに頼らせない（REQ-COL-010）。
+            // REQ-COL-010 / 013: 色だけに頼らせない。線種でも区別する。
             ProgressRingGlyph(style: sessionType.progressRingStyle)
                 .foregroundStyle(theme.color(role, .graphic))
                 .frame(width: 14, height: 14)

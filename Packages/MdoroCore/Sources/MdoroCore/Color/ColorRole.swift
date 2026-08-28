@@ -1,7 +1,6 @@
 import Foundation
 
-// 8.5.4 役割マッピング。REQ-COL-002: ビューはこの役割名で色を参照し、
-// 色相名トークン (ink-solid 等) を直接参照しない。色相の変更がコード変更にならないようにするため。
+// REQ-COL-002 / 8.5.4: ビューは役割名で色を参照し、色相名トークン (ink-solid 等) を直接使わない。
 public enum ColorRole: String, CaseIterable, Sendable {
     case sessionFocus
     case sessionShortBreak
@@ -28,9 +27,8 @@ public enum ColorRole: String, CaseIterable, Sendable {
         }
     }
 
-    // REQ-COL-011: sessionLongBreak と warning は同じ Ochre を共有するため treatment で区別する。
-    // セッション状態に使ってよいのは -graphic と -text だけ。
-    // -subtle の地に -line の枠を組んだバナー表現は warning に予約する。
+    // REQ-COL-011: セッション状態に使ってよいのは -graphic と -text だけ。
+    // 帯 (-subtle の地に -line の枠) は warning に予約する。
     public var permittedRoles: Set<HueRole> {
         isSessionRole ? [.graphic, .text] : Set(HueRole.allCases)
     }
@@ -47,7 +45,6 @@ public enum ColorRole: String, CaseIterable, Sendable {
 }
 
 public extension SessionType {
-    // 進行リング・種別ラベルの色役割。
     var colorRole: ColorRole {
         switch self {
         case .work: return .sessionFocus
@@ -56,7 +53,7 @@ public extension SessionType {
         }
     }
 
-    // REQ-COL-013: 色に加えて進行リングの線種でも区別する。色だけに頼らせない (REQ-COL-010)。
+    // REQ-COL-010 / 013: 色だけに頼らせない。線種でも区別する。
     var progressRingStyle: ProgressRingStyle {
         switch self {
         case .work: return .solid

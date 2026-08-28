@@ -1,9 +1,7 @@
 #if canImport(SwiftUI)
 import SwiftUI
 
-// REQ-COL-001: ビュー内に色リテラルを書かせないための橋渡し。
-// Mac 版と iPhone 版で二重に実装しないよう共有コードに置く (REQ-PRT-001)。
-// 具体的な配色の引き回し方 (Environment に載せるか等) は UI 層の判断に委ねる。
+// REQ-COL-001 / REQ-PRT-001: ビュー内に色リテラルを書かせないための橋渡し。
 
 public extension SwiftUI.Color {
     init(_ token: SRGBColor) {
@@ -16,8 +14,7 @@ public extension SwiftUI.Color {
 }
 
 public extension ColorMode {
-    // REQ-COL-003: システムの外観設定に追従する経路。
-    // ライト固定・ダーク固定は UI 層が ColorMode を直接指定して実現する。
+    // REQ-COL-003: システムの外観設定に追従する経路。固定は UI 層が ColorMode を直接指定する。
     init(_ scheme: SwiftUI.ColorScheme) {
         self = scheme == .dark ? .dark : .light
     }

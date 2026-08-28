@@ -16,10 +16,10 @@ struct TaskListView: View {
             header
 
             if model.settings.taskFilePath == nil {
-                // REQ-ERR-001: タスク欄に理由と再選択導線を表示する。タイマー機能は継続する。
+                // REQ-ERR-001: 理由と再選択導線を出す。タイマーは動き続ける。
                 notice("No task file selected", detail: "Choose a file to watch in Settings.", role: .warning)
             } else if model.tasks.loadFailed {
-                // REQ-ERR-002: 直前に成功した一覧を保持したままエラーを示す。
+                // REQ-ERR-002: 直前の一覧を保持したままエラーを示す。
                 notice("Could not read the task file", detail: "Showing what was read last time.", role: .danger)
             }
 
@@ -56,7 +56,7 @@ struct TaskListView: View {
             }
             Spacer()
 
-            // REQ-TSK-032: 追従が発生したことを控えめに知らせる。
+            // REQ-TSK-032: 追従を控えめに知らせる。
             if model.didFollowTaskSelection {
                 Button {
                     model.acknowledgeTaskFollow()
@@ -65,13 +65,12 @@ struct TaskListView: View {
                         .font(.footnote)
                         .foregroundStyle(theme.color(.accentPrimary, .text))
                 }
-                // REQ-COL-002: `.link` スタイルは自前の色を受け付けない（`.tint` も効かない）。
-                // **ラベルを自分で塗り、素のボタンにする。**
+                // REQ-COL-002: `.link` は自前の色を受け付けない。**ラベルを自分で塗り、素のボタンにする。**
                 .buttonStyle(.plain)
             }
 
             if model.tasks.selectedTaskId != nil {
-                // 大きさは `Add`（PresetBarView）と同じ本文サイズに揃える（REQ-UIX-047）。
+                // REQ-UIX-047: 大きさは `Add` と揃える。
                 Button { model.clearTaskSelection() } label: {
                     Text("Clear selection")
                         .foregroundStyle(theme.color(.accentPrimary, .text))
@@ -103,10 +102,7 @@ struct TaskListView: View {
             Spacer()
         }
         // REQ-COL-002 / REQ-UIX-044 / 8.6.3: 選択は `-subtle` の地で示す。
-        //
-        // **`List(selection:)` の塗りは `.tint` では変わらない。** macOS のリストは
-        // システムのハイライト色を使う。役割名から引くには、自分で描くしかない
-        // （2026-08-28、実機で確認。前回 `.tint` を当てて直らなかった）。
+        // **`List(selection:)` の塗りは `.tint` では変わらない。** 役割名から引くには自分で描くしかない。
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
         .background(

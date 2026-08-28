@@ -5,16 +5,13 @@ import MdoroCore
 // REQ-ERR-010 / Decision 0018: 診断ログの入り口。
 //
 // **利用者由来の文字列をここへ渡さないこと。** タスクは `stableId` の下4桁、
-// ファイルはパスのダイジェストで同定する。伏字処理を持たないことが要点で、
-// 持たなければ、そこにバグが入る余地もない。
-//
-// 置き場所は `~/Library/Logs/Pomodoro/`（サンドボックスではコンテナ内の同じ位置）。
-// `tail -f` できる、1行1イベントのプレーンテキスト。
+// ファイルはパスのダイジェストで同定する。
+// 置き場所は `<Library>/Logs/Mdoro/`。1行1イベントのプレーンテキスト。
 @MainActor
 @Observable
 final class DiagnosticLog {
 
-    // ログ自体が書けないことも黙らせない（CONTEXT「失敗を黙らせない」）。
+    // ログ自体が書けないことも黙らせない。
     private(set) var lastFailure: String?
 
     @ObservationIgnored private var file: DiagnosticLogFile?
@@ -38,8 +35,7 @@ final class DiagnosticLog {
         )
     }
 
-    // 記録するのは状態の変わり目だけで、毎秒の刻みは載せない。
-    // その量なら同期で書いて差し支えなく、失敗をその場で拾えるぶん素直になる。
+    // 記録するのは状態の変わり目だけ。その量なら同期で書いてよく、失敗をその場で拾える。
     func write(_ code: String, level: DiagnosticLevel = .info, _ fields: [DiagnosticField] = []) {
         guard let file else { return }
         file.write(DiagnosticEvent(level: level, code: code, fields: fields))

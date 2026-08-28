@@ -4,9 +4,8 @@ import MdoroCore
 
 // REQ-NTF-001 / 004 / 005 / 007 / 020〜023: Mac 側の通知。
 //
-// Mac はアプリが動き続けている前提に立てるため、終了通知は状態遷移を検知して即時に出す。
+// Mac はアプリが動き続けている前提に立てるので、終了通知は状態遷移を検知して即時に出す。
 // 予告通知だけは発火時刻が未来なので事前スケジュールする。
-// （iPhone 側は WebSocket に依存できないため、終了通知も事前スケジュールする。REQ-NTF-002 / 工程7）
 @MainActor
 final class NotificationScheduler {
 
@@ -15,9 +14,8 @@ final class NotificationScheduler {
 
     private static let preNotificationPrefix = "pre-notification."
 
-    // **`try?` で捨てない。** ここを握り潰していたため、
-    // 「許可を求めることすらできていない」状態が誰にも見えなかった（2026-08-27）。
-    // 署名のないビルドでは、この呼び出し自体が失敗して notDetermined のまま止まる。
+    // **`try?` で捨てない。** 署名のないビルドではこの呼び出し自体が失敗し、
+    // 握り潰すと「許可を求めることすらできていない」状態が見えなくなる。
     func requestAuthorization() async -> String? {
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .sound])
@@ -27,7 +25,6 @@ final class NotificationScheduler {
         }
     }
 
-    // 鳴らないときに「アプリが壊れている」と思わせない。
     // **macOS 側でバナーや音が切られていることは、こちらからしか見えない。**
     func currentPermission() async -> NotificationPermission {
         let settings = await center.notificationSettings()
@@ -71,8 +68,7 @@ final class NotificationScheduler {
         deliverNow(content, identifier: "session-finished.\(UUID().uuidString)")
     }
 
-    // REQ-NTF-007 / 020〜023: 予告通知。発火時刻の決定は MdoroCore が行う。
-    // ここは「決まった時刻に鳴らす」だけを受け持つ。
+    // REQ-NTF-007 / 020〜023: 発火時刻の決定は MdoroCore。ここは決まった時刻に鳴らすだけ。
     func reschedulePreNotifications(
         preset: Preset,
         sessionType: SessionType,

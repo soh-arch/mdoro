@@ -23,8 +23,7 @@ public enum TimerAction: Equatable, Sendable {
     case reorderPresets(order: [String])
     case restoreDefaultPreset
 
-    // REQ-ERR-010 / Decision 0018: 診断ログに載せる名前。**引数は含めない。**
-    // `startWork` のタスクスナップショットも `updateSettings` のパスも利用者由来である。
+    // REQ-ERR-010 / Decision 0018: 診断ログに載せる名前。**引数は利用者由来なので含めない。**
     public var diagnosticName: String {
         switch self {
         case .startWork: return "startWork"
@@ -50,7 +49,7 @@ public enum TimerAction: Equatable, Sendable {
         }
     }
 
-    // REQ-TIM-030: 状態遷移マトリクス上の行を識別するための分類。
+    // REQ-TIM-030: 状態遷移マトリクス上の行。
     var matrixRow: MatrixRow {
         switch self {
         case .startWork, .startBreak: return .startSession

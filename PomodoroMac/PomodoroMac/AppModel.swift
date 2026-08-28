@@ -6,8 +6,7 @@ import MdoroCore
 // Mac 側の状態保持と、MdoroCore への配線。
 //
 // **状態の正本は Mac である**（3原則の2つ目）。判断はすべて `TimerEngine` が行い、
-// ここはその結果を受け取って副作用（ログ書き込み・通知・永続化）を実行する係に徹する。
-// ドメインの判断をこのクラスに書かないこと。
+// ここは結果を受けて副作用（ログ書き込み・通知・永続化）を実行する係に徹する。
 @MainActor
 @Observable
 final class AppModel {
@@ -21,12 +20,10 @@ final class AppModel {
         didSet { onSettingsChanged(from: oldValue) }
     }
 
-    // 表示用の現在時刻。**ビュー側に Timer を持たせない。**
-    // ビューに Timer.publish を置いたところ発火せず、メインウィンドウの残り時間が固まった。
+    // 表示用の現在時刻。**ビュー側に Timer を持たせない**（発火せず表示が固まる）。
     private(set) var displayNow = Date()
 
-    // REQ-UIX-004 / 035: 接続状態。実際の接続管理は工程5（第3章・第12章）が入れる。
-    // それまでは iPhone が繋がることはないので、正直に「未接続」を出す。
+    // REQ-UIX-004: 接続状態。
     private(set) var connection: ConnectionStatus = .disconnected
     // REQ-UIX-033: 割り当ててあるのに他アプリに取られている場合を UI で区別する。
     private(set) var pauseResumeHotKeyIsActive = false
@@ -46,13 +43,13 @@ final class AppModel {
 
     // REQ-ERR-004 / REQ-LOG-005: 書き込みに失敗し続けていることを UI に出す。
     private(set) var logWriteFailed = false
-    // REQ-ERR-004: 失敗の理由を UI に出す。原因が分からないまま記録だけ消えるのが最悪。
+    // REQ-ERR-004: 失敗の理由を UI に出す。
     private(set) var lastLogError: String?
-    // 書けていない件数。0 でないまま放置されると記録が失われる。
+    // 書けていない件数。
     private(set) var pendingLogCount = 0
-    // 直近に書き込めた時刻。書けているのかどうかを UI から確かめられるようにする。
+    // 直近に書き込めた時刻。
     private(set) var lastLogWriteAt: Date?
-    // 直近の再読み込みで選択が自動追従したこと（REQ-TSK-032）を控えめに知らせる。
+    // REQ-TSK-032: 選択が自動追従したことを控えめに知らせる。
     private(set) var didFollowTaskSelection = false
 
     // MARK: - 依存
@@ -64,7 +61,7 @@ final class AppModel {
     private let server = MdoroServer()
     // REQ-ERR-010 / Decision 0018: タスク名もパスも載せない診断ログ。
     let diagnostics = DiagnosticLog()
-    // 設定ウィンドウをどのタブで開くか。メインウィンドウの接続表示から指定する。
+    // 設定ウィンドウをどのタブで開くか。
     var settingsTab: SettingsTab = .presets
     private var infoServer: InfoHTTPServer?
     private var authenticator = Authenticator(issuedTokens: DeviceTokenStore.load())
@@ -89,8 +86,7 @@ final class AppModel {
             selectedTaskId: saved?.selectedTaskId,
             selectedTaskSnapshot: saved?.selectedTaskSnapshot
         )
-        // REQ-LOG-005: 書き込めていないログを引き継ぐ。committedAt は既に立っているため、
-        // ここで捨てると、そのセッションの記録は二度と書かれない。
+        // REQ-LOG-005: 書き込めていないログを引き継ぐ。**捨てると二度と書かれない。**
         self.logQueue = LogWriteQueue(entries: saved?.pendingLogEntries ?? [])
         self.pendingLogCount = self.logQueue.pendingCount
 
@@ -146,9 +142,7 @@ final class AppModel {
     }
 
     // REQ-TIM-001: 表示のためのカウントダウンであって、時間の正本ではない。
-    // 残り時間は毎回 `sessionEndAt` から算出する（3原則の3つ目）。
-    // 1秒ちょうどで回すと、Task.sleep のずれが積もって表示が1秒飛ぶことがある。
-    // 表示の粒度より細かく回し、秒の切り替わりを取りこぼさないようにする。
+    // 1秒ちょうどで回すと Task.sleep のずれが積もって表示が飛ぶので、粒度より細かく回す。
     private static let tickInterval = Duration.milliseconds(250)
 
     private func startTicking() {
@@ -174,7 +168,7 @@ final class AppModel {
 
     private func tick() {
         let now = Date()
-        // 残り時間の表示はここで進める。状態が変わらなくても毎秒更新する。
+        // 状態が変わらなくても表示は進める。
         displayNow = now
         updatePairingCountdown(now: now)
         let previousState = timer.runState
@@ -204,7 +198,6 @@ final class AppModel {
                 taskName: timer.sessionTaskSnapshot,
                 preset: preset
             )
-            // 「鳴らなかった」を後から追えるように、出したことを残す。
             diagnostics.write("notify.finished", [
                 DiagnosticField("type", previousType.rawValue),
                 DiagnosticField("sound", preset.notificationSound.rawValue),
@@ -230,8 +223,7 @@ final class AppModel {
     @discardableResult
     func send(_ action: TimerAction) -> TimerError? {
         let now = Date()
-        // 操作した瞬間の時刻で描き直す。次の tick まで古い時刻のままだと、
-        // 開始直後に「25:01」のように長さより大きい値が出る。
+        // 操作した瞬間の時刻で描き直す。古いままだと開始直後に長さより大きい値が出る。
         displayNow = now
         switch TimerEngine.reduce(action: action, context: timer, presets: presets, settings: settings, now: now) {
         case let .success(reduction):
@@ -255,7 +247,7 @@ final class AppModel {
             // REQ-LOG-018: 拒否されても、直前の tick が確定させたログは失わない。
             apply(effects: failure.effects)
             persist()
-            // 拒否された操作こそ記録する。「押したのに何も起きない」を後から追える。
+            // 拒否された操作こそ記録する。
             diagnostics.write("action.rejected", level: .warn, [
                 DiagnosticField("do", action.diagnosticName),
                 DiagnosticField("state", timer.runState.rawValue),
@@ -293,7 +285,6 @@ final class AppModel {
         }
     }
 
-    // 状態に応じて、外の世界を合わせる。
     private func syncSideEffectsToState() {
         // REQ-PER-006: RUNNING の間だけアイドルスリープを抑止する。
         if timer.runState == .running {
@@ -319,7 +310,7 @@ final class AppModel {
             diagnostics.write("settings.rejected", level: .warn)
             return
         }
-        // ヘッダは開いたときの値なので、変わったら現在値を1行残す。
+        // ヘッダは開いたときの値。変わったら現在値を1行残す。
         diagnostics.write(
             "settings.change",
             DiagnosticHeader.settingsFields(preset: presets.activePreset ?? Preset.standard(), settings: settings)
@@ -338,7 +329,7 @@ final class AppModel {
             updateHotKey()
         }
         if settings.launchAtLogin != previous.launchAtLogin {
-            // 失敗したら設定を元に戻す。UI が実態と食い違わないようにする。
+            // 失敗したら設定を戻す。UI と実態を食い違わせない。
             if !LoginItem.setEnabled(settings.launchAtLogin) {
                 settings.launchAtLogin = previous.launchAtLogin
             }
@@ -346,8 +337,8 @@ final class AppModel {
         persist()
     }
 
-    // REQ-UIX-033 / Decision 0029: 一時停止・再開・次を開始・スキップを割り当てられる。
-    // **中断とリセットは割り当てない。** 確認をはさめない操作に、破壊的なものを置かない。
+    // REQ-UIX-033 / Decision 0029: 一時停止・再開・次を開始・スキップのみ。
+    // **中断とリセットは割り当てない。** 確認をはさめない経路に破壊的操作を置かない。
     private func updateHotKey() {
         hotKeys.update(.pauseResume, binding: settings.pauseResumeHotKey) { [weak self] in
             guard let self else { return }
@@ -360,8 +351,6 @@ final class AppModel {
         hotKeys.update(.showWindow, binding: settings.showWindowHotKey) { [weak self] in
             self?.onShowWindowRequested?()
         }
-        // Decision 0029: 次を開始・スキップも割り当てられる。
-        // **中断とリセットには割り当てない** — 確認を1段はさめない経路だから。
         hotKeys.update(.startNext, binding: settings.startNextHotKey) { [weak self] in
             self?.startNextSession()
         }
@@ -375,10 +364,10 @@ final class AppModel {
         skipHotKeyIsActive = hotKeys.isRegistered(.skip)
     }
 
-    // ウィンドウを前面に出す処理は Scene 側が握っているため、呼び出し口だけ持つ。
+    // ウィンドウを前面に出すのは Scene 側の仕事。呼び出し口だけ持つ。
     var onShowWindowRequested: (() -> Void)?
 
-    // 「次を開始」はメニューからもホットキーからも呼ぶ。判断を1箇所に置く。
+    // メニューからもホットキーからも呼ぶ。判断を1箇所に置く。
     func startNextSession() {
         guard let presetId = presets.activePreset?.id else { return }
         let next = timer.nextSessionType
@@ -418,8 +407,7 @@ final class AppModel {
         )
     }
 
-    // ペアリングの開始・終了で `/info` の内容が変わる。押し込み忘れると、
-    // iPhone 側が「ペアリング中かどうか」を誤って表示する。
+    // ペアリングの開始・終了で `/info` の内容が変わる。**押し込み忘れると iPhone の表示が狂う。**
     private func refreshServerInfo() {
         infoServer?.update(serverInfo(websocketPort: websocketPortForInfo))
     }
@@ -453,7 +441,7 @@ final class AppModel {
                 guard let self else { return }
                 connection = state.isConnected ? .connected : .disconnected
                 authenticator.connectedClientName = state.isConnected ? state.peerDeviceName : nil
-                // 端末名も IP も書かない。繋がったかどうかだけが要る。
+                // 端末名も IP も書かない。
                 diagnostics.write("conn", [DiagnosticField("up", state.isConnected)])
             }
         )
@@ -461,8 +449,7 @@ final class AppModel {
 
     // 受け取ったコマンドは翻訳して状態機械へ渡す。可否は状態機械が決める（REQ-ERR-016）。
     private func apply(_ command: CommandPayload) {
-        // タスクと設定は状態機械の管轄外（`TimerEngine` は break するだけ）。
-        // ここで受け止めないと、iPhone からの選択が**黙って捨てられる**。
+        // タスクと設定は状態機械の管轄外。**ここで受け止めないと iPhone からの選択が黙って捨てられる。**
         switch command.action {
         case .selectTask:
             guard let stableId = command.params?.stableId else {
@@ -490,7 +477,7 @@ final class AppModel {
                 reject(.invalidStateForAction, "No settings", command)
                 return
             }
-            // didSet が検証・永続化・状態機械への反映をまとめて行う。
+            // didSet が検証・永続化・状態機械への反映をまとめて行う
             settings = updated
             broadcastState()
             return
@@ -573,12 +560,10 @@ final class AppModel {
         refreshServerInfo()
     }
 
-    // REQ-SEC-004: ユーザーが承認した場合のみ既存接続を切断して新接続を受け入れる。
-    // 60秒で自動的にタイムアウトし、既定は拒否（サーバー側が計る）。
+    // REQ-SEC-004: 承認された場合のみ既存接続を切って受け入れる。タイムアウトはサーバー側が計る。
     func respondToConnectionRequest(approved: Bool) {
         pendingConnectionRequest = nil
-        // 承認するなら、認証器の「接続中」を先に空けておく。
-        // ここを空けないと、再認証がまた needsUserApproval を返して堂々巡りになる。
+        // **先に空けておく。** 空けないと再認証がまた needsUserApproval を返して堂々巡りになる。
         if approved { authenticator.connectedClientName = nil }
         server.resolvePendingApproval(approved: approved)
     }
@@ -596,7 +581,7 @@ final class AppModel {
         let options = LogFormatter.Options(taskAsLink: settings.logTaskAsLink)
 
         guard let bookmark = bookmarks.logFolder else {
-            // 出力先が未設定でも記録は捨てず、キューへ残す。設定された時点で書き出す。
+            // 出力先が未設定でも記録は捨てず、キューへ残す。
             logWriteFailed = true
             lastLogError = "No folder is set for the session log"
             diagnostics.write("log.blocked", level: .warn, [
@@ -622,7 +607,7 @@ final class AppModel {
                 persist()
             }
             lastLogError = result.lastError.map { String(describing: $0) }
-            // Vault へ何を書いたかは残す。**書いたことの証拠になる。**
+            // **書いたことの証拠になる。**
             diagnostics.write("log.write", level: result.pending > 0 ? .warn : .info, [
                 DiagnosticField("written", result.written),
                 DiagnosticField("pending", result.pending),
@@ -634,7 +619,7 @@ final class AppModel {
                 notifications.notifyLogWriteFailure()
             }
         } catch {
-            // **黙って失敗しない。** ここを握り潰すと、記録が残らないことに誰も気づけない。
+            // **黙って失敗しない。**
             logWriteFailed = true
             lastLogError = String(describing: error)
             diagnostics.write("log.write", level: .error, [
@@ -661,7 +646,7 @@ final class AppModel {
         let outcome = TaskReloader.reload(previous: tasks, result: result)
         tasks = outcome.context
         didFollowTaskSelection = outcome.didFollow
-        // 件数だけを残す。タスク名も見出しも書かない。
+        // 件数だけを残す。
         diagnostics.write("task.reload", level: outcome.context.loadFailed ? .warn : .info, [
             DiagnosticField("count", outcome.context.items.count),
             DiagnosticField("failed", outcome.context.loadFailed),
@@ -671,7 +656,6 @@ final class AppModel {
         ])
         persist()
         // REQ-TSK-002: 変更を検知したら iPhone へ最新リストを配信する。
-        // ここを忘れると、Mac 側で Task.md を編集しても iPhone は古い一覧のままになる。
         server.broadcast(.taskList(taskListPayload()))
         broadcastState()
     }
@@ -721,16 +705,15 @@ final class AppModel {
     // MARK: - ファイル選択
 
     func setTaskFile(_ url: URL) {
-        // REQ-PLT-003: 読み取り専用として生成する。OS レベルで書き込みを不可能にする。
+        // REQ-PLT-003: 読み取り専用として生成し、OS レベルで書き込みを不可能にする。
         guard let data = try? VaultFileAccess.readOnlyBookmark(for: url) else { return }
         bookmarks.taskFile = data
         bookmarks.save()
         settings.taskFilePath = url.path
     }
 
-    // Decision 0015: 出力先は**フォルダ**を選ばせる。
-    // 一時ファイル経由の原子的書き込み (REQ-LOG-004 / REQ-PLT-004) には、
-    // ログ本体だけでなく**同じフォルダへの書き込み許可**が要る。
+    // Decision 0015: 出力先は**フォルダ**。原子的書き込み (REQ-LOG-004 / REQ-PLT-004) には
+    // 一時ファイルを作る許可が要る。
     func setLogFolder(_ url: URL) throws {
         // REQ-LOG-021: Task.md と同一のファイルは選べない。
         let taskURL = bookmarks.taskFile.flatMap { try? VaultFileAccess.resolve($0).url }
@@ -743,7 +726,7 @@ final class AppModel {
         bookmarks.logFolder = data
         bookmarks.save()
         settings.logFolderPath = url.path
-        // 失敗して溜まっていたぶんがあれば、ここで書き出す (REQ-LOG-005)。
+        // REQ-LOG-005: 溜まっていたぶんをここで書き出す。
         flushLogQueue()
     }
 

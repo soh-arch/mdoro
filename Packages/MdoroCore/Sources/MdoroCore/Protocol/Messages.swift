@@ -11,14 +11,12 @@ public enum CommandAction: String, Equatable, Sendable, Codable {
     case reorderPresets, restoreDefaultPreset
 }
 
-// `confirmRestoredSession` の decision。プロトコル上は `resume`、
-// エンジン内部の `continueSession` に対応する（10.2）。
+// 10.2: プロトコル上の `resume` は、エンジン内部の `continueSession` に対応する。
 public enum ConfirmDecisionWire: String, Equatable, Sendable, Codable {
     case complete, discard, resume
 }
 
-// コマンドのパラメータ。action ごとに使うフィールドが違うため、すべて任意にしている。
-// 足りない・型が違う場合の判定は `TimerAction(from:presets:)` が行う。
+// action ごとに使うフィールドが違うため、すべて任意。過不足の判定は `CommandTranslation` が行う。
 public struct CommandParams: Equatable, Sendable, Codable {
     public var sessionType: SessionType?
     public var decision: ConfirmDecisionWire?
@@ -194,8 +192,8 @@ public enum MessageCoder {
         let sentAt: Date
     }
 
-    // REQ-PRT-005: **未知のメッセージ種別は無視する。** throw ではなく nil を返す。
-    // 例外にすると、将来のバージョンがメッセージを1つ足しただけで接続が落ちる。
+    // REQ-PRT-005: **未知のメッセージ種別は無視する。** throw にすると、
+    // 将来のバージョンがメッセージを1つ足しただけで接続が落ちる。
     public static func decodeClient(_ data: Data) throws -> Envelope<ClientMessage>? {
         let probe = try decoder.decode(TypeProbe.self, from: data)
         let header = MessageHeader(messageId: probe.messageId, sentAt: probe.sentAt)

@@ -3,8 +3,7 @@ import Foundation
 // REQ-LOG-018: ログの書き込みは呼び出し側の責務。エンジンは「確定すべき内容」だけを Effect として返す。
 public enum Effect: Equatable, Sendable {
     case commitLog(LogEntry)
-    // REQ-PER-008: PENDING_DECISION の間はスケジュール済みのローカル通知をすべて取り消す。
-    // 既に発火時刻を過ぎているため、再スケジュールは行わない。
+    // REQ-PER-008: 再スケジュールはしない。
     case cancelScheduledNotifications
     // REQ-PER-009: PENDING_DECISION へ遷移した時点で Live Activity を終了させる (8.3)。
     case endLiveActivity
@@ -74,8 +73,7 @@ public enum TimerError: Error, Equatable, Sendable {
     case taskNotFound
 }
 
-// REQ-LOG-018: reduce が操作を拒否した場合でも、直前の tick() が確定させた commitLog を
-// 呼び出し側が失わずに受け取れるようにする。
+// REQ-LOG-018: 操作が拒否されても、直前の tick() が確定させた Effect は返す。
 public struct TimerFailure: Error, Equatable, Sendable {
     public let error: TimerError
     public let effects: [Effect]
