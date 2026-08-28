@@ -92,8 +92,10 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
                 }
+                // REQ-COL-001 / 002: the role, not the hue. The same `danger` the two lines
+                // in the diagnostics section below already use — nothing can be written.
                 if let logFileError {
-                    Text(logFileError).font(.footnote).foregroundStyle(.red)
+                    Text(logFileError).font(.footnote).foregroundStyle(theme.color(.danger, .text))
                 }
                 // REQ-LOG-020: 同時編集で競合しうることを設定画面に明記する。
                 Text("Editing the same file while it is being appended to will conflict. Do not leave the log open in an editor.")
@@ -114,14 +116,14 @@ struct SettingsView: View {
             Text("A record to attach to a bug report. **Task names, note contents, file paths and device names are never written.** You can paste it in public as it is.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            Text("Kept in: \(DiagnosticLog.directory.path)")
+            Text("Kept in: \(model.diagnostics.directory.path)")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
             HStack {
                 Button("Export…") { exportDiagnostics() }
                 Button("Show in Finder") {
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: DiagnosticLog.directory.path)
+                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: model.diagnostics.directory.path)
                 }
                 Spacer()
             }

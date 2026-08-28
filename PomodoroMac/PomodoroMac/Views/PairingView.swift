@@ -3,6 +3,7 @@ import MdoroCore
 
 // REQ-SEC-001: 初回接続時は Mac 画面に6桁のペアリングコードを表示し、iPhone に入力させる。
 struct PairingSection: View {
+    @Environment(\.theme) private var theme
     @Environment(AppModel.self) private var model
 
     var body: some View {
@@ -33,9 +34,11 @@ struct PairingSection: View {
                 // REQ-SEC-005 / REQ-ERR-014: 待ち受けられない事実を隠さない。
                 // REQ-ERR-010 / Decision 0034: the model hands over a finished sentence.
                 // The reason is no longer here — it is a code in the diagnostic log.
+                // REQ-COL-001 / 002: the role, not the hue. `danger` is the hue this line
+                // already had — nothing can be listened on, so the iPhone cannot connect at all.
                 Text(error)
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(theme.color(.danger, .text))
                 Text("Check that this app is allowed in System Settings > Privacy & Security > Local Network.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)

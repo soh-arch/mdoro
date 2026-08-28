@@ -76,13 +76,13 @@ final class AppModel {
     private let hotKeys = HotKeyCenter()
     private let server = MdoroServer()
     // REQ-ERR-010 / Decision 0018: タスク名もパスも載せない診断ログ。
-    let diagnostics = DiagnosticLog()
+    let diagnostics: DiagnosticLog
     // 設定ウィンドウをどのタブで開くか。
     var settingsTab: SettingsTab = .presets
     private var infoServer: InfoHTTPServer?
     private var authenticator = Authenticator(issuedTokens: DeviceTokenStore.load())
     private let logQueue: LogWriteQueue
-    private var bookmarks = VaultBookmarks.load()
+    private var bookmarks: VaultBookmarks
 
     private var watcher: FileWatcher?
     private var watchedTaskURL: URL?
@@ -104,9 +104,20 @@ final class AppModel {
 
     // MARK: - 生成
 
-    init(store: any StateStore, now: Date = Date(), storeUnavailable: StateStoreError? = nil) {
+    // 診断ログとブックマークを引数に取るのは検証のため。**既定は本番と同じ**で、
+    // 差し替えたときだけ、利用者の Vault と利用者が集めるログの外で動く。
+    init(
+        store: any StateStore,
+        now: Date = Date(),
+        storeUnavailable: StateStoreError? = nil,
+        diagnostics: DiagnosticLog? = nil,
+        bookmarks: VaultBookmarks = VaultBookmarks.load()
+    ) {
         self.store = store
         self.storeUnavailable = storeUnavailable
+        // 既定値の位置では組み立てられない（DiagnosticLog は MainActor 上にある）。
+        self.diagnostics = diagnostics ?? DiagnosticLog()
+        self.bookmarks = bookmarks
 
         // REQ-ERR-017 / Decision 0035 / 0036: **握り潰しは、失敗しないことと区別がつかない。**
         // 読み込み・退避・復元は MdoroCore の1手順にまとまっている（REQ-PRT-001）。
@@ -249,8 +260,9 @@ final class AppModel {
         infoServer?.stop()
     }
 
-    private func tick() {
-        let now = Date()
+    // `now` を引数に取るのは、終了への到達を待たずに再現するため（POL-034）。
+    // 呼び出し口は `startTicking()` だけで、そこは既定の `Date()` を使う。
+    func tick(now: Date = Date()) {
         // 状態が変わらなくても表示は進める。
         displayNow = now
         updatePairingCountdown(now: now)
@@ -579,19 +591,22 @@ final class AppModel {
             activePresetId: presets.activePresetId,
             selectedTaskSnapshot: tasks.selectedTaskSnapshot
         )
+        // 10.2 / Decision 0034 / 0035: `message` は診断用。診断ログの `why` と同じ
+        // `case(domain:code)` で書く。**画面の文言は受け取る側が `code` から引く**ので、
+        // ここを変えても iPhone の表示は動かない。
         switch translated {
         case let .success(action):
             if let error = send(action) {
                 server.broadcast(.error(ProtocolErrorPayload(
                     code: ProtocolErrorCode(error),
-                    message: String(describing: error),
+                    message: error.diagnosticSummary,
                     relatedRequestId: command.clientRequestId
                 )))
             }
         case let .failure(failure):
             server.broadcast(.error(ProtocolErrorPayload(
-                code: failure.errorCode,
-                message: String(describing: failure),
+                code: failure.protocolErrorCode,
+                message: failure.diagnosticSummary,
                 relatedRequestId: command.clientRequestId
             )))
         }

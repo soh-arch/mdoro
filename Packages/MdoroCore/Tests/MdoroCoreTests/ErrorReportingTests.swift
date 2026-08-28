@@ -260,9 +260,61 @@ struct ErrorReportingTests {
             .notificationsNotAllowed,
             .bookmarkCreationFailed, .bookmarkResolutionFailed, .accessDenied,
         ] + TimerError.allCases.map(\.errorCode)
+            + CommandTranslation.Parameter.allCases.map(\.errorCode)
         let allOurs = table.allSatisfy { $0.domain == ErrorCode.ownDomain }
         #expect(allOurs)
         #expect(Set(table.map(\.code)).count == table.count, "Decision 0034: a code means one thing")
+    }
+
+    // A malformed command is our own failure too, and it goes out over the wire rather than
+    // into the log — but 10.2 keeps `message` diagnostic, so it is held to the same shape.
+    //
+    // The case name says what went wrong with a field and the code says which field, so the
+    // pair has to stay unique across both: folding two fields onto one number would read as
+    // the same failure in an issue. That is what the payload used to spell out in words.
+    @Test func aMalformedCommandCarriesADomainAndACodeToo() {
+        var seen = Set<String>()
+        for parameter in CommandTranslation.Parameter.allCases {
+            for failure in [
+                CommandTranslation.Failure.missingParameter(parameter),
+                CommandTranslation.Failure.invalidParameter(parameter),
+            ] {
+                #expect(failure.errorCode.domain == ErrorCode.ownDomain, "\(failure) has no domain")
+                #expect(
+                    hasDiagnosticShape(failure.diagnosticSummary),
+                    "not `case(domain:code)`: \(failure.diagnosticSummary)"
+                )
+                #expect(failure.diagnosticSummary.hasSuffix("(\(failure.errorCode))"))
+                #expect(
+                    seen.insert(failure.diagnosticSummary).inserted,
+                    "\(failure) is written the same way as another failure"
+                )
+                // Decision 0018 rewrites whitespace in a field; there must be none to rewrite.
+                #expect(
+                    DiagnosticField("why", failure.diagnosticSummary).value == failure.diagnosticSummary,
+                    "the log format must not have to rewrite \(failure.diagnosticSummary)"
+                )
+            }
+        }
+    }
+
+    // Decision 0034: a reader must not be able to tell where a failure came from by its shape.
+    // Walk `allCases`, not a list — the payload is what used to break this.
+    @Test func aMalformedCommandIsSpelledLikeAFailureFromTheOS() {
+        let fromTheOS = LogWriteError.writeFailed(ErrorCode(domain: NSCocoaErrorDomain, code: 513))
+        for parameter in CommandTranslation.Parameter.allCases {
+            let failure = CommandTranslation.Failure.missingParameter(parameter)
+            #expect(
+                shape(of: failure.diagnosticSummary) == shape(of: fromTheOS.diagnosticSummary),
+                "\(failure.diagnosticSummary) is shaped differently from \(fromTheOS.diagnosticSummary)"
+            )
+            // The field name is a literal this repository writes, not a leak — but it is the
+            // thing a payload would carry, so the summary must not have taken it along.
+            #expect(
+                !failure.diagnosticSummary.contains(parameter.rawValue),
+                "the payload survived into the summary: \(failure.diagnosticSummary)"
+            )
+        }
     }
 
     // REQ-LOG-005: even a type nobody planned for lands as a domain and a code.
