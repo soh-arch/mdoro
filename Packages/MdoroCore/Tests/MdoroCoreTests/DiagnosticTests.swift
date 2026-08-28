@@ -69,6 +69,29 @@ struct DiagnosticFormatTests {
         #expect(rendered.contains("vault=#"))
         #expect(rendered.contains("work=1500"))
     }
+
+    // REQ-NTF-006 / Decision 0017: the reader of an issue has no table mapping chime to the Glass
+    // the settings screen offered, so the log carries both halves. The left half is the value 10.3
+    // keeps for compatibility, and pinning the pair means renaming either one fails here first.
+    // Every case is listed, including the two that repeat themselves: the form is uniform by choice.
+    @Test func soundIsLoggedAsTheStoredValueAndTheNameSettingsShows() {
+        let expected: [NotificationSound: String] = [
+            .default: "default(Default)",
+            .chime: "chime(Glass)",
+            .bell: "bell(Submarine)",
+            .wood: "wood(Pop)",
+            .silent: "silent(Silent)",
+        ]
+        for sound in NotificationSound.allCases {
+            #expect(expected[sound] == sound.diagnosticValue, "\(sound) is logged as \(sound.diagnosticValue)")
+        }
+        #expect(expected.count == NotificationSound.allCases.count, "a new sound needs a row above")
+
+        var preset = Preset.standard()
+        preset.notificationSound = .chime
+        let fields = DiagnosticHeader.settingsFields(preset: preset, settings: AppSettings())
+        #expect(fields.first { $0.key == "sound" }?.value == "chime(Glass)", "the header still logs the raw value alone")
+    }
 }
 
 @Suite("Diagnostic log redaction (Decision 0018)")
