@@ -3,9 +3,9 @@ import WidgetKit
 import SwiftUI
 import MdoroCore
 
-// REQ-UIX-020〜029 / Decision 0009: ロック画面・ダイナミックアイランドでの残り時間表示。
-// **これはセッション終了を知らせる手段ではない。** 終了の通知は第5章のローカル通知が担う。
-// 独立させることで、更新できない状況でも通知は必ず届く。
+// REQ-UIX-020–029 / Decision 0009: showing the remaining time on the lock screen and in the Dynamic Island.
+// **This is not the means of announcing the end of a session.** Chapter 5's local notifications carry that.
+// Keeping the two apart means the notification always arrives, even where nothing can be updated.
 struct MdoroWidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: MdoroActivityAttributes.self) { context in
@@ -18,8 +18,9 @@ struct MdoroWidgetLiveActivity: Widget {
                 .activitySystemActionForegroundColor(.primary)
         } dynamicIsland: { context in
             DynamicIsland {
-                // 端の2領域は**狭く、島の外周まで届く。** アイコンを添えると種別名が押し出されて消え、
-                // 詰めて置くと角の丸みで最初と最後の字が欠ける。文字だけにして内側へ寄せる。
+                // The two regions at the edges are **narrow, and they reach the island's outer edge.**
+                // Adding an icon pushes the type's name out and it disappears; set flush, the rounded
+                // corners clip the first and the last character. Text only, moved inwards.
                 DynamicIslandExpandedRegion(.leading) {
                     Text(sessionLabel(context.state.sessionType))
                         .font(.system(size: WidgetFontSize.label, weight: .medium))
@@ -32,10 +33,11 @@ struct MdoroWidgetLiveActivity: Widget {
                         .lineLimit(1)
                         .padding(.trailing, WidgetInset.islandEdge)
                 }
-                // **`.center` は使わない。** 中央領域が幅を全部取り、端の2領域を潰す。
+                // **Do not use `.center`.** The centre region takes the whole width and crushes the two at the edges.
                 DynamicIslandExpandedRegion(.bottom) {
-                    // **島にタスク名を出さない。** 高さが固定で、3つ積むと黙って消える。
-                    // REQ-UIX-025: タスク名はロック画面が持つ。
+                    // **Do not put the task name on the island.** The height is fixed, and stacking
+                    // three of them makes them quietly disappear.
+                    // REQ-UIX-025: the lock screen holds the task name.
                     HStack {
                         Spacer(minLength: 0)
                         VStack(spacing: 4) {
@@ -45,17 +47,18 @@ struct MdoroWidgetLiveActivity: Widget {
                         }
                         Spacer(minLength: 0)
                     }
-                    // 下の領域も外周まで届く。**角の丸みに食われるので四方を逃がす。**
+                    // The bottom region reaches the outer edge as well. **The rounded corners eat into
+                    // it, so it is moved in on all four sides.**
                     .padding(.horizontal, WidgetInset.islandEdge)
                     .padding(.bottom, WidgetInset.islandBottom)
                 }
             } compactLeading: {
-                // REQ-UIX-023: コンパクト表示に文言は置けない。**記号で示す。**
+                // REQ-UIX-023: no wording will fit in the compact presentation. **A symbol says it.**
                 Image(systemName: compactSymbol(context))
             } compactTrailing: {
                 TimerText(state: context.state)
                     .font(.system(size: WidgetFontSize.compactTimer).monospacedDigit())
-                    // 9.2: Focus は最大180分。`1:05:00` でも切れない幅にする。
+                    // 9.2: Focus runs to 180 minutes at most. The width is set so that even `1:05:00` is not cut off.
                     .frame(maxWidth: 56)
             } minimal: {
                 Image(systemName: compactSymbol(context))
@@ -71,13 +74,13 @@ struct MdoroWidgetLiveActivity: Widget {
         }
     }
 
-    // 確認できていないときは種別ではなく注意記号を出す。
+    // When nothing has been confirmed, a warning symbol goes out instead of the type.
     private func compactSymbol(_ context: ActivityViewContext<MdoroActivityAttributes>) -> String {
         if context.isStale || !context.state.isConnected { return "exclamationmark.triangle.fill" }
         return symbol(context.state.sessionType)
     }
 
-    // REQ-COL-013 の趣旨で、**形の違いで種別を分ける。**
+    // In the spirit of REQ-COL-013, **the type is told apart by a difference in shape.**
     private func symbol(_ type: SessionType) -> String {
         switch type {
         case .work: return "timer"
@@ -87,10 +90,10 @@ struct MdoroWidgetLiveActivity: Widget {
     }
 }
 
-// REQ-UIX-041: フォントサイズは pt で明示する。**高さが固定**で、字が伸びれば行が落ちる。
-// REQ-UIX-042: 余白は 8.6.2 の値から選ぶ。
+// REQ-UIX-041: font sizes are given explicitly in pt. **The height is fixed**, and if the type grows a line drops out.
+// REQ-UIX-042: the spacing is chosen from 8.6.2's values.
 private enum WidgetInset {
-    // 島の角の丸みを避けるための、端からの逃げ。
+    // The inset from the edge that keeps clear of the island's rounded corners.
     static let islandEdge: CGFloat = 8
     static let islandBottom: CGFloat = 4
 }
@@ -103,8 +106,8 @@ private enum WidgetFontSize {
     static let compactTimer: CGFloat = 12
 }
 
-// REQ-UIX-021: 残り時間は `Text(timerInterval:pauseTime:countsDown:)` に任せる。
-// **アプリからの毎秒更新を行ってはならない。**
+// REQ-UIX-021: the remaining time is left to `Text(timerInterval:pauseTime:countsDown:)`.
+// **The app must not update it every second.**
 private struct TimerText: View {
     let state: MdoroActivityAttributes.ContentState
 
@@ -114,11 +117,12 @@ private struct TimerText: View {
     }
 }
 
-// REQ-UIX-023: `isStale` が真のとき「情報が古い可能性があります」を明示する。
-// REQ-UIX-004: 接続状態は常時視認できること。
+// REQ-UIX-023: when `isStale` is true, say plainly that the information may be out of date.
+// REQ-UIX-004: the connection state must be visible at all times.
 //
-// **`isStale` を切り替えるのは OS で、期限が来た瞬間とは限らない**（実測で4分遅れ）。
-// 切れたこと自体はこちらが知っている。**知っていることは、OS を待たずに自分で言う。**
+// **It is the OS that flips `isStale`, and not necessarily the moment the deadline arrives** (measured
+// at four minutes late). That the connection dropped is something we know ourselves.
+// **What we know, we say ourselves, without waiting for the OS.**
 private struct StatusNotice: View {
     let isStale: Bool
     let isConnected: Bool
@@ -131,8 +135,9 @@ private struct StatusNotice: View {
         }
     }
 
-    // **`LocalizedStringKey` で受ける。** `String` を渡すと `Label` の verbatim 初期化子に
-    // 解決され、この拡張が出す2文だけがカタログに載らない（Decision 0022）。
+    // **Take it as a `LocalizedStringKey`.** Passing a `String` resolves to `Label`'s verbatim
+    // initialiser, and these two sentences alone, out of everything this extension shows, never reach
+    // the catalogue (Decision 0022).
     private func notice(_ text: LocalizedStringKey, _ symbol: String) -> some View {
         Label(text, systemImage: symbol)
             .font(.system(size: WidgetFontSize.secondary))
@@ -144,12 +149,12 @@ private struct LockScreenView: View {
     let context: ActivityViewContext<MdoroActivityAttributes>
 
     var body: some View {
-        // **2列にして幅を使う。**
+        // **Two columns, to use the width.**
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(label)
                     .font(.system(size: WidgetFontSize.label, weight: .medium))
-                // 入らない行は黙って消える。**REQ-UIX-023（MUST）の注意書きがタスク名に勝つ。**
+                // A line that does not fit quietly disappears. **REQ-UIX-023's notice (a MUST) beats the task name.**
                 if context.isStale || !context.state.isConnected {
                     StatusNotice(isStale: context.isStale, isConnected: context.state.isConnected)
                 } else if let task = context.state.taskName, !task.isEmpty {
@@ -161,7 +166,7 @@ private struct LockScreenView: View {
             }
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 2) {
-                // **`Text(timerInterval:)` に `.fixedSize()` を付けないこと。** 寸法はシステムが決める。
+                // **Do not put `.fixedSize()` on `Text(timerInterval:)`.** The system decides its dimensions.
                 TimerText(state: context.state)
                     .font(.system(size: WidgetFontSize.lockTimer, weight: .medium, design: .rounded).monospacedDigit())
                 Text("\(context.state.loopDisplay) / \(context.state.longBreakInterval)")
@@ -169,7 +174,7 @@ private struct LockScreenView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        // REQ-UIX-042: `.padding()` の 16 はシステム側の余白と二重になる。
+        // REQ-UIX-042: `.padding()`'s 16 doubles up with the system's own spacing.
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }

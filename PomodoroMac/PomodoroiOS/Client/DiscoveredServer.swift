@@ -2,12 +2,13 @@ import Foundation
 import Network
 import MdoroCore
 
-// REQ-COM-003 / REQ-ERR-005: Bonjour で Mac を探す。複数見つかったら選ばせるので配列で持つ。
+// REQ-COM-003 / REQ-ERR-005: the Mac is found over Bonjour. More than one can be found and chosen
+// between, so they are held in an array.
 struct DiscoveredServer: Identifiable, Equatable, Sendable {
     let id: String
     let name: String
     let endpoint: NWEndpoint
-    // TXT レコードに載っている同期用ポート（REQ-COM-002）。
+    // The sync port carried in the TXT record (REQ-COM-002).
     let websocketPort: UInt16?
 
     static func == (lhs: DiscoveredServer, rhs: DiscoveredServer) -> Bool { lhs.id == rhs.id }
@@ -19,7 +20,8 @@ final class ServerBrowser {
     private(set) var servers: [DiscoveredServer] = []
 
     var onChange: (([DiscoveredServer]) -> Void)?
-    // REQ-PLT-008 / REQ-ERR-014: 許可を問い合わせる API は無い。NWBrowser の -65570 で検出する。
+    // REQ-PLT-008 / REQ-ERR-014: there is no API to ask about the permission. It is detected from
+    // NWBrowser's -65570.
     var onLocalNetworkDenied: (() -> Void)?
 
     func start() {
@@ -30,7 +32,7 @@ final class ServerBrowser {
 
         browser.stateUpdateHandler = { [weak self] state in
             guard case let .failed(error) = state else { return }
-            // -65570 (NoAuth) はローカルネットワークが許可されていない徴候。
+            // -65570 (NoAuth) is a sign that the local network is not allowed.
             if case let .dns(code) = error, code == -65570 {
                 Task { @MainActor in self?.onLocalNetworkDenied?() }
             }
@@ -52,9 +54,10 @@ final class ServerBrowser {
         browser = nil
     }
 
-    // **同じ Mac が「Name」「Name (2)」「Name (3)」と複数見えることがある。**
-    // プロセスが不意に終わると Bonjour の登録がすぐには消えず、macOS が番号を付け直す。
-    // **古いほうが番号が小さい。** 番号を外した名前で束ね、いちばん新しいものだけを残す。
+    // **The same Mac can be seen more than once, as "Name", "Name (2)", "Name (3)".**
+    // When the process ends unexpectedly the Bonjour registration does not go away at once, and macOS
+    // numbers it afresh. **The older one has the smaller number.** They are bundled under the name with
+    // the number taken off, and only the newest is kept.
     nonisolated static func deduplicated(_ servers: [DiscoveredServer]) -> [DiscoveredServer] {
         var newest: [String: (suffix: Int, server: DiscoveredServer)] = [:]
         var order: [String] = []
@@ -69,7 +72,7 @@ final class ServerBrowser {
         return order.compactMap { newest[$0]?.server }
     }
 
-    // 「Name (3)」→ ("Name", 3)、「Name」→ ("Name", 1)
+    // "Name (3)" -> ("Name", 3), "Name" -> ("Name", 1)
     nonisolated static func splitDuplicateSuffix(_ name: String) -> (base: String, suffix: Int) {
         guard name.hasSuffix(")"), let open = name.lastIndex(of: "(") else { return (name, 1) }
         let inside = name[name.index(after: open)..<name.index(before: name.endIndex)]

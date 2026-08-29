@@ -1,13 +1,13 @@
 import SwiftUI
 import MdoroCore
 
-// REQ-UIX-001: iPhone の通常画面では全機能（設定、タスク選択、タイマー操作）を提供する。
+// REQ-UIX-001: the iPhone's main screen offers every feature (settings, choosing a task, working the timer).
 struct MainScreen: View {
     @Environment(\.colorScheme) private var systemScheme
     @Environment(ClientModel.self) private var model
     @State private var isAppearancePresented = false
 
-    // Decision 0027: 外観は Mac の設定ではなく、**この端末の設定**に従う。
+    // Decision 0027: the appearance follows **this device's setting**, not the Mac's.
     private var theme: Theme {
         Theme(appearance: model.appearance, systemScheme: systemScheme)
     }
@@ -40,9 +40,9 @@ struct MainScreen: View {
                 .padding(20)
             }
             .background(theme.background)
-            // REQ-ERR-016 / Decision 0035: 拒否は**操作の直後に気づく場所**へ出す。
-            // 帯を本文に挟むと、タスク一覧まで送った状態で押した拒否が画面の外に出る。
-            // 手の届く下端に重ねれば、どこを見ていても目に入る。
+            // REQ-ERR-016 / Decision 0035: a refusal goes **where it is noticed right after the action**.
+            // A banner set into the body puts a refusal pressed after scrolling down to the task list off the screen.
+            // Laid over the bottom edge, within reach, it is seen wherever the eye is.
             .overlay(alignment: .bottom) {
                 if let refusal = model.lastRefusal {
                     RefusalNotice(code: refusal)
@@ -59,10 +59,10 @@ struct MainScreen: View {
                         Label("Settings", systemImage: "gearshape")
                     }
                 }
-                // iOS 26 は隣り合うツールバー項目を1つの枠にまとめる。**役割が違うので分ける。**
+                // iOS 26 gathers adjacent toolbar items into one frame. **The roles differ, so they are kept apart.**
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
                 ToolbarItem(placement: .topBarTrailing) {
-                    // REQ-UIX-013: 通常画面からの明示操作で集中表示ビューへ。
+                    // REQ-UIX-013: an explicit action from the main screen leads to the focus view.
                     Button {
                         model.isFocusViewPresented = true
                     } label: {
@@ -73,8 +73,9 @@ struct MainScreen: View {
             }
         }
         .environment(\.theme, theme)
-        // REQ-COL-003: ライト固定・ダーク固定を器にも効かせる。
-        // 効かせないと、地と文字は自前のパレット、ナビゲーションバーは OS の外観、という食い違いが起きる。
+        // REQ-COL-003: fixing to light or to dark has to reach the vessel as well.
+        // Without that, the ground and the text come from our own palette while the navigation bar
+        // follows the OS's appearance, and the two disagree.
         .preferredColorScheme(preferredScheme)
         .fullScreenCover(isPresented: Bindable(model).isFocusViewPresented) {
             FocusView()
@@ -99,7 +100,7 @@ struct MainScreen: View {
                 .font(.system(size: 68, weight: .medium, design: .rounded).monospacedDigit())
                 .foregroundStyle(theme.textPrimary)
                 .accessibilityLabel(Format.spokenRemaining(remaining))
-            // REQ-COM-012: 00:00 に達しても完了を確定しない。「同期待ち」と示す。
+            // REQ-COM-012: reaching 00:00 does not settle it as complete. It is shown as "waiting for sync".
             if model.isAwaitingSync {
                 Text("Waiting for sync")
                     .font(.footnote)
@@ -109,13 +110,14 @@ struct MainScreen: View {
         .frame(maxWidth: .infinity)
     }
 
-    // REQ-COM-013: 切断中は操作系 UI を無効化する。
-    // REQ-UIX-044: ボタンの色は役割名から引く。**OS の既定に委ねると有効と無効が同じ見た目になる。**
+    // REQ-COM-013: while disconnected, the controls are disabled.
+    // REQ-UIX-044: the colour of a button is looked up by role name. **Left to the OS default, enabled
+    // and disabled end up looking the same.**
     @ViewBuilder
     private var controls: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Decision 0028: REQ-UIX-045 は Mac に限る。**iPhone の画面は説明で埋めない。**
-            // 押せない理由は Mac の設定画面と読み上げラベルが持つ。
+            // Decision 0028: REQ-UIX-045 is for the Mac only. **Do not fill the iPhone's screen with explanations.**
+            // The reason a button cannot be pressed is held by the Mac's settings screen and by the spoken label.
             buttonRow
         }
         .buttonStyle(.bordered)
@@ -150,12 +152,12 @@ struct MainScreen: View {
             }
             Spacer()
         }
-        // **ボタンの文字を折り返させない。**
+        // **Do not let the text on a button wrap.**
         .lineLimit(1)
         .disabled(!model.isConnected)
     }
 
-    // REQ-TIM-044: 休憩に延長はない。REQ-TIM-046: 窓の外では無効。
+    // REQ-TIM-044: a break cannot be extended. REQ-TIM-046: outside the window that accepts it, disabled.
     @ViewBuilder
     private var extendButton: some View {
         if timer.sessionType == .work {
@@ -177,7 +179,8 @@ struct MainScreen: View {
         }
     }
 
-    // REQ-UIX-007 / 008: 有効なプリセット名を常時表示し、2件以上なら2タップ以内で切り替える。
+    // REQ-UIX-007 / 008: the active preset's name is shown at all times, and with two or more it is
+    // switched in two taps or fewer.
     @ViewBuilder
     private var presetRow: some View {
         let presets = model.snapshot?.presets.presets ?? []
@@ -194,7 +197,7 @@ struct MainScreen: View {
                     }
                     .disabled(!model.isConnected)
                 } else {
-                    // REQ-PRS-013: 1件のときは切替 UI を出さない。追加は Mac 側で行う。
+                    // REQ-PRS-013: with one, no switching UI is shown. Adding is done on the Mac.
                     Text("\(preset.name) (\(Format.presetShape(preset)))")
                         .foregroundStyle(theme.textPrimary)
                 }
@@ -206,10 +209,10 @@ struct MainScreen: View {
     }
 }
 
-// REQ-ERR-016 / Decision 0035: Mac が受理しなかった操作を、iPhone が自分の言葉で示す。
+// REQ-ERR-016 / Decision 0035: the iPhone says in its own words which action the Mac did not accept.
 //
-// **文言は `code` から引く。** 送られてきた `message` は診断用であり（10.2）、
-// 送る側が相手の画面の文言を決めない。
+// **The wording is looked up from `code`.** The `message` that came with it is for diagnosis (10.2),
+// and the sender does not decide the wording on the other screen.
 struct RefusalNotice: View {
     @Environment(\.theme) private var theme
     @Environment(ClientModel.self) private var model
@@ -227,14 +230,14 @@ struct RefusalNotice: View {
         .font(.footnote)
         .foregroundStyle(theme.color(.warning, .text))
         .padding(12)
-        // REQ-COL-011: 帯（-subtle の地に -line の枠）は warning に予約されている。
+        // REQ-COL-011: the banner treatment (a -subtle ground inside a -line border) is reserved for warning.
         .background(theme.color(.warning, .subtle))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.color(.warning, .line)))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 
-// REQ-UIX-002 / 003: 種別を色と文言の両方で示し、周回を n / interval で表示する。
+// REQ-UIX-002 / 003: the type is shown by both colour and wording, and the loop as n / interval.
 struct SessionHeader: View {
     @Environment(\.theme) private var theme
     let sessionType: SessionType
@@ -263,8 +266,8 @@ struct SessionHeader: View {
     }
 }
 
-// この端末の設定。**Mac の設定ではない。**
-// 外観（Decision 0027）と、ペアリングの解除だけを置く。
+// This device's settings. **Not the Mac's settings.**
+// Only the appearance (Decision 0027) and unpairing go here.
 struct DeviceSettingsSheet: View {
     @Environment(ClientModel.self) private var model
     @Environment(\.theme) private var theme
@@ -276,7 +279,7 @@ struct DeviceSettingsSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    // **ラベル行を出さない。** 出すと選べる項目が4つあるように見える。
+                    // **Do not show the label row.** With it, there look to be four items to choose from.
                     Picker("Appearance", selection: Binding(
                         get: { model.appearance },
                         set: { model.setAppearance($0) }
@@ -293,7 +296,7 @@ struct DeviceSettingsSheet: View {
                     Text("Applies to this iPhone only. The Mac keeps its own.")
                 }
 
-                // decisions/0021: 支援リンクはここに1つだけ。Mac の About と同じ並びにする（REQ-UIX-047）。
+                // decisions/0021: exactly one support link, here. The same order as the Mac's About (REQ-UIX-047).
                 Section {
                     LabeledContent("Version", value: AppInfo.version())
                     LabeledContent("License", value: AppInfo.license)
@@ -305,7 +308,7 @@ struct DeviceSettingsSheet: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Open \(AppInfo.sourceLabel) in Safari")
-                    // 開く前にリンク先を見せる。REQ-COL-002: ラベルを自分で塗り、素のボタンにする。
+                    // Show where the link goes before it opens. REQ-COL-002: paint the label ourselves and make it a plain button.
                     Button { openURL(AppInfo.supportURL) } label: {
                         Text(AppInfo.supportLabel)
                             .foregroundStyle(theme.color(.accentPrimary, .text))

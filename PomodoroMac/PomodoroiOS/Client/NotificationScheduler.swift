@@ -2,7 +2,7 @@ import Foundation
 import UserNotifications
 import MdoroCore
 
-// REQ-NTF-002: iPhone 側の通知は **WebSocket に依存してはならない。**
+// REQ-NTF-002: the notifications on the iPhone side **must not depend on the WebSocket.**
 // The clause rests on the app being suspended, not on the socket: schedule ahead on an
 // absolute-time trigger. Facts: docs/PLATFORM.md.
 @MainActor
@@ -10,7 +10,7 @@ final class NotificationScheduler {
 
     private let center = UNUserNotificationCenter.current()
     private var scheduledIds: [String] = []
-    // REQ-NTF-003 の (a)(b) を1つにまとめた指紋。同じ内容で組み直さない。
+    // A fingerprint gathering REQ-NTF-003's (a) and (b) into one. Do not rebuild for the same content.
     private var lastSignature: String?
 
     private static let endPrefix = "session-end."
@@ -20,19 +20,19 @@ final class NotificationScheduler {
         _ = try? await center.requestAuthorization(options: [.alert, .sound])
     }
 
-    // REQ-NTF-003: 発火時刻または通知内容が変わったら、取り消して組み直す。
-    // REQ-NTF-009: 未接続のまま開始されたセッションも、接続した時点でここが呼ばれて組まれる。
+    // REQ-NTF-003: when either the fire time or the content changes, cancel and rebuild.
+    // REQ-NTF-009: a session started while disconnected is built here too, the moment a connection is made.
     func reschedule(for snapshot: StateSnapshot, clockOffset: TimeInterval) {
         let timer = snapshot.timer
         let preset = snapshot.presets.activePreset ?? Preset.standard()
 
-        // REQ-PER-008: PENDING_DECISION の間は、発火時刻を過ぎた通知も含めてすべて取り消す。
+        // REQ-PER-008: while in PENDING_DECISION, cancel every one, including those whose fire time has passed.
         guard timer.runState != .pendingDecision else {
             cancelAll()
             return
         }
 
-        // 走っていないセッションに通知は要らない
+        // A session that is not running needs no notification
         guard timer.runState == .running,
               let serverEndAt = timer.sessionEndAt,
               let serverStartedAt = timer.sessionStartedAt else {
@@ -40,7 +40,7 @@ final class NotificationScheduler {
             return
         }
 
-        // REQ-COM-009: サーバー時刻を自端末の時計へ直してからスケジュールする。
+        // REQ-COM-009: the server's time is corrected to this device's clock before scheduling.
         let endAt = serverEndAt.addingTimeInterval(-clockOffset)
         let startedAt = serverStartedAt.addingTimeInterval(-clockOffset)
 
@@ -59,7 +59,8 @@ final class NotificationScheduler {
                                  startedAt: startedAt, endAt: endAt)
     }
 
-    // REQ-NTF-004: 終了したセッション種別・選択中タスク名・次に行うべきセッション種別を含める。
+    // REQ-NTF-004: carries the type of the session that ended, the name of the selected task, and the
+    // type of the session to do next.
     private func scheduleEnd(at endAt: Date, timer: TimerContext, preset: Preset, taskName: String?) {
         let content = UNMutableNotificationContent()
         content.title = String(localized: "\(Self.label(timer.sessionType)) has ended")
@@ -73,7 +74,7 @@ final class NotificationScheduler {
         add(content, at: endAt, identifier: Self.endPrefix + UUID().uuidString)
     }
 
-    // REQ-NTF-007 / 020〜023: 予告通知。発火時刻の決定は MdoroCore が行う。
+    // REQ-NTF-007 / 020–023: the heads-up notifications. Deciding the fire times belongs to MdoroCore.
     private func schedulePreNotifications(preset: Preset, sessionType: SessionType, startedAt: Date, endAt: Date) {
         guard sessionType == .work, !preset.preNotifications.isEmpty else { return }
 
@@ -92,7 +93,8 @@ final class NotificationScheduler {
     }
 
     private func add(_ content: UNNotificationContent, at fireDate: Date, identifier: String) {
-        // REQ-COM-014: **`timeZone` を明示する。** 無いとタイムゾーン変更や夏時間で発火がずれる。
+        // REQ-COM-014: **give `timeZone` explicitly.** Without it, a change of time zone or of summer
+        // time shifts when it fires.
         var components = Calendar.current.dateComponents(
             [.year, .month, .day, .hour, .minute, .second], from: fireDate
         )
@@ -116,8 +118,8 @@ final class NotificationScheduler {
         content.interruptionLevel = preset.timeSensitiveNotifications ? .timeSensitive : .active
     }
 
-    // REQ-NTF-006 / Decision 0020: **iPhone は OS の既定音のみ。**
-    // iOS に `/System/Library/Sounds` は無いので、0017 の対応表は macOS 専用。無音だけは共通。
+    // REQ-NTF-006 / Decision 0020: **the iPhone has the OS's default sound and nothing else.**
+    // iOS has no `/System/Library/Sounds`, so 0017's table is for macOS alone. Only silence is shared.
     private static func sound(for sound: NotificationSound) -> UNNotificationSound? {
         sound.isSilent ? nil : .default
     }
@@ -133,8 +135,8 @@ final class NotificationScheduler {
 
 
 private extension NotificationScheduler {
-    // REQ-NTF-003: 発火時刻 (a) と通知内容 (b) の両方を1つの指紋にまとめる。
-    // プリセット切替は (b) を通じて再スケジュールを引き起こす。
+    // REQ-NTF-003: both the fire time (a) and the content (b) are gathered into one fingerprint.
+    // Switching preset brings on a reschedule through (b).
     static func signature(endAt: Date, timer: TimerContext, preset: Preset, taskName: String?) -> String {
         let triggers = preset.preNotifications.map { trigger -> String in
             switch trigger {

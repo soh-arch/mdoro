@@ -3,15 +3,15 @@ import ActivityKit
 import Observation
 import MdoroCore
 
-// REQ-UIX-020 / 022 / 028 / Decision 0009: Live Activity の開始・更新・終了。
+// REQ-UIX-020 / 022 / 028 / Decision 0009: starting, updating and ending the Live Activity.
 //
 // Starting is for the foreground as a rule (REQ-UIX-020); updating, for while the app is
 // running (REQ-UIX-022). Both stay SHOULD on the running gate and suspension, not on which
 // start routes exist — do not write an implementation that puts them back to MUST.
 // Facts: docs/PLATFORM.md.
 //
-// `@Observable` を外すとコンパイルは通るが、状態が変わってもビューが読み直さず、
-// **Live Activity を出せない理由が画面から消える。**
+// Taking `@Observable` off still compiles, but the view stops reading the state back when it
+// changes, and **the reason a Live Activity cannot be shown disappears from the screen.**
 @MainActor
 @Observable
 final class LiveActivityController {
@@ -19,29 +19,31 @@ final class LiveActivityController {
     private var activity: Activity<MdoroActivityAttributes>?
     private var startedAt: Date?
     private var lastPushedAt: Date?
-    // 最後に渡した内容と期限。接続が落ちたら内容だけ直して**期限は押し出さない**。
+    // The content and the deadline last handed over. When the connection drops, only the content is
+    // corrected — **the deadline is not pushed out**.
     private var lastState: MdoroActivityAttributes.ContentState?
     private var currentStaleDate: Date?
 
-    // **何が起きたかを常に文字で残す。**「エラーが無い」と「呼ばれていない」は別物。
+    // **Always leave a written record of what happened.** "No error" and "never called" are two
+    // different things.
     private(set) var diagnostic: String = "Not started yet"
-    // 正常に動いているときは黙る。問題があるときだけ画面に出す。
+    // Stay quiet while it is working. Put it on the screen only when there is a problem.
     private(set) var isHealthy = false
 
-    // OS が把握している自アプリの Live Activity 数。
+    // How many Live Activities of this app the OS knows about.
     var systemActivityCount: Int { Activity<MdoroActivityAttributes>.activities.count }
 
-    // REQ-UIX-028: アクティブ8時間の上限。超えたら復帰時に新しく開始し直す。
+    // REQ-UIX-028: the eight-hour active limit. Past it, a new one is started on return.
     private static let maximumLifetime: TimeInterval = 8 * 60 * 60
 
     var isSupported: Bool {
         ActivityAuthorizationInfo().areActivitiesEnabled
     }
 
-    // 開始・更新・終了のどれかへ寄せる。
+    // Funnels into one of start, update or end.
     //
-    // `isConnected` は**呼び出し側の今の接続状態**。スナップショットの `connection` は
-    // Mac が自分について語った値で、受け取れなくなった後も残り続ける。
+    // `isConnected` is **the caller's connection state right now**. The snapshot's `connection` is the
+    // value the Mac told about itself, and it stays behind after nothing can be received any more.
     func sync(
         snapshot: StateSnapshot, clockOffset: TimeInterval,
         isForeground: Bool, isConnected: Bool, serverName: String
@@ -49,8 +51,8 @@ final class LiveActivityController {
         adoptOrphanedActivity()
         let timer = snapshot.timer
 
-        // REQ-PER-009: PENDING_DECISION へ遷移した時点で終了させる。
-        // REQ-UIX-022: セッション終了・中断時も終了させる。
+        // REQ-PER-009: end it the moment the state moves to PENDING_DECISION.
+        // REQ-UIX-022: end it when the session finishes or is aborted, too.
         guard timer.runState == .running || timer.runState == .paused else {
             diagnostic = "No session running (\(timer.runState.rawValue))"
             isHealthy = true
@@ -85,21 +87,23 @@ final class LiveActivityController {
         }
     }
 
-    // REQ-COM-013 / REQ-UIX-024: 繋がっていないなら操作できるように見せない。
-    // REQ-UIX-023: **`staleDate` は押し出さない。** 確認できていないのだから期限が来て正しい。
+    // REQ-COM-013 / REQ-UIX-024: when not connected, do not make it look operable.
+    // REQ-UIX-023: **do not push `staleDate` out.** Nothing has been confirmed, so the deadline
+    // arriving is correct.
     func setConnected(_ connected: Bool) {
         guard activity != nil, var state = lastState, state.isConnected != connected else { return }
         state.isConnected = connected
         push(state, extendingStaleDate: false)
     }
 
-    // 起動時にロック画面へ残っているものは、**今の状態かどうか確かめようがない。**
-    // 少しだけ待ち、**来なければ畳む。** 走っていれば接続直後に開始し直される（REQ-UIX-020）。
+    // Whatever is left on the lock screen at launch **cannot be checked against the state as it is
+    // now.** Wait a little, and **fold it away if nothing arrives.** If a session is running it is
+    // started again right after connecting (REQ-UIX-020).
     func discardOrphansIfUnconfirmed(within delay: TimeInterval = 10) {
         guard activity == nil, !Activity<MdoroActivityAttributes>.activities.isEmpty else { return }
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
-            // この間に生きたスナップショットが来ていれば引き取られている。
+            // If a live snapshot arrived in the meantime, it has already been adopted.
             guard let self, self.activity == nil else { return }
             self.diagnostic = "Dismissed a leftover Live Activity: its state could not be confirmed"
             self.isHealthy = true
@@ -107,20 +111,20 @@ final class LiveActivityController {
         }
     }
 
-    // プロセスが落ちても Live Activity はロック画面に残る。
-    // 拾い直さないと、**凍ったままの古い1件の横に新しい1件が並ぶ。**
+    // A Live Activity stays on the lock screen even when the process dies.
+    // Without picking it up again, **a new one lines up beside the old one, still frozen.**
     private func adoptOrphanedActivity() {
         guard activity == nil else { return }
         let existing = Activity<MdoroActivityAttributes>.activities
         guard let survivor = existing.first else { return }
         activity = survivor
         lastState = survivor.content.state
-        // 本当の開始時刻は残っていない。REQ-UIX-028 の寿命はここから測り直す。
+        // The real start time is gone. REQ-UIX-028's lifetime is measured again from here.
         startedAt = Date()
         lastPushedAt = nil
-        // **期限なしで引き取らない。** 前のプロセスが置いた期限を引き継ぐ。
+        // **Do not adopt it without a deadline.** The deadline the previous process left is carried over.
         currentStaleDate = survivor.content.staleDate
-        // 2件以上あったら畳む。**1つの状態に2つの表示があってはならない。**
+        // With two or more, the rest are folded away. **One state must not have two displays.**
         for duplicate in existing.dropFirst() {
             Task { await duplicate.end(nil, dismissalPolicy: .immediate) }
         }
@@ -135,7 +139,8 @@ final class LiveActivityController {
             lastPushedAt = Date()
         }
         guard let activity else { return }
-        // REQ-UIX-023: 期限が無いなら今この瞬間を期限にする。**期限なしで残さない。**
+        // REQ-UIX-023: with no deadline, this very moment becomes the deadline. **Do not leave it
+        // without one.**
         let deadline = currentStaleDate ?? Date()
         Task { await activity.update(ActivityContent(state: state, staleDate: deadline)) }
     }
@@ -144,8 +149,9 @@ final class LiveActivityController {
         state: MdoroActivityAttributes.ContentState,
         serverName: String, isForeground: Bool, isConnected: Bool
     ) {
-        // **状態の正本は Mac。** 繋がっていない間に手元にあるのは「最後に見た値」でしかない。
-        // これで開始すると、**とうに終わったセッションが動かないままロック画面に居座る。**
+        // **The Mac is the source of truth for the state.** While not connected, what is at hand is no
+        // more than "the last value seen". Starting from that leaves **a session that ended long ago
+        // sitting on the lock screen, not moving.**
         guard isConnected else {
             diagnostic = String(localized: "Starts once connected to your Mac")
             isHealthy = true
@@ -153,7 +159,7 @@ final class LiveActivityController {
         }
         // REQ-UIX-020: the foreground gate noted at the top of this file.
         guard isForeground else {
-            // REQ-UIX-020 の制約であって不具合ではない。騒がない。
+            // This is REQ-UIX-020's constraint, not a fault. Do not make a noise about it.
             diagnostic = String(localized: "Can only start while the app is in the foreground")
             isHealthy = true
             return
@@ -176,19 +182,20 @@ final class LiveActivityController {
             diagnostic = "Started id=\(requested.id.prefix(8)) / \(systemActivityCount) known to the system"
             isHealthy = true
         } catch {
-            // REQ-ERR-010 / Decision 0034: **OS の原文をそのまま画面へ出さない。** 言語がロケールに
-            // 追従するうえ、ファイル名や識別子を含むことがある。この文字列は `ClientModel` 経由で
-            // iPhone の画面に出る（Decision 0035 の POL-037）。
-            // 診断ログは Mac だけの仕組み（Decision 0018）なので、コードの行き先はここにはない。
-            // Decision 0035 が画面へのコード出力を認めたのは Mac の診断ログ1箇所だけなので、落とす。
+            // REQ-ERR-010 / Decision 0034: **never put the OS's own text straight on the screen.** Its
+            // language follows the locale, and it can carry file names and identifiers. This string
+            // reaches the iPhone's screen through `ClientModel` (POL-037 of Decision 0035).
+            // The diagnostic log is a Mac-only arrangement (Decision 0018), so a code has nowhere to go here.
+            // Decision 0035 allowed a code on screen in one place only, the Mac's diagnostic log, so it is dropped.
             diagnostic = String(localized: "Could not start. Check that Live Activities are allowed for Mdoro in iOS Settings")
             isHealthy = false
         }
     }
 
-    // REQ-UIX-023: staleDate は「次に確認できる保証がない時刻」であって経過時間ではない。
-    // 回し続けないと、前面で接続が生きていても 90 秒で「情報が古い」と出る。
-    // suspend されればこの呼び出しごと止まり、意図どおり陳腐化する。
+    // REQ-UIX-023: staleDate is "the time by which there is no guarantee of another check", not the
+    // time elapsed. Without keeping this turning, "out of date" shows after 90 seconds even in the
+    // foreground with a live connection. Once suspended, this call stops along with everything else
+    // and it goes stale, as intended.
     func refreshIfNeeded(
         snapshot: StateSnapshot, clockOffset: TimeInterval,
         isForeground: Bool, isConnected: Bool, serverName: String
@@ -201,7 +208,8 @@ final class LiveActivityController {
         )
     }
 
-    // **OS 上にあるものを全部畳む。** 1件だけだと前のプロセスの残骸が居座る。
+    // **Fold away everything the OS has.** Folding only one leaves the previous process's leftovers
+    // sitting there.
     func end() {
         activity = nil
         startedAt = nil
@@ -213,7 +221,7 @@ final class LiveActivityController {
         }
     }
 
-    // REQ-UIX-023: 次に状態を確認できる保証がない時刻を staleDate に置く。
+    // REQ-UIX-023: staleDate is set to the time by which there is no guarantee of another check on the state.
     private func content(_ state: MdoroActivityAttributes.ContentState) -> ActivityContent<MdoroActivityAttributes.ContentState> {
         ActivityContent(
             state: state,
@@ -227,14 +235,15 @@ final class LiveActivityController {
         let timer = snapshot.timer
         let preset = snapshot.presets.activePreset ?? Preset.standard()
 
-        // REQ-COM-009 / REQ-UIX-026: 拡張側では時計合わせができないので、ここで直して渡す。
+        // REQ-COM-009 / REQ-UIX-026: the extension cannot correct for the clocks, so it is corrected
+        // here before being handed over.
         let localStart = serverStart.addingTimeInterval(-clockOffset)
         let localEnd: Date
         var pauseTime: Date?
 
         switch timer.runState {
         case .paused:
-            // REQ-UIX-029: 停止中は pauseTime を置いてカウントダウンを止める。
+            // REQ-UIX-029: while paused, pauseTime is set to stop the countdown.
             let remaining = TimeInterval(timer.remainingSeconds ?? 0)
             localEnd = Date().addingTimeInterval(remaining)
             pauseTime = Date()
@@ -250,7 +259,7 @@ final class LiveActivityController {
             loopDisplay: timer.displayLoop(longBreakInterval: preset.longBreakInterval),
             longBreakInterval: preset.longBreakInterval,
             taskName: timer.sessionTaskSnapshot ?? snapshot.task.selectedTaskSnapshot,
-            // **スナップショットの中の接続状態ではない。** 要るのは、この端末が今どうかである。
+            // **Not the connection state inside the snapshot.** What is needed is how this device stands right now.
             isConnected: isConnected
         )
     }
