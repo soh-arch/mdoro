@@ -2,8 +2,10 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
-// POL-047: the suite runs *inside* MdoroMac.app and MdoroiOS.app — `@testable import` needs
-// `BUNDLE_LOADER = $(TEST_HOST)`, so there is no version of this where the host is absent.
+// POL-047: the suite runs *inside* MdoroMac.app and MdoroiOS.app — these targets `@testable
+// import` the app module, and linking against an app's own symbols is what needs
+// `BUNDLE_LOADER = $(TEST_HOST)` (`docs/PLATFORM.md`), so there is no version of this where
+// the host is absent.
 // An app that starts normally there delivers notifications, takes the window to the front,
 // advertises on the LAN and watches the reader's own `Task.md`. The product owner saw all of
 // it; every contributor would too.
@@ -150,11 +152,27 @@ struct TestHostTests {
         )
     }
 
-    // XCTest sets the variable in the host process. Nothing else does, and an app run by a
-    // person never has it — which is the whole reason the check is safe to leave in.
-    @Test func theVariableXCTestSetsIsWhatDecides() {
+    // POL-111: **the launcher puts these in the host process, not XCTest** — Xcode and
+    // `xcodebuild` write them and XCTestCore reads them (`docs/PLATFORM.md`). Nothing else
+    // writes either, and an app run by a person has neither, which is the whole reason the
+    // check is safe to leave in.
+    //
+    // The detection is read here through the environment it is given, not through
+    // `TestHost.isRunning`: `swift test` has no host app and no launcher writing either
+    // variable, so **`isRunning` answering false in this suite is correct.** Where it has to
+    // answer true is the app targets, and that is what their `TestHostDetectionTests` are for.
+    @Test func theVariableTheLauncherWritesIsWhatDecides() {
         #expect(TestHost.isRunning(in: ["XCTestConfigurationFilePath": "/tmp/x.xctestconfiguration"]))
         #expect(TestHost.isRunning(in: [:]) == false)
         #expect(TestHost.isRunning(in: ["HOME": "/Users/someone"]) == false)
+    }
+
+    // POL-111: **and the other one, which is the one XCTestCore tries first.**
+    // `loadTestConfiguration` reads the encoded value before it reads the file path, so a
+    // launcher that took that route would leave a check on the file path alone answering false
+    // — the guard would stand open and nothing would say so. The name reads like a symbol
+    // because the constant holds its own name as its value; it is not a typo.
+    @Test func theRouteTriedFirstIsWatchedAsWell() {
+        #expect(TestHost.isRunning(in: ["XCTestConfigurationEncodedValueEnvironmentKey": "YnBsaXN0"]))
     }
 }

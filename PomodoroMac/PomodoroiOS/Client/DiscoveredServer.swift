@@ -39,7 +39,7 @@ final class ServerBrowser {
         }
 
         browser.browseResultsChangedHandler = { [weak self] results, _ in
-            let found = Self.deduplicated(results.compactMap { Self.server(from: $0) })
+            let found = Self.inDisplayOrder(results.compactMap { Self.server(from: $0) })
             Task { @MainActor in
                 self?.servers = found
                 self?.onChange?(found)
@@ -54,31 +54,35 @@ final class ServerBrowser {
         browser = nil
     }
 
-    // **The same Mac can be seen more than once, as "Name", "Name (2)", "Name (3)".**
-    // When the process ends unexpectedly the Bonjour registration does not go away at once, and macOS
-    // numbers it afresh. **The older one has the smaller number.** They are bundled under the name with
-    // the number taken off, and only the newest is kept.
-    nonisolated static func deduplicated(_ servers: [DiscoveredServer]) -> [DiscoveredServer] {
-        var newest: [String: (suffix: Int, server: DiscoveredServer)] = [:]
-        var order: [String] = []
-        for server in servers {
-            let (base, suffix) = splitDuplicateSuffix(server.name)
-            if newest[base] == nil { order.append(base) }
-            if let existing = newest[base], existing.suffix >= suffix { continue }
-            newest[base] = (suffix, DiscoveredServer(
-                id: server.id, name: base, endpoint: server.endpoint, websocketPort: server.websocketPort
-            ))
+    // REQ-ERR-005 / REQ-COM-003: **every registration the browser reported is offered, number
+    // and all.** Nothing is folded together and no name is rewritten.
+    //
+    // One Mac can appear as "Name" and "Name (2)" at the same time: mDNSResponder renames a
+    // colliding registration, and auto-rename is on by default (`docs/PLATFORM.md`). What used
+    // to stand here bundled those under the bare name and kept the highest number, on the
+    // belief that the older registration holds the smaller one. **It does not.** A number is
+    // never handed back, so the survivor of a collision keeps its "(2)" and the next
+    // registration takes the free "Name" — measured, not reasoned. Keeping the highest number
+    // dropped the newest arrival, and dropped one of two Macs that were both answering.
+    //
+    // **A Mac that answers and is not offered is worse than a ghost that lingers.** An
+    // abandoned registration is withdrawn about 1.7 seconds after its process is killed; how
+    // long a stale one survives across the LAN has never been measured (`docs/PLATFORM.md`).
+    // The number stays on screen because it is the only thing that tells two of them apart —
+    // the advertisement carries no identifier of its own.
+    //
+    // The order is settled here because the browser hands back a Set. Without it the same
+    // entries change places between callbacks, and a list that reorders itself under the
+    // thumb cannot be chosen from.
+    nonisolated static func inDisplayOrder(_ servers: [DiscoveredServer]) -> [DiscoveredServer] {
+        servers.sorted { lhs, rhs in
+            switch lhs.name.localizedStandardCompare(rhs.name) {
+            case .orderedAscending: return true
+            case .orderedDescending: return false
+            // Finder's comparison sets case aside, so the instance name settles the rest.
+            case .orderedSame: return lhs.id < rhs.id
+            }
         }
-        return order.compactMap { newest[$0]?.server }
-    }
-
-    // "Name (3)" -> ("Name", 3), "Name" -> ("Name", 1)
-    nonisolated static func splitDuplicateSuffix(_ name: String) -> (base: String, suffix: Int) {
-        guard name.hasSuffix(")"), let open = name.lastIndex(of: "(") else { return (name, 1) }
-        let inside = name[name.index(after: open)..<name.index(before: name.endIndex)]
-        guard let number = Int(inside), number > 1 else { return (name, 1) }
-        let base = name[name.startIndex..<open].trimmingCharacters(in: .whitespaces)
-        return (base.isEmpty ? name : base, number)
     }
 
     nonisolated private static func server(from result: NWBrowser.Result) -> DiscoveredServer? {

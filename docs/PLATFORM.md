@@ -214,6 +214,46 @@ REQ-UIX-026 の「不可能」「サンドボックス上」は Apple の原文�
 
 ---
 
+## Bonjour の同名衝突と番号
+
+**調査**: [0008](platform/0008-what-three-tests-rest-on.md) / **確認日**: 2026-08-29 / **対象**: macOS 26.5.1 / mDNSResponder-2881.120.11
+
+| 事実 | 確度 |
+| :---- | :---- |
+| **番号を付けるのは mDNSResponder であり、`NWListener` ではない。** auto-rename は既定で有効（`dns_sd.h` の `kDNSServiceFlagsNoAutoRename` / `advertise_descriptor.h`「**Auto-rename is enabled by default**」） | 文書化 |
+| 形式は `" (2)"`。2〜9 は +1、**10 以降は `+1 + 乱数(0..98)` で連番にならない** | Apple 公開ソース（`mDNSCore/DNSCommon.c`） |
+| **登録プロセスを SIGKILL しても、約1.7秒で登録は撤去される**（UDS 接続断で goodbye が出る） | **実測** |
+| **`Name (2)` は番号を返上しない。** 先に登録した側が消えても `(2)` のままで、**後から起動した登録が空いた `Name` を取る** | **実測** |
+| **番号の若さと登録の新旧に、文書化された関係は無い。「古いほうが番号が小さい」は成り立たない** | **実測で反証** |
+| **Mac は自分が何という名前で登録されたかを知らない**（`serviceRegistrationUpdateHandler` を使っていない）。TXT は `ws` と `v` だけで、**インスタンスを一意に指す値が電波に乗っていない** | 実測（実装） |
+| LAN 越し（`NWBrowser`）でのキャッシュ残存時間。Wi-Fi 断・スリープ・電源断では goodbye が出ず TTL まで残りうる | **不明**（測っていない） |
+
+**コードとの食い違い**: `DiscoveredServer.deduplicated` は「古いほうが番号が小さい」に乗っており、
+**最大番号を残す規則が最新を捨てうる**（POL-110）。
+
+---
+
+## テスト実行の検出と String Catalog
+
+**調査**: [0008](platform/0008-what-three-tests-rest-on.md) / **確認日**: 2026-08-29 / **対象**: Xcode 26.6
+
+| 事実 | 確度 |
+| :---- | :---- |
+| **`@testable import` が要求するのは `ENABLE_TESTABILITY`（`-enable-testing`）であって `BUNDLE_LOADER` ではない。** `BUNDLE_LOADER` が要るのは**取り込む先が App モジュールだから**（`man ld` の `-bundle_loader`）。**App のシンボルを要さないバンドルは `xctest` CLI にホストさせられる**（`man 5 xcodebuild.xctestrun`） | 文書化 |
+| **`XCTestConfigurationFilePath` を設定するのは XCTest ではなく起動側**（Xcode 26.6 では `DVTFoundation` / `IDEFoundation` / `XCTHarness` が書く）。**Apple の文書には一切記載が無い** | 実測（バイナリ走査） |
+| **`XCTestCore` の `loadTestConfiguration` は `XCTestConfigurationEncodedValueEnvironmentKey` を先に試す。** `XCTestConfigurationFilePath` は**2番手** | 実測（逆アセンブル） |
+| Swift Testing だけのターゲットでも `.xctest` バンドルとして同じ経路で起動されるため設定される。**Swift Testing は XCTestCore の上で駆動されている** | 実測 |
+| **ビルドのタスクグラフはソースの `.xcstrings` を出力に持たない**（マニフェスト全217コマンドで0件。`xcstringstool` は `compile` と `generate-symbols` のみ） | 実測 |
+| **書き戻しは「エディタだけ」ではない。** Apple は「**Each time you build your project, Xcode updates your string catalogs**」と明記し、実装は**ビルドの外の IDE プラグイン** `IDEXCStringsSupportCore` にある。公開 CLI `xcstringstool sync` も書ける | 文書化 |
+| 参照はキーへ落ちる。**ただし `NSShowNonLocalizedStrings` が true のときはキーを大文字化して返す** | 文書化 |
+| 補間は型で指定子になる（`Int` → `%lld`、`String` → `%@`） | 文書化 ＋ 実測 |
+
+**支えの細さ**: `TestHost.isRunning` は**未文書の環境変数1本**に乗っており、しかも**優先順位では2番手**。
+**Xcode が encoded value 経路に切り替えたら、検出は黙って `false` を返してガードが開く。**
+**それを捕まえる app-hosted のテストは CI で走らない**（POL-111）。
+
+---
+
 ## 未検証（軸 K で確認する）
 
 **`CONTEXT.md` §3 から移した項目である。**

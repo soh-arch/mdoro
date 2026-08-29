@@ -18,6 +18,10 @@ final class MdoroServer {
     }
 
     private(set) var listenPort: UInt16?
+    // POL-114: readable so that a test can see the listener a second `start` replaced, and see that
+    // it was cancelled rather than dropped. **A dropped NWListener keeps listening** — Network.framework
+    // holds it for its queue, and nothing releases the port or the Bonjour name but `cancel()`.
+    private(set) var listener: NWListener?
     private(set) var connection: NWConnection?
     private(set) var connectedDeviceName: String?
     private(set) var lastHeartbeatAt: Date?
@@ -31,7 +35,6 @@ final class MdoroServer {
         self.diagnostics = diagnostics
     }
 
-    private var listener: NWListener?
     private let queue = DispatchQueue(label: "MdoroMac.Server")
     private var callbacks: Callbacks?
     private var deduplicator = RequestDeduplicator()
@@ -47,7 +50,14 @@ final class MdoroServer {
 
     // **It returns only once the port is settled.** Return before it is settled and the value that goes
     // into the Bonjour TXT record is 0.
+    //
+    // POL-114 / REQ-COM-003: **whatever is listening now is folded first.** This used to overwrite
+    // `self.listener` and leave the old one running, so a second start meant a second port and a second
+    // Bonjour registration; mDNSResponder numbered them `(2)`, `(3)` and the iPhone had no way to tell
+    // which of the identically named Macs was the one holding the pairing code. The tidying up is the
+    // one already in `stop()` — there is no second version of it to fall behind.
     func start(callbacks: Callbacks) async throws -> UInt16 {
+        stop()
         self.callbacks = callbacks
 
         let parameters = NWParameters.tcp

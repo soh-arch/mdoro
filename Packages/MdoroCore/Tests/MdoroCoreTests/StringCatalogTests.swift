@@ -4,11 +4,17 @@ import Foundation
 // The tools for reading the repository's own sources live in `RepositorySources.swift`.
 //
 // Decision 0022 keeps the String Catalog for a reason that outlives the one language:
-// **to keep string literals from being scattered through the code.** Nothing in a build enforces
-// that. `xcodebuild` writes .stringsdata and never writes back to the .xcstrings, and a lookup
-// that finds no catalogue returns the key — which, in an English-only app, looks exactly right
-// on screen.
-// So the two ways it goes wrong are both silent, and both are checked here.
+// **to keep string literals from being scattered through the code.** Nothing in a build
+// enforces that. `xcodebuild` writes .stringsdata and never writes back to the .xcstrings —
+// but Xcode does, on every build, from outside the build's own task graph, and so does
+// `xcstringstool sync` when someone runs it (`docs/PLATFORM.md`). **So what these catch is not
+// a catalogue no tool can update; it is a change written without opening Xcode and pushed with
+// the catalogue as it was.** CI runs `swift test` and opens no Xcode, so it never repairs one
+// either.
+//
+// And a lookup that finds no catalogue returns the key — which, in an English-only app, looks
+// exactly right on screen. So the two ways it goes wrong are both silent, and both are checked
+// here.
 
 private struct AppTarget {
     let folder: String
@@ -85,10 +91,12 @@ struct StringCatalogTests {
         }
     }
 
-    // The other direction, and the one a build cannot catch: the catalogue is a source file
-    // that only Xcode's editor writes, so a `String(localized:)` added from an editor lands
-    // in the .stringsdata and never in the .xcstrings. The lookup then returns the key and
-    // nothing anywhere says the string was missed.
+    // The other direction, and the one that arrives without a sound. The catalogue is written
+    // by Xcode — its editor, and its builds, outside the build's task graph — and by
+    // `xcstringstool sync` run by hand (`docs/PLATFORM.md`). **None of those happens to a
+    // `String(localized:)` added from another editor and pushed as it is:** it lands in the
+    // .stringsdata and never in the .xcstrings. The lookup then returns the key and nothing
+    // anywhere says the string was missed.
     @Test func everyPlainSentenceTheCodeAsksForIsAKeyInItsTargetsCatalogue() throws {
         for target in appTargets {
             let keys = try catalogueKeys(target.catalogue)
