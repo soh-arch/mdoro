@@ -100,7 +100,7 @@
 | **POL-048** | `AppModel.reject(...)` の3箇所が `message` に英文の散文を入れており（`"No stableId"` 等）、**このファイルで唯一 `case(domain:code)` でない送信経路**になった。POL-041 が問題にした「同じファイル内で不統一」と同じ形 | [0034](decisions/0034-os-errors-are-recorded-as-codes.md) / 10.2 | — | agent | minor | done | `fix/catalog-and-wire-prose` |
 | **POL-049** | ビューに `.primary` / `.secondary` が約25箇所。**色相リテラルではなく OS の意味色**なので走査の対象外にしてある。`theme.textSecondary` へ寄せるかは**見た目が変わる判断** | [0007](decisions/0007-oklch-color-system.md) / REQ-COL-001 | — | **human** | minor | open | — |
 | **POL-050** | `MdoroServer` の接続拒否6文言が**どの画面にも届いていない**（`MdoroClient` は `payload.code` しか読まない）。`AuthFailureCode` が `case(domain:code)` の形になっていないことが、残っている不整合 | [0034](decisions/0034-os-errors-are-recorded-as-codes.md) / 10.2 | — | agent | minor | open | — |
-| **POL-051** | `taskList.parseError` は **Mac が書いた文を iPhone がそのまま表示する**（`ConnectionViews.swift:216`）。[0035](decisions/0035-a-failure-needs-somewhere-to-arrive.md) の「送る側が相手の画面の文言を決めない」と同じ構図だが、**条文は `error.message` にしか及んでいない** | [0035](decisions/0035-a-failure-needs-somewhere-to-arrive.md) / 10.2 | — | **human** | minor | open | — |
+| **POL-051** | `taskList.parseError` は **Mac が書いた文を iPhone がそのまま表示する**（`ConnectionViews.swift:216`）。[0035](decisions/0035-a-failure-needs-somewhere-to-arrive.md) の「送る側が相手の画面の文言を決めない」と同じ構図だが、**条文は `error.message` にしか及んでいない** | [0035](decisions/0035-a-failure-needs-somewhere-to-arrive.md) / 10.2 | — | **human** | minor | deferred | — |
 | **POL-052** | `TaskListView` の空状態の注記だけ Markdown が描画されない（`SettingsView` の同種の注記はコード体裁で出る）。揃えるなら `LocalizedStringKey` にするだけ | REQ-TSK-016 / REQ-UIX-047 | — | agent | minor | open | — |
 | **POL-015** | REQ-ERR-014 が OS 設定画面のパスを日本語で規定。英語化すると日本語ロケールの利用者の画面と一致しない。REQ-SEC-005 とも粒度が食い違う | REQ-ERR-014 / REQ-SEC-005 / 0.12節 | C | human | minor | done | `docs/spec-v2.10` |
 | **POL-021** | 非スコープの「複数ユーザー対応」が、人の話か端末の話か読めない。第14章「1対1接続」は端末の話 | [0021](decisions/0021-published-as-oss-named-mdoro.md) / 第14章 | D | agent | minor | done | `docs/spec-v2.10` |
@@ -142,4 +142,5 @@
 
 | ID | 症状 | 判断 | 理由 |
 | :-- | :---- | :---- | :---- |
+| **POL-051** | `taskList.parseError` は Mac が書いた文を iPhone がそのまま表示する（[0035](decisions/0035-a-failure-needs-somewhere-to-arrive.md) の「送る側が相手の画面の文言を決めない」と同じ構図） | **公開後に直す**（2026-08-29） | 文は1種類（`Could not read the task file`）で**実害がない**。直すなら `parseError` を文字列からコードへ変える形が筋だが、**通信仕様の変更であり両端末を同時に直す必要がある**（片方だけ変えない）。公開直前に触る種類の変更ではない。**食い違いが残ることを承知のうえで先送りする** |
 | **POL-043** | Live Activity の開始失敗のコードを捨てている（iOS に診断ログが無い） | **現状維持** | 込み入った内容であり、起きる可能性も低い。**いまは機能と方針の堅牢性を優先する**（2026-08-28）。例外を広げると「画面にコードを出さない」原則が2箇所目で緩み、3箇所目の歯止めがなくなる。最も多い原因（許可がない）は画面の文が案内している |
