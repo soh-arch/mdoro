@@ -186,7 +186,7 @@ struct FocusView: View {
             default:
                 EmptyView()
             }
-            // REQ-TIM-040: a break cannot be extended, so it is hidden outside WORK.
+            // REQ-TIM-044: a break cannot be extended, so it is hidden outside WORK.
             if timer.sessionType == .work {
                 Button("+\(preset.extendSeconds / 60) min") { model.send(.extend) }
                     .accessibilityLabel("Extend by \(preset.extendSeconds / 60) minutes")

@@ -3,13 +3,13 @@
 .AppleDouble
 .LSOverride
 
-# ---- Xcode: ユーザー固有の状態（ウィンドウ位置、ブレークポイント等）----
+# ---- Xcode: per-user state (window positions, breakpoints, and the like) ----
 xcuserdata/
 *.xcuserstate
 *.xcscmblueprint
 *.xccheckout
 
-# ---- Xcode: ビルド成果物 ----
+# ---- Xcode: build products ----
 build/
 DerivedData/
 *.moved-aside
@@ -20,18 +20,18 @@ DerivedData/
 
 # ---- Swift Package Manager ----
 .build/
-# Package.resolved は依存バージョンの固定に必要なのでコミットする
+# Package.resolved is committed: it is what pins the dependency versions.
 
-# ---- 開発環境（このマシン固有の絶対パスを含む）----
-# 再生成: xcode-build-server config -project PomodoroMac/PomodoroMac.xcodeproj -scheme PomodoroMac
+# ---- Development environment (holds absolute paths from this machine) ----
+# Regenerate: xcode-build-server config -project PomodoroMac/PomodoroMac.xcodeproj -scheme PomodoroMac
 buildServer.json
 .sourcekit-lsp/
 
-# ---- 作業用 ----
+# ---- Scratch ----
 _to_delete/
 
-# ---- 公開しない私的なリンク ----
+# ---- Private links, not published ----
 docs/PRIVATE-LINKS.md
 
-# ---- 署名（この機械だけの設定）----
+# ---- Signing (settings for this machine only) ----
 Config/Signing.local.xcconfig
