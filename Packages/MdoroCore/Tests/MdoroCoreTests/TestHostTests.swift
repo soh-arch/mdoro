@@ -53,7 +53,8 @@ struct TestHostTests {
                 firstStatement == guardClause,
                 "POL-047: \(path) does `\(firstStatement ?? "nothing")` before asking whether this is a test run"
             )
-            // 見張る先が消えていないこと。**空振りする検査は、通っている検査と区別がつかない。**
+            // What is being watched has not disappeared. **A check that swings at nothing cannot
+            // be told apart from a check that passes.**
             #expect(text.contains("model.start()"), "\(path) no longer calls model.start()")
         }
     }
@@ -90,7 +91,7 @@ struct TestHostTests {
     @Test func noModelBuiltForATestCanReachTheNotificationCentre() throws {
         for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
             let files = try swiftFiles(under: directory, recursive: true)
-            #expect(!files.isEmpty, "\(directory) は読めていない。移動したか、名前が変わっている")
+            #expect(!files.isEmpty, "\(directory) could not be read; it moved, or its name changed")
             for (name, text) in files {
                 for construction in text.components(separatedBy: "AppModel(").dropFirst() {
                     // `AppModel()` — the production one. Nothing substituted, nothing to check.
@@ -113,7 +114,7 @@ struct TestHostTests {
             app.contains("defaultLaunchBehavior(TestHost.isRunning ? .suppressed : .presented)"),
             "POL-047: the main window opens itself during the suite"
         )
-        // `MenuBarExtra(` の丸括弧まで見る。`showsMenuBarExtra` が前に出てくる。
+        // Look as far as the parenthesis of `MenuBarExtra(`. `showsMenuBarExtra` comes before it.
         let extra = try #require(app.range(of: "MenuBarExtra("), "REQ-UIX-030: the menu bar mark is gone")
         #expect(
             app[extra.upperBound...].prefix(20).contains("isInserted:"),

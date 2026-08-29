@@ -32,8 +32,8 @@ struct SelectedTaskStateTests {
         #expect(ctx.selectedTaskState == .missing)
     }
 
-    // REQ-TSK-034: showCompletedTasks は判定に影響してはならない。
-    // 表示から外れているだけのタスクを missing と誤判定しない。
+    // REQ-TSK-034: showCompletedTasks must not affect the judgement.
+    // A task that is merely out of view is never mistaken for missing.
     @Test func showCompletedSettingDoesNotAffectTheJudgement() throws {
         let ctx = try context("- [x] 済んだもの", selecting: "済んだもの")
         #expect(ctx.selectedTaskState == .completed)
@@ -41,7 +41,7 @@ struct SelectedTaskStateTests {
         #expect(ctx.selectedTaskState == .completed, "but its state must still not be missing")
     }
 
-    // REQ-TSK-036: 一覧に無い stableId は受け付けず、選択も変えない。
+    // REQ-TSK-036: a stableId that is not in the list is refused, and the selection does not move.
     @Test func selectingAnUnknownIdIsRefused() throws {
         var ctx = try context("- [ ] 作業中", selecting: "作業中")
         let before = ctx.selectedTaskId
@@ -53,18 +53,18 @@ struct SelectedTaskStateTests {
 @Suite("Reload and selection follow-through (REQ-TSK-030–035)")
 struct TaskReloadTests {
 
-    // REQ-TSK-030 / 031: 消えても自動的に選択を解除しない。
+    // REQ-TSK-030 / 031: a task disappearing never clears the selection on its own.
     @Test func missingSelectionIsKeptNotCleared() throws {
         let before = try context("- [ ] 仕様書のレビュー", selecting: "仕様書のレビュー")
         let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] まったく別のタスク"))
         #expect(outcome.context.selectedTaskId == before.selectedTaskId)
         #expect(outcome.context.selectedTaskState == .missing)
         #expect(!outcome.didFollow)
-        // REQ-TSK-031: 実績ログには最後に既知だった本文を記録する。
+        // REQ-TSK-031: the session log records the last text that was known.
         #expect(outcome.context.selectedTaskSnapshot == "仕様書のレビュー")
     }
 
-    // REQ-TSK-032: 文言の推敲には追従する。
+    // REQ-TSK-032: polishing the wording is followed.
     @Test func minorEditIsFollowed() throws {
         let before = try context("- [ ] 仕様書のレビューをする", selecting: "仕様書のレビューをする")
         let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] 仕様書のレビューをやる"))
@@ -80,7 +80,7 @@ struct TaskReloadTests {
         #expect(outcome.context.selectedTaskState == .missing)
     }
 
-    // 候補が一意に定まらないときは追従しない。間違った紐付けは、外れているより悪い。
+    // With no single candidate, nothing is followed. A wrong link is worse than no link at all.
     @Test func ambiguousCandidatesAreNotFollowed() throws {
         let before = try context("- [ ] タスクA1", selecting: "タスクA1")
         let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] タスクA2\n- [ ] タスクA3"))
@@ -88,8 +88,8 @@ struct TaskReloadTests {
         #expect(outcome.context.selectedTaskState == .missing)
     }
 
-    // REQ-TSK-035: contentHash 方式では、同一本文の先行する行が消えると後続の ID が変わる。
-    // これも追従の対象。
+    // REQ-TSK-035: with the contentHash scheme, an earlier line of the same text disappearing
+    // changes the ids that follow. That, too, is followed.
     @Test func shiftedDuplicateIsFollowed() throws {
         let before = try context("- [ ] 同じ本文\n- [ ] 同じ本文")
         var selected = before
@@ -101,7 +101,7 @@ struct TaskReloadTests {
         #expect(outcome.context.selectedTaskState == .present)
     }
 
-    // ブロック ID があれば、そもそも追従の出番がない。
+    // With a block ID, follow-through never comes into play at all.
     @Test func blockIdNeedsNoFollowing() throws {
         let before = try context("- [ ] 仕様書のレビュー ^abc123", selecting: "仕様書のレビュー")
         let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] 全面的に書き直した文言 ^abc123"))
@@ -110,7 +110,7 @@ struct TaskReloadTests {
         #expect(outcome.context.selectedTaskSnapshot == "全面的に書き直した文言")
     }
 
-    // REQ-TSK-033: 完了済みになってもタイマー実行中は選択を維持する。
+    // REQ-TSK-033: becoming completed keeps the selection while the timer is running.
     @Test func becomingCompletedKeepsTheSelection() throws {
         let before = try context("- [ ] 仕様書のレビュー", selecting: "仕様書のレビュー")
         let outcome = TaskReloader.reload(previous: before, parsed: load("- [x] 仕様書のレビュー"))

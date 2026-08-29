@@ -14,7 +14,7 @@ import Foundation
 // asset catalogue. `swift test` cannot link the app targets, and the Mac's own test target
 // does not run in CI, so this is where the rule can actually be held.
 
-// SwiftUI の色リテラル。`.clear` は色を持たないので除く。
+// SwiftUI's colour literals. `.clear` holds no colour, so it is left out.
 private let hueLiterals = [
     "red", "orange", "yellow", "green", "mint", "teal", "cyan", "blue",
     "indigo", "purple", "pink", "brown", "gray", "grey", "black", "white",
@@ -110,7 +110,8 @@ struct ColorLiteralTests {
         }
     }
 
-    // 走査そのものが生きていることを確かめる。**空振りする検査は、通っている検査と区別がつかない。**
+    // Confirms the scan itself is alive. **A check that swings at nothing cannot be told apart
+    // from a check that passes.**
     @Test func theScanWouldSeeAHueIfOneCameBack() {
         #expect(literals(in: "Text(x).foregroundStyle(.red)") == [".red"])
         #expect(literals(in: "let c = Color.orange") == [".orange"])
@@ -118,11 +119,11 @@ struct ColorLiteralTests {
         #expect(literals(in: "let redacted = value.redacted") == [])
     }
 
-    // 走査するつもりだった場所が本当に読めていること。パスが動けば黙って0件になる。
+    // The places meant to be scanned really are readable. Move a path and it silently finds none.
     @Test func everyDrawingDirectoryIsActuallyRead() throws {
         for directory in drawingSources {
             let files = try swiftFiles(under: directory, recursive: true)
-            #expect(!files.isEmpty, "\(directory) は読めていない。移動したか、名前が変わっている")
+            #expect(!files.isEmpty, "\(directory) could not be read; it moved, or its name changed")
         }
     }
 
@@ -152,7 +153,7 @@ struct ColorLiteralTests {
     @Test func everyPaletteOnlyDirectoryIsActuallyRead() throws {
         for directory in paletteOnlySources {
             #expect(!(try swiftFiles(under: directory, recursive: true)).isEmpty,
-                    "\(directory) は読めていない。移動したか、名前が変わっている")
+                    "\(directory) could not be read; it moved, or its name changed")
         }
     }
 
@@ -163,7 +164,7 @@ struct ColorLiteralTests {
     // ever reaches it, that reasoning has changed and this test is where it gets read again.
     @Test func theLiveActivityIsLeftToTheSystemOnPurpose() throws {
         let widget = try swiftFiles(under: "PomodoroMac/PomodoroWidget", recursive: true)
-        #expect(!widget.isEmpty, "the widget は読めていない")
+        #expect(!widget.isEmpty, "the widget could not be read")
         for (name, text) in widget {
             #expect(
                 !text.contains("theme."),
@@ -172,13 +173,14 @@ struct ColorLiteralTests {
         }
     }
 
-    // REQ-COL-011 / 012 と同じ罠。`-line` を文字色に渡すと `precondition` で落ちるので、
-    // POL-041 で選んだ役と役割の組が実行時に通ることを、実際に引いて確かめる。
+    // The same trap as REQ-COL-011 / 012. Handing `-line` to a text colour trips a `precondition`,
+    // so the pairs of role and hue role chosen in POL-041 are looked up for real, to confirm they
+    // pass at run time.
     @Test func theRolesTheViewsNowAskForAreAllowed() {
         for mode in ColorMode.allCases {
             let palette = ColorPalette.palette(for: mode)
             for role in [ColorRole.danger, .warning] {
-                #expect(role.permittedRoles.contains(.text), "\(role) は -text を許していない")
+                #expect(role.permittedRoles.contains(.text), "\(role) does not permit -text")
                 _ = role.color(.text, in: palette)
             }
         }

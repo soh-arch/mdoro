@@ -2,16 +2,18 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
-// REQ-COL-020: 全トークンのコントラスト比と、セッション3色の色覚シミュレーション下 ΔE を検証する。
-// 基準は 8.5.3 の役ごとの保証値、および ΔE 最小 14。
+// REQ-COL-020: checks the contrast ratio of every token, and the ΔE of the three session colours
+// under colour vision simulation. The bars are the per-role guarantees of 8.5.3, and a minimum
+// ΔE of 14.
 //
-// 色覚シミュレーションは Viénot, Brettel & Mollon (1999)。8.5.5 の表も同じモデルで測ってある。
-// モデルを差し替えると数値は動くが、**判定基準 (ΔE 14) は動かさないこと。**
+// The colour vision simulation is Viénot, Brettel & Mollon (1999). The table in 8.5.5 was measured
+// with the same model. Swapping the model moves the numbers, but **never move the bar (ΔE 14).**
 
 private let allModes = ColorMode.allCases
 
-// 8.5.3 の保証値は小数第2位まで。その精度で判定しないと 1.10 が 1.09967 として境界を割る。
-// アクセシビリティの下限 (3.0 / 4.5) は丸めずそのまま比較する。
+// The guarantees of 8.5.3 go to two decimal places. Judged without that precision, 1.10 falls
+// under the boundary as 1.09967.
+// The accessibility floors (3.0 / 4.5) are compared as they are, with no rounding.
 private func atSpecPrecision(_ value: Double) -> Double {
     (value * 100).rounded() / 100
 }
@@ -42,7 +44,8 @@ struct ColorContrastTests {
         }
     }
 
-    // 意味を持つ非テキスト図形 (進行リング・状態ドット) は WCAG 1.4.11 の 3.0 以上。
+    // A non-text graphic that carries meaning (the progress ring, the state dot) is 3.0 or above,
+    // per WCAG 1.4.11.
     @Test func graphicMeetsNonTextContrast() {
         for mode in allModes {
             let p = ColorPalette.palette(for: mode)
@@ -53,7 +56,8 @@ struct ColorContrastTests {
         }
     }
 
-    // 文字が乗る塗りは、背景に対しても前景 (-on-solid) に対しても 4.5 以上。
+    // A fill that carries text is 4.5 or above against the background and against the foreground
+    // (-on-solid) alike.
     @Test func solidCarriesTextInBothDirections() {
         for mode in allModes {
             let p = ColorPalette.palette(for: mode)
@@ -70,7 +74,7 @@ struct ColorContrastTests {
         }
     }
 
-    // -text の検証は bg / bg-sunken / surface / surface-raised の4面すべてに対して行う。
+    // -text is checked against all four surfaces: bg / bg-sunken / surface / surface-raised.
     @Test func hueTextMeetsAllFourSurfaces() {
         for mode in allModes {
             let p = ColorPalette.palette(for: mode)
@@ -87,7 +91,7 @@ struct ColorContrastTests {
     @Test func neutralTextMeetsAllFourSurfaces() {
         for mode in allModes {
             let p = ColorPalette.palette(for: mode)
-            // text-disabled は「無効化された要素のみ」に用いるため 4.5 の対象外 (8.5.3)。
+            // text-disabled is used on disabled elements only, so it falls outside the 4.5 bar (8.5.3).
             let tokens: [(String, SRGBColor)] = [
                 ("text", p.textPrimary), ("text-muted", p.textSecondary), ("text-faint", p.textTertiary),
             ]
@@ -100,7 +104,7 @@ struct ColorContrastTests {
         }
     }
 
-    // hex の書き写し間違いを検出する。8.5.3 の「対 bg」列と一致すること。
+    // Catches a hex copied down wrongly. It has to match the "against bg" column of 8.5.3.
     @Test func recordedContrastAnchorsAreReproduced() {
         let anchors: [(ColorMode, String, SRGBColor, Double)] = {
             let l = ColorPalette.light, d = ColorPalette.dark
@@ -134,7 +138,8 @@ struct ColorVisionTests {
         return (p.color(.ink, .graphic), p.color(.sage, .graphic), p.color(.ochre, .graphic))
     }
 
-    // セッション3色は、色相が失われても識別できること。基準は ΔE 最小 14 (8.5.1 / REQ-COL-020)。
+    // The three session colours stay distinguishable even once the hue is gone. The bar is a
+    // minimum ΔE of 14 (8.5.1 / REQ-COL-020).
     @Test func sessionColorsStayDistinguishable() {
         for mode in allModes {
             let (focus, short, long) = sessionGraphics(mode)
@@ -150,8 +155,8 @@ struct ColorVisionTests {
         }
     }
 
-    // REQ-COL-021: 絶対輝度の段差 Long < Focus < Short を両モードで維持する。
-    // 3色を同一明度に揃える変更を行ってはならない。
+    // REQ-COL-021: the absolute-luminance steps Long < Focus < Short hold in both modes.
+    // Never make a change that levels the three colours to the same lightness.
     @Test func sessionLuminanceOrderIsPreserved() {
         for mode in allModes {
             let (focus, short, long) = sessionGraphics(mode)
@@ -162,7 +167,7 @@ struct ColorVisionTests {
         }
     }
 
-    // 段差が「たまたま」ではなく意図された幅であることを確かめる。
+    // Confirms the steps are a width that was intended, not one that happened to fall out.
     @Test func sessionLuminanceStepsAreSubstantial() {
         for mode in allModes {
             let (focus, short, long) = sessionGraphics(mode)
@@ -191,14 +196,15 @@ struct ColorRoleTests {
         #expect(SessionType.longBreak.colorRole == .sessionLongBreak)
     }
 
-    // REQ-COL-012: danger (Clay) をセッション種別に使ってはならない。
+    // REQ-COL-012: danger (Clay) must never stand for a session type.
     @Test func dangerIsNeverASessionRole() {
         #expect(!ColorRole.danger.isSessionRole)
         #expect(ColorRole.allCases.filter(\.isSessionRole).allSatisfy { $0.hue != .clay })
     }
 
-    // REQ-COL-011: sessionLongBreak と warning は Ochre を共有するため treatment で区別する。
-    // セッション状態に使えるのは -graphic と -text のみ。バナー表現は warning に予約する。
+    // REQ-COL-011: sessionLongBreak and warning share the Ochre hue, so the treatment tells them
+    // apart. Only -graphic and -text may be used for a session state; the banner treatment is
+    // reserved for warning.
     @Test func sessionRolesAreRestrictedToGraphicAndText() {
         for role in ColorRole.allCases where role.isSessionRole {
             #expect(role.permittedRoles == [.graphic, .text], "\(role) permits too many hue roles")
@@ -209,7 +215,7 @@ struct ColorRoleTests {
         #expect(ColorRole.sessionLongBreak.hue == ColorRole.warning.hue, "the restriction assumes both share the Ochre hue")
     }
 
-    // REQ-COL-010 / 013: 色だけに頼らせないため、進行リングの線種も種別ごとに変える。
+    // REQ-COL-010 / 013: never colour alone, so the progress ring's stroke style differs per type.
     @Test func sessionTypesHaveDistinctRingStyles() {
         let styles = SessionType.allCases.map(\.progressRingStyle)
         #expect(Set(styles).count == SessionType.allCases.count, "two session types share the same ring style")

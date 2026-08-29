@@ -14,8 +14,8 @@ private func hasCommitLog(_ effects: [Effect]) -> Bool {
     effects.contains { if case .commitLog = $0 { return true } else { return false } }
 }
 
-// REQ-TIM-032 / REQ-TIM-005: 正味稼働時間が 60 秒未満のセッションはログに記録しない。
-// 境界の両側を押さえる。
+// REQ-TIM-032 / REQ-TIM-005: a session with less than 60 seconds of net working time is never
+// recorded in the log. Both sides of the boundary are pinned.
 @Suite("Too-short sessions are not recorded (REQ-TIM-032)")
 struct ShortSessionTests {
 
@@ -41,7 +41,8 @@ struct ShortSessionTests {
         #expect(hasCommitLog(try abort(after: 61)))
     }
 
-    // 確定済みの印は、記録の有無にかかわらず付く。付けないと二重確定の恐れがある (REQ-LOG-019)。
+    // The committed mark is set whether or not anything was recorded. Without it there is a risk
+    // of committing twice (REQ-LOG-019).
     @Test func shortSessionIsStillMarkedCommitted() throws {
         let presets = standardPresets()
         let started = try TimerEngine.reduce(
@@ -56,8 +57,8 @@ struct ShortSessionTests {
         #expect(aborted.context.runState == .idle)
     }
 
-    // 一時停止を挟んだぶんは正味時間に入らない (REQ-TIM-005)。
-    // 壁時計で 90 秒でも、70 秒止まっていれば記録しない。
+    // Time spent paused does not count towards the net time (REQ-TIM-005).
+    // 90 seconds on the wall clock, 70 of them stopped, is never recorded.
     @Test func pausedTimeDoesNotCountTowardTheSixtySeconds() throws {
         let presets = standardPresets()
         let started = try TimerEngine.reduce(
@@ -77,7 +78,8 @@ struct ShortSessionTests {
     }
 }
 
-// 表示の一貫性。一時停止で残り時間が飛ぶと、動いているものが信用できなくなる。
+// Consistency of the display. If the remaining time jumps on a pause, what is moving stops being
+// trustworthy.
 @Suite("Pausing does not change the remaining time")
 struct PauseRoundingTests {
 
@@ -87,7 +89,7 @@ struct PauseRoundingTests {
         return PresetContext(presets: [p], activePresetId: p.id)
     }
 
-    // 表示は切り上げ。一時停止が切り捨てだと、押した瞬間に1秒減って見える。
+    // The display rounds up. Were pausing to round down, a second would appear to go on the press.
     @Test func pauseKeepsTheDisplayedSecond() throws {
         let ctx = presets()
         for offsetMilliseconds in [0, 1, 250, 500, 999] {
@@ -109,7 +111,7 @@ struct PauseRoundingTests {
         }
     }
 
-    // 再開しても縮まない。切り上げたぶん、終了時刻はわずかに後ろへずれるだけ。
+    // Resuming does not shorten it. The rounding up only pushes the end time slightly later.
     @Test func resumeDoesNotShortenTheSession() throws {
         let ctx = presets()
         let started = try TimerEngine.reduce(

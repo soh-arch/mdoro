@@ -2,12 +2,12 @@ import Foundation
 import Testing
 @testable import MdoroCore
 
-// **存在しないアセット名は、エラーにならず何も描かれない。**
-// 名前を増やしたら `Tools/make_icon.swift` を回し、ここで実在を確かめること。
+// **A missing asset name is not an error; nothing is drawn.**
+// When a name is added, run `Tools/make_icon.swift` and confirm here that it exists.
 @Suite("Menu bar mark (REQ-UIX-030 / 035)")
 struct MenuBarMarkTests {
 
-    // Tests/MdoroCoreTests/ から5つ上がリポジトリのルート。
+    // Five levels up from Tests/MdoroCoreTests/ is the repository root.
     private static var assetsDirectory: URL {
         var url = URL(fileURLWithPath: #filePath)
         for _ in 0..<5 { url.deleteLastPathComponent() }
@@ -19,14 +19,15 @@ struct MenuBarMarkTests {
             let imageSet = Self.assetsDirectory.appendingPathComponent("\(mark.assetName).imageset")
             #expect(FileManager.default.fileExists(atPath: imageSet.path),
                     "\(mark.assetName).imageset is missing; run Tools/make_icon.swift")
-            // テンプレート画像でないと、地の明るさに追随せず黒いままになる（REQ-COL-022）。
+            // Unless it is a template image it does not follow the brightness of the ground and
+            // stays black (REQ-COL-022).
             let contents = try String(contentsOf: imageSet.appendingPathComponent("Contents.json"), encoding: .utf8)
             #expect(contents.contains("\"template-rendering-intent\" : \"template\""),
                     "\(mark.assetName) is not registered as a template image")
         }
     }
 
-    // 使っていない画像が残っていると、次に触る人がどれが生きているのか分からなくなる。
+    // An unused image left behind leaves the next person unable to tell which one is live.
     @Test func noOtherMenuBarImageSetsAreLeftBehind() throws {
         let expected = Set(MenuBarMark.allCases.map { "\($0.assetName).imageset" })
         let found = try FileManager.default
@@ -35,7 +36,7 @@ struct MenuBarMarkTests {
         #expect(Set(found) == expected, "unused imageset left behind: \(Set(found).subtracting(expected))")
     }
 
-    // REQ-UIX-035 と同じ理由。同じ絵を使い回すと、状態の区別にならない。
+    // The same reason as REQ-UIX-035. Reusing one picture tells no state apart from another.
     @Test func assetNamesAreDistinct() {
         #expect(Set(MenuBarMark.allCases.map(\.assetName)).count == MenuBarMark.allCases.count)
     }
@@ -45,15 +46,16 @@ struct MenuBarMarkTests {
             .idle: .idle,
             .running: .running,
             .paused: .paused,
-            // 猶予中は待機と同じ印。猶予が切れて IDLE に落ちても印が変わらない。
+            // Within the grace, the same mark as idle. The mark does not change when the grace
+            // runs out and it falls to IDLE.
             .finished: .idle,
-            // 判断待ちは「時間が動いていない」点で一時停止と同じ。
+            // Waiting for a decision is the same as paused, in that time is not moving.
             .pendingDecision: .paused,
         ]
         for (state, mark) in expected {
             #expect(MenuBarMark.mark(for: state) == mark, "\(state) maps to \(MenuBarMark.mark(for: state))")
         }
-        // RunState が増えたらここも増やす。網羅していることを数で担保する。
+        // Add a RunState and add it here too. The count is what holds the coverage.
         #expect(expected.count == 5)
     }
 }

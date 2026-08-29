@@ -1,12 +1,13 @@
 import Testing
 import Foundation
 
-// リポジトリのソースを読む道具は `RepositorySources.swift`。
+// The tools for reading the repository's own sources live in `RepositorySources.swift`.
 //
 // Decision 0022 keeps the String Catalog for a reason that outlives the one language:
-// **コードに文字列リテラルを散らさないため。** Nothing in a build enforces that. `xcodebuild`
-// writes .stringsdata and never writes back to the .xcstrings, and a lookup that finds no
-// catalogue returns the key — which, in an English-only app, looks exactly right on screen.
+// **to keep string literals from being scattered through the code.** Nothing in a build enforces
+// that. `xcodebuild` writes .stringsdata and never writes back to the .xcstrings, and a lookup
+// that finds no catalogue returns the key — which, in an English-only app, looks exactly right
+// on screen.
 // So the two ways it goes wrong are both silent, and both are checked here.
 
 private struct AppTarget {
@@ -109,7 +110,8 @@ struct StringCatalogTests {
         for target in appTargets {
             for (name, text) in try swiftFiles(under: target.folder, recursive: true) {
                 #expect(!text.contains("Text(.init("), "Decision 0022: \(name) builds a key at run time")
-                // 素直に書いたリテラルは `LocalizedStringKey` と綴らない。型注釈と引数の型だけが残る。
+                // A literal written plainly never spells out `LocalizedStringKey`. Only the type
+                // annotation and the argument's type are left.
                 for built in ["LocalizedStringKey(", "LocalizedStringKey.init("] {
                     #expect(!text.contains(built), "Decision 0022: \(name) builds a key at run time")
                 }

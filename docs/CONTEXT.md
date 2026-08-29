@@ -310,7 +310,7 @@ Git に入っていないため、失われると復元できない。
 | `SPEC.md` | **v2.21 / 243要件** |
 | `decisions/` | **0001〜0038** |
 | `platform/` | **0001**（ロック画面の背景）/ **0002**（開始と更新の門）/ **0003**（メニューバーの地と色）/ **0004**（データ上限とネットワーク）/ **0005**（ローカルネットワークと接続に要る設定）/ **0006**（SF Symbols のカタログと可用性） |
-| `PUNCHLIST.md` | **done 64 / open 25 / 決定済み 3 / deferred 1 / rejected 1 / 不要 1**（計 95。**実測した値であり、目算ではない**） |
+| `PUNCHLIST.md` | **done 64 / open 30 / 決定済み 3 / deferred 1 / rejected 1 / 不要 1**（計 100。**実測した値であり、目算ではない**） |
 | テスト | `swift test` **275件 / 49スイート**。Mac 側 5件、iOS 側 3件（**`xcodebuild test` が要る。CI は `swift test` のみ**） |
 
 **役は5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / **platform-researcher**。
@@ -351,9 +351,10 @@ POL-057 で直した結果）。**根拠なし 46件。** 一覧は `PUNCHLIST.m
 | 1 | `MdoroCore` / Sources | 413 | **完了**（38ファイル。`docs/english-comments-core`） |
 | 2 | Mac | 369 | **完了**（21ファイル。`docs/english-comments-mac`）。ビルド・検証役とも通過 |
 | 3 | iOS ＋ Widget | 223 | **完了**（13ファイル。`docs/english-comments-ios`）。ビルド・検証役とも通過 |
-| 4 | Tests 全部 ＋ `Tools` | 310 | 未着手（**CI の失敗メッセージ68件を英語化する。人間の決定・2026-08-29**）。**POL-083 / 084 もこの回で**（`SymbolNameTests.swift`） |
+| 4 | Tests 全部 ＋ `Tools` | 311 ＋ メッセージ **23件** | **完了**（22ファイル。`docs/english-comments-tests`）。**「68件」は数え間違いだった** — `#expect` 行の日本語を数えると比較対象45件が混ざる。**メッセージ引数は23件** |
 
-**製品コードに日本語は1文字も無い**（[0022](decisions/0022-english-only-ui.md) は満たされている）。
+**工程14a は完了した。** コードベースに残る日本語は**テストの入力データ162件と `.gitignore` の見出し8行だけ**
+（POL-100）。**製品コードに日本語は1文字も無い**（[0022](decisions/0022-english-only-ui.md) は満たされている）。
 **テスト内の日本語 200件のうち 131件は入力データであり、翻訳してはならない** — 利用者の
 Markdown に日本語が入っていても素通しできるかを検査している。**残り 68件が失敗メッセージ。**
 

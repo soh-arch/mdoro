@@ -2,7 +2,8 @@ import Testing
 import Network
 @testable import MdoroiOS
 
-// **同じ Mac が「Name」「Name (2)」と重なって見える。** 消えきっていない Bonjour の広告である。
+// **One Mac shows up twice, as "Name" and "Name (2)".** A Bonjour advertisement that has not
+// fully gone away.
 @Suite("Deduplicating discovery results")
 struct ServerBrowserDeduplicationTests {
 
@@ -17,9 +18,9 @@ struct ServerBrowserDeduplicationTests {
     @Test func keepsOnlyTheNewestOfTheSameName() {
         let result = ServerBrowser.deduplicated([server("Lychee"), server("Lychee (2)"), server("Lychee (3)")])
         #expect(result.count == 1)
-        // 番号は表示しない。利用者にとっては1台である。
+        // The number is not shown. To the user this is one machine.
         #expect(result.first?.name == "Lychee")
-        // **いちばん新しい登録**（番号が最大）を残す。
+        // **The newest registration** (the highest number) is the one kept.
         #expect(result.first?.id == "Lychee (3)")
     }
 

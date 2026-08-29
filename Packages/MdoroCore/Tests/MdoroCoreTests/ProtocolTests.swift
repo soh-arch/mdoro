@@ -7,7 +7,7 @@ private let now = Date(timeIntervalSince1970: 1_700_000_000)
 @Suite("Message encoding (REQ-PRT-002 / 005 / 006)")
 struct MessageCodingTests {
 
-    // REQ-PRT-002: type / messageId / sentAt は必須。
+    // REQ-PRT-002: type / messageId / sentAt are required.
     @Test func everyMessageCarriesTheRequiredHeader() throws {
         let envelope = Envelope(body: ClientMessage.heartbeat)
         let data = try MessageCoder.encode(envelope)
@@ -54,15 +54,15 @@ struct MessageCodingTests {
         }
     }
 
-    // REQ-PRT-005: 未知の**種別**は無視する。例外にすると、
-    // 将来のバージョンがメッセージを1つ足しただけで接続が落ちる。
+    // REQ-PRT-005: an unknown **type** is ignored. Raise instead, and a future version that adds
+    // one message drops the connection.
     @Test func unknownMessageTypeIsIgnoredNotAnError() throws {
         let json = #"{"type":"somethingNew","messageId":"m1","sentAt":"2023-11-14T22:13:20Z"}"#
         #expect(try MessageCoder.decodeClient(Data(json.utf8)) == nil)
         #expect(try MessageCoder.decodeServer(Data(json.utf8)) == nil)
     }
 
-    // REQ-PRT-005: 未知の**フィールド**も無視する。
+    // REQ-PRT-005: an unknown **field** is ignored too.
     @Test func unknownFieldsAreIgnored() throws {
         let json = """
         {"type":"hello","messageId":"m1","sentAt":"2023-11-14T22:13:20Z",
@@ -70,13 +70,13 @@ struct MessageCodingTests {
         """
         let decoded = try #require(try MessageCoder.decodeClient(Data(json.utf8)))
         guard case let .hello(payload) = decoded.body else {
-            Issue.record("hello として解釈されるべき")
+            Issue.record("it was not interpreted as hello")
             return
         }
         #expect(payload.deviceName == "iPhone")
     }
 
-    // REQ-PRT-006: 時間を表すフィールドは秒単位の整数。
+    // REQ-PRT-006: a field standing for a duration is a whole number of seconds.
     @Test func durationsAreEncodedAsWholeSeconds() throws {
         let data = try MessageCoder.encoder.encode(Preset.standard(id: "p"))
         let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -84,7 +84,7 @@ struct MessageCodingTests {
         #expect(object["extendSeconds"] as? Int == 300)
     }
 
-    // REQ-PRT-004: 非互換なバージョンは受け付けない。
+    // REQ-PRT-004: an incompatible version is not accepted.
     @Test func protocolVersionCompatibility() {
         #expect(PomodoroProtocol.isCompatible(PomodoroProtocol.version))
         #expect(!PomodoroProtocol.isCompatible(PomodoroProtocol.version + 1))
@@ -94,9 +94,9 @@ struct MessageCodingTests {
 @Suite("Time sync (REQ-COM-007 / 008 / 009)")
 struct TimeSyncTests {
 
-    // REQ-COM-008 の式そのもの。
+    // The formula of REQ-COM-008 itself.
     @Test func offsetAndRoundTripUseTheSpecifiedFormula() {
-        // サーバーが 10 秒進んでいて、往復 200ms（片道 100ms）の場合。
+        // The server is 10 seconds ahead, with a 200ms round trip (100ms each way).
         let t1 = now
         let t2 = now.addingTimeInterval(10.1)
         let t3 = now.addingTimeInterval(10.1)
@@ -106,7 +106,7 @@ struct TimeSyncTests {
         #expect(abs(sample.roundTrip - 0.2) < 0.0001)
     }
 
-    // REQ-COM-008: 往復遅延 500ms 超は棄却する。
+    // REQ-COM-008: a round trip of more than 500ms is discarded.
     @Test func slowSamplesAreRejected() {
         var estimator = TimeSyncEstimator()
         estimator.add(TimeSyncSample(offset: 99, roundTrip: 0.6))
@@ -115,7 +115,7 @@ struct TimeSyncTests {
         #expect(estimator.sampleCount == 1)
     }
 
-    // 3件未満は最小往復遅延のサンプルをそのまま使う。
+    // Below three samples, the one with the smallest round trip is used as it is.
     @Test func fewSamplesUseTheFastestRoundTrip() {
         var estimator = TimeSyncEstimator()
         estimator.add(TimeSyncSample(offset: 5, roundTrip: 0.4))
@@ -123,7 +123,7 @@ struct TimeSyncTests {
         #expect(estimator.offset == 1, "the sample with the fastest round trip must be used")
     }
 
-    // 3件以上は直近7件の中央値。外れ値に引きずられない。
+    // Three or more, and it is the median of the last seven. An outlier does not drag it.
     @Test func medianOfTheLastSevenSamples() {
         var estimator = TimeSyncEstimator()
         for offset in [1.0, 1.1, 50.0, 1.2, 1.05] {
@@ -141,7 +141,7 @@ struct TimeSyncTests {
         #expect(estimator.offset == 16, "the median of 13...19")
     }
 
-    // REQ-COM-009: サーバー時刻を自端末の時計へ直す。
+    // REQ-COM-009: converts a server time onto this device's own clock.
     @Test func serverTimeIsConvertedToLocalTime() {
         var estimator = TimeSyncEstimator()
         for _ in 0..<3 { estimator.add(TimeSyncSample(offset: 10, roundTrip: 0.1)) }
@@ -149,7 +149,7 @@ struct TimeSyncTests {
         #expect(estimator.localTime(forServerTime: serverEnd) == serverEnd.addingTimeInterval(-10))
     }
 
-    // REQ-ERR-007: 5 秒を超えたら補正で押し込めず警告する。
+    // REQ-ERR-007: past 5 seconds it is not pushed in by correction; it warns instead.
     @Test func largeOffsetRaisesAWarning() {
         var estimator = TimeSyncEstimator()
         for _ in 0..<3 { estimator.add(TimeSyncSample(offset: 6, roundTrip: 0.1)) }
@@ -164,7 +164,7 @@ struct TimeSyncTests {
 @Suite("Reconnect and heartbeat (REQ-COM-004 / 005)")
 struct ReconnectTests {
 
-    // REQ-COM-004: 初回1秒、上限30秒の指数バックオフ。
+    // REQ-COM-004: exponential backoff, one second the first time and 30 seconds at the cap.
     @Test func backoffDoublesUpToThirtySeconds() {
         var policy = ReconnectPolicy()
         #expect(policy.nextDelay() == 1)
@@ -176,7 +176,7 @@ struct ReconnectTests {
         #expect(policy.nextDelay() == 30)
     }
 
-    // 成功したら戻す。戻し忘れると、一度荒れた回線が延々と30秒待ちになる。
+    // Reset on success. Forget to, and a link that went bad once waits 30 seconds ever after.
     @Test func successResetsTheBackoff() {
         var policy = ReconnectPolicy()
         _ = policy.nextDelay()
@@ -185,7 +185,7 @@ struct ReconnectTests {
         #expect(policy.nextDelay() == 1)
     }
 
-    // REQ-COM-005: 15秒応答がなければ接続断とみなす。
+    // REQ-COM-005: with no answer for 15 seconds, the connection is taken as lost.
     @Test func heartbeatTimesOutAfterFifteenSeconds() {
         #expect(Heartbeat.interval == 5)
         #expect(!Heartbeat.isStale(lastReceivedAt: now, now: now.addingTimeInterval(15)))

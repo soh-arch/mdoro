@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
-// リポジトリのソースを読む道具は `RepositorySources.swift`。
+// The tools for reading the repository's own sources live in `RepositorySources.swift`.
 
 private func temporaryDirectory() throws -> URL {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -103,13 +103,14 @@ struct FailuresThatReachSomeoneTests {
 
         #expect(try Data(contentsOf: setAsideAt) == original, "the user's bytes must survive intact")
         #expect(try Data(contentsOf: fileURL) != original, "the new state is a separate file")
-        // REQ-LOG-005: 巻き添えで消えていたもの。退避先から取り出せること。
+        // REQ-LOG-005: what used to be lost along with it. It has to be recoverable from the
+        // file that was set aside.
         let rescued = try #require(try? JSONDecoder.iso8601.decode(PersistedState.self, from: Data(contentsOf: setAsideAt)))
         #expect(rescued.pendingLogEntries.count == 1, "the unwritten log entry is still in the file")
     }
 
-    // Decision 0036: **日時を付けるのは、2度目があるからである。** A fixed name would let the
-    // second breakage delete the first one's evidence, which is the thing being preserved.
+    // Decision 0036: **the timestamp is there because there is a second time.** A fixed name would
+    // let the second breakage delete the first one's evidence, which is the thing being preserved.
     @Test func aSecondBreakageDoesNotEatTheFirstOnesEvidence() throws {
         let directory = try temporaryDirectory()
         defer { discard(directory) }
@@ -129,14 +130,15 @@ struct FailuresThatReachSomeoneTests {
         #expect(try String(contentsOf: setAside[1], encoding: .utf8).contains("second"))
     }
 
-    // Decision 0036: **退避できないまま上書きしない。** Saving stops instead, and says so.
+    // Decision 0036: **never write over what could not be set aside.** Saving stops instead, and
+    // says so.
     @Test func aFileThatCannotBeMovedIsNotWrittenOverEither() throws {
         let directory = try temporaryDirectory()
         defer { discard(directory) }
         let fileURL = directory.appendingPathComponent("state.json")
         let original = Data("not a state file at all".utf8)
         try original.write(to: fileURL)
-        // 読めるが、動かせない。ディレクトリへの書き込みだけを閉じる。
+        // Readable, but not movable. Only writing to the directory is closed off.
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
 
         let startup = FileStateStore(fileURL: fileURL).loadForStartup(now: Date())
@@ -149,15 +151,15 @@ struct FailuresThatReachSomeoneTests {
         #expect(!startup.mayPersist, "REQ-ERR-017: nothing may be written over a file that could not be moved")
         #expect(try Data(contentsOf: fileURL) == original, "the file is left exactly as it was")
 
-        // 退避できていないのに「退避した」と書いてある文を出すわけにいかない。
+        // A sentence saying it was moved aside must not go out when nothing was moved aside.
         let shown = try #require(startup.displayMessage)
         #expect(shown == StateStoreError.couldNotSetAside(ErrorCode(own: 0)).displayMessage)
         #expect(shown != StateStoreError.corrupted.displayMessage)
     }
 
-    // Decision 0036: **読めなかったことと、壊れていることは別である。** Only a file whose content
-    // cannot be interpreted is moved. A disk that did not answer says nothing about the bytes,
-    // and moving that file pushes intact data off under another name.
+    // Decision 0036: **being unreadable and being broken are two different things.** Only a file
+    // whose content cannot be interpreted is moved. A disk that did not answer says nothing about
+    // the bytes, and moving that file pushes intact data off under another name.
     //
     // Both directions are covered, so inverting the branch fails here either way: the two
     // unusable-content cases must ask, and the I/O case must not.
@@ -173,22 +175,22 @@ struct FailuresThatReachSomeoneTests {
             #expect(startup.persistBlockedBy == nil)
         }
 
-        // 一時的な I/O の失敗。**無事なデータを別名へ追いやらない。**
+        // A transient I/O failure. **Never push intact data off under another name.**
         let unreachable = SpyStateStore(failing: .ioFailed(ErrorCode(domain: NSCocoaErrorDomain, code: 256)))
         let startup = unreachable.loadForStartup(now: now)
         #expect(!unreachable.setAsideWasAsked, "Decision 0036: a file that was merely unreachable is left alone")
         #expect(startup.setAsideAt == nil)
         #expect(startup.setAsideFailure == nil)
 
-        // **退避しないことと、上書きしてよいことは別である。**
+        // **Not setting it aside and being free to write over it are two different things.**
         #expect(!startup.mayPersist, "REQ-ERR-017: nothing may be written over it either")
         #expect(startup.persistBlockedBy == unreachable.failure, "the status line has to know why saving stopped")
         #expect(startup.displayMessage == unreachable.failure.displayMessage)
     }
 
-    // Decision 0036: **日時だけでは足りない。** Two breakages inside one second want the same
-    // name, and `moveItem` refuses an occupied one — which would stop saving for the rest of
-    // the day over a name. The counter is what avoids that.
+    // Decision 0036: **the timestamp alone is not enough.** Two breakages inside one second want
+    // the same name, and `moveItem` refuses an occupied one — which would stop saving for the
+    // rest of the day over a name. The counter is what avoids that.
     //
     // Waiting for a real collision would make this test depend on which second it runs in, so
     // the collision is built: the name for the current second and the next two are taken
@@ -234,16 +236,17 @@ struct FailuresThatReachSomeoneTests {
         let blocked = StateStoreError.couldNotSetAside(ErrorCode(domain: NSCocoaErrorDomain, code: 513))
         let lastSave = StateStoreError.corrupted
 
-        // 何も起きていなければ黙る。
+        // With nothing wrong, it stays quiet.
         #expect(PersistenceStatus.problemMessage(
             storeUnavailable: nil, persistBlockedBy: nil, lastSaveFailure: nil) == nil)
 
-        // 止まっている理由だけが立っている状態。**ここで nil を返すと、画面から消える。**
+        // Only the reason saving stopped is standing. **Return nil here and it leaves the screen.**
         #expect(PersistenceStatus.problemMessage(
             storeUnavailable: nil, persistBlockedBy: blocked, lastSaveFailure: nil
         ) == blocked.displayMessage)
 
-        // 解消しようのないものが先。都度の失敗は次に書けたら消えるので後ろ。
+        // What cannot be resolved comes first. A failure of the moment clears as soon as the next
+        // write succeeds, so it comes last.
         #expect(PersistenceStatus.problemMessage(
             storeUnavailable: unavailable, persistBlockedBy: blocked, lastSaveFailure: lastSave
         ) == unavailable.displayMessage)
@@ -254,7 +257,8 @@ struct FailuresThatReachSomeoneTests {
             storeUnavailable: nil, persistBlockedBy: nil, lastSaveFailure: lastSave
         ) == lastSave.displayMessage)
 
-        // 起動の結果から直に引く。**保存が止まる起動で、黙るものが1つも無いこと。**
+        // Read straight from the launch result. **On a launch where saving stops, not one of them
+        // is silent.**
         let stopped: [StateStoreError] = [
             .ioFailed(ErrorCode(domain: NSCocoaErrorDomain, code: 256)),
             .couldNotSetAside(ErrorCode(domain: NSCocoaErrorDomain, code: 513)),
@@ -301,7 +305,7 @@ struct FailuresThatReachSomeoneTests {
         #expect(!unreachable.displayMessage.contains("moved the file aside"))
         #expect(!unreachable.displayMessage.contains("aside"))
 
-        // v2.14 の文。**事実と逆だった。**
+        // The sentences of v2.14. **They said the opposite of what happens.**
         for failure in [StateStoreError.corrupted, .unsupportedSchemaVersion(found: 9, supported: 1)] {
             #expect(!failure.displayMessage.contains("left the file alone"))
             #expect(!failure.displayMessage.contains("move it aside"), "the user is not asked to do it by hand")
@@ -316,7 +320,7 @@ struct FailuresThatReachSomeoneTests {
     @Test func aStoreThatCannotBeReadIsNotAFirstRun() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
 
-        // 保存が無いだけなら、黙って初期状態から始めてよい。
+        // Nothing saved is merely nothing saved: starting quietly from the initial state is fine.
         let firstRun = InMemoryStateStore().loadForStartup(now: now)
         #expect(firstRun.readFailure == nil)
         #expect(firstRun.displayMessage == nil, "a first run has nothing to say")
@@ -325,7 +329,7 @@ struct FailuresThatReachSomeoneTests {
         #expect(!firstRun.reduction.presets.presets.isEmpty, "a first run still has the built-in preset")
         #expect(firstRun.reduction.effects.isEmpty)
 
-        // 読めなかったのなら、同じ顔で返してはならない。
+        // When it could not be read, it must not come back wearing the same face.
         let refused = RefusingStateStore().loadForStartup(now: now)
         #expect(refused.readFailure == .corrupted)
         #expect(refused.displayMessage != nil, "REQ-ERR-017: the failure has to have something to say")
@@ -354,9 +358,9 @@ struct FailuresThatReachSomeoneTests {
 
     // MARK: - REQ-ERR-016 / 017: the sentences reach a reader
 
-    // **宣言ではなく使用を見る。** Deleting the display while leaving the property assigned
-    // passed the whole suite before this test existed, on both platforms — the same shape as
-    // the `lastError` hole Decision 0035 was written to close.
+    // **Look at the use, not the declaration.** Deleting the display while leaving the property
+    // assigned passed the whole suite before this test existed, on both platforms — the same
+    // shape as the `lastError` hole Decision 0035 was written to close.
     @Test func theFailuresTheModelHoldsAreActuallyReadByAView() throws {
         let macViews = try swiftFiles(under: "PomodoroMac/PomodoroMac/Views")
         let iosViews = try swiftFiles(under: "PomodoroMac/PomodoroiOS/Views")
@@ -367,7 +371,8 @@ struct FailuresThatReachSomeoneTests {
                 "REQ-ERR-017: nothing on the Mac's screen reads `\(reader)` — it is held and never shown"
             )
         }
-        // 起動時に1度、というのは「利用者が消せる」ということ。消す手段も画面にあること。
+        // "Once at startup" means the user can dismiss it. The means to dismiss it has to be on
+        // the screen too.
         #expect(
             macViews.values.contains { $0.contains("acknowledgeStateRestoreProblem") },
             "REQ-ERR-017: the band cannot be dismissed, so `once at startup` has no meaning"
@@ -411,7 +416,7 @@ struct FailuresThatReachSomeoneTests {
             "taskNotFound", "logWriteFailed", "protocolVersionMismatch",
         ]
         #expect(Set(ProtocolErrorCode.allCases.map(\.rawValue)) == inTheSpec)
-        #expect(ProtocolErrorCode.allCases.count == inTheSpec.count, "10.2 の一覧と数を揃える")
+        #expect(ProtocolErrorCode.allCases.count == inTheSpec.count, "the count has to match the list in 10.2")
     }
 
     // 10.2 / Decision 0035: `message` is diagnostic, and the sender does not choose the words
@@ -421,12 +426,13 @@ struct FailuresThatReachSomeoneTests {
     // code, so it could not have come out any other way.
     @Test func theWireWordingHasNoRouteToTheiPhonesScreen() throws {
         for (name, text) in try swiftFiles(under: "PomodoroMac/PomodoroiOS", recursive: true) {
-            // `Self.message(for:)` は受け取る側が自分で持っている文言。呼び出しは素通しする。
+            // `Self.message(for:)` is wording the receiver owns. Calls to it pass straight through.
             let reads = text.replacingOccurrences(of: ".message(", with: ".ownWording(")
             #expect(!reads.contains(".message"), "10.2: \(name) reads the Mac's wording off the wire")
         }
 
-        // 受け口が1つであることまで確かめないと、上の走査が全経路を覆っている保証がない。
+        // Without also checking that there is exactly one intake, nothing guarantees the scan
+        // above covers every route.
         let wiring = try swiftFiles(under: "PomodoroMac/PomodoroiOS", recursive: true)
             .filter { $0.value.contains("receivedError: {") }.keys.sorted()
         #expect(wiring == ["ClientModel.swift"], "the refusal is now taken in elsewhere too: \(wiring)")
@@ -489,9 +495,9 @@ struct FailuresThatReachSomeoneTests {
     // a task that is gone, no `settings` — were the last ones sent as a sentence. `AppModel`
     // is in the Mac target, so its source is what says whether any prose is left.
     //
-    // **宣言ではなく形を見る。** Checking only that the three sentences are gone would pass
-    // again the moment someone writes a fourth, so every payload the file builds is held to
-    // `case(domain:code)` instead.
+    // **Look at the shape, not the declaration.** Checking only that the three sentences are gone
+    // would pass again the moment someone writes a fourth, so every payload the file builds is
+    // held to `case(domain:code)` instead.
     @Test func theRefusalsTheMacRaisesItselfCarryACodeAndNoSentence() throws {
         let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
         for prose in ["No stableId", "That task no longer exists", "No settings"] {
@@ -506,8 +512,8 @@ struct FailuresThatReachSomeoneTests {
             )
         }
 
-        // 10.2 / Decision 0035: **iPhone の画面は `code` から引く。** Each of the three keeps
-        // the code it was already sent under, so the sentence a reader sees does not move.
+        // 10.2 / Decision 0035: **the iPhone's screen looks it up from `code`.** Each of the three
+        // keeps the code it was already sent under, so the sentence a reader sees does not move.
         #expect(CommandTranslation.Failure.missingParameter(.stableId)
             .protocolErrorCode == .invalidStateForAction)
         #expect(CommandTranslation.Failure.missingParameter(.settings)
@@ -530,8 +536,8 @@ struct FailuresThatReachSomeoneTests {
     //
     // The payload has no parameter for a sentence any more, so the compiler holds this for
     // anyone who builds. That is not everyone: `swift test` cannot compile the Mac target,
-    // and the parameter could come back. **宣言ではなく形を見る** — every payload the file
-    // builds is read, not just the six sentences that were there.
+    // and the parameter could come back. **Look at the shape, not the declaration** — every
+    // payload the file builds is read, not just the six sentences that were there.
     @Test func theRefusalsTheServerSendsCarryACodeAndNoSentence() throws {
         let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
         for prose in [
