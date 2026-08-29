@@ -256,33 +256,16 @@ iPhone 側に `.preferredColorScheme` が無く（Mac 側にはあった）、
 
 ---
 
-## 3. Apple プラットフォームの確定事項
+## 3. Apple プラットフォームの事実
 
-**一次情報で確認済み。回避策を探し直さないこと。** ここを再調査する提案は不要である。
+**`docs/PLATFORM.md` へ移した。** ここには置かない。
 
-- **Live Activity はアプリがフォアグラウンドの間しか開始できず、更新もアプリが running の間だけ。**
-  iOS はバックグラウンド移行後まもなく suspend する。完全ローカル構成でロック中の反映は**不可能**。
-  `staleDate` / `isStale` で陳腐化を示す設計にしてある。**ここを MUST 要件に戻さないこと**（[0009](decisions/0009-live-activity-should-not-must.md)）。
-- **iPhone の通知を WebSocket に依存させない。** `sessionEndAt` に対する絶対時刻のローカル通知
-  （`UNCalendarNotificationTrigger`）として事前スケジュールする。
-  バックグラウンドでは WebSocket が切れるため、これ以外に手段がない。
-- **ATS は IP アドレス直接接続を既定で拒否する**（iOS 17 / macOS 14 以降）。`NSAllowsLocalNetworking = YES` が必須。
-  残りの Info.plist キーと entitlements は**仕様書 3.5 節**。
-  **1つ欠けると「繋がらない」が起き、原因の切り分けに時間を取られる。コードより先に設定を通す。**
-- **ローカルネットワーク許可の状態を問い合わせる API はない。** `NWBrowser` の `-65570` と
-  `NWConnection` の `.localNetworkDenied` で検出する。
-  初回許可取得は必ずフォアグラウンドで行う（バックグラウンドだとダイアログなしで黙って拒否される）。
-- **サンドボックス下の原子的書き込みは同一ディレクトリ内**で `FileManager.replaceItemAt` を使う。
-  `/tmp` を跨ぐ rename は失敗する。
-- **ファイル監視は記述子ではなく親ディレクトリに張る。**
-  Obsidian は一時ファイル経由で保存するため、記述子に張った監視は inode 差し替えで無効化される。
-- **Xcode 26.3 以降には MCP サーバーがある**（`xcrun mcpbridge`）。
-  ビルド・テスト・SwiftUI プレビュー取得が可能（要: Xcode でプロジェクトを開いた状態）。
-- **`MenuBarExtra` のラベルを毎秒更新しても安定する。** 実測（2026-08-26、Debug ビルド、
-  3時間のセッションを進行させた状態）で CPU 0.1〜0.4%、RSS は約2.5分間で増加なし（むしろ 13MB 減）。
-  `NSStatusItem` へ移す必要はない。**再測定しない。**
-- 署名は無償の Personal Team。**iPhone 実機のアプリは7日で失効する。**
-  Push 通知と iCloud は使えないが、本仕様は使わない（ローカル通知に capability は不要）。
+**この文書は「現在有効な方針と状態」を書く場所であり、外部の事実を書く場所ではない**
+（[0038](decisions/0038-platform-facts-are-not-the-specs-job.md)）。
+Apple がどう振る舞うかは `PLATFORM.md`、Mdoro が何をするかは `SPEC.md`。
+
+§2 にもプラットフォームの事実が混ざっている（`isStale` の遅延、`.center`、
+`MainActor.assumeIsolated`、SF Symbol の実在検証など）。**軸 K で仕分ける。**
 
 ---
 
