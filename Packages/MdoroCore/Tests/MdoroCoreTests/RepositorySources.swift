@@ -27,9 +27,28 @@ func withoutComments(_ text: String) -> String {
         .joined(separator: "\n")
 }
 
+// **A directory that moved is not a directory with nothing in it.** The recursive branch used
+// to answer `[]` when `enumerator` handed back nil, so a scan whose target had been renamed
+// passed by finding nothing to object to — which is the one failure these scans exist to
+// prevent, arriving through the scans themselves. Renaming `PomodoroMacTests` was enough to
+// silence a guard on notifications reaching the reader.
+//
+// The folders here are the ones Xcode owns and the ones still carrying their pre-Mdoro names
+// (工程9 の積み残し). **They will move.** Every caller has to hear about it, so the check is
+// on the way in rather than in each of them.
+struct MissingSourceDirectory: Error, CustomStringConvertible {
+    let path: String
+    var description: String { "\(path) is not a directory — it moved, or it was renamed" }
+}
+
 // Every .swift under a directory, keyed by file name, comments already stripped.
 func swiftFiles(under directory: String, recursive: Bool = false) throws -> [String: String] {
     let base = repositoryRoot.appendingPathComponent(directory)
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: base.path, isDirectory: &isDirectory),
+          isDirectory.boolValue else {
+        throw MissingSourceDirectory(path: directory)
+    }
     let names: [String]
     if recursive {
         names = FileManager.default.enumerator(atPath: base.path)?
