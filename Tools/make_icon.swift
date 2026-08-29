@@ -132,7 +132,7 @@ let menuBarStates = [
     ("MenuBarPaused", "mdoro-menubar-paused"),
 ]
 
-// The menu bar is 24pt high. By convention the mark is kept to 16–18pt.
+// The menu bar is 24pt high (`docs/PLATFORM.md`). By convention the mark is kept to 16–18pt.
 let menuBarPointSize = 18
 // The share of the canvas the ink takes. The SVG's margins are thrown away here.
 let menuBarInkFill = 0.98

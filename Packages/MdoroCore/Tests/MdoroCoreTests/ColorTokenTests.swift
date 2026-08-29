@@ -203,8 +203,8 @@ struct ColorRoleTests {
     }
 
     // REQ-COL-011: sessionLongBreak and warning share the Ochre hue, so the treatment tells them
-    // apart. Only -graphic and -text may be used for a session state; the banner treatment is
-    // reserved for warning.
+    // apart. Only -graphic and -text may be used for a session state, which rules out the banner
+    // treatment. Warning is allowed one, and so is any other state that needs attention (REQ-UIX-046).
     @Test func sessionRolesAreRestrictedToGraphicAndText() {
         for role in ColorRole.allCases where role.isSessionRole {
             #expect(role.permittedRoles == [.graphic, .text], "\(role) permits too many hue roles")

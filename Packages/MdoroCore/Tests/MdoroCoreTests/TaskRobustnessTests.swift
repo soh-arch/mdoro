@@ -90,7 +90,7 @@ struct TaskParsingEdgeTests {
     }
 
     // The stripping of REQ-TSK-015 must not damage the text.
-    // Break this, and a task name that never existed stays in PomodoroLog.md for good.
+    // Break this, and a task name that never existed stays in MdoroLog.md for good.
     @Test func displayTextPreservesUnpairedSymbols() {
         #expect(TaskParser.parse("- [ ] snake_case_name を直す").items[0].displayText == "snake_case_name を直す")
         #expect(TaskParser.parse("- [ ] 2*3 の計算").items[0].displayText == "2*3 の計算")

@@ -28,8 +28,9 @@ public enum ColorRole: String, CaseIterable, Sendable {
         }
     }
 
-    // REQ-COL-011: only -graphic and -text may be used for a session state.
-    // The banner treatment (a -subtle ground inside a -line border) is reserved for warning.
+    // REQ-COL-011: only -graphic and -text may be used for a session state, which rules out the
+    // banner treatment (a -subtle ground inside a -line border). Banners are not warning's alone:
+    // REQ-UIX-046 allows one for any state that needs attention.
     public var permittedRoles: Set<HueRole> {
         isSessionRole ? [.graphic, .text] : Set(HueRole.allCases)
     }

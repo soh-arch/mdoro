@@ -587,7 +587,7 @@ struct ExtensionWindowTests {
 
 // MARK: - Pre-notifications (REQ-NTF-020–023)
 
-@Suite("Heads-up notification triggers (REQ-NTF-020–023)")
+@Suite("Pre-notification triggers (REQ-NTF-020–023)")
 struct PreNotificationTests {
     private let start = referenceDate
     private var end: Date { referenceDate.addingTimeInterval(25 * 60) }

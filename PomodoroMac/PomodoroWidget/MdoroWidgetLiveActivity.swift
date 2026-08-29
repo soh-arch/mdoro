@@ -48,7 +48,7 @@ struct MdoroWidgetLiveActivity: Widget {
                         Spacer(minLength: 0)
                     }
                     // The bottom region reaches the outer edge as well. **The rounded corners eat into
-                    // it, so it is moved in on all four sides.**
+                    // it, so it is moved in on the sides and the bottom.**
                     .padding(.horizontal, WidgetInset.islandEdge)
                     .padding(.bottom, WidgetInset.islandBottom)
                 }

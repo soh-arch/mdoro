@@ -58,7 +58,7 @@ struct ShortSessionTests {
     }
 
     // Time spent paused does not count towards the net time (REQ-TIM-005).
-    // 90 seconds on the wall clock, 70 of them stopped, is never recorded.
+    // 100 seconds on the wall clock, 70 of them stopped, leaves a net 30 and is never recorded.
     @Test func pausedTimeDoesNotCountTowardTheSixtySeconds() throws {
         let presets = standardPresets()
         let started = try TimerEngine.reduce(

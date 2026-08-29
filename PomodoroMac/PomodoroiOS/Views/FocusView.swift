@@ -31,7 +31,7 @@ struct FocusView: View {
             ZStack {
                 theme.background.ignoresSafeArea()
 
-                // **Set the three blocks apart.** A fixed gap crowds them in one orientation or the
+                // **Set the four blocks apart.** A fixed gap crowds them in one orientation or the
                 // other. Let Spacer share it out.
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
