@@ -34,6 +34,16 @@ struct MdoroMacApp: App {
         Window("Mdoro", id: Self.mainWindowId) {
             MainWindowView()
                 .environment(model)
+                // POL-114: **this is a view's lifecycle, not the app's.** `.task` runs again every time
+                // this view appears, so closing the main window and reopening it ran the app's whole
+                // startup a second time — the reader ended up with several Bonjour registrations for one
+                // Mac, and the iPhone kept meeting the one that was not in pairing mode.
+                //
+                // It stays here because of the two things this block does that only a view can:
+                // `openWindow` comes out of the Environment, and the POL-047 guard has to sit in front of
+                // everything the suite must not do. **What was moved instead is the decision about
+                // repeating** — `AppModel.start()` now answers for being called more than once, which is
+                // the guarantee an app-lifecycle hook would have given.
                 .task {
                     // The suite runs inside this app, so starting up here would advertise on
                     // the LAN, watch the reader's Task.md, take the notification delegate and

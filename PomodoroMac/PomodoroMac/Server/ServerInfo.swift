@@ -17,7 +17,10 @@ struct ServerInfo: Codable, Equatable, Sendable {
 // Riding on the same port as the WebSocket would mean writing the handshake by hand, so
 // **HTTP listens on a port of its own, and that is the one Bonjour advertises.**
 final class InfoHTTPServer: @unchecked Sendable {
-    private var listener: NWListener?
+    // POL-114: **this is the listener that carries the Bonjour registration** (`advertise` sets its
+    // `.service`), so it is the one whose replacement was leaving duplicate names on the network.
+    // Readable so a test can see the old one cancelled rather than merely dropped.
+    private(set) var listener: NWListener?
     private let queue = DispatchQueue(label: "MdoroMac.InfoHTTP")
 
     // **The answer is assembled on the network side's queue.** The MainActor's state cannot be read
@@ -42,8 +45,12 @@ final class InfoHTTPServer: @unchecked Sendable {
         return info
     }
 
+    // POL-114 / REQ-COM-003: **the previous listener is withdrawn before a new one goes up.** Cancelling
+    // it is what takes the Bonjour name off the network; overwriting the property alone left the old
+    // registration standing and mDNSResponder gave the new one a `(2)`. The tidying up is `stop()`'s.
     @discardableResult
     func start() async throws -> UInt16 {
+        stop()
         let parameters = NWParameters.tcp
         parameters.includePeerToPeer = false
         let listener = try NWListener(using: parameters, on: .any)

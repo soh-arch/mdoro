@@ -96,6 +96,11 @@ final class AppModel {
     private var watcher: FileWatcher?
     private var watchedTaskURL: URL?
     private var tickTask: Task<Void, Never>?
+    // POL-114: whether the app has been started. **`start()` is called from a view's `.task`, and a
+    // view appears as often as its window is opened** — the reader reopened the main window and got a
+    // second server, a second Bonjour registration and a second of everything else `start()` raises.
+    // `stop()` puts it back, so a deliberate restart still works; only repetition is refused.
+    private var hasStarted = false
 
     // The place to save to could not be created at all. Every save from here on is lost, so this never resolves.
     private let storeUnavailable: StateStoreError?
@@ -189,7 +194,19 @@ final class AppModel {
 
     // MARK: - Lifecycle
 
+    // POL-114 / REQ-COM-002 / 003: **starting is something the app does once.** The call comes from a
+    // view's `.task`, which runs again every time that view appears, and most of what follows had no
+    // objection to being run twice: another listener on another port, another Bonjour registration,
+    // another `app.start` in the diagnostic log, another request for notification permission.
+    //
+    // Each step is made safe on its own account as well (the watcher stops before it watches, the tick
+    // cancels before it ticks, a hot key unregisters before it registers, and both listeners now fold
+    // the previous one). The flag is here because none of that can close the gap the last line opens:
+    // `startServer()` is awaited, so two calls arriving in the same turn would both be past every
+    // guarded step before either had a listener to guard. This one is decided before anything suspends.
     func start() {
+        guard !hasStarted else { return }
+        hasStarted = true
         diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
         diagnostics.write("app.start")
         // REQ-ERR-017 / Decision 0035: a failure from before the launch is written the moment the log opens.
@@ -279,6 +296,8 @@ final class AppModel {
     }
 
     func stop() {
+        // POL-114: what has been taken down may be raised again. Only repetition is refused, not restart.
+        hasStarted = false
         diagnostics.write("app.stop", [DiagnosticField("state", timer.runState.rawValue)])
         tickTask?.cancel()
         tickTask = nil
@@ -507,6 +526,12 @@ final class AppModel {
     // MARK: - Communication (chapter 3 / chapter 10)
 
     private func startServer() async {
+        // POL-114: the one standing here is a different object from the one about to be built, so its
+        // own `start()` cannot fold it. **Letting go of an InfoHTTPServer does not take its Bonjour name
+        // off the network** — the listener is held by Network.framework for its queue, and only
+        // `cancel()` withdraws it. It comes down before anything goes up, so that a start that fails
+        // leaves nothing advertised rather than a registration pointing at a port that is gone.
+        infoServer?.stop()
         do {
             let websocketPort = try await server.start(callbacks: serverCallbacks())
             // REQ-COM-002 / 003: advertise over Bonjour, and answer `GET /info` with the server information.
