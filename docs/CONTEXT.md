@@ -310,7 +310,7 @@ Git に入っていないため、失われると復元できない。
 | `SPEC.md` | **v2.21 / 243要件** |
 | `decisions/` | **0001〜0038** |
 | `platform/` | **0001**（ロック画面の背景）/ **0002**（開始と更新の門）/ **0003**（メニューバーの地と色）/ **0004**（データ上限とネットワーク）/ **0005**（ローカルネットワークと接続に要る設定）/ **0006**（SF Symbols のカタログと可用性） |
-| `PUNCHLIST.md` | **done 64 / open 16 / 決定済み 3 / deferred 1 / rejected 1 / 不要 1**（計 86。**実測した値であり、目算ではない**） |
+| `PUNCHLIST.md` | **done 64 / open 20 / 決定済み 3 / deferred 1 / rejected 1 / 不要 1**（計 90。**実測した値であり、目算ではない**） |
 | テスト | `swift test` **275件 / 49スイート**。Mac 側 5件、iOS 側 3件（**`xcodebuild test` が要る。CI は `swift test` のみ**） |
 
 **役は5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / **platform-researcher**。
@@ -349,7 +349,7 @@ POL-057 で直した結果）。**根拠なし 46件。** 一覧は `PUNCHLIST.m
 | 回 | 対象 | 行数 | 状態 |
 | :-- | :---- | --: | :---- |
 | 1 | `MdoroCore` / Sources | 413 | **完了**（38ファイル。`docs/english-comments-core`） |
-| 2 | Mac | 369 | 未着手（`AppModel.swift` 116行を含む） |
+| 2 | Mac | 369 | **完了**（21ファイル。`docs/english-comments-mac`）。ビルド・検証役とも通過 |
 | 3 | iOS ＋ Widget | 222 | 未着手（**POL-084 を同じ回で**） |
 | 4 | Tests 全部 ＋ `Tools` | 310 | 未着手（**CI の失敗メッセージ68件を英語化する。人間の決定・2026-08-29**） |
 

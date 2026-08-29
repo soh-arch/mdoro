@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import MdoroCore
 
-// REQ-UIX-033: ホットキーの割り当て UI。既定は未割り当て。
+// REQ-UIX-033: the UI for binding a hot key. Unbound by default.
 struct HotKeyRecorderView: View {
     @Environment(\.theme) private var theme
     @Binding var binding: HotKeyBinding?
@@ -34,8 +34,9 @@ struct HotKeyRecorderView: View {
     private var label: String {
         if isRecording { return String(localized: "Press a key") }
         guard let binding else { return String(localized: "Not set") }
-        // 他アプリに取られていると、割り当ててあるのに効かない。それを隠さない。
-        // **キー名は利用者の押した組み合わせで、設定に保存される値。** 訳す対象ではない。
+        // Taken by another app, a binding is there and does nothing. That is not hidden.
+        // **The key name is the combination the user pressed, and the value saved into the settings.**
+        // It is not something to translate.
         return isActive ? binding.displayName : String(localized: "\(binding.displayName) (unavailable)")
     }
 
@@ -45,12 +46,12 @@ struct HotKeyRecorderView: View {
             let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
                 .intersection([.command, .option, .control, .shift])
 
-            // ⎋ で取りやめ。
+            // ⎋ cancels.
             if event.keyCode == 53, modifiers.isEmpty {
                 stopRecording()
                 return nil
             }
-            // 修飾キーなしは受け付けない。単独キーを奪うと文字入力ができなくなる
+            // A combination with no modifier is not accepted. Take a bare key and typing text stops working
             guard !modifiers.isEmpty else { return nil }
 
             binding = HotKeyBinding(

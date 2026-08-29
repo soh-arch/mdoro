@@ -1,11 +1,12 @@
 import SwiftUI
 import MdoroCore
 
-// REQ-COL-001 / 002: ビューは色リテラルを書かず、役割名で色を引く。値の出典は ColorPalette（8.5.3）。
+// REQ-COL-001 / 002: views write no colour literal and look colour up by role name. The values come
+// from ColorPalette (8.5.3).
 struct Theme {
     let palette: ColorPalette
 
-    // REQ-COL-003: システム追従・ライト固定・ダーク固定の3択。
+    // REQ-COL-003: three choices — follow the system, fixed light, fixed dark.
     init(appearance: AppearancePreference, systemScheme: SwiftUI.ColorScheme) {
         let mode: ColorMode
         switch appearance {
@@ -42,9 +43,9 @@ extension EnvironmentValues {
     }
 }
 
-// 表示用の書式。
+// The formats used for display.
 enum Format {
-    // REQ-UIX-006: VoiceOver では「残り12分30秒」のように読み上げる。
+    // REQ-UIX-006: VoiceOver reads it out as "12 minutes 30 seconds left" and the like.
     static func clock(_ seconds: Int) -> String {
         String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
@@ -59,7 +60,7 @@ enum Format {
         NotificationScheduler.label(for: type)
     }
 
-    // 読み上げ用。印が形で示している実行状態を、言葉でも言う。
+    // For reading out. The run state the mark shows by its shape is said in words too.
     static func runStateLabel(_ state: RunState) -> String {
         switch state {
         case .idle: return String(localized: "Not running")
@@ -70,8 +71,9 @@ enum Format {
         }
     }
 
-    // REQ-UIX-004: 接続状態の言葉。**区分と役は `ConnectionStatus`、言葉はここ。**
-    // iPhone 側の `Format` も同じ3語を自分で持つ。
+    // REQ-UIX-004: the words for the connection state. **The cases and their roles are
+    // `ConnectionStatus`; the words are here.**
+    // The `Format` on the iPhone side holds the same three words of its own.
     static func connectionLabel(_ status: ConnectionStatus) -> String {
         switch status {
         case .connected: return String(localized: "Connected")
@@ -80,7 +82,7 @@ enum Format {
         }
     }
 
-    // REQ-UIX-008: プリセットの時間構成を併記する。
+    // REQ-UIX-008: the shape of a preset's times is written alongside.
     static func presetShape(_ preset: Preset) -> String {
         "\(preset.workSeconds / 60) / \(preset.shortBreakSeconds / 60) / \(preset.longBreakSeconds / 60)"
     }

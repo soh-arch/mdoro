@@ -2,11 +2,11 @@ import AppKit
 import Carbon.HIToolbox
 import MdoroCore
 
-// REQ-UIX-033: グローバルショートカット。
-// `RegisterEventHotKey`（Carbon）を使う。**アクセシビリティ権限を要求しない**のが理由。
+// REQ-UIX-033: global shortcuts.
+// `RegisterEventHotKey` (Carbon) is used. The reason is that it **asks for no accessibility permission**.
 @MainActor
 final class HotKeyCenter {
-    // 増やすときは id を重ねないこと。
+    // When adding one, do not reuse an id.
     enum Slot: UInt32, CaseIterable {
         case pauseResume = 1
         case showWindow = 2
@@ -22,7 +22,7 @@ final class HotKeyCenter {
 
     func update(_ slot: Slot, binding: HotKeyBinding?, onPress: @escaping () -> Void) {
         unregister(slot)
-        // 既定は無効。割り当てが無ければ何も登録しない。
+        // Off by default. With nothing bound, nothing is registered.
         guard let binding, binding.hasModifier else { return }
         handlers[slot] = onPress
         installHandlerIfNeeded()
@@ -36,7 +36,8 @@ final class HotKeyCenter {
             0,
             &ref
         )
-        // 他アプリが同じ組み合わせを押さえていると失敗する。**黙って無効になるので UI に出す。**
+        // It fails when another app already holds the same combination. **It goes dead quietly, so it
+        // is put on the UI.**
         if status == noErr, let ref {
             refs[slot] = ref
         }
@@ -79,7 +80,7 @@ final class HotKeyCenter {
         )
     }
 
-    // NSEvent.ModifierFlags -> Carbon の修飾マスク。
+    // NSEvent.ModifierFlags -> the Carbon modifier mask.
     private static func carbonModifiers(from flags: UInt) -> UInt32 {
         let modifiers = NSEvent.ModifierFlags(rawValue: flags)
         var carbon: UInt32 = 0
@@ -90,7 +91,7 @@ final class HotKeyCenter {
         return carbon
     }
 
-    // 設定画面に出す表示用の記号。
+    // The symbols shown for display on the settings screen.
     static func displayName(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String?) -> String {
         var text = ""
         if modifiers.contains(.control) { text += "⌃" }

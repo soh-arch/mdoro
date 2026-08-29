@@ -62,10 +62,11 @@ final class SilentNotifications: SessionNotifying {
     func deliverSoundTest(preset: Preset) {}
 }
 
-// REQ-NTF-001 / 004 / 005 / 007 / 020〜023: Mac 側の通知。
+// REQ-NTF-001 / 004 / 005 / 007 / 020–023: the notifications on the Mac side.
 //
-// Mac はアプリが動き続けている前提に立てるので、終了通知は状態遷移を検知して即時に出す。
-// 予告通知だけは発火時刻が未来なので事前スケジュールする。
+// On the Mac it is safe to assume the app keeps running, so the finish notification is raised the
+// moment the state transition is detected. Only the pre-notifications have a fire time in the
+// future, so they alone are scheduled ahead.
 @MainActor
 final class NotificationScheduler: SessionNotifying {
 
@@ -83,8 +84,8 @@ final class NotificationScheduler: SessionNotifying {
         case failed(ErrorCode)
     }
 
-    // **`try?` で捨てない。** 署名のないビルドではこの呼び出し自体が失敗し、
-    // 握り潰すと「許可を求めることすらできていない」状態が見えなくなる。
+    // **Not thrown away with `try?`.** In a build without a signature this call itself fails, and
+    // swallowing it hides the state where permission has not even been asked for.
     func requestAuthorization() async -> AuthorizationOutcome {
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .sound])
@@ -94,7 +95,7 @@ final class NotificationScheduler: SessionNotifying {
         }
     }
 
-    // **macOS 側でバナーや音が切られていることは、こちらからしか見えない。**
+    // **That banners or sound have been turned off on the macOS side is visible only from here.**
     func currentPermission() async -> NotificationPermission {
         let settings = await center.notificationSettings()
         return NotificationPermission(
@@ -117,7 +118,8 @@ final class NotificationScheduler: SessionNotifying {
         }
     }
 
-    // REQ-NTF-004: 終了したセッション種別・選択中タスク名・次に行うべきセッション種別を含める。
+    // REQ-NTF-004: it carries the type of the session that ended, the name of the selected task, and
+    // the type of the session to do next.
     func notifySessionFinished(
         type: SessionType,
         nextType: SessionType,
@@ -137,7 +139,8 @@ final class NotificationScheduler: SessionNotifying {
         deliverNow(content, identifier: "session-finished.\(UUID().uuidString)")
     }
 
-    // REQ-NTF-007 / 020〜023: 発火時刻の決定は MdoroCore。ここは決まった時刻に鳴らすだけ。
+    // REQ-NTF-007 / 020–023: deciding the fire times belongs to MdoroCore. This only sounds at the
+    // times that were settled on.
     func reschedulePreNotifications(
         preset: Preset,
         sessionType: SessionType,
@@ -147,7 +150,7 @@ final class NotificationScheduler: SessionNotifying {
     ) {
         cancelPreNotifications()
 
-        // REQ-NTF-007: 予告は WORK のみ。
+        // REQ-NTF-007: pre-notifications are for WORK only.
         guard sessionType == .work,
               let sessionStartedAt, let sessionEndAt,
               !preset.preNotifications.isEmpty else { return }
@@ -166,7 +169,8 @@ final class NotificationScheduler: SessionNotifying {
             content.body = String(localized: "About \(max(1, remaining)) min left")
             apply(sound: preset.notificationSound, timeSensitive: preset.timeSensitiveNotifications, to: content)
 
-            // 絶対時刻で撃つ。相対秒だとスリープ復帰でずれる（3原則の3つ目）。
+            // Fired at an absolute time. In relative seconds it drifts across a wake from sleep (the
+            // third principle).
             let components = Calendar.current.dateComponents(
                 [.year, .month, .day, .hour, .minute, .second], from: fireDate
             )
@@ -177,20 +181,21 @@ final class NotificationScheduler: SessionNotifying {
         }
     }
 
-    // REQ-NTF-003 / REQ-PER-008: スケジュール済みの予告をすべて取り消す。
+    // REQ-NTF-003 / REQ-PER-008: cancel every pre-notification that has been scheduled.
     func cancelPreNotifications() {
         guard !scheduledPreNotificationIds.isEmpty else { return }
         center.removePendingNotificationRequests(withIdentifiers: scheduledPreNotificationIds)
         scheduledPreNotificationIds.removeAll()
     }
 
-    // REQ-PER-008: PENDING_DECISION に入ったら、発火時刻を過ぎた通知を含めてすべて取り消す。
+    // REQ-PER-008: on entering PENDING_DECISION, cancel everything, including notifications whose fire
+    // time has already passed.
     func cancelAll() {
         cancelPreNotifications()
         center.removeAllPendingNotificationRequests()
     }
 
-    // REQ-LOG-005 / REQ-ERR-004: ログの書き込みに3回失敗したことを伝える。
+    // REQ-LOG-005 / REQ-ERR-004: tell the user that writing the log has failed three times in a row.
     func notifyLogWriteFailure() {
         let content = UNMutableNotificationContent()
         content.title = String(localized: "The session log cannot be written")
@@ -199,8 +204,8 @@ final class NotificationScheduler: SessionNotifying {
         deliverNow(content, identifier: "log-write-failed")
     }
 
-    // REQ-NTF-006 / Decision 0019: 試聴は**本番と同じ経路**で行う。
-    // 音源を直接鳴らすと、通知が届かない状態を試聴が隠してしまう。
+    // REQ-NTF-006 / Decision 0019: the preview goes **down the same path production uses**.
+    // Play the sound file directly and the preview hides the state where no notification arrives.
     func deliverSoundTest(preset: Preset) {
         let content = UNMutableNotificationContent()
         content.title = String(localized: "Notification test")
@@ -212,18 +217,18 @@ final class NotificationScheduler: SessionNotifying {
     // MARK: -
 
     private func deliverNow(_ content: UNNotificationContent, identifier: String) {
-        // trigger: nil は即時配信。
+        // trigger: nil means deliver immediately.
         center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
     }
 
-    // REQ-NTF-005: Time Sensitive として送出し、ユーザーが設定で無効化できること。
-    // REQ-NTF-006: 通知音を選べ、無音も選べること。
+    // REQ-NTF-005: sent as Time Sensitive, and the user must be able to turn that off in the settings.
+    // REQ-NTF-006: the notification sound must be choosable, and silence must be one of the choices.
     private func apply(sound: NotificationSound, timeSensitive: Bool, to content: UNMutableNotificationContent) {
         content.sound = Self.sound(for: sound)
         content.interruptionLevel = timeSensitive ? .timeSensitive : .active
     }
 
-    // REQ-NTF-006 / Decision 0017: 音源は macOS のシステムサウンドを流用する。
+    // REQ-NTF-006 / Decision 0017: the sounds are borrowed from the macOS system sounds.
     private static func sound(for sound: NotificationSound) -> UNNotificationSound? {
         if sound.isSilent { return nil }
         guard let fileName = sound.systemSoundFileName else { return .default }
@@ -240,14 +245,14 @@ final class NotificationScheduler: SessionNotifying {
 }
 
 
-// REQ-NTF-001 / 006: OS 側で通知がどう扱われているか。
+// REQ-NTF-001 / 006: how the OS side is treating notifications.
 struct NotificationPermission: Equatable, Sendable {
     var isAuthorized: Bool
     var alertsEnabled: Bool
     var soundEnabled: Bool
     var status: String
 
-    // 音が鳴らない理由を、鳴らない側で説明できるようにする。
+    // So the reason nothing sounds can be explained by the side where it does not sound.
     var problem: String? {
         if !isAuthorized {
             return String(localized: "Notifications for this app are turned off in macOS Settings (\(status)).")

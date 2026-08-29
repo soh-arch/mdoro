@@ -1,8 +1,8 @@
 import SwiftUI
 import MdoroCore
 
-// REQ-TSK-004: 読み込まれたタスク一覧を閲覧・選択できること。
-// REQ-TSK-011 / 014: 見出しごとにグループ化し、子タスクは字下げして並べる。
+// REQ-TSK-004: the task list that was loaded must be browsable, and choosable from.
+// REQ-TSK-011 / 014: grouped by heading, with child tasks laid out indented.
 struct TaskListView: View {
     @Environment(\.theme) private var theme
     @Environment(AppModel.self) private var model
@@ -16,19 +16,19 @@ struct TaskListView: View {
             header
 
             if model.settings.taskFilePath == nil {
-                // REQ-ERR-001: 理由と再選択導線を出す。タイマーは動き続ける。
+                // REQ-ERR-001: show the reason and a way to choose again. The timer keeps running.
                 notice("No task file selected",
                        detail: "Choose a file to watch in Settings.",
                        role: .warning)
             } else if model.tasks.loadFailed {
-                // REQ-ERR-002: 直前の一覧を保持したままエラーを示す。
+                // REQ-ERR-002: the error is shown while the list from just before is kept.
                 notice("Could not read the task file",
                        detail: "Showing what was read last time.",
                        role: .danger)
             }
 
             if sections.isEmpty, model.settings.taskFilePath != nil, !model.tasks.loadFailed {
-                // REQ-TSK-016: 0件のときは想定している記法の例を示す。
+                // REQ-TSK-016: with nothing found, show an example of the notation that is expected.
                 notice("No tasks found",
                        detail: "Reads lines written as `- [ ] task`. Headings (##) group them.",
                        role: .warning)
@@ -53,14 +53,14 @@ struct TaskListView: View {
             Text("Tasks").font(.headline).foregroundStyle(theme.textPrimary)
 
             if model.tasks.wasTruncated {
-                // REQ-TSK-037 / REQ-ERR-003: 打ち切りの有無と読み込んだ件数を示す。
+                // REQ-TSK-037 / REQ-ERR-003: show whether the list was cut short, and how many were read.
                 Text("Showing the first \(model.tasks.items.count)")
                     .font(.footnote)
                     .foregroundStyle(theme.color(.warning, .text))
             }
             Spacer()
 
-            // REQ-TSK-032: 追従を控えめに知らせる。
+            // REQ-TSK-032: say quietly that the selection followed.
             if model.didFollowTaskSelection {
                 Button {
                     model.acknowledgeTaskFollow()
@@ -69,12 +69,13 @@ struct TaskListView: View {
                         .font(.footnote)
                         .foregroundStyle(theme.color(.accentPrimary, .text))
                 }
-                // REQ-COL-002: `.link` は自前の色を受け付けない。**ラベルを自分で塗り、素のボタンにする。**
+                // REQ-COL-002: `.link` does not accept a colour of our own. **The label is painted here
+                // and the button made plain.**
                 .buttonStyle(.plain)
             }
 
             if model.tasks.selectedTaskId != nil {
-                // REQ-UIX-047: 大きさは `Add` と揃える。
+                // REQ-UIX-047: the size matches `Add`.
                 Button { model.clearTaskSelection() } label: {
                     Text("Clear selection")
                         .foregroundStyle(theme.color(.accentPrimary, .text))
@@ -87,7 +88,7 @@ struct TaskListView: View {
     @ViewBuilder
     private func row(_ item: TaskItem) -> some View {
         HStack(spacing: 6) {
-            // REQ-TSK-014: 子タスクは親の下に字下げして並べる。
+            // REQ-TSK-014: child tasks are laid out indented under the parent.
             if item.depth > 0 {
                 Spacer().frame(width: CGFloat(item.depth) * 16)
             }
@@ -96,7 +97,7 @@ struct TaskListView: View {
             Text(item.displayText)
                 .strikethrough(item.isCompleted)
                 .foregroundStyle(item.isCompleted ? theme.textTertiary : theme.textPrimary)
-            // REQ-TSK-023: ブロック ID を持つタスクを識別できるようにする。
+            // REQ-TSK-023: a task that carries a block ID must be tellable from the rest.
             if item.idKind == .blockId {
                 Image(systemName: "link")
                     .font(.caption2)
@@ -105,8 +106,9 @@ struct TaskListView: View {
             }
             Spacer()
         }
-        // REQ-COL-002 / REQ-UIX-044 / 8.6.3: 選択は `-subtle` の地で示す。
-        // **`List(selection:)` の塗りは `.tint` では変わらない。** 役割名から引くには自分で描くしかない。
+        // REQ-COL-002 / REQ-UIX-044 / 8.6.3: a selection is shown with a `-subtle` ground.
+        // **The fill `List(selection:)` uses does not change with `.tint`.** Drawing it here is the only
+        // way to look the colour up by role name.
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
         .background(

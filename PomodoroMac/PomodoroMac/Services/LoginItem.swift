@@ -1,13 +1,13 @@
 import Foundation
 import ServiceManagement
 
-// Decision 0016: 常駐アプリの標準的な設定項目。
+// Decision 0016: the standard setting for an app that stays resident.
 enum LoginItem {
     static var isEnabled: Bool {
         SMAppService.mainApp.status == .enabled
     }
 
-    // 成否だけ返し、UI に実態を映させる。
+    // Only success or failure comes back, and the UI is left to mirror what is actually so.
     @discardableResult
     static func setEnabled(_ enabled: Bool) -> Bool {
         do {

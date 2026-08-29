@@ -2,16 +2,16 @@ import Foundation
 import Observation
 import MdoroCore
 
-// REQ-ERR-010 / Decision 0018: 診断ログの入り口。
+// REQ-ERR-010 / Decision 0018: the way in to the diagnostic log.
 //
-// **利用者由来の文字列をここへ渡さないこと。** タスクは `stableId` の下4桁、
-// ファイルはパスのダイジェストで同定する。
-// 置き場所は `<Library>/Logs/Mdoro/`。1行1イベントのプレーンテキスト。
+// **No string that came from the user is passed in here.** A task is identified by the last four
+// digits of its `stableId`, a file by a digest of its path.
+// It lives in `<Library>/Logs/Mdoro/`. Plain text, one event per line.
 @MainActor
 @Observable
 final class DiagnosticLog {
 
-    // ログ自体が書けないことも黙らせない。
+    // That the log itself cannot be written is not kept quiet either.
     // REQ-ERR-010 / Decision 0035: this code's only reader is the settings screen.
     private(set) var lastFailure: ErrorCode?
 
@@ -44,7 +44,8 @@ final class DiagnosticLog {
         )
     }
 
-    // 記録するのは状態の変わり目だけ。その量なら同期で書いてよく、失敗をその場で拾える。
+    // Only the turning points of the state are recorded. At that volume it may be written
+    // synchronously, and a failure can be picked up on the spot.
     func write(_ code: String, level: DiagnosticLevel = .info, _ fields: [DiagnosticField] = []) {
         guard let file else { return }
         file.write(DiagnosticEvent(level: level, code: code, fields: fields))

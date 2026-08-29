@@ -3,8 +3,9 @@ import AppKit
 import UniformTypeIdentifiers
 import MdoroCore
 
-// REQ-UIX-031: 中断・リセット・プリセット編集・設定変更はメインウィンドウ（と設定画面）でのみ可能。
-// 設定タブの識別子。メインウィンドウから開く先を指定するため、モデルが持つ。
+// REQ-UIX-031: aborting, resetting, editing a preset and changing a setting are possible only in the
+// main window (and the settings screen).
+// The identifier of a settings tab. The model holds it so the main window can name where to open.
 enum SettingsTab: String, Hashable, CaseIterable {
     case presets, files, connection, behavior, display, about
 }
@@ -18,7 +19,7 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var bindable = model
-        // 触る頻度が高いものほど手前に置く。
+        // The more often something is touched, the nearer the front it goes.
         TabView(selection: $bindable.settingsTab) {
             PresetEditorView()
                 .tabItem { Label("Presets", systemImage: "timer") }.tag(SettingsTab.presets)
@@ -34,9 +35,9 @@ struct SettingsView: View {
                 .tabItem { Label("About", systemImage: "info.circle") }.tag(SettingsTab.about)
         }
         .frame(width: 560, height: 460)
-        // 設定ウィンドウは別の Scene なので、テーマを自分で配る（REQ-COL-002）。
+        // The settings window is a Scene of its own, so it hands the theme out itself (REQ-COL-002).
         .environment(\.theme, theme)
-        // REQ-COL-003: ライト固定・ダーク固定はこちらの窓にも効かせる。
+        // REQ-COL-003: fixing it to light or to dark takes effect in this window too.
         .preferredColorScheme(preferredScheme)
     }
 
@@ -48,18 +49,19 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 接続
+    // MARK: - Connection
 
-    // REQ-UIX-004: 接続は動作の設定ではないので独立したタブに置く。
+    // REQ-UIX-004: the connection is not a behaviour setting, so it gets a tab of its own.
     private var connectionTab: some View {
         Form { PairingSection() }.formStyle(.grouped)
     }
 
-    // MARK: - ファイル
+    // MARK: - Files
 
     private func filesTab(model: Bindable<AppModel>) -> some View {
         Form {
-            // REQ-TSK-005: 監視対象ファイルのパスは設定画面から選べ、Vault の場所に依存しない。
+            // REQ-TSK-005: the path of the watched file is chosen from the settings screen, and does not
+            // depend on where the Vault is.
             Section("Task file (read-only)") {
                 filePathRow(path: self.model.settings.taskFilePath,
                             placeholder: String(localized: "Not set")) {
@@ -75,7 +77,7 @@ struct SettingsView: View {
             }
 
             Section("Where the session log is written") {
-                // Decision 0015: 原子的な書き込み (REQ-LOG-004) に同じフォルダへの許可が要る。
+                // Decision 0015: an atomic write (REQ-LOG-004) needs permission for the same folder.
                 filePathRow(path: self.model.settings.logFolderPath,
                             placeholder: String(localized: "No folder set")) {
                     chooseLogFolder()
@@ -99,7 +101,7 @@ struct SettingsView: View {
                 if let logFileError {
                     Text(logFileError).font(.footnote).foregroundStyle(theme.color(.danger, .text))
                 }
-                // REQ-LOG-020: 同時編集で競合しうることを設定画面に明記する。
+                // REQ-LOG-020: the settings screen says plainly that editing it at the same time can conflict.
                 Text("Editing the same file while it is being appended to will conflict. Do not leave the log open in an editor.")
                     .font(.footnote)
                     .foregroundStyle(theme.textSecondary)
@@ -112,7 +114,7 @@ struct SettingsView: View {
         .formStyle(.grouped)
     }
 
-    // REQ-ERR-010 / Decision 0018: **何を書かないかを、書き出す導線の隣に置く。**
+    // REQ-ERR-010 / Decision 0018: **what is never written is said beside the way to write it out.**
     private var diagnosticsSection: some View {
         Section("Diagnostic log") {
             Text("A record to attach to a bug report. **Task names, note contents, file paths and device names are never written.** You can paste it in public as it is.")
@@ -129,8 +131,9 @@ struct SettingsView: View {
                 }
                 Spacer()
             }
-            // REQ-ERR-010 / Decision 0035: **画面にコードを出す唯一の場面。**
-            // この失敗のコードはログには書けない（ログが壊れている）。捨てるか、ここに出すかしかない。
+            // REQ-ERR-010 / Decision 0035: **the one place where a code is put on the screen.**
+            // The code for this failure cannot go into the log (the log is the thing that is broken).
+            // It is either thrown away or shown here.
             if let failure = model.diagnostics.lastFailure {
                 Text("The diagnostic log cannot be written (\(failure.description)). Nothing else is affected — quote this code in a bug report.")
                     .font(.footnote)
@@ -164,8 +167,8 @@ struct SettingsView: View {
         }
     }
 
-    // `path` は利用者のファイルパスなので `Text` は verbatim のまま。
-    // placeholder は呼び出し側でカタログから引く。
+    // `path` is the user's own file path, so the `Text` stays verbatim.
+    // The placeholder is looked up from the catalogue by the caller.
     private func filePathRow(path: String?, placeholder: String, choose: @escaping () -> Void) -> some View {
         HStack {
             Text(path ?? placeholder)
@@ -189,7 +192,7 @@ struct SettingsView: View {
             try model.setLogFolder(url)
             logFileError = nil
         } catch {
-            // REQ-LOG-021: Task.md と同一のファイルは指定できない。
+            // REQ-LOG-021: the same file as Task.md cannot be named.
             logFileError = String(
                 localized: "This folder cannot be used: it points at the task file, or it cannot be written to."
             )
@@ -206,8 +209,9 @@ struct SettingsView: View {
         return panel.runModal() == .OK ? panel.url : nil
     }
 
-    // Decision 0015: フォルダを選ばせる。
-    // 選んだフォルダへの書き込み許可がないと、原子的書き込みの一時ファイルを作れない。
+    // Decision 0015: a folder is what gets chosen.
+    // Without permission to write to the chosen folder, the temporary file an atomic write needs
+    // cannot be created.
     private func folderPanel() -> URL? {
         let panel = NSOpenPanel()
         panel.message = String(localized: "Choose a folder for the session log")
@@ -219,7 +223,7 @@ struct SettingsView: View {
         return panel.runModal() == .OK ? panel.url : nil
     }
 
-    // MARK: - 動作
+    // MARK: - Behaviour
 
     private func behaviorTab(model: Bindable<AppModel>) -> some View {
         Form {
@@ -234,7 +238,7 @@ struct SettingsView: View {
             Section("Tasks") {
                 Toggle("Show completed tasks", isOn: model.settings.showCompletedTasks)
             }
-            // REQ-UIX-033 / Decision 0016: 既定は未設定。任意のキーを割り当てられる。
+            // REQ-UIX-033 / Decision 0016: unset by default. Any key may be bound.
             Section("Shortcuts") {
                 HStack {
                     Text("Pause / Resume")
@@ -252,7 +256,7 @@ struct SettingsView: View {
                         isActive: self.model.showWindowHotKeyIsActive
                     )
                 }
-                // Decision 0029: ウィンドウを開かずに進められるように。
+                // Decision 0029: so that things can be moved on without opening the window.
                 HStack {
                     Text("Start the next session")
                     Spacer()
@@ -287,11 +291,12 @@ struct SettingsView: View {
         .formStyle(.grouped)
     }
 
-    // MARK: - 表示
+    // MARK: - Display
 
     // MARK: - About
 
-    // decisions/0021: 支援リンクはここに1つだけ。集中を切る場所には出さない。
+    // decisions/0021: one support link, here and nowhere else. It never appears where it would break
+    // concentration.
     private var aboutTab: some View {
         Form {
             Section(AppInfo.name) {
@@ -310,8 +315,9 @@ struct SettingsView: View {
                     .foregroundStyle(theme.textSecondary)
             }
             Section {
-                // 開く前にリンク先を見せる（decisions/0021 の「透明」）。
-                // REQ-COL-002: `.link` スタイルは自前の色を受け付けないため、ラベルを塗って素のボタンにする。
+                // Show where the link goes before it is opened ("transparent", in decisions/0021).
+                // REQ-COL-002: the `.link` style does not accept a colour of our own, so the label is
+                // painted and the button made plain.
                 Button { NSWorkspace.shared.open(AppInfo.supportURL) } label: {
                     Text(AppInfo.supportLabel)
                         .foregroundStyle(theme.color(.accentPrimary, .text))
