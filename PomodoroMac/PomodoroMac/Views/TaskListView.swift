@@ -17,20 +17,20 @@ struct TaskListView: View {
 
             if model.settings.taskFilePath == nil {
                 // REQ-ERR-001: 理由と再選択導線を出す。タイマーは動き続ける。
-                notice(String(localized: "No task file selected"),
-                       detail: String(localized: "Choose a file to watch in Settings."),
+                notice("No task file selected",
+                       detail: "Choose a file to watch in Settings.",
                        role: .warning)
             } else if model.tasks.loadFailed {
                 // REQ-ERR-002: 直前の一覧を保持したままエラーを示す。
-                notice(String(localized: "Could not read the task file"),
-                       detail: String(localized: "Showing what was read last time."),
+                notice("Could not read the task file",
+                       detail: "Showing what was read last time.",
                        role: .danger)
             }
 
             if sections.isEmpty, model.settings.taskFilePath != nil, !model.tasks.loadFailed {
                 // REQ-TSK-016: 0件のときは想定している記法の例を示す。
-                notice(String(localized: "No tasks found"),
-                       detail: String(localized: "Reads lines written as `- [ ] task`. Headings (##) group them."),
+                notice("No tasks found",
+                       detail: "Reads lines written as `- [ ] task`. Headings (##) group them.",
                        role: .warning)
             }
 
@@ -120,9 +120,13 @@ struct TaskListView: View {
         .listRowSeparator(.hidden)
     }
 
-    // **`Text` に String を渡す。** 引数を `LocalizedStringKey` にすると Markdown として
-    // 解釈され、記法の例に置いた `` ` `` が消える。文言はカタログから引き、描画は素のまま。
-    private func notice(_ title: String, detail: String, role: ColorRole) -> some View {
+    // REQ-TSK-016: the empty-state note is where the app shows the notation it reads, and a
+    // sample nobody can read does not show it. A resolved `String` reaches `Text` verbatim,
+    // so the backticks around `- [ ] task` were printed as themselves; the key goes in
+    // whole and SwiftUI sets the sample as code, which is what the same kind of line in
+    // `SettingsView` already does. The catalogue is still where the words live — a literal
+    // in this position is the key Xcode extracts (Decision 0022).
+    private func notice(_ title: LocalizedStringKey, detail: LocalizedStringKey, role: ColorRole) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.callout.weight(.medium))
             Text(detail).font(.footnote)

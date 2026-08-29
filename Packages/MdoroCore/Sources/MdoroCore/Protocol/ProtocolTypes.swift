@@ -200,11 +200,39 @@ public extension ProtocolErrorCode {
 }
 
 // 10.2 authFailed.code
-public enum AuthFailureCode: String, Equatable, Sendable, Codable {
+//
+// `Error` and `CaseIterable` for the same two reasons the other refusals have them: a refused
+// connection is one of ours and is written like any other (Decision 0034), and a test walks
+// every case rather than a list someone has to remember to extend.
+public enum AuthFailureCode: String, Error, Equatable, Sendable, Codable, CaseIterable {
     case invalidPairingCode
     case pairingModeNotActive
     case pairingAttemptsExceeded
     case unknownDeviceToken
     case anotherClientConnected
     case connectionRejectedByUser
+}
+
+// REQ-ERR-010 / Decision 0034 / 0035: this was the last refusal still going out as prose.
+// `authFailed.message` is diagnostic, like `error.message` beside it — the iPhone reads
+// `code` and keeps its own wording — so the Mac was writing six sentences that reached no
+// screen at all, in a shape nothing else in the app uses.
+//
+// 60–69 belong to this enum. Read the table in `ErrorCode.swift` before taking a number.
+extension AuthFailureCode: DiagnosableError {
+
+    public var errorCode: ErrorCode {
+        switch self {
+        case .invalidPairingCode: ErrorCode(own: 60)
+        case .pairingModeNotActive: ErrorCode(own: 61)
+        case .pairingAttemptsExceeded: ErrorCode(own: 62)
+        case .unknownDeviceToken: ErrorCode(own: 63)
+        case .anotherClientConnected: ErrorCode(own: 64)
+        case .connectionRejectedByUser: ErrorCode(own: 65)
+        }
+    }
+
+    // No case carries a payload, so the case name describes itself and cannot drift away
+    // from a hand-written copy.
+    public var diagnosticSummary: String { errorCode.summary(rawValue) }
 }

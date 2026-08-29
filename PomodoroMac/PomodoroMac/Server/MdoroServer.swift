@@ -175,7 +175,7 @@ final class MdoroServer {
             startApprovalTimeout()
 
         case let .reject(code):
-            sendThenClose(.authFailed(AuthFailedPayload(code: code, message: Self.message(for: code))), to: source)
+            sendThenClose(.authFailed(AuthFailedPayload(code: code)), to: source)
         }
     }
 
@@ -197,8 +197,7 @@ final class MdoroServer {
         pendingApproval = nil
 
         guard approved else {
-            sendThenClose(.authFailed(AuthFailedPayload(code: .connectionRejectedByUser,
-                                                        message: "The connection was not approved")), to: pending.connection)
+            sendThenClose(.authFailed(AuthFailedPayload(code: .connectionRejectedByUser)), to: pending.connection)
             return
         }
         // 既存接続を切ってから改めて認証させる。
@@ -257,17 +256,6 @@ final class MdoroServer {
         if Heartbeat.isStale(lastReceivedAt: lastHeartbeatAt, now: Date()) {
             connection.cancel()
             handleDisconnect(connection)
-        }
-    }
-
-    private static func message(for code: AuthFailureCode) -> String {
-        switch code {
-        case .invalidPairingCode: return "Wrong pairing code"
-        case .pairingModeNotActive: return "Start pairing on the Mac"
-        case .pairingAttemptsExceeded: return "Pairing ended after five wrong codes"
-        case .unknownDeviceToken: return "This device is not registered"
-        case .anotherClientConnected: return "Another device is connected"
-        case .connectionRejectedByUser: return "The connection was not approved"
         }
     }
 }

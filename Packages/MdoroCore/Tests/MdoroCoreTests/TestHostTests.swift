@@ -1,0 +1,135 @@
+import Testing
+import Foundation
+@testable import MdoroCore
+
+// POL-047: the suite runs *inside* MdoroMac.app and MdoroiOS.app — `@testable import` needs
+// `BUNDLE_LOADER = $(TEST_HOST)`, so there is no version of this where the host is absent.
+// An app that starts normally there delivers notifications, takes the window to the front,
+// advertises on the LAN and watches the reader's own `Task.md`. The product owner saw all of
+// it; every contributor would too.
+//
+// The guard that stops it is one line in a file `swift test` cannot link, which is exactly
+// the kind of line that gets deleted in a refactor and noticed by nobody. So this reads the
+// two entry points as text, the way `ColorLiteralTests` reads the views. The app targets
+// carry the other half — they assert that the detection actually fires — but they do not run
+// in CI, and this does.
+
+private let entryPoints = [
+    "PomodoroMac/PomodoroMac/MdoroMacApp.swift",
+    "PomodoroMac/PomodoroiOS/MdoroiOSApp.swift",
+]
+
+private let guardClause = "guard !TestHost.isRunning else { return }"
+
+@Suite("Tests do not start the app (POL-047)")
+struct TestHostTests {
+
+    @Test func bothEntryPointsRefuseToStartUnderTest() throws {
+        for path in entryPoints {
+            let text = withoutComments(try source(path))
+            #expect(
+                text.contains(guardClause),
+                "POL-047: \(path) no longer carries `\(guardClause)` — running the suite will start the app for real"
+            )
+        }
+    }
+
+    // A guard placed after the call it is meant to prevent is not a guard.
+    //
+    // Ordering against `model.start()` alone was too weak to match this test's own name: it
+    // would have accepted the guard sitting *below* `UNUserNotificationCenter.current()
+    // .delegate = …`, which is the suite taking over notification presentation for the app.
+    // Every line in the block is something the suite must not do, so the guard has to be the
+    // first statement — nothing is allowed in front of it.
+    @Test func theGuardComesBeforeAnythingStarts() throws {
+        for path in entryPoints {
+            let text = withoutComments(try source(path))
+            let block = try #require(text.range(of: ".task {"), "\(path) has no .task to guard")
+            let firstStatement = text[block.upperBound...]
+                .split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .first { !$0.isEmpty }
+            #expect(
+                firstStatement == guardClause,
+                "POL-047: \(path) does `\(firstStatement ?? "nothing")` before asking whether this is a test run"
+            )
+            // 見張る先が消えていないこと。**空振りする検査は、通っている検査と区別がつかない。**
+            #expect(text.contains("model.start()"), "\(path) no longer calls model.start()")
+        }
+    }
+
+    // The Mac's model is built while the App value is, which is earlier than any view and so
+    // earlier than the guard above. `AppModel.init` restores the saved state and runs the
+    // effects that come with it (REQ-PER-003(d) / 004): an append to the reader's session log
+    // and a cancellation of their pending notifications, from a suite that had not started
+    // the app at all. So the store it is handed under test has to hold nothing.
+    @Test func theMacsModelIsBuiltWithNothingToRestore() throws {
+        let app = withoutComments(try source("PomodoroMac/PomodoroMac/MdoroMacApp.swift"))
+        let construction = try #require(app.range(of: "var model ="))
+        let statement = app[construction.upperBound...].prefix(200)
+        #expect(statement.contains("TestHost.isRunning"), "POL-047: the model is built the same way under test")
+        #expect(
+            statement.contains("InMemoryStateStore"),
+            "POL-047: a test run restores the reader's saved session and acts on it"
+        )
+    }
+
+    // The guards above stop the app from *starting*. They do not stop a model from being
+    // built holding the real thing, and two were: `DiagnosticLogTests` asked one for a
+    // notification, which went to `UNUserNotificationCenter` under the app's own bundle
+    // identifier and arrived on the product owner's screen mid-session — and the host app's
+    // own model, which substituted its store and its bookmarks but not this.
+    //
+    // The default is the real centre, and it has to be: that is the app. **`AppModel()` with
+    // no arguments is the app running for a person** and is the only form exempt here.
+    // Anything built with arguments is built for a test — by the suite, or by the host app
+    // *for* the suite — and has to name a destination that is not the reader's.
+    //
+    // Both directories, because the host app's construction sat in neither the seam nor this
+    // check and was the only one in the repository to get past both.
+    @Test func noModelBuiltForATestCanReachTheNotificationCentre() throws {
+        for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
+            let files = try swiftFiles(under: directory, recursive: true)
+            #expect(!files.isEmpty, "\(directory) は読めていない。移動したか、名前が変わっている")
+            for (name, text) in files {
+                for construction in text.components(separatedBy: "AppModel(").dropFirst() {
+                    // `AppModel()` — the production one. Nothing substituted, nothing to check.
+                    guard !construction.hasPrefix(")") else { continue }
+                    #expect(
+                        construction.prefix(400).contains("notifications:"),
+                        "POL-047: \(name) builds an AppModel that delivers to the reader's notification centre"
+                    )
+                }
+            }
+        }
+    }
+
+    // POL-047 / REQ-UIX-030: a scene is placed before any view of it appears, so `.task`
+    // cannot reach one. The window opens itself at launch and the menu bar mark is inserted
+    // with it — Mdoro taking the screen, and the menu bar, of whoever runs the suite.
+    @Test func neitherSceneShowsItselfDuringATestRun() throws {
+        let app = withoutComments(try source("PomodoroMac/PomodoroMac/MdoroMacApp.swift"))
+        #expect(
+            app.contains("defaultLaunchBehavior(TestHost.isRunning ? .suppressed : .presented)"),
+            "POL-047: the main window opens itself during the suite"
+        )
+        // `MenuBarExtra(` の丸括弧まで見る。`showsMenuBarExtra` が前に出てくる。
+        let extra = try #require(app.range(of: "MenuBarExtra("), "REQ-UIX-030: the menu bar mark is gone")
+        #expect(
+            app[extra.upperBound...].prefix(20).contains("isInserted:"),
+            "POL-047: the menu bar mark is inserted during the suite"
+        )
+        #expect(
+            app.contains("showsMenuBarExtra = !TestHost.isRunning"),
+            "POL-047: whether the mark is inserted no longer depends on the test run"
+        )
+    }
+
+    // XCTest sets the variable in the host process. Nothing else does, and an app run by a
+    // person never has it — which is the whole reason the check is safe to leave in.
+    @Test func theVariableXCTestSetsIsWhatDecides() {
+        #expect(TestHost.isRunning(in: ["XCTestConfigurationFilePath": "/tmp/x.xctestconfiguration"]))
+        #expect(TestHost.isRunning(in: [:]) == false)
+        #expect(TestHost.isRunning(in: ["HOME": "/Users/someone"]) == false)
+    }
+}

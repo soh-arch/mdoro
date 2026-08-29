@@ -15,6 +15,8 @@ Pomodoro_Timer/                        # プロジェクトルート
 │   ├── CONTEXT.md                     # 現在有効な方針の要約
 │   ├── DEVELOPMENT.md                 # このファイル
 │   ├── PUNCHLIST.md                   # 作業キューの正本
+│   ├── PLATFORM.md                    # Apple がどう振る舞うか（索引）
+│   ├── platform/                      # 調査そのもの（1件1ファイル）
 │   └── decisions/                     # Decision Record
 ├── AGENTS.md                          # 外部の貢献者とそのエージェント向け（英語）
 ├── .claude/agents/                    # implementer / reviewer / spec-auditor / repo-auditor

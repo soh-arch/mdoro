@@ -68,10 +68,10 @@ struct SettingsView: View {
                 // REQ-TSK-024
                 Text("Add a block ID (`^abc123`) at the end of a line, and the selection survives edits to the wording.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
                 Text("This file is never written to. It is opened read-only.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
             }
 
             Section("Where the session log is written") {
@@ -91,7 +91,7 @@ struct SettingsView: View {
                 if let path = self.model.settings.logFilePath {
                     Text("Written to: \(path)")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.textSecondary)
                         .textSelection(.enabled)
                 }
                 // REQ-COL-001 / 002: the role, not the hue. The same `danger` the two lines
@@ -102,7 +102,7 @@ struct SettingsView: View {
                 // REQ-LOG-020: 同時編集で競合しうることを設定画面に明記する。
                 Text("Editing the same file while it is being appended to will conflict. Do not leave the log open in an editor.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
                 // REQ-LOG-013
                 Toggle("Write task names as links", isOn: model.settings.logTaskAsLink)
             }
@@ -117,10 +117,10 @@ struct SettingsView: View {
         Section("Diagnostic log") {
             Text("A record to attach to a bug report. **Task names, note contents, file paths and device names are never written.** You can paste it in public as it is.")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(theme.textSecondary)
             Text("Kept in: \(model.diagnostics.directory.path)")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(theme.textSecondary)
                 .textSelection(.enabled)
             HStack {
                 Button("Export…") { exportDiagnostics() }
@@ -171,7 +171,7 @@ struct SettingsView: View {
             Text(path ?? placeholder)
                 .lineLimit(1)
                 .truncationMode(.head)
-                .foregroundStyle(path == nil ? .secondary : .primary)
+                .foregroundStyle(path == nil ? theme.textSecondary : theme.textPrimary)
             Spacer()
             Button("Choose…", action: choose)
         }
@@ -271,7 +271,7 @@ struct SettingsView: View {
                 }
                 Text("A combination another app already uses cannot be registered. Include a modifier key.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
             }
 
             Section("Startup") {
@@ -281,7 +281,7 @@ struct SettingsView: View {
             Section("Extending") {
                 Text("You can extend from 5 minutes before the end until 1 minute after. Extending is meant for the moment you are actually aware of the boundary.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
             }
         }
         .formStyle(.grouped)
@@ -307,7 +307,7 @@ struct SettingsView: View {
                 .accessibilityLabel("Open \(AppInfo.sourceLabel) in your browser")
                 Text(AppInfo.tagline)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
             }
             Section {
                 // 開く前にリンク先を見せる（decisions/0021 の「透明」）。
@@ -324,7 +324,7 @@ struct SettingsView: View {
                 // REQ-NFR-008
                 Text("Mdoro has no ads, no in-app purchases, and no analytics. If it is useful to you, this opens the page in your browser.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
             }
         }
         .formStyle(.grouped)
@@ -352,7 +352,7 @@ struct SettingsView: View {
                 .pickerStyle(.inline)
                 Text("The menu bar uses shape and text instead of color, because its background brightness changes.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
             }
         }
         .formStyle(.grouped)

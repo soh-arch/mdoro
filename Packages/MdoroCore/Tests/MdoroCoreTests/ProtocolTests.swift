@@ -40,7 +40,7 @@ struct MessageCodingTests {
         )
         let messages: [ServerMessage] = [
             .welcome(WelcomePayload(deviceToken: "tok", serverName: "Mac")),
-            .authFailed(AuthFailedPayload(code: .invalidPairingCode, message: "違います")),
+            .authFailed(AuthFailedPayload(code: .invalidPairingCode)),
             .timeSyncPong(TimeSyncPayload(t1: now, t2: now, t3: now)),
             .stateSnapshot(snapshot),
             .sessionEvent(SessionEventPayload(event: .reachedEnd, sessionType: .work,

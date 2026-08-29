@@ -49,6 +49,8 @@ private struct Recording {
     let directory: URL
     let text: String
     let events: [LoggedEvent]
+    // POL-047: what the app asked the notification centre for, had one been there.
+    let notifications: [RecordedNotifications.Call]
 
     func events(_ code: String) -> [LoggedEvent] { events.filter { $0.code == code } }
 }
@@ -68,11 +70,15 @@ private func record(
         settings: settings,
         savedAt: Date()
     )
+    // POL-047: 通知も受け口を差し替える。**この的は利用者の通知センターである。**
+    // これらのテストが読むのは診断ログであって通知ではない。
+    let notifications = RecordedNotifications()
     let model = AppModel(
         store: InMemoryStateStore(initial: saved),
         diagnostics: DiagnosticLog(directory: directory),
         // 空のブックマーク。ログの書き込みは `log.blocked` で止まり、利用者のフォルダに届かない。
-        bookmarks: VaultBookmarks()
+        bookmarks: VaultBookmarks(),
+        notifications: notifications
     )
     model.diagnostics.open(preset: preset, settings: settings)
     body(model)
@@ -86,7 +92,8 @@ private func record(
     return Recording(
         directory: directory,
         text: text,
-        events: text.split(separator: "\n").compactMap { LoggedEvent(String($0)) }
+        events: text.split(separator: "\n").compactMap { LoggedEvent(String($0)) },
+        notifications: notifications.calls
     )
 }
 
@@ -102,6 +109,28 @@ private func runOneSessionToItsEnd(_ model: AppModel, taskSnapshot: String) {
 @Suite("What the Mac writes to the diagnostic log (REQ-ERR-010 / Decision 0018 / 0034)")
 @MainActor
 struct DiagnosticLogTests {
+
+    // POL-047: this suite runs inside MdoroMac.app, so every notification it asked for was
+    // delivered to the person at the machine — two at a time, once per case below. The
+    // requests still have to be made, because what these tests read is the record the app
+    // writes of having made them. Only the destination changed.
+    @Test func theRequestsAreStillMadeAndNoneOfThemLeaveTheProcess() throws {
+        var preset = Preset.standard()
+        preset.notificationSound = .chime
+
+        let recording = try record(preset: preset) { model in
+            model.sendNotificationSoundTest(preset)
+            runOneSessionToItsEnd(model, taskSnapshot: "task")
+        }
+
+        // 診断ログは今までどおり書かれる。
+        #expect(recording.events("notify.test").count == 1)
+        #expect(recording.events("notify.finished").count == 1)
+        // そして配信はここで止まっている。
+        #expect(recording.notifications.contains(.soundTest(.chime)))
+        #expect(recording.notifications.contains(.sessionFinished(.work)))
+        #expect(recording.notifications.filter { $0 == .soundTest(.chime) }.count == 1)
+    }
 
     // Decision 0018: 読み手は issue を開いた第三者で、`chime` が何の音かを引く表がない。
     // 名前を落として raw value だけにすると、行は通るが読めなくなる。

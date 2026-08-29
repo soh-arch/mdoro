@@ -14,8 +14,7 @@ import Foundation
 // asset catalogue. `swift test` cannot link the app targets, and the Mac's own test target
 // does not run in CI, so this is where the rule can actually be held.
 
-// SwiftUI の色リテラル。`.clear` は色を持たないので除く。`.primary` / `.secondary` は
-// OS の意味色であって色相ではない（役割名への置き換えは意匠の判断なので、ここでは見ない）。
+// SwiftUI の色リテラル。`.clear` は色を持たないので除く。
 private let hueLiterals = [
     "red", "orange", "yellow", "green", "mint", "teal", "cyan", "blue",
     "indigo", "purple", "pink", "brown", "gray", "grey", "black", "white",
@@ -28,6 +27,55 @@ private let drawingSources = [
     "PomodoroMac/PomodoroiOS/Views",
     "PomodoroMac/PomodoroWidget",
 ]
+
+// POL-049: `.primary` / `.secondary` are not hues, which is why they were left out above —
+// but they are the OS choosing the text colour, and the app draws its own ground. Two
+// palettes on one surface do not agree; 8.5's text tokens are the ones REQ-COL-020 measures
+// against that ground, and the OS's are measured against nothing the app controls.
+private let systemTextColours = ["primary", "secondary"]
+
+// Everything that draws on a ground the app paints. **`PomodoroWidget` is not here.**
+//
+// REQ-UIX-027 (MUST) says the Live Activity must not take 8.5's tokens as they stand: it is
+// drawn over the reader's wallpaper, where the "対 --bg" guarantees of 8.5.3 do not hold —
+// the same exclusion REQ-COL-022 makes for the menu bar. `.primary` / `.secondary` there are
+// the system's own vibrancy over that ground. A palette colour would be fixed and guaranteed
+// against nothing, which is worse than a system colour that adapts. The extension also has no
+// `Theme` to ask: the appearance preference is per device (Decision 0027) and lives in the
+// app, so a role there would mean putting the preference on the wire.
+private let paletteOnlySources = [
+    "PomodoroMac/PomodoroMac/Views",
+    "PomodoroMac/PomodoroiOS/Views",
+]
+
+// `.primary,` `.primary)` and `Color.primary` are colours. `WidgetFontSize.secondary` is a
+// size and `theme.textSecondary` is already a role, so what is in front decides as much as
+// what follows: only the bare form and SwiftUI's own style types produce a colour.
+private let styleTypesThatCarryThem = ["", "Color", "ShapeStyle", "HierarchicalShapeStyle", "AnyShapeStyle"]
+
+private func osTextColours(in text: String) -> [String] {
+    var found: [String] = []
+    for name in systemTextColours {
+        var searched = text.startIndex..<text.endIndex
+        while let range = text.range(of: ".\(name)", range: searched) {
+            let next = range.upperBound
+            let ends = next == text.endIndex
+                || !(text[next].isLetter || text[next].isNumber || text[next] == "_")
+
+            var start = range.lowerBound
+            while start > text.startIndex {
+                let previous = text.index(before: start)
+                guard text[previous].isLetter || text[previous].isNumber || text[previous] == "_" else { break }
+                start = previous
+            }
+            let owner = String(text[start..<range.lowerBound])
+
+            if ends, styleTypesThatCarryThem.contains(owner) { found.append(".\(name)") }
+            searched = next..<text.endIndex
+        }
+    }
+    return found
+}
 
 // `.red,` `.red)` `Color.red` all match; `WidgetFontSize.secondary` and a name that merely
 // starts with one of these do not, because the character after has to end the token.
@@ -74,6 +122,51 @@ struct ColorLiteralTests {
         for directory in drawingSources {
             let files = try swiftFiles(under: directory, recursive: true)
             #expect(!files.isEmpty, "\(directory) は読めていない。移動したか、名前が変わっている")
+        }
+    }
+
+    // POL-049: the OS's text colours are a second palette on a ground the app painted.
+    @Test func noViewLetsTheOSChooseItsTextColour() throws {
+        for directory in paletteOnlySources {
+            for (name, text) in try swiftFiles(under: directory, recursive: true) {
+                let found = osTextColours(in: text)
+                #expect(
+                    found.isEmpty,
+                    "POL-049: \(name) writes \(found.joined(separator: ", ")) — ask the theme for textPrimary / textSecondary"
+                )
+            }
+        }
+    }
+
+    @Test func theScanTellsAColourFromAName() {
+        #expect(osTextColours(in: "Text(x).foregroundStyle(.secondary)") == [".secondary"])
+        #expect(osTextColours(in: "let c = Color.primary") == [".primary"])
+        #expect(osTextColours(in: ".foregroundStyle(on ? .secondary : .primary)") == [".primary", ".secondary"])
+        // Not colours: a font size, a role the theme already answers, a longer name.
+        #expect(osTextColours(in: "size: WidgetFontSize.secondary").isEmpty)
+        #expect(osTextColours(in: ".foregroundStyle(theme.textSecondary)").isEmpty)
+        #expect(osTextColours(in: "let x = value.primaryKey").isEmpty)
+    }
+
+    @Test func everyPaletteOnlyDirectoryIsActuallyRead() throws {
+        for directory in paletteOnlySources {
+            #expect(!(try swiftFiles(under: directory, recursive: true)).isEmpty,
+                    "\(directory) は読めていない。移動したか、名前が変わっている")
+        }
+    }
+
+    // The exclusion above has to stay a decision and not a path that quietly holds nothing.
+    // REQ-UIX-027 leaves the Live Activity to the system because it draws on the reader's
+    // wallpaper, and the extension has no `Theme` to name a role with. If a theme ever
+    // reaches it, that reasoning has changed and this test is where it gets read again.
+    @Test func theLiveActivityIsLeftToTheSystemOnPurpose() throws {
+        let widget = try swiftFiles(under: "PomodoroMac/PomodoroWidget", recursive: true)
+        #expect(!widget.isEmpty, "the widget は読めていない")
+        for (name, text) in widget {
+            #expect(
+                !text.contains("theme."),
+                "REQ-UIX-027: \(name) now has a palette to ask, so POL-049's exclusion needs revisiting"
+            )
         }
     }
 

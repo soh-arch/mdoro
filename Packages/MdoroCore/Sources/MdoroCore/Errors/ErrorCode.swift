@@ -22,10 +22,11 @@ public struct ErrorCode: Equatable, Hashable, Sendable, CustomStringConvertible 
         self.code = code
     }
 
-    // Codes in the `Mdoro` domain are fixed per case, and they are handed out in three
-    // places: the table below, `TimerError.errorCode` in Effect.swift, which owns 40–49, and
-    // `CommandTranslation.Parameter.errorCode`, which owns 50–59. Read all three before
-    // taking a number — `everyCodeInOurOwnDomainMeansOneThing` walks the union.
+    // Codes in the `Mdoro` domain are fixed per case, and they are handed out in four
+    // places: the table below, `TimerError.errorCode` in Effect.swift, which owns 40–49,
+    // `CommandTranslation.Parameter.errorCode`, which owns 50–59, and
+    // `AuthFailureCode.errorCode` in ProtocolTypes.swift, which owns 60–69. Read all four
+    // before taking a number — `everyCodeInOurOwnDomainMeansOneThing` walks the union.
     public init(own code: Int) {
         self.init(domain: Self.ownDomain, code: code)
     }
@@ -64,6 +65,8 @@ public extension ErrorCode {
     // exhaustively, so a new case cannot reach the diagnostic log without a number.
     // 50–59: the fields of a `command` (10.2). Owned by `CommandTranslation.Parameter`,
     // which switches exhaustively for the same reason.
+    // 60–69: refused connections (10.2 `authFailed.code`). Owned by `AuthFailureCode`,
+    // exhaustive for the same reason again.
 }
 
 // REQ-ERR-010 / Decision 0034: anything that reaches the diagnostic log's `why` field
