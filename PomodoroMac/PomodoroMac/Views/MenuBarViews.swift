@@ -1,20 +1,20 @@
 import SwiftUI
 import MdoroCore
 
-// REQ-UIX-030 / 032 / 035 / REQ-COL-022: メニューバーのラベル。
+// REQ-UIX-030 / 032 / 035 / REQ-COL-022: the label in the menu bar.
 // **No accent colour** (REQ-COL-022) — not because colour is unusable. The clause rests on
 // two things: a template image holds on a ground that varies, and the state must not ride on
 // colour alone. Facts: docs/PLATFORM.md.
-// 状態は形（テンプレート画像）とテキストで示す。
+// The state is shown by shape (a template image) and by text.
 struct MenuBarLabelView: View {
     let model: AppModel
 
-    // 時計はモデルが進める。
+    // The model moves the clock on.
     private var now: Date { model.displayNow }
 
     var body: some View {
         HStack(spacing: 4) {
-            // REQ-UIX-035 / Decision 0031: 印が示すのは**実行状態**であって接続状態ではない。
+            // REQ-UIX-035 / Decision 0031: what the mark shows is the **run state**, not the connection state.
             Image(MenuBarMark.mark(for: model.timer.runState).assetName)
             if let text {
                 Text(text).monospacedDigit()
@@ -40,7 +40,7 @@ struct MenuBarLabelView: View {
         }
     }
 
-    // REQ-UIX-038: 英語のみ。印が形で示す実行状態を、読み上げにも同じだけ言わせる。
+    // REQ-UIX-038: English only. What is read out says as much about the run state as the mark's shape does.
     private var accessibilityLabel: String {
         let remaining = Format.spokenRemaining(model.remainingSeconds(at: now))
         return [Format.sessionLabel(model.timer.sessionType),
@@ -50,12 +50,13 @@ struct MenuBarLabelView: View {
     }
 }
 
-// REQ-UIX-031 / Decision 0029: **危険度で階層を分ける。**
+// REQ-UIX-031 / Decision 0029: **the levels are split by how dangerous the action is.**
 //
-// 直下         … 取り返しのつく操作
-// 確認1段     … 中断・周回リセット（破壊的）
-// サブメニュー … 設定の一部（選ぶだけ）
-// 置かない     … プリセット編集・パス変更・ペアリング（不可逆か、外の世界に触る）
+// Top level        … actions that can be taken back
+// One confirmation … abort and reset the loop count (destructive)
+// Submenu          … part of the settings (only choosing)
+// Not here         … editing a preset, changing a path, pairing (irreversible, or touching the
+//                    outside world)
 struct MenuBarMenuContent: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
@@ -64,7 +65,7 @@ struct MenuBarMenuContent: View {
     private var isLive: Bool { model.timer.runState == .running || model.timer.runState == .paused }
 
     var body: some View {
-        // --- 直下 ---
+        // --- top level ---
         switch model.timer.runState {
         case .running:
             Button("Pause") { model.send(.pause) }
@@ -73,20 +74,20 @@ struct MenuBarMenuContent: View {
         case .idle, .finished:
             Button(nextSessionTitle) { model.startNextSession() }
         case .pendingDecision:
-            // REQ-UIX-036 / REQ-PER-005: 確認はメインウィンドウで行う。
+            // REQ-UIX-036 / REQ-PER-005: the confirming is done in the main window.
             Text("A decision is needed")
             Button("Open the main window") { openMain() }
         }
 
         if isLive {
             Button(nextSessionTitle) { model.startNextSession() }
-            // REQ-TIM-018: スキップは周回数を減らさない。取り返しがつく。
+            // REQ-TIM-018: skipping does not reduce the loop count. It can be taken back.
             Button("Skip") { model.send(.skip) }
         }
 
         Divider()
 
-        // REQ-UIX-007: プリセットが2件以上のときだけ切替を出す。
+        // REQ-UIX-007: the switcher appears only when there are two presets or more.
         if model.presets.presets.count >= 2 {
             Menu("Preset") {
                 ForEach(model.presets.presets) { candidate in
@@ -103,8 +104,8 @@ struct MenuBarMenuContent: View {
 
         Divider()
 
-        // --- 確認を1段はさむ ---
-        // **滑って押しても走らない。**
+        // --- one confirmation in between ---
+        // **A slip of the finger does not set it running.**
         if isLive || model.timer.runState == .finished {
             Menu("Stop…") {
                 Button("Confirm stop") { model.send(.abort) }
@@ -118,7 +119,8 @@ struct MenuBarMenuContent: View {
 
         Divider()
 
-        // REQ-UIX-004 / Decision 0031: Mac 側の接続状態はここと下帯だけ。**読むだけの1行。**
+        // REQ-UIX-004 / Decision 0031: on the Mac the connection state is here and in the bottom bar,
+        // nowhere else. **One line, to read only.**
         Text("iPhone: \(Format.connectionLabel(model.connection))")
         SettingsLink { Text("Settings…") }
         Button("Open Main Window") { openMain() }
@@ -126,7 +128,7 @@ struct MenuBarMenuContent: View {
         Button("Quit") { NSApplication.shared.terminate(nil) }
     }
 
-    // **選ぶだけで、外の世界には触らない。**
+    // **Only choosing; nothing here touches the outside world.**
     private var displayMenu: some View {
         Menu("Display") {
             Picker("Appearance", selection: Binding(
@@ -149,7 +151,7 @@ struct MenuBarMenuContent: View {
         }
     }
 
-    // REQ-TSK-004: タスクの選択はどちらの画面からでもできること。**長い一覧は打ち切る。**
+    // REQ-TSK-004: a task must be choosable from either screen. **A long list is cut short.**
     @ViewBuilder
     private var taskMenu: some View {
         let sections = model.tasks.grouped(showCompleted: model.settings.showCompletedTasks)
@@ -171,7 +173,8 @@ struct MenuBarMenuContent: View {
                         }
                     }
                 }
-                // **選択の解除は最下段。** 上だとタスクを選ぶつもりで押す。
+                // **Clearing the selection goes at the very bottom.** Higher up, it gets pressed by
+                // someone meaning to choose a task.
                 if model.tasks.selectedTaskId != nil {
                     Divider()
                     Button("Clear selection") { model.clearTaskSelection() }
@@ -182,9 +185,10 @@ struct MenuBarMenuContent: View {
 
     private static let taskMenuLimit = 20
 
-    // REQ-UIX-008: 時間構成を併記する。
-    // **文言は連結の前に引く。** `Text` に String を渡すと verbatim 初期化子に解決され、
-    // 抽出されない（Decision 0022）。印の ✓ は語ではないので、そのまま繋いでよい。
+    // REQ-UIX-008: the shape of the times is written alongside.
+    // **The wording is looked up before anything is joined on.** Pass a String to `Text` and it
+    // resolves to the verbatim initialiser and is not extracted (Decision 0022). The ✓ mark is not a
+    // word, so it may be appended as it is.
     private func presetMenuTitle(_ candidate: Preset) -> String {
         let shaped = String(localized: "\(candidate.name) (\(Format.presetShape(candidate)))")
         return candidate.id == preset.id ? shaped + " ✓" : shaped

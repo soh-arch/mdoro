@@ -1,6 +1,6 @@
 import Foundation
 
-// REQ-SEC-002: 発行済みトークンを再起動をまたいで覚えておく。
+// REQ-SEC-002: the tokens that have been issued are remembered across a restart.
 enum DeviceTokenStore {
     private static let key = "issuedDeviceTokens"
 

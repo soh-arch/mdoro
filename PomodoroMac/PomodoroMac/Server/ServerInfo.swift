@@ -2,26 +2,27 @@ import Foundation
 import Network
 import MdoroCore
 
-// REQ-COM-002: Bonjour 発見後のサーバー情報取得。
-// **認証を要さない代わりに、状態や設定を一切含めない。** LAN 内の誰でも叩ける。
+// REQ-COM-002: fetching the server information after Bonjour discovery.
+// **It asks for no authentication, and in return carries no state and no settings at all.** Anyone on
+// the LAN can hit it.
 struct ServerInfo: Codable, Equatable, Sendable {
     var serverName: String
     var protocolVersion: Int
     var isPairingMode: Bool
-    // 同期用 WebSocket の待ち受けポート。
+    // The port the WebSocket used for syncing listens on.
     var websocketPort: UInt16
 }
 
-// 最小の HTTP サーバー。`GET /info` だけに応じる。
-// WebSocket と同じポートに相乗りさせるとハンドシェイクを手で書くことになるため、
-// **HTTP は別ポートで待ち受け、Bonjour はこちらを広告する。**
+// The smallest possible HTTP server. It answers `GET /info` and nothing else.
+// Riding on the same port as the WebSocket would mean writing the handshake by hand, so
+// **HTTP listens on a port of its own, and that is the one Bonjour advertises.**
 final class InfoHTTPServer: @unchecked Sendable {
     private var listener: NWListener?
     private let queue = DispatchQueue(label: "MdoroMac.InfoHTTP")
 
-    // **応答はネットワーク側のキューで組み立てられる。** ここから MainActor の状態を読めない。
-    // `MainActor.assumeIsolated` で読もうとするとトラップして落ちる（実際に落とした）。
-    // 値を押し込む形にして、応答側はロック越しに読むだけにする。
+    // **The answer is assembled on the network side's queue.** The MainActor's state cannot be read
+    // from there. Try to read it with `MainActor.assumeIsolated` and it traps and crashes (it did
+    // crash). The values are pushed in instead, and the answering side only reads them through a lock.
     private let lock = NSLock()
     private var info: ServerInfo
 
@@ -62,7 +63,7 @@ final class InfoHTTPServer: @unchecked Sendable {
         port = nil
     }
 
-    // Bonjour で広告する。サービス型は `_mdoro._tcp`（REQ-COM-003）。
+    // Advertised over Bonjour. The service type is `_mdoro._tcp` (REQ-COM-003).
     func advertise(serviceName: String, websocketPort: UInt16) {
         listener?.service = NWListener.Service(
             name: serviceName,

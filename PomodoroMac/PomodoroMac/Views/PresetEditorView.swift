@@ -2,8 +2,9 @@ import SwiftUI
 import AppKit
 import MdoroCore
 
-// REQ-PRS / 9.2: プリセットの編集。
-// REQ-UIX-009: 「次のセッションから適用される」項目と「即座に適用される」項目を視覚的に区別する（9.5）。
+// REQ-PRS / 9.2: editing the presets.
+// REQ-UIX-009: the items that "apply from the next session" and the items that "apply immediately"
+// are told apart by eye (9.5).
 struct PresetEditorView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.theme) private var theme
@@ -23,7 +24,7 @@ struct PresetEditorView: View {
                 Text("Choose a preset").foregroundStyle(theme.textSecondary).padding()
             }
         }
-        // 設定は macOS 側でいつでも変わる。開くたびに見に行く。
+        // The settings can change on the macOS side at any moment. They are read again every time this opens.
         .task { await model.refreshNotificationPermission() }
     }
 
@@ -43,13 +44,13 @@ struct PresetEditorView: View {
             }
             Divider()
             HStack(spacing: 4) {
-                // REQ-PRS-003: 上限 10 件。
+                // REQ-PRS-003: at most 10.
                 Button { create() } label: { Image(systemName: "plus") }
                     .disabled(model.presets.presets.count >= 10)
                     .help(model.presets.presets.count >= 10 ? "Up to 10 presets" : "Add")
                 Button { duplicate() } label: { Image(systemName: "plus.square.on.square") }
                     .disabled(selected == nil)
-                // REQ-PRS-004: 使用中のプリセットと最後の1件は削除できない。
+                // REQ-PRS-004: the preset in use and the last one left cannot be deleted.
                 Button { delete() } label: { Image(systemName: "minus") }
                     .disabled(!canDelete)
                 Spacer()
@@ -78,41 +79,42 @@ struct PresetEditorView: View {
             } header: {
                 Text("Identity")
             } footer: {
-                // 9.5 C 群
+                // 9.5 group C
                 groupNote("Applies immediately. The log keeps the name from when the session started.")
             }
 
             Section {
-                // REQ-COL-010 / 011: 種別には `-text` のみ。名前を併記するので色だけに頼らない。
+                // REQ-COL-010 / 011: only `-text` for a session type. The name is written alongside, so
+                // nothing rides on colour alone.
                 minuteStepper("Focus", binding(preset, \.workSeconds), range: 1...180, role: .sessionFocus)
                 minuteStepper("Short Break", binding(preset, \.shortBreakSeconds), range: 1...60, role: .sessionShortBreak)
                 minuteStepper("Long Break", binding(preset, \.longBreakSeconds), range: 1...60, role: .sessionLongBreak)
             } header: {
                 Text("Session lengths")
             } footer: {
-                // REQ-UIX-009 / 9.5 A 群: 実行中の sessionEndAt は変えない。
+                // REQ-UIX-009 / 9.5 group A: the sessionEndAt of a running session is not changed.
                 groupNote("Applies **from the next session**. The end time of a running session does not change.")
             }
 
             Section {
-                // REQ-UIX-047: 「ラベル・数値・増減・単位」の並びに揃える。
+                // REQ-UIX-047: laid out in the order label, value, stepper, unit.
                 countStepper("Long break every", binding(preset, \.longBreakInterval),
                              range: 2...12, unit: "loops")
                 minuteStepper("Each extension", binding(preset, \.extendSeconds), range: 1...30)
-                // REQ-TIM-011（SHOULD）は未実装。**実装していない機能の操作盤を出さない。**
-                // 実装するときは REQ-TIM-043 と一緒に戻すこと。
+                // REQ-TIM-011 (SHOULD) is not implemented. **No controls are shown for a feature that
+                // is not there.** When it is implemented, bring this back together with REQ-TIM-043.
             } header: {
                 Text("Flow")
             } footer: {
-                // 9.5 B 群
+                // 9.5 group B
                 groupNote("Applies **immediately, including to a running session**.")
             }
 
             Section {
-                // 素の HStack だと Form の中で上端に張り付く。`LabeledContent` で行の中心に揃える。
+                // A bare HStack sticks to the top edge inside a Form. `LabeledContent` centres it in the row.
                 LabeledContent {
                     HStack {
-                        // Decision 0020: 音色の選択は Mac 専用。
+                        // Decision 0020: choosing the sound is for the Mac alone.
                         Picker("", selection: binding(preset, \.notificationSound)) {
                             ForEach(NotificationSound.allCases, id: \.self) { sound in
                                 Text(sound.displayName).tag(sound)
@@ -120,7 +122,7 @@ struct PresetEditorView: View {
                         }
                         .labelsHidden()
                         .fixedSize()
-                        // Decision 0019: 本番と同じ経路で通知を1件送る。
+                        // Decision 0019: send one notification down the same path production uses.
                         Button("Send a test") { model.sendNotificationSoundTest(preset) }
                             .help("Sends one notification with this setting")
                     }
@@ -128,7 +130,7 @@ struct PresetEditorView: View {
                     Text("Mac notification sound")
                 }
                 groupNote("Chosen from the macOS system sounds. **This choice only affects the Mac.** iPhone uses the iOS default sound. Silent applies to both.")
-                // 鳴らない理由がアプリの外にあるなら、アプリが言う。
+                // If the reason nothing sounds lies outside the app, the app is the one that says so.
                 // REQ-COL-001 / 002: the role, not the hue. Both lines say the same thing —
                 // notifications may not reach you, and the fix is outside this app — so they
                 // keep one role between them. `warning`: the timer itself runs either way.
@@ -149,7 +151,7 @@ struct PresetEditorView: View {
         .formStyle(.grouped)
     }
 
-    // REQ-NTF-020: 予告通知のトリガは 0〜2 個。
+    // REQ-NTF-020: zero to two pre-notification triggers.
     @ViewBuilder
     private func preNotificationEditor(_ preset: Preset) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -158,7 +160,8 @@ struct PresetEditorView: View {
             ForEach(Array(preset.preNotifications.enumerated()), id: \.offset) { index, trigger in
                 HStack {
                     Text(describe(trigger, in: preset))
-                    // REQ-NTF-021: 発火時刻がセッション開始以前になる場合はスケジュールされない旨を示す。
+                    // REQ-NTF-021: show that a trigger whose fire time falls at or before the session
+                    // start is not scheduled.
                     if !canFire(trigger, in: preset) {
                         // REQ-COL-001 / 002: the role, not the hue. `warning`: the trigger is
                         // valid, it just cannot fire while the session is this short.
@@ -176,13 +179,13 @@ struct PresetEditorView: View {
 
             if preset.preNotifications.count < 2 {
                 Menu("Add a trigger") {
-                    // Decision 0012: 残り1〜15分を1分単位。
+                    // Decision 0012: one to fifteen minutes left, in steps of a minute.
                     Menu("By time left") {
                         ForEach(1...15, id: \.self) { minutes in
                             Button("\(minutes) min left") { addTrigger(preset, .beforeEnd(seconds: minutes * 60)) }
                         }
                     }
-                    // 経過 50〜95% を5刻み。
+                    // 50% to 95% elapsed, in steps of five.
                     Menu("By percent elapsed") {
                         ForEach(Array(stride(from: 50, through: 95, by: 5)), id: \.self) { percent in
                             Button("at \(percent)% elapsed") { addTrigger(preset, .atElapsedPercent(percent)) }
@@ -194,7 +197,7 @@ struct PresetEditorView: View {
         }
     }
 
-    // 追加メニューの項目（`Button` の題）と同じ鍵になるよう、同じ書き方で組む。
+    // Written the same way as the items in the add menu (the `Button` titles), so that it makes the same key.
     private func describe(_ trigger: PreNotification, in preset: Preset) -> LocalizedStringKey {
         switch trigger {
         case let .beforeEnd(seconds): return "\(seconds / 60) min left"
@@ -202,7 +205,7 @@ struct PresetEditorView: View {
         }
     }
 
-    // REQ-NTF-021: 発火時刻がセッション開始時刻以前になるものは鳴らない。
+    // REQ-NTF-021: one whose fire time falls at or before the session start time never sounds.
     private func canFire(_ trigger: PreNotification, in preset: Preset) -> Bool {
         let start = Date()
         let end = start.addingTimeInterval(TimeInterval(preset.workSeconds))
@@ -211,16 +214,16 @@ struct PresetEditorView: View {
         ).isEmpty
     }
 
-    // REQ-UIX-009: 適用タイミング（9.5 の A / B / C 群）の注記。
-    // **`LocalizedStringKey` で受ける。** `String` を `LocalizedStringKey(_:)` に通すと
-    // 実行時に鍵が組まれ、Xcode の抽出対象から外れる（Decision 0022）。
+    // REQ-UIX-009: the note on when a change applies (groups A / B / C of 9.5).
+    // **Taken as a `LocalizedStringKey`.** Put a `String` through `LocalizedStringKey(_:)` and the key
+    // is built at run time, which takes it outside what Xcode extracts (Decision 0022).
     private func groupNote(_ markdown: LocalizedStringKey) -> some View {
         Text(markdown)
             .font(.footnote)
             .foregroundStyle(theme.textSecondary)
     }
 
-    // MARK: - 編集の適用
+    // MARK: - Applying an edit
 
     private func binding<V>(_ preset: Preset, _ keyPath: WritableKeyPath<Preset, V>) -> Binding<V> {
         Binding(
@@ -236,10 +239,11 @@ struct PresetEditorView: View {
     private func minuteStepper(
         _ title: LocalizedStringKey, _ seconds: Binding<Int>, range: ClosedRange<Int>, role: ColorRole? = nil
     ) -> some View {
-        // REQ-CFG-011 / 012: UI は分単位、内部は秒。直接入力とステッパーの両方を出す。
+        // REQ-CFG-011 / 012: the UI is in minutes, the inside is in seconds. Both direct entry and a
+        // stepper are offered.
         HStack {
-            // REQ-COL-011: 使ってよいのは `-graphic` と `-text` だけ。**帯は使えない。**
-            // 色付きの文字だけでは弱いので図形を添える。
+            // REQ-COL-011: only `-graphic` and `-text` may be used. **The banner treatment is not
+            // available.** Coloured text on its own is too weak, so a shape goes with it.
             if let role {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(theme.color(role, .graphic))
@@ -265,7 +269,7 @@ struct PresetEditorView: View {
         }
     }
 
-    // 分ではない数値（周回など）。並びは minuteStepper と揃える。
+    // A value that is not in minutes (loops and the like). The layout matches minuteStepper.
     private func countStepper(
         _ title: LocalizedStringKey, _ value: Binding<Int>, range: ClosedRange<Int>, unit: LocalizedStringKey
     ) -> some View {
@@ -306,8 +310,9 @@ struct PresetEditorView: View {
 
     private func create() {
         var new = Preset.standard(id: UUID().uuidString)
-        // **保存される値であって画面の文言ではない。** 利用者はこの場で改名でき、以後この文字列は
-        // プリセットの中身として持ち回られる（`Preset.standard()` の "Standard" と同じ扱い）。
+        // **A value that gets saved, not wording on the screen.** The user can rename it right here, and
+        // from then on this string is carried around as the content of the preset (treated the same as
+        // "Standard" in `Preset.standard()`).
         new.name = "New Preset"
         new.isBuiltInDefault = false
         errorMessage = message(for: model.send(.createPreset(new)))

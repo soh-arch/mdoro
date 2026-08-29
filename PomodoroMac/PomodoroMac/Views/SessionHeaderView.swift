@@ -1,8 +1,10 @@
 import SwiftUI
 import MdoroCore
 
-// REQ-UIX-002 / 003 / 013: セッション種別を色と文言の両方で示し、周回数を n / interval で表示する。
-// REQ-COL-011: 使えるのは -graphic と -text のみ。帯は warning に予約されており ColorRole が拒否する。
+// REQ-UIX-002 / 003 / 013: the session type is shown in both colour and words, and the loop count as
+// n / interval.
+// REQ-COL-011: only -graphic and -text may be used. The banner treatment is reserved for warning, and
+// ColorRole refuses it.
 struct SessionHeaderView: View {
     @Environment(\.theme) private var theme
     let sessionType: SessionType
@@ -14,7 +16,7 @@ struct SessionHeaderView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            // REQ-COL-010 / 013: 色だけに頼らせない。線種でも区別する。
+            // REQ-COL-010 / 013: nothing rides on colour alone. The stroke style tells them apart too.
             ProgressRingGlyph(style: sessionType.progressRingStyle)
                 .foregroundStyle(theme.color(role, .graphic))
                 .frame(width: 14, height: 14)
@@ -31,7 +33,7 @@ struct SessionHeaderView: View {
 
             Spacer()
 
-            // REQ-UIX-003: 次が長い休憩であることが事前にわかるようにする。
+            // REQ-UIX-003: that the next one is a long break must be knowable in advance.
             Text("\(loopDisplay) / \(longBreakInterval)")
                 .font(.subheadline.monospacedDigit())
                 .foregroundStyle(theme.textSecondary)
@@ -40,7 +42,7 @@ struct SessionHeaderView: View {
     }
 }
 
-// REQ-COL-013: Focus は実線、短い休憩は細い実線、長い休憩は二重線。
+// REQ-COL-013: Focus is a solid line, a short break a thin solid line, a long break a double line.
 struct ProgressRingGlyph: View {
     let style: ProgressRingStyle
 

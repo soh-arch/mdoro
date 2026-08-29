@@ -1,12 +1,12 @@
 import Foundation
 import MdoroCore
 
-// REQ-PLT-003 / 005: サンドボックス下でユーザーが選んだファイルへ、再起動をまたいで到達するための
-// セキュリティスコープ付きブックマーク。
+// REQ-PLT-003 / 005: security-scoped bookmarks, so that a file the user chose can be reached under
+// the sandbox across a restart.
 //
-// `Task.md` 側は `securityScopeAllowOnlyReadAccess` を付けて生成する。
-// 「書き込まない」をコードの規律だけで担保するといつか誰かが破るため、**OS が拒否する状態を作る**
-// （3原則の1つ目 / Decision 0002）。
+// The one for `Task.md` is created with `securityScopeAllowOnlyReadAccess`.
+// Rest "we do not write" on the discipline of the code alone and one day someone breaks it, so
+// **a state the OS itself refuses** is made instead (the first principle / Decision 0002).
 enum VaultFileAccess {
 
     enum AccessError: Error, Equatable {
@@ -15,7 +15,7 @@ enum VaultFileAccess {
         case accessDenied
     }
 
-    // MARK: - ブックマークの生成
+    // MARK: - Creating a bookmark
 
     static func readOnlyBookmark(for url: URL) throws -> Data {
         try bookmark(for: url, options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess])
@@ -26,7 +26,7 @@ enum VaultFileAccess {
     }
 
     private static func bookmark(for url: URL, options: URL.BookmarkCreationOptions) throws -> Data {
-        // ファイル選択ダイアログから受け取った URL は、その時点でスコープが開いている。
+        // A URL received from the file-choosing dialog already has its scope open at that point.
         do {
             return try url.bookmarkData(options: options, includingResourceValuesForKeys: nil, relativeTo: nil)
         } catch {
@@ -34,7 +34,7 @@ enum VaultFileAccess {
         }
     }
 
-    // MARK: - 解決とアクセス
+    // MARK: - Resolving, and access
 
     struct Resolved {
         let url: URL
@@ -56,10 +56,11 @@ enum VaultFileAccess {
         }
     }
 
-    // REQ-PLT-005: `startAccessingSecurityScopedResource()` と `stop...` を必ず対で呼ぶ。
+    // REQ-PLT-005: `startAccessingSecurityScopedResource()` and `stop...` are always called as a pair.
     //
-    // 対にし損ねるとカーネル側のリソースが解放されず、いずれアクセスできなくなる。
-    // 呼び忘れを構造的に防ぐため、この関数の外へ URL を持ち出してアクセスしない。
+    // Fail to pair them and the resource on the kernel side is never released, until in the end
+    // nothing can be accessed. To keep a forgotten call out by construction, the URL is never carried
+    // outside this function to be accessed.
     static func withAccess<T>(to bookmark: Data, perform work: (URL) throws -> T) throws -> T {
         let resolved = try resolve(bookmark)
         guard resolved.url.startAccessingSecurityScopedResource() else {
@@ -69,8 +70,8 @@ enum VaultFileAccess {
         return try work(resolved.url)
     }
 
-    // 監視のようにアクセスを継続したい用途では、開始と終了を呼び出し側が持つ。
-    // その場合も `stop` を deinit などで必ず対にすること。
+    // Where access has to be held open — watching, for one — the caller holds the start and the end.
+    // Even then, `stop` must be paired with it, in deinit or somewhere like it.
     static func beginAccess(to bookmark: Data) throws -> URL {
         let resolved = try resolve(bookmark)
         guard resolved.url.startAccessingSecurityScopedResource() else {
@@ -124,11 +125,13 @@ extension VaultFileAccess.AccessError: ReportableError {
     }
 }
 
-// ブックマークの保管。パスは表示用に AppSettings が持つが、実際に到達できるのはこちらだけ。
+// Where the bookmarks are kept. AppSettings holds the paths for display, but this is the only thing
+// that can actually reach the files.
 struct VaultBookmarks: Codable, Equatable, Sendable {
     var taskFile: Data?
-    // Decision 0015: ログ側は**フォルダ**のブックマーク。
-    // ファイル単位の許可では、原子的書き込みに要る一時ファイルを同じ場所に作れない。
+    // Decision 0015: on the log side the bookmark is for a **folder**.
+    // With permission for a single file, the temporary file an atomic write needs cannot be created in
+    // the same place.
     var logFolder: Data?
 
     static let storageKey = "vaultBookmarks"

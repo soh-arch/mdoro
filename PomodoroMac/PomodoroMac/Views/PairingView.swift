@@ -1,7 +1,8 @@
 import SwiftUI
 import MdoroCore
 
-// REQ-SEC-001: 初回接続時は Mac 画面に6桁のペアリングコードを表示し、iPhone に入力させる。
+// REQ-SEC-001: on the first connection the Mac screen shows a six-digit pairing code, and the iPhone
+// is where it is typed in.
 struct PairingSection: View {
     @Environment(\.theme) private var theme
     @Environment(AppModel.self) private var model
@@ -13,7 +14,8 @@ struct PairingSection: View {
                     Text(formatted(code))
                         .font(.system(size: 34, weight: .medium, design: .rounded).monospacedDigit())
                         .textSelection(.enabled)
-                    // REQ-SEC-003: 3分間のみ有効。残り時間を出さないと失効の理由が分からない。
+                    // REQ-SEC-003: valid for three minutes only. Without the remaining time on show,
+                    // there is no telling why it expired.
                     Text("Enter this code in the iPhone app (\(model.pairingRemainingSeconds) s left)")
                         .font(.footnote)
                         .foregroundStyle(theme.textSecondary)
@@ -31,7 +33,7 @@ struct PairingSection: View {
             }
 
             if let error = model.serverStartError {
-                // REQ-SEC-005 / REQ-ERR-014: 待ち受けられない事実を隠さない。
+                // REQ-SEC-005 / REQ-ERR-014: the fact that it cannot listen is not hidden.
                 // REQ-ERR-010 / Decision 0034: the model hands over a finished sentence.
                 // The reason is no longer here — it is a code in the diagnostic log.
                 // REQ-COL-001 / 002: the role, not the hue. `danger` is the hue this line
@@ -46,7 +48,7 @@ struct PairingSection: View {
         }
     }
 
-    // 3桁ずつに割ると読み上げやすい。
+    // Split into threes, it is easier to read out.
     private func formatted(_ code: String) -> String {
         guard code.count == 6 else { return code }
         let middle = code.index(code.startIndex, offsetBy: 3)
@@ -54,8 +56,9 @@ struct PairingSection: View {
     }
 }
 
-// REQ-SEC-004: 接続中に新たな要求が来たら確認を出し、承認された場合のみ受け入れる。
-// **確認は60秒でタイムアウトし、既定は拒否。**
+// REQ-SEC-004: a new request arriving while connected raises a confirmation, and it is accepted only
+// on approval.
+// **The confirmation times out after 60 seconds, and the default is to refuse.**
 struct ConnectionRequestBanner: View {
     @Environment(\.theme) private var theme
     @Environment(AppModel.self) private var model

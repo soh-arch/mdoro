@@ -1,7 +1,8 @@
 import Foundation
 
-// REQ-PER-006: RUNNING の間だけ**アイドルスリープ**を抑止する。ディスプレイのスリープは抑止しない。
-// 蓋を閉じるなど抑止できない経路は REQ-PER-003 の復帰処理が扱うので、best effort でよい。
+// REQ-PER-006: **idle sleep** is held off only while RUNNING. Display sleep is not held off.
+// The paths that cannot be held off — closing the lid, for one — are handled by the restore of
+// REQ-PER-003, so best effort is enough.
 final class IdleSleepGuard {
     private var activity: NSObjectProtocol?
 
