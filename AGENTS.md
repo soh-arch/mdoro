@@ -77,16 +77,19 @@ a valid signature — an unsigned build will not deliver them.
 
 ## Style
 
-- **Code comments are English**, and short. Do not explain what the code already says.
-  No commented-out code, no notes about what used to be there.
+- **Everything this project ships is written in English**: identifiers, code comments, and
+  every string the app itself produces. Strings read from the user's files and strings the
+  user typed are passed through untouched — never translated, never normalised.
+- **The language you write your commits and pull requests in is your own.** Cite the
+  requirement ID; the words around it are yours.
+- Keep comments short. Do not explain what the code already says. No commented-out code,
+  no notes about what used to be there.
 - Cite the requirement ID that justifies non-obvious behaviour:
   `// REQ-TIM-035: the only way out of FINISHED is IDLE`.
-- Every string the app itself produces is English. Strings read from the user's files and
-  strings the user typed are passed through untouched — never translated, never normalised.
 
 ## Requirements and decisions
 
-`docs/SPEC.md` is the single source of truth for what Mdoro does: 242 requirements, each with
+`docs/SPEC.md` is the single source of truth for what Mdoro does: 243 requirements, each with
 an ID like `REQ-TIM-035`. `docs/decisions/` records why things were decided the way they were.
 
 **Those documents are written in Japanese.** You do not need to read Japanese to contribute —
@@ -99,7 +102,13 @@ and ask.** Do not guess. A guess that ships becomes a requirement nobody chose.
 ## Pull requests
 
 - Branch per change. **One PR does one thing.**
-- Conventional Commits, in English, citing the requirement ID.
+- **Conventional Commits.** Subject line is `type: summary`. The types in use are `feat`,
+  `fix`, `docs`, `refactor`, `test`, `chore`, `build`. **No scope** — this repo has never
+  used one. Write the summary as a statement, not a label.
+- **Name the requirement ID your change rests on**, in the commit body. A `Refs REQ-TIM-035`
+  trailer at the end keeps the history greppable. This is the part that matters: it is how a
+  maintainer checks a change against `docs/SPEC.md` without reconstructing your reasoning,
+  and `docs/` is in Japanese, so the ID may be the only thing you and the maintainer both read.
 - `swift test` must pass. CI runs it on every pull request.
 - A human merges. Nothing lands on `main` directly.
 
