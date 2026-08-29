@@ -310,7 +310,7 @@ Git に入っていないため、失われると復元できない。
 | `SPEC.md` | **v2.21 / 243要件** |
 | `decisions/` | **0001〜0038** |
 | `platform/` | **0001**（ロック画面の背景）/ **0002**（開始と更新の門）/ **0003**（メニューバーの地と色）/ **0004**（データ上限とネットワーク）/ **0005**（ローカルネットワークと接続に要る設定）/ **0006**（SF Symbols のカタログと可用性） |
-| `PUNCHLIST.md` | **done 61 / open 19 / 決定済み 3 / deferred 1 / rejected 1 / 不要 1**（計 86。**実測した値であり、目算ではない**） |
+| `PUNCHLIST.md` | **done 64 / open 16 / 決定済み 3 / deferred 1 / rejected 1 / 不要 1**（計 86。**実測した値であり、目算ではない**） |
 | テスト | `swift test` **275件 / 49スイート**。Mac 側 5件、iOS 側 3件（**`xcodebuild test` が要る。CI は `swift test` のみ**） |
 
 **役は5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / **platform-researcher**。
@@ -342,7 +342,7 @@ POL-057 で直した結果）。**根拠なし 46件。** 一覧は `PUNCHLIST.m
 **コードが独自にプラットフォームの事実を主張している箇所が26件**。一覧は `PUNCHLIST.md` の付録。
 
 **残っている open**: POL-053〜056（工程14c の残り・いずれも minor）/ 059（Widget のコメント）/
-**軸 K の POL-059 / 062〜080**。**blocker は無い。**
+**軸 K の POL-074 / 078 / 079 / 081〜084**。**blocker は無い。**
 
 **次にやること**: 工程14a（コメントの英語化。**行数を実測し直す**）→ 工程14b の軸 E / F / H / I / J →
 **工程15（README の作り直し）** → 工程16（軸 G）→ 公開。
