@@ -51,6 +51,11 @@ iOS app on the simulator:
 set -o pipefail && xcodebuild -project ./PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroiOS -destination 'platform=iOS Simulator,name=iPhone 17' build | xcbeautify
 ```
 
+**The Simulator cannot exercise the connection.** It does not implement local network privacy
+at all, so the permission prompt this app depends on never appears and never denies — Apple's
+own guidance is to test that behaviour on a real device (`docs/PLATFORM.md`). The Simulator
+builds and runs the UI; **pairing a Mac and an iPhone has to happen on hardware.**
+
 Xcode 26.6 / Swift 6.3. To build the apps, put your signing team in
 `Config/Signing.local.xcconfig`, which git ignores:
 
@@ -58,10 +63,17 @@ Xcode 26.6 / Swift 6.3. To build the apps, put your signing team in
 DEVELOPMENT_TEAM = ABCDE12345
 ```
 
-Nothing else is needed, and nothing you do there shows up in a diff. Without a team the
-apps still build and macOS signs them to run locally; notifications need a real signature,
-so set the team before testing those. Local notifications need no capability, but they do need
-a valid signature — an unsigned build will not deliver them.
+Nothing else is needed, and nothing you do there shows up in a diff. Without a team the apps
+still build and run locally — macOS signs them ad-hoc, which is enough to launch and not enough
+to notify.
+
+**Set a team before you touch anything to do with notifications.** Local notifications need no
+capability, but they do need a real signature, and an ad-hoc build fails in a way that looks
+like nothing at all: `requestAuthorization` never resolves the permission, which stays
+`notDetermined`; `add()` reports success and delivers nothing; and the app never appears in
+System Settings, so there is no setting to go and check. If you are staring at a silent build,
+run `codesign -dv` on the bundle — `Signature=adhoc` with an `Identifier` that does not match
+the bundle ID is this and nothing else.
 
 ## Where code goes
 
