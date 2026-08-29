@@ -13,6 +13,9 @@ import MdoroCore
 struct TestHostDetectionTests {
 
     @Test func theHostAppSeesThatThisIsATestRun() {
-        #expect(TestHost.isRunning, "XCTestConfigurationFilePath is unset in the host process")
+        #expect(
+            TestHost.isRunning,
+            "POL-111: neither variable the launcher writes is set in the host process"
+        )
     }
 }
