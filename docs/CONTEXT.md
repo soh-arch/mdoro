@@ -349,7 +349,7 @@ POL-057 で直した結果）。**根拠なし 46件。** 一覧は `PUNCHLIST.m
 | 回 | 対象 | 行数 | 状態 |
 | :-- | :---- | --: | :---- |
 | 1 | `MdoroCore` / Sources | 413 | **完了**（38ファイル。`docs/english-comments-core`） |
-| 2 | Mac | 369 | 未着手（`AppModel.swift` 116行を含む） |
+| 2 | Mac | 369 | **翻訳済み・未検証**（`docs/english-comments-mac` の `75ad8d6`）。**Mac ターゲットのビルドと検証役が未了。PR を出す前に両方を通すこと** |
 | 3 | iOS ＋ Widget | 222 | 未着手（**POL-084 を同じ回で**） |
 | 4 | Tests 全部 ＋ `Tools` | 310 | 未着手（**CI の失敗メッセージ68件を英語化する。人間の決定・2026-08-29**） |
 
