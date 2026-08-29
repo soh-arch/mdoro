@@ -2,7 +2,7 @@
 
 このファイルは**今の状態だけ**を書く。経緯は書かない。経緯が必要なら `docs/decisions/` を参照する。
 
-- 要件の正本: `SPEC.md`（v2.18、243要件）
+- 要件の正本: `SPEC.md`（v2.19、243要件）
 - 運用の正本: `CLAUDE.md`
 - 判断と意図の正本: `docs/decisions/`
 - ビルド手順・環境: `docs/DEVELOPMENT.md`
@@ -307,7 +307,7 @@ Git に入っていないため、失われると復元できない。
 
 | 正本 | 状態 |
 | :---- | :---- |
-| `SPEC.md` | **v2.18 / 243要件** |
+| `SPEC.md` | **v2.19 / 243要件** |
 | `decisions/` | **0001〜0038** |
 | `platform/` | **0001**（ロック画面の背景）/ **0002**（Live Activity の開始と更新の門）/ **0003**（メニューバーの地と色） |
 | `PUNCHLIST.md` | **done 50 / review 2 / open 16 / deferred 1 / rejected 1** |
@@ -658,7 +658,7 @@ Mac のメインウィンドウで、接続要求の帯が増えたときに**�
 ### Live Activity のボタンは、suspend 中は必ず無反応になる
 
 `LiveActivityIntent.perform()` はアプリ本体のプロセスで走るが、
-**iPhone が suspend されていれば WebSocket は切れている**（§3）。
+**iPhone が suspend されていればアプリのコードは実行されない**（`PLATFORM.md`「Live Activity — 開始と更新の門」）。
 接続を前提にしたハンドラは、そこで必ず false を返す。
 アプリが終了していれば、ハンドラを差し込む画面すら作られない。
 
