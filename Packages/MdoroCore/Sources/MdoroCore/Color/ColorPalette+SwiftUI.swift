@@ -1,7 +1,7 @@
 #if canImport(SwiftUI)
 import SwiftUI
 
-// REQ-COL-001 / REQ-PRT-001: ビュー内に色リテラルを書かせないための橋渡し。
+// REQ-COL-001 / REQ-PRT-001: the bridge that keeps colour literals out of the views.
 
 public extension SwiftUI.Color {
     init(_ token: SRGBColor) {
@@ -14,14 +14,15 @@ public extension SwiftUI.Color {
 }
 
 public extension ColorMode {
-    // REQ-COL-003: システムの外観設定に追従する経路。固定は UI 層が ColorMode を直接指定する。
+    // REQ-COL-003: the path that follows the system appearance. To fix it instead, the UI layer
+    // names a ColorMode itself.
     init(_ scheme: SwiftUI.ColorScheme) {
         self = scheme == .dark ? .dark : .light
     }
 }
 
 public extension ColorPalette {
-    // REQ-COL-002: 役割名で引く。色相名トークンを直接参照させない。
+    // REQ-COL-002: looked up by role name. A hue token is never referenced directly.
     func color(_ role: ColorRole, _ hueRole: HueRole) -> SwiftUI.Color {
         SwiftUI.Color(role.color(hueRole, in: self))
     }

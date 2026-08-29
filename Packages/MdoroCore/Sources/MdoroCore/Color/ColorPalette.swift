@@ -1,20 +1,21 @@
 import Foundation
 
-// REQ-COL-003: ライト／ダークの2系統。システム追従・固定の3択は UI 層が解決し、ここには持ち込まない。
+// REQ-COL-003: two palettes, light and dark. The three-way choice — follow the system, or fix
+// either one — is resolved by the UI layer and never reaches here.
 public enum ColorMode: String, CaseIterable, Sendable {
     case light
     case dark
 }
 
-// REQ-COL-002 / 8.5.2: ビューはこれを直接参照しない。参照するのは ColorRole。
+// REQ-COL-002 / 8.5.2: views never reference this directly. They reference ColorRole.
 public enum ColorHue: String, CaseIterable, Sendable {
-    case ink    // 藍 235°
-    case sage   // 青磁 142°
-    case ochre  // 黄土 66°
-    case clay   // 弁柄 30°
+    case ink    // ai (indigo), 235°
+    case sage   // seiji (celadon), 142°
+    case ochre  // odo (yellow ochre), 66°
+    case clay   // bengara (red ochre), 30°
 }
 
-// 8.5.3 の5役。**役を取り違えるとコントラスト保証が消える。**
+// The five roles of 8.5.3, with the hover and on-solid variants. **Take the wrong one and the contrast guarantee is gone.**
 public enum HueRole: String, CaseIterable, Sendable {
     case subtle
     case subtleHover
@@ -43,7 +44,8 @@ public struct HueSet: Sendable {
     }
 }
 
-// 8.5.3 トークン定義。REQ-COL-001: 色の唯一の出典。ビュー内に色リテラルを書いてはならない。
+// 8.5.3 token definitions. REQ-COL-001: the only source of colour. No colour literal may be
+// written inside a view.
 public struct ColorPalette: Sendable {
     public let bg: SRGBColor            // --bg
     public let bgSunken: SRGBColor      // --bg-sunken
@@ -57,8 +59,8 @@ public struct ColorPalette: Sendable {
     public let textSecondary: SRGBColor // --text-muted
     public let textPrimary: SRGBColor   // --text
     public let focusRing: SRGBColor     // --focus-ring
-    public let overlay: SRGBColor       // --overlay の色成分
-    public let overlayOpacity: Double   // --overlay の不透明度
+    public let overlay: SRGBColor       // the colour component of --overlay
+    public let overlayOpacity: Double   // the opacity of --overlay
 
     private let ink: HueSet
     private let sage: HueSet
@@ -78,7 +80,7 @@ public struct ColorPalette: Sendable {
         self.hue(hue)[role]
     }
 
-    // REQ-COL-020: `-text` はこの4面すべてに対して 4.5 以上を保証する。
+    // REQ-COL-020: `-text` guarantees at least 4.5 against all four of these surfaces.
     public var textBackgrounds: [SRGBColor] { [bg, bgSunken, surface, surfaceRaised] }
 
     public static func palette(for mode: ColorMode) -> ColorPalette {

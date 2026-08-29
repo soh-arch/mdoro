@@ -1,6 +1,6 @@
 import Foundation
 
-// REQ-TIM: 4.5 操作の定義 / 4.6 状態遷移マトリクスの操作一覧
+// REQ-TIM: 4.5 the actions / 4.6 the action rows of the state transition matrix
 public enum TimerAction: Equatable, Sendable {
     case startWork(presetId: String, taskSnapshot: String?)
     case startBreak(type: SessionType, presetId: String)
@@ -23,7 +23,8 @@ public enum TimerAction: Equatable, Sendable {
     case reorderPresets(order: [String])
     case restoreDefaultPreset
 
-    // REQ-ERR-010 / Decision 0018: 診断ログに載せる名前。**引数は利用者由来なので含めない。**
+    // REQ-ERR-010 / Decision 0018: the name the diagnostic log carries. **The arguments come from
+    // the user, so they stay out.**
     public var diagnosticName: String {
         switch self {
         case .startWork: return "startWork"
@@ -49,7 +50,7 @@ public enum TimerAction: Equatable, Sendable {
         }
     }
 
-    // REQ-TIM-030: 状態遷移マトリクス上の行。
+    // REQ-TIM-030: the row this action takes in the state transition matrix.
     var matrixRow: MatrixRow {
         switch self {
         case .startWork, .startBreak: return .startSession

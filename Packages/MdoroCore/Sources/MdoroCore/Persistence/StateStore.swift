@@ -6,13 +6,13 @@ import Foundation
 // waiting for that would mean either saving nothing all day or overwriting after all.
 // When the move itself fails, saving stops rather than taking the file with it.
 public enum StateStoreError: Error, Equatable, Sendable {
-    // 読めたが解釈できない。
+    // It could be read, but not understood.
     case corrupted
-    // このビルドより新しいスキーマ。ダウングレード時に読み書きして壊さないための防壁。
+    // A schema newer than this build. The barrier that stops a downgrade reading and writing it into ruin.
     case unsupportedSchemaVersion(found: Int, supported: Int)
     // REQ-ERR-010 / Decision 0034: a domain and a code, never the words the OS chose.
     case ioFailed(ErrorCode)
-    // REQ-ERR-017 / Decision 0036: 読めないファイルを退避できなかった。**上書きはしない。**
+    // REQ-ERR-017 / Decision 0036: the unreadable file could not be set aside. **It is not overwritten.**
     case couldNotSetAside(ErrorCode)
 }
 
@@ -38,10 +38,10 @@ extension StateStoreError: ReportableError {
         }
     }
 
-    // Decision 0036: **読めなかったことと、壊れていることは別である。**
-    // 中身が解釈できないものだけを退避する。ディスクが一時的に応答しなかっただけのファイルを
-    // 動かせば、**正常なデータを別名へ追いやる。** 網羅の switch なので、case が増えたときに
-    // どちら側かを決めないとコンパイルが通らない。
+    // Decision 0036: **failing to read a file is not the same as the file being broken.**
+    // Only content that cannot be understood is set aside. Moving a file the disk merely failed to
+    // answer for would **push sound data away under another name.** The switch is exhaustive, so a
+    // new case cannot compile until someone decides which side it falls on.
     var meansTheContentIsUnusable: Bool {
         switch self {
         case .corrupted, .unsupportedSchemaVersion: true
@@ -67,9 +67,9 @@ extension StateStoreError: ReportableError {
     }
 }
 
-// REQ-PER-001 / 002: 永続化と復元の窓口。実体の差し替えでテストできるようにする。
+// REQ-PER-001 / 002: the way in to persistence and restore. The implementation swaps out, so it can be tested.
 public protocol StateStore: Sendable {
-    // 保存が存在しない場合は nil を返す。壊れている場合は throw する（nil と区別する）。
+    // Returns nil when nothing was saved. A broken file throws, which is not the same as nil.
     func load() throws -> PersistedState?
     func save(_ state: PersistedState) throws
 
@@ -85,8 +85,8 @@ public extension StateStore {
     // A store that keeps nothing on disk has nothing to lose, and nothing to move.
     func setAsideUnreadableState() throws -> URL? { nil }
 
-    // REQ-PER-002 / 003: 読み込みと復元判定をまとめた起動時の入り口。
-    // 保存が無ければ初期状態、あれば REQ-PER-003 の判定を通した状態を返す。
+    // REQ-PER-002 / 003: the launch entry point, reading and deciding the restore in one call.
+    // With nothing saved it returns the initial state, otherwise the state after the REQ-PER-003 decision.
     func loadAndRestore(now: Date, settings: AppSettings = .default) throws -> TimerEngine.Reduction {
         StateRestoration.reduction(from: try load(), now: now, settings: settings)
     }
@@ -97,36 +97,36 @@ public extension StateStore {
 // The read and the answer to a failed read are one procedure, not two, because the wrong order
 // destroys the file: restoring first and saving afterwards writes a clean state over the very
 // bytes the screen is about to tell the reader to go and find.
-// `Reduction` は Sendable ではない。起動時に main actor 上でしか作らないので、それでよい。
+// `Reduction` is not Sendable. It is only ever built on the main actor at launch, so that is fine.
 public struct StateStartup {
-    // 読めた保存。読めなかった場合と、保存が無かった場合はどちらも nil。
+    // The saved state, when it read. Both a failed read and no saved file leave this nil.
     public let saved: PersistedState?
     public let reduction: TimerEngine.Reduction
-    // 読めなかった理由。nil なら読めた（あるいは保存が無かった）。
+    // Why the read failed. nil means it read — or that there was nothing saved.
     public let readFailure: StateStoreError?
-    // 退避できなかった理由。**nil でない間は保存してはならない。**
+    // Why setting aside failed. **While this is not nil, nothing may be saved.**
     public let setAsideFailure: StateStoreError?
-    // 退避先。取りに行ける場所として画面に出す。
+    // Where it went. Shown on screen as a place the reader can go and fetch it.
     public let setAsideAt: URL?
 
-    // Decision 0036: 保存を止めている理由。**退避しないことと、上書きしてよいことは別である** —
-    // I/O が応答しなかったファイルは動かさないが、その上に書きもしない。
-    // nil を返すのは、読めたときと、退避し終えたときだけ。
+    // Decision 0036: what is holding saving back. **Not setting a file aside is not permission to
+    // overwrite it** — a file the I/O never answered for is left where it is, and not written over
+    // either. This is nil only when the read succeeded, or when the file has been set aside.
     public var persistBlockedBy: StateStoreError? {
         guard let readFailure else { return nil }
         guard readFailure.meansTheContentIsUnusable else { return readFailure }
         return setAsideFailure
     }
 
-    // Decision 0036: 退避できていないファイルの上には書かない。
+    // Decision 0036: never write over a file that has not been set aside.
     public var mayPersist: Bool { persistBlockedBy == nil }
 
-    // 画面に出す1文。退避できなかったのなら、退避したと書いてある文は出せない。
+    // The one sentence for the screen. If setting aside failed, the sentence that says it succeeded cannot be shown.
     public var displayMessage: String? { (setAsideFailure ?? readFailure)?.displayMessage }
 }
 
 public extension StateStore {
-    // REQ-PER-002 / 003 / REQ-ERR-017: 起動時の読み込み。**失敗したときに何をするかまで含む。**
+    // REQ-PER-002 / 003 / REQ-ERR-017: the read at launch. **It includes what to do when that read fails.**
     func loadForStartup(now: Date, settings: AppSettings = .default) -> StateStartup {
         var saved: PersistedState?
         var readFailure: StateStoreError?
@@ -138,7 +138,7 @@ public extension StateStore {
             readFailure = .ioFailed(ErrorCode(error))
         }
 
-        // Decision 0036: **中身が読めないファイルだけ**、続行する前に退避する。
+        // Decision 0036: **only a file whose content cannot be read** is set aside before going on.
         var setAsideAt: URL?
         var setAsideFailure: StateStoreError?
         if readFailure?.meansTheContentIsUnusable == true {
@@ -161,7 +161,7 @@ public extension StateStore {
     }
 }
 
-// REQ-ERR-017 / Decision 0035 / 0036: 保存について画面が出す1文。
+// REQ-ERR-017 / Decision 0035 / 0036: the one sentence the screen shows about saving.
 //
 // Three reasons can stand at once, and they do not expire alike: a store that could not be
 // made and a file that may not be written over never resolve, while a single failed write is
@@ -203,7 +203,7 @@ public enum StateRestoration {
     }
 }
 
-// テストと、永続化を持たない実行経路のための実体。
+// The implementation for tests, and for paths that run without persistence.
 public final class InMemoryStateStore: StateStore, @unchecked Sendable {
     private let lock = NSLock()
     private var stored: PersistedState?

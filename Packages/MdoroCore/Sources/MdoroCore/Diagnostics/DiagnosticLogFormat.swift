@@ -1,7 +1,8 @@
 import Foundation
 
-// REQ-ERR-010 / Decision 0018: ログの見た目と、ファイルを切り替える判断。
-// 読み手は issue に貼られたログを初めて見る第三者。1行1イベント・固定幅のレベル・grep しやすい語で組む。
+// REQ-ERR-010 / Decision 0018: how a log line looks, and when the file is rotated.
+// The reader is a stranger seeing a log pasted into an issue for the first time, so: one event
+// per line, a fixed-width level, and words that grep well.
 
 public struct DiagnosticHeader: Sendable, Equatable {
     public var appVersion: String
@@ -9,7 +10,7 @@ public struct DiagnosticHeader: Sendable, Equatable {
     public var osVersion: String
     public var architecture: String
     public var openedAt: Date
-    // 挙動に影響する設定だけ。パス・ファイル名は入れない。
+    // Only settings that change behaviour. No paths, no file names.
     public var settings: [DiagnosticField]
 
     public init(
@@ -28,7 +29,7 @@ public struct DiagnosticHeader: Sendable, Equatable {
         self.settings = settings
     }
 
-    // ヘッダが無いログは再現できない。
+    // A log without a header cannot be reproduced.
     public static func settingsFields(preset: Preset, settings: AppSettings) -> [DiagnosticField] {
         [
             DiagnosticField("work", preset.workSeconds),
@@ -45,7 +46,7 @@ public struct DiagnosticHeader: Sendable, Equatable {
             DiagnosticField("appearance", settings.appearance.rawValue),
             DiagnosticField("menuBar", settings.menuBarDisplayMode.rawValue),
             DiagnosticField("taskAsLink", settings.logTaskAsLink),
-            // パスは書かない。同じ設定を使い続けているかだけが分かればよい。
+            // No path is written. All a reader needs is whether the same setting is still in use.
             DiagnosticField("vault", DiagnosticRedaction.optionalDigest(settings.taskFilePath)),
             DiagnosticField("logDir", DiagnosticRedaction.optionalDigest(settings.logFolderPath)),
         ]
@@ -54,7 +55,7 @@ public struct DiagnosticHeader: Sendable, Equatable {
 
 public enum DiagnosticLogFormat {
 
-    // Decision 0018: 1ファイル 2MB・2世代。古い行を削除する処理は持たない。
+    // Decision 0018: 2MB per file, two generations. Nothing deletes old lines.
     public static let maxFileBytes = 2 * 1024 * 1024
 
     public static let currentFileName = "mdoro.log"
@@ -66,7 +67,7 @@ public enum DiagnosticLogFormat {
         return parts.joined(separator: " ")
     }
 
-    // 記録しないと決めたことを、**ファイル自身に書く。**
+    // What was decided not to record is stated **in the file itself.**
     public static func header(_ header: DiagnosticHeader) -> String {
         var lines = [
             "# Mdoro diagnostic log",
@@ -80,7 +81,7 @@ public enum DiagnosticLogFormat {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    // 空のファイルは切り替えない。1行が上限を超えていても、必ずどこかへは書く。
+    // An empty file is never rotated. Even a line that exceeds the limit on its own is written somewhere.
     public static func shouldRotate(currentBytes: Int, incomingBytes: Int, maxBytes: Int = maxFileBytes) -> Bool {
         currentBytes > 0 && currentBytes + incomingBytes > maxBytes
     }
@@ -92,7 +93,7 @@ public enum DiagnosticLogFormat {
     private static let formatter = TimestampFormatter()
 }
 
-// `ISO8601DateFormatter` は Sendable ではないので自分で囲う。出力を予測できることを優先する。
+// `ISO8601DateFormatter` is not Sendable, so it is wrapped here. A predictable output comes first.
 private final class TimestampFormatter: @unchecked Sendable {
     private let lock = NSLock()
     private let formatter: ISO8601DateFormatter
@@ -105,7 +106,7 @@ private final class TimestampFormatter: @unchecked Sendable {
     func string(from date: Date) -> String {
         lock.lock()
         defer { lock.unlock() }
-        // 稼働中の時間帯変更に追随する。行にオフセットが出る。
+        // Follows a time zone change while running. The offset shows in the line.
         formatter.timeZone = .current
         return formatter.string(from: date)
     }

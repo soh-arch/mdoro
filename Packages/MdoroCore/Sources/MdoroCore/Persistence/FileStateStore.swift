@@ -1,7 +1,8 @@
 import Foundation
 
-// REQ-PER-001 / 002: アプリコンテナ内の JSON として永続化する。
-// 書き込みは同一ディレクトリ内の一時ファイル経由。**サンドボックス下ではディレクトリを跨ぐ rename が失敗する。**
+// REQ-PER-001 / 002: persisted as JSON inside the app container.
+// A write goes through a temporary file in the same directory. **Under the sandbox, a rename
+// across directories fails.**
 public struct FileStateStore: StateStore {
     public let fileURL: URL
 
@@ -9,10 +10,10 @@ public struct FileStateStore: StateStore {
         self.fileURL = fileURL
     }
 
-    // FileManager は Sendable ではないため保持しない。
+    // FileManager is not Sendable, so it is not held.
     private var fileManager: FileManager { .default }
 
-    // Application Support 配下。サンドボックスではコンテナ内に解決されるのでブックマークは要らない。
+    // Under Application Support. The sandbox resolves it inside the container, so no bookmark is needed.
     public static func inApplicationSupport(
         directoryName: String = "Mdoro",
         fileName: String = "state.json"
@@ -70,7 +71,7 @@ public struct FileStateStore: StateStore {
         return state
     }
 
-    // REQ-ERR-017 / Decision 0036: 読めなかったファイルを上書きせずに退避する。
+    // REQ-ERR-017 / Decision 0036: a file that could not be read is set aside, not overwritten.
     //
     // The stamp is what keeps a second breakage from eating the first one's evidence, and
     // `moveItem` refuses an occupied name rather than overwriting — so two failures inside one
@@ -125,7 +126,7 @@ public struct FileStateStore: StateStore {
             if fileManager.fileExists(atPath: fileURL.path) {
                 _ = try fileManager.replaceItemAt(fileURL, withItemAt: temporaryURL)
             } else {
-                // 差し替え先が無い初回は replaceItemAt が使えないため、移動で置く。
+                // The first time there is nothing to replace, so replaceItemAt cannot be used; move it into place.
                 try fileManager.moveItem(at: temporaryURL, to: fileURL)
             }
         } catch {

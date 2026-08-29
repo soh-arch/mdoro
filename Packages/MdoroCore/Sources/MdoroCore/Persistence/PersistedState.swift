@@ -1,18 +1,18 @@
 import Foundation
 
-// REQ-PER-001: 永続化する対象一式。**保存漏れは復元時にしか表面化しない。**
+// REQ-PER-001: everything that is persisted. **Anything left out shows up only at restore.**
 public struct PersistedState: Equatable, Sendable, Codable {
-    // 将来スキーマを変えたときに、古い形式を黙って壊さないための版数。
+    // The version that keeps a future schema change from silently breaking an older file.
     public static let currentSchemaVersion = 1
 
     public var schemaVersion: Int
     public var timer: TimerContext
     public var presets: PresetContext
     public var settings: AppSettings
-    // REQ-PER-001: TaskContext の選択情報。タスク一覧そのものは Task.md が正本なので保存しない。
+    // REQ-PER-001: the selection held in TaskContext. The task list itself is not saved — Task.md is its source.
     public var selectedTaskId: String?
     public var selectedTaskSnapshot: String?
-    // REQ-LOG-005 / REQ-ERR-004: 書き込めていないログ。再起動しても失わない。
+    // REQ-LOG-005 / REQ-ERR-004: log entries not yet written. They survive a restart.
     public var pendingLogEntries: [LogEntry]
     public var savedAt: Date
 
@@ -36,7 +36,7 @@ public struct PersistedState: Equatable, Sendable, Codable {
         self.savedAt = savedAt
     }
 
-    // 項目を増やしても古い保存ファイルが読めるようにする。
+    // Keeps an older saved file readable when a field is added.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decode(Int.self, forKey: .schemaVersion)
@@ -49,7 +49,7 @@ public struct PersistedState: Equatable, Sendable, Codable {
         savedAt = try c.decode(Date.self, forKey: .savedAt)
     }
 
-    // REQ-PRS-010 / REQ-TIM-012: 保存が何も無い状態からの初期値。
+    // REQ-PRS-010 / REQ-TIM-012: the initial values when nothing has been saved.
     public static func initial(now: Date, settings: AppSettings = .default) -> PersistedState {
         let presets = PresetContext.initial()
         return PersistedState(

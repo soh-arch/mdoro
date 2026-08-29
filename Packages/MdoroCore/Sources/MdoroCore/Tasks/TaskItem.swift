@@ -1,18 +1,18 @@
 import Foundation
 
-// REQ-TSK-023: ID の種別を保持し、UI 上でブロック ID を持つタスクを識別できるようにする。
+// REQ-TSK-023: the kind of id, so the UI can tell which tasks carry a block id.
 public enum TaskIdKind: String, Equatable, Sendable, Codable {
     case blockId
     case contentHash
 }
 
-// REQ-TSK: 6章 / 10.3 TaskItem
+// REQ-TSK: chapter 6 / 10.3 TaskItem
 public struct TaskItem: Equatable, Sendable, Codable, Identifiable {
     public var stableId: String
     public var idKind: TaskIdKind
-    // REQ-TSK-015: 表示用。Markdown 記法を落としたもの。
+    // REQ-TSK-015: for display. The Markdown notation has been taken off.
     public var displayText: String
-    // REQ-TSK-022: 同一性の判定と REQ-TSK-032 の追従に使う正規化本文。
+    // REQ-TSK-022: the normalised text, used to decide identity and to follow an edit (REQ-TSK-032).
     public var normalizedText: String
     public var isCompleted: Bool
     public var depth: Int
@@ -45,7 +45,7 @@ public struct TaskItem: Equatable, Sendable, Codable, Identifiable {
     }
 }
 
-// REQ-TSK-011: 見出しごとのグループ。見出しより前のタスクは「（未分類）」に入る。
+// REQ-TSK-011: a group per heading. Tasks above the first heading go into "(Uncategorized)".
 public struct TaskSection: Equatable, Sendable, Identifiable {
     public let name: String
     public let items: [TaskItem]
@@ -54,7 +54,7 @@ public struct TaskSection: Equatable, Sendable, Identifiable {
 
 public struct TaskParseResult: Equatable, Sendable {
     public var items: [TaskItem]
-    // REQ-TSK-037 / REQ-ERR-003: 上限に達して打ち切ったか。UI に表示できるようにする。
+    // REQ-TSK-037 / REQ-ERR-003: whether the limit was reached and the read cut short, so the UI can say so.
     public var wasTruncated: Bool
 
     public var loadedCount: Int { items.count }
@@ -64,7 +64,7 @@ public struct TaskParseResult: Equatable, Sendable {
         self.wasTruncated = wasTruncated
     }
 
-    // REQ-TSK-011 / 014: 見出しごとにまとめる。ファイル内の出現順を保つ。
+    // REQ-TSK-011 / 014: gather by heading, keeping the order they appear in the file.
     public func grouped(showCompleted: Bool) -> [TaskSection] {
         var order: [String] = []
         var buckets: [String: [TaskItem]] = [:]

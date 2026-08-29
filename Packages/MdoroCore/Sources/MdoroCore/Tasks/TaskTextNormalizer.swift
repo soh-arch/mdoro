@@ -1,20 +1,22 @@
 import Foundation
 import CryptoKit
 
-// REQ-TSK-022: 正規化は決められた順序で行う。**順序を変えると装飾だけが違う同一タスクが別物になる。**
+// REQ-TSK-022: normalisation runs in a fixed order. **Change the order and one task, differing
+// only in its decoration, becomes two.**
 public enum TaskTextNormalizer {
 
-    // 行末のブロック ID (^abc123)。本文の一部ではないので表示・正規化の前に外す。
+    // The block id at the end of a line (^abc123). Not part of the text, so it comes off before
+    // display and before normalisation.
     static let blockIdPattern = try! NSRegularExpression(pattern: #"\s+\^([A-Za-z0-9-]+)\s*$"#)
-    // REQ-TSK-010: タスク行の判定。リストマーカーとチェックボックス。
+    // REQ-TSK-010: what makes a line a task — a list marker and a checkbox.
     static let taskLinePattern = try! NSRegularExpression(pattern: #"^([ \t]*)[-*+]\s+\[(.)\]\s+"#)
     static let headingPattern = try! NSRegularExpression(pattern: #"^(#{1,6})\s+(.*)$"#)
 
     private static let wikiLinkPattern = try! NSRegularExpression(pattern: #"\[\[([^\]\|]+)(?:\|([^\]]+))?\]\]"#)
     private static let markdownLinkPattern = try! NSRegularExpression(pattern: #"\[([^\]]*)\]\([^)]*\)"#)
     private static let tagPattern = try! NSRegularExpression(pattern: #"(?<![^\s])#[^\s#]+"#)
-    // **対になっている強調だけを外す。** 無条件に記号を落とすと `snake_case_name` や `2*3` が壊れ、
-    // その本文がそのままログへ書かれる。
+    // **Only paired emphasis comes off.** Dropping the marks unconditionally would break
+    // `snake_case_name` and `2*3`, and that text goes into the log exactly as it stands.
     private static let pairedEmphasisPatterns = [
         try! NSRegularExpression(pattern: #"\*\*\*([^*\n]+)\*\*\*"#),
         try! NSRegularExpression(pattern: #"\*\*([^*\n]+)\*\*"#),
@@ -32,8 +34,8 @@ public enum TaskTextNormalizer {
         return regex.stringByReplacingMatches(in: text, range: range, withTemplate: template)
     }
 
-    // `[[ノート|表示名]]` は表示名を、`[[ノート]]` はノート名を残す。
-    // テンプレート置換では「別名があればそちら」が書けないので手で組み立てる。
+    // `[[note|alias]]` keeps the alias, `[[note]]` keeps the note name.
+    // Template replacement cannot say "the alias if there is one", so this is assembled by hand.
     static func replacingWikiLinks(_ text: String) -> String {
         let range = NSRange(text.startIndex..., in: text)
         var result = text
@@ -47,7 +49,7 @@ public enum TaskTextNormalizer {
         return result
     }
 
-    // 行末のブロック ID を取り出し、本文から取り除く。
+    // Take the block id off the end of the line and out of the text.
     public static func extractBlockId(from line: String) -> (body: String, blockId: String?) {
         let range = NSRange(line.startIndex..., in: line)
         guard let match = blockIdPattern.firstMatch(in: line, range: range),
@@ -60,8 +62,8 @@ public enum TaskTextNormalizer {
         return (body, String(line[idRange]))
     }
 
-    // REQ-TSK-015: 生の記法をそのまま表示しない。
-    // タグも落とす。残すとログ行に入り、md 側でタグとして解釈される。
+    // REQ-TSK-015: raw notation is never shown as it stands.
+    // Tags come off too: left in, they reach the log line and are read back as tags by the Markdown tool.
     public static func displayText(fromBody body: String) -> String {
         var text = body
         text = replacingWikiLinks(text)
@@ -72,7 +74,8 @@ public enum TaskTextNormalizer {
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // REQ-TSK-015: 生の記法をそのまま表示しない。対になった強調のみ中身を残して記号を外す。
+    // REQ-TSK-015: raw notation is never shown as it stands. Only paired emphasis loses its marks,
+    // and keeps what was between them.
     static func strippingPairedEmphasis(_ text: String) -> String {
         var result = text
         for pattern in pairedEmphasisPatterns {
@@ -81,8 +84,9 @@ public enum TaskTextNormalizer {
         return result
     }
 
-    // REQ-TSK-022: (2) 前後の空白除去 → (3) リンクを表示テキストへ → (4) タグ・絵文字・強調記号の除去
-    // → (5) 連続空白の統合 → (6) NFKC。(1) マーカーの除去は呼び出し側で済ませてある。
+    // REQ-TSK-022: (2) trim → (3) links become their display text → (4) tags, emoji and emphasis
+    // marks come off → (5) runs of whitespace collapse → (6) NFKC. (1), removing the marker, the
+    // caller has already done.
     public static func normalize(body: String) -> String {
         var text = body.trimmingCharacters(in: .whitespacesAndNewlines)
         text = replacingWikiLinks(text)
@@ -101,7 +105,8 @@ public enum TaskTextNormalizer {
         var index = 0
         while index < scalars.count {
             let scalar = scalars[index]
-            // キーキャップ列 (1️⃣ = "1" + VS16 + U+20E3)。数字は本文に残したいので、列のときだけ落とす。
+            // A keycap sequence (1️⃣ = "1" + VS16 + U+20E3). Digits belong in the text, so only the
+            // sequence is dropped.
             if isKeycapBase(scalar), let end = keycapSequenceEnd(scalars, from: index) {
                 index = end
                 continue
@@ -120,7 +125,7 @@ public enum TaskTextNormalizer {
         scalar.value == 0x23 || scalar.value == 0x2A || (0x30...0x39).contains(scalar.value)
     }
 
-    // 土台の次に U+20E3 が (異体字セレクタを挟んで) 続くなら、その列の終端を返す。
+    // If U+20E3 follows the base (possibly across a variation selector), return where that sequence ends.
     private static func keycapSequenceEnd(_ scalars: [Unicode.Scalar], from index: Int) -> Int? {
         var cursor = index + 1
         while cursor < scalars.count, (0xFE00...0xFE0F).contains(scalars[cursor].value) {
@@ -131,7 +136,7 @@ public enum TaskTextNormalizer {
     }
 
     static func isEmojiScalar(_ scalar: Unicode.Scalar) -> Bool {
-        // 異体字セレクタ・ZWJ・結合文字。単体では見えないが残すと本文が揺れる。
+        // Variation selectors, ZWJ, the combining mark. Invisible on their own, but left in they make the text waver.
         if (0xFE00...0xFE0F).contains(scalar.value) || scalar.value == 0x200D || scalar.value == 0x20E3 {
             return true
         }
@@ -139,17 +144,17 @@ public enum TaskTextNormalizer {
         if properties.isEmojiModifier || properties.isEmojiModifierBase || properties.isEmojiPresentation {
             return true
         }
-        // `isEmoji` は ASCII の数字・#・* にも真になるので、記号領域に限って拾う。
+        // `isEmoji` is true for ASCII digits, # and * as well, so only the symbol range is taken.
         return properties.isEmoji && scalar.value >= 0x2000
     }
 
-    // REQ-TSK-021: 正規化本文の SHA-256 先頭16桁。
+    // REQ-TSK-021: the first 16 digits of the SHA-256 of the normalised text.
     public static func contentHash(_ normalized: String) -> String {
         let digest = SHA256.hash(data: Data(normalized.utf8))
         return digest.map { String(format: "%02x", $0) }.joined().prefix(16).description
     }
 
-    // REQ-TSK-032 / 035: 追従判定に使う編集距離。
+    // REQ-TSK-032 / 035: the edit distance used to decide whether to follow an edit.
     public static func levenshteinDistance(_ a: String, _ b: String) -> Int {
         let lhs = Array(a), rhs = Array(b)
         if lhs.isEmpty { return rhs.count }

@@ -1,6 +1,6 @@
 import Foundation
 
-// REQ-TIM: 4章 / 10.3 TimerContext
+// REQ-TIM: chapter 4 / 10.3 TimerContext
 public struct TimerContext: Equatable, Sendable, Codable {
     public var sessionType: SessionType
     public var runState: RunState
@@ -23,7 +23,7 @@ public struct TimerContext: Equatable, Sendable, Codable {
     public var pendingDecision: PendingDecision?
     public var lastUpdatedAt: Date
 
-    // REQ-LOG-023: ログのタスク名はセッション開始時点のスナップショット。
+    // REQ-LOG-023: the task name in the log is the snapshot taken when the session began.
     public var sessionTaskSnapshot: String?
 
     public init(
@@ -72,7 +72,7 @@ public struct TimerContext: Equatable, Sendable, Codable {
         self.sessionTaskSnapshot = sessionTaskSnapshot
     }
 
-    // REQ-TIM-012: 起動直後・リセット直後は WORK を提案する。
+    // REQ-TIM-012: right after launch, and right after a reset, WORK is what is offered.
     public static func idle(now: Date, settings: AppSettings = .default) -> TimerContext {
         TimerContext(
             sessionType: .work,
@@ -98,14 +98,14 @@ public struct TimerContext: Equatable, Sendable, Codable {
         )
     }
 
-    // REQ-TIM-025: UI 上の周回表示は ((loopCount − 1) mod interval) + 1。loopCount が 0 なら 0。
+    // REQ-TIM-025: the loop shown in the UI is ((loopCount − 1) mod interval) + 1, or 0 when loopCount is 0.
     public func displayLoop(longBreakInterval: Int) -> Int {
         guard loopCount > 0, longBreakInterval > 0 else { return 0 }
         return ((loopCount - 1) % longBreakInterval) + 1
     }
 }
 
-// REQ-TIM-033 / 4.1: PENDING_DECISION 時のみ有効な確認用の最小情報
+// REQ-TIM-033 / 4.1: the least that is needed to ask, and only while PENDING_DECISION holds
 public struct PendingDecision: Equatable, Sendable, Codable {
     public enum Reason: String, Equatable, Sendable, Codable {
         case restoredAfterEnd
@@ -123,26 +123,26 @@ public struct PendingDecision: Equatable, Sendable, Codable {
     }
 }
 
-// REQ-COL-003: 外観。system / light / dark の3択。
+// REQ-COL-003: the appearance. One of system, light, dark.
 public enum AppearancePreference: String, Equatable, Sendable, Codable, CaseIterable {
     case system, light, dark
 }
 
-// REQ-UIX-032: メニューバーの表示密度。
+// REQ-UIX-032: how much the menu bar shows.
 public enum MenuBarDisplayMode: String, Equatable, Sendable, Codable, CaseIterable {
     case timeAndType, timeAndTask, timeOnly, iconOnly
 }
 
-// REQ-CFG: 9.3 アプリ全体に属する項目（プリセット非依存）。
-// 有効なプリセットの識別子は `PresetContext.activePresetId` が唯一の正であり、ここには持たない。
+// REQ-CFG: 9.3 the settings that belong to the app, not to a preset.
+// The active preset's identifier is `PresetContext.activePresetId` and nowhere else, so it is not held here.
 public struct AppSettings: Equatable, Sendable, Codable {
     public var appearance: AppearancePreference
     public var focusViewDimmed: Bool
     public var logicalDayStartHour: Int
     public var idleResetHours: Int
-    // REQ-PLT-003: 実体はセキュリティスコープ付きブックマーク。ここには表示用のパスだけを置く。
+    // REQ-PLT-003: what actually grants access is a security-scoped bookmark. Only the path to show is kept here.
     public var taskFilePath: String?
-    // REQ-LOG-001 / Decision 0015: 出力先はフォルダとファイル名に分けて持つ。
+    // REQ-LOG-001 / Decision 0015: the destination is held as a folder and a file name, apart.
     public var logFolderPath: String?
     public var logFileName: String
     public var showCompletedTasks: Bool
@@ -150,11 +150,12 @@ public struct AppSettings: Equatable, Sendable, Codable {
     public var logDailySummary: Bool
     public var enterFocusViewOnRotate: Bool
     public var menuBarDisplayMode: MenuBarDisplayMode
-    // REQ-UIX-033: 既定は無効。nil のあいだはホットキーを登録しない (Decision 0016)。
+    // REQ-UIX-033: off by default. While this is nil, no hot key is registered (Decision 0016).
     public var pauseResumeHotKey: HotKeyBinding?
-    // メインウィンドウを前面に出すホットキー。既定は未設定 (Decision 0016)。
+    // The hot key that brings the main window forward. Unset by default (Decision 0016).
     public var showWindowHotKey: HotKeyBinding?
-    // REQ-UIX-033 / Decision 0029: **中断とリセットには割り当てない。** 確認をはさめない経路に破壊的操作を置かない。
+    // REQ-UIX-033 / Decision 0029: **nothing is bound to abort or reset.** A destructive action does
+    // not belong on a path that cannot stop to ask.
     public var startNextHotKey: HotKeyBinding?
     public var skipHotKey: HotKeyBinding?
     // Decision 0016
@@ -199,22 +200,22 @@ public struct AppSettings: Equatable, Sendable, Codable {
     }
 
     public static let `default` = AppSettings()
-    // REQ-LOG-001: 既定名。
+    // REQ-LOG-001: the default name.
     public static let defaultLogFileName = "MdoroLog.md"
 
-    // 9.3 の `logFilePath` に相当する値。フォルダとファイル名から組み立てる。
+    // The value 9.3 calls `logFilePath`, assembled from the folder and the file name.
     public var logFilePath: String? {
         guard let logFolderPath else { return nil }
         return (logFolderPath as NSString).appendingPathComponent(logFileName)
     }
 
-    // ファイル名として成立しているか。パス区切りを含む値は受け付けない。
+    // Whether it holds up as a file name. A value containing a path separator is refused.
     public static func isValidLogFileName(_ name: String) -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         return !trimmed.isEmpty && !trimmed.contains("/") && !trimmed.hasPrefix(".")
     }
 
-    // REQ-PER-002: 欠けている項目は既定値で補う。設定を増やしても古い保存ファイルを読めるようにする。
+    // REQ-PER-002: a missing field falls back to its default, so an older saved file still reads when a setting is added.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = AppSettings.default
@@ -237,7 +238,7 @@ public struct AppSettings: Equatable, Sendable, Codable {
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
     }
 
-    // REQ-CFG-018 / 9.3: 範囲外の値は適用しない。
+    // REQ-CFG-018 / 9.3: an out-of-range value is not applied.
     public func isWithinValidRanges() -> Bool {
         (0...12).contains(logicalDayStartHour)
             && (1...48).contains(idleResetHours)
@@ -245,7 +246,7 @@ public struct AppSettings: Equatable, Sendable, Codable {
     }
 }
 
-// REQ-TIM-023: 論理日は logicalDayStartHour を境界として定義する。
+// REQ-TIM-023: the logical day is bounded by logicalDayStartHour.
 public enum LogicalDay {
     public static func date(for instant: Date, dayStartHour: Int, calendar: Calendar = .current) -> Date {
         let shifted = instant.addingTimeInterval(TimeInterval(-dayStartHour * 3600))

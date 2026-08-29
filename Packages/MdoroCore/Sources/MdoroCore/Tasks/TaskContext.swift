@@ -1,6 +1,6 @@
 import Foundation
 
-// REQ-TSK-034: 選択中タスクの状態。判定順序は none → completed → present → missing。
+// REQ-TSK-034: the state of the selected task. Decided in the order none → completed → present → missing.
 public enum SelectedTaskState: String, Equatable, Sendable, Codable {
     case none
     case present
@@ -8,14 +8,14 @@ public enum SelectedTaskState: String, Equatable, Sendable, Codable {
     case missing
 }
 
-// REQ-TSK: 6章 / 10.3 TaskContext
+// REQ-TSK: chapter 6 / 10.3 TaskContext
 public struct TaskContext: Equatable, Sendable, Codable {
     public var items: [TaskItem]
     public var wasTruncated: Bool
     public var selectedTaskId: String?
-    // REQ-TSK-031: 最後に既知だった本文。消失後もログにはこれを記録する。
+    // REQ-TSK-031: the last text known. Even after the task is gone, this is what the log records.
     public var selectedTaskSnapshot: String?
-    // REQ-ERR-001 / 002: 直近の読み込みが失敗したか。失敗しても items は直前の内容のまま残る。
+    // REQ-ERR-001 / 002: whether the last read failed. On failure, items keeps what it held before.
     public var loadFailed: Bool
 
     public init(
@@ -40,15 +40,15 @@ public struct TaskContext: Equatable, Sendable, Codable {
         selectedTaskId.flatMap(item(id:))
     }
 
-    // REQ-TSK-034: `showCompletedTasks` は本判定に影響してはならない。
-    // 表示上隠れているだけのタスクを missing と誤判定しないよう、items は完了済みも含めて持つ。
+    // REQ-TSK-034: `showCompletedTasks` must not reach this decision.
+    // items holds completed tasks too, so a task merely hidden from view is not mistaken for missing.
     public var selectedTaskState: SelectedTaskState {
         guard selectedTaskId != nil else { return .none }
         guard let task = selectedTask else { return .missing }
         return task.isCompleted ? .completed : .present
     }
 
-    // REQ-TSK-036: 現在の一覧に存在しない stableId は受け付けない。
+    // REQ-TSK-036: a stableId that is not in the current list is refused.
     public mutating func select(id: String) throws {
         guard let task = item(id: id) else { throw TimerError.taskNotFound }
         selectedTaskId = id
@@ -65,7 +65,7 @@ public struct TaskContext: Equatable, Sendable, Codable {
     }
 }
 
-// 再読み込みの結果。追従が起きたかを UI に伝える (REQ-TSK-032)。
+// The result of a reread. Tells the UI whether the selection followed an edit (REQ-TSK-032).
 public struct TaskReloadOutcome: Equatable, Sendable {
     public var context: TaskContext
     public var followedFrom: String?
@@ -75,14 +75,15 @@ public struct TaskReloadOutcome: Equatable, Sendable {
 }
 
 public enum TaskReloader {
-    // REQ-TSK-032: 本文長の 30% 以内。
+    // REQ-TSK-032: within 30% of the text's length.
     public static let similarityThreshold = 0.30
 
-    // REQ-TSK-030 / 031 / 032 / 035: 再読み込みで選択をどう扱うか。
+    // REQ-TSK-030 / 031 / 032 / 035: what a reread does to the selection.
     //
-    // **選択は勝手に外さない。** 消えたように見えても、文言の推敲で stableId が変わっただけのことがある。
-    // 追従先が一意に定まるときだけ引き継ぎ、定まらなければ missing のまま維持する。
-    // REQ-ERR-002: パースに失敗したら直前の一覧を保持する。**空リストで上書きしないこと。**
+    // **The selection is never dropped on its own.** A task that looks gone may only have been
+    // reworded, changing its stableId. The selection follows only when one destination is
+    // unambiguous; otherwise it stays missing.
+    // REQ-ERR-002: a failed parse keeps the previous list. **Never overwrite it with an empty one.**
     public static func reload(
         previous: TaskContext,
         result: Result<TaskParseResult, Error>
@@ -113,26 +114,27 @@ public enum TaskReloader {
             return TaskReloadOutcome(context: context, followedFrom: nil, followedTo: nil)
         }
 
-        // 同じ ID がまだあるなら、本文だけ最新に追いつかせる。
+        // If the same id is still there, only the text catches up.
         if let stillThere = context.item(id: selectedId) {
             context.selectedTaskSnapshot = stillThere.displayText
             return TaskReloadOutcome(context: context, followedFrom: nil, followedTo: nil)
         }
 
-        // 消えた。追従できるか調べる。
+        // It is gone. See whether the selection can follow it.
         guard let reference = previous.item(id: selectedId) else {
             return TaskReloadOutcome(context: context, followedFrom: nil, followedTo: nil)
         }
 
-        // 候補は「今回新しく現れた行」。加えて REQ-TSK-035 の取りこぼしを拾う。
-        // 同一本文の重複のうち先行するものが消えると後続の ID がずれるが、その ID は既知なので
-        // 「新規出現」に入らない。本文が一致する行は、ID が既知でも候補に含める。
+        // The candidates are the lines that were not in the previous list, plus what REQ-TSK-035 would otherwise miss.
+        // When the earlier of two identical texts disappears, the ids after it shift — but those ids are
+        // already known, so they do not count as newly appeared. A line whose text matches is therefore
+        // a candidate even when its id is known.
         let previousIds = Set(previous.items.map(\.stableId))
         let candidates = parsed.items.filter {
             !previousIds.contains($0.stableId) || $0.normalizedText == reference.normalizedText
         }
         guard let followed = uniqueMatch(for: reference, among: candidates) else {
-            // REQ-TSK-030 / 031: 自動的に選択を解除しない。missing のまま維持する。
+            // REQ-TSK-030 / 031: the selection is not cleared automatically. It stays missing.
             return TaskReloadOutcome(context: context, followedFrom: nil, followedTo: nil)
         }
 
@@ -141,7 +143,7 @@ public enum TaskReloader {
         return TaskReloadOutcome(context: context, followedFrom: selectedId, followedTo: followed.stableId)
     }
 
-    // 閾値を満たす候補が**一意に定まる場合のみ**返す。曖昧なら追従しない。
+    // Returns a candidate within the threshold **only when it is the only one.** Ambiguity means no following.
     static func uniqueMatch(for reference: TaskItem, among candidates: [TaskItem]) -> TaskItem? {
         let source = reference.normalizedText
         guard !source.isEmpty else { return nil }
@@ -157,7 +159,7 @@ public enum TaskReloader {
                     best = (candidate, distance)
                     bestIsAmbiguous = false
                 } else if distance == current.distance {
-                    // 本文が完全に一致するなら、どれを選んでも記録される本文は同じ。
+                    // With the texts identical, whichever is chosen, the text recorded is the same.
                     if distance > 0 { bestIsAmbiguous = true }
                 }
             } else {

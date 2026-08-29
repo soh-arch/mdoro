@@ -1,7 +1,7 @@
 import Foundation
 
-// REQ-CFG: 9.2 プリセットに含まれる項目 / 10.3 Preset
-// REQ-NTF-006 / Decision 0017: 通知音は macOS のシステムサウンドを流用し、無音も選べる。
+// REQ-CFG: 9.2 what a preset holds / 10.3 Preset
+// REQ-NTF-006 / Decision 0017: the notification sounds are macOS system sounds, and silence is a choice.
 public enum NotificationSound: String, Equatable, Sendable, Codable, CaseIterable {
     case `default`
     case chime
@@ -9,7 +9,7 @@ public enum NotificationSound: String, Equatable, Sendable, Codable, CaseIterabl
     case wood
     case silent
 
-    // `/System/Library/Sounds` にあるファイル名。`default` は OS の既定音、`silent` は鳴らさない。
+    // A file name under `/System/Library/Sounds`. `default` is the OS default sound; `silent` plays nothing.
     public var systemSoundFileName: String? {
         switch self {
         case .default: return nil
@@ -82,7 +82,7 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
         self.isBuiltInDefault = isBuiltInDefault
     }
 
-    // REQ-PRS-010: 初回起動時に作成する既定プリセット「標準」
+    // REQ-PRS-010: the default preset, "Standard", created on first launch.
     public static func standard(id: String = UUID().uuidString) -> Preset {
         Preset(
             id: id,
@@ -98,7 +98,7 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
         )
     }
 
-    // REQ-CFG-018: 範囲外の値は適用しない。
+    // REQ-CFG-018: an out-of-range value is not applied.
     public func isWithinValidRanges() -> Bool {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (1...30).contains(trimmedName.count) else { return false }
@@ -107,7 +107,7 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
         guard (60...(60 * 60)).contains(longBreakSeconds) else { return false }
         guard (2...12).contains(longBreakInterval) else { return false }
         guard (60...(30 * 60)).contains(extendSeconds) else { return false }
-        // REQ-NTF-020: トリガは 0〜2 個。値域は PreNotification が見る。
+        // REQ-NTF-020: zero to two triggers. PreNotification checks their ranges.
         guard preNotifications.count <= 2 else { return false }
         guard preNotifications.allSatisfy({ $0.isWithinValidRanges }) else { return false }
         return true

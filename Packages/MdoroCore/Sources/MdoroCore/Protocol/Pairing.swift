@@ -1,11 +1,11 @@
 import Foundation
 
-// REQ-SEC-001 / 003 / REQ-ERR-006 / 3.2: ペアリングと認証。
-// 「Mac 1台対 iPhone 1台」の原則は、LAN 内の任意の端末が繋げる状態では担保されない。
+// REQ-SEC-001 / 003 / REQ-ERR-006 / 3.2: pairing and authentication.
+// "One Mac, one iPhone" does not hold while any device on the LAN can connect.
 public struct PairingSession: Equatable, Sendable {
-    // REQ-SEC-003: ペアリングモードは明示的に開始したときのみ、かつ3分間のみ有効。
+    // REQ-SEC-003: pairing mode runs only when it was started deliberately, and only for three minutes.
     public static let validity: TimeInterval = 3 * 60
-    // REQ-ERR-006: 5回連続で誤ったらペアリングモードを終了する。
+    // REQ-ERR-006: five wrong codes in a row end pairing mode.
     public static let maxAttempts = 5
 
     public let code: String
@@ -17,7 +17,7 @@ public struct PairingSession: Equatable, Sendable {
         self.startedAt = startedAt
     }
 
-    // 6桁は総当たりできる長さなので、有効期間と試行回数の両方で守る。
+    // Six digits can be brute-forced, so the guard is both the validity window and the attempt count.
     public static func generateCode(using generator: () -> Int = { Int.random(in: 0...999_999) }) -> String {
         String(format: "%06d", generator() % 1_000_000)
     }
@@ -37,21 +37,21 @@ public struct PairingSession: Equatable, Sendable {
         case rejected(AuthFailureCode)
     }
 
-    // 失敗回数はこの構造体が数える。
+    // This struct is what counts the failures.
     public mutating func verify(_ candidate: String, now: Date) -> Outcome {
         if isLockedOut { return .rejected(.pairingAttemptsExceeded) }
         if isExpired(now: now) { return .rejected(.pairingModeNotActive) }
 
         guard candidate == code else {
             failedAttempts += 1
-            // 5回目で打ち止め。以降は理由を変える。
+            // The fifth attempt is the last; after it the reason given changes.
             return .rejected(isLockedOut ? .pairingAttemptsExceeded : .invalidPairingCode)
         }
         return .accepted
     }
 }
 
-// REQ-SEC-002: 2回目以降はデバイストークンで自動認証し、ユーザー操作を不要にする。
+// REQ-SEC-002: from the second time on, a device token authenticates on its own, with nothing for the user to do.
 public struct DeviceToken: Equatable, Sendable, Codable, Hashable {
     public let value: String
     public let deviceName: String
@@ -64,16 +64,16 @@ public struct DeviceToken: Equatable, Sendable, Codable, Hashable {
     }
 
     public static func generate() -> String {
-        // 有効期限で守らないので、推測できない長さにする。
+        // Nothing expires here, so the length is what makes it unguessable.
         (0..<4).map { _ in UUID().uuidString.replacingOccurrences(of: "-", with: "") }.joined().prefix(64).description
     }
 }
 
-// 接続の受理可否をここに集約し、通信層は結果に従うだけにする。
+// Whether a connection is accepted is decided here alone; the transport layer only follows the answer.
 public struct Authenticator: Equatable, Sendable {
     public private(set) var issuedTokens: Set<String> = []
     public private(set) var pairing: PairingSession?
-    // REQ-SEC-004: 既に別のクライアントが接続中か。
+    // REQ-SEC-004: whether another client is already connected.
     public var connectedClientName: String?
 
     public init(issuedTokens: Set<String> = [], pairing: PairingSession? = nil) {
@@ -93,18 +93,18 @@ public struct Authenticator: Equatable, Sendable {
 
     public enum Decision: Equatable, Sendable {
         case accept(DeviceToken)
-        // REQ-SEC-004: 既存接続があるときは、ユーザーの承認を待つ。
+        // REQ-SEC-004: with a connection already open, wait for the user to approve.
         case needsUserApproval(requestingDeviceName: String)
         case reject(AuthFailureCode)
     }
 
     public mutating func authenticate(_ hello: HelloPayload, now: Date) -> Decision {
-        // REQ-PRT-004: 非互換なら接続を拒否する。
+        // REQ-PRT-004: an incompatible version is refused.
         guard PomodoroProtocol.isCompatible(hello.protocolVersion) else {
             return .reject(.unknownDeviceToken)
         }
 
-        // REQ-SEC-002: 既知のトークンならそのまま通す。
+        // REQ-SEC-002: a token we issued goes straight through.
         if let token = hello.deviceToken {
             guard issuedTokens.contains(token) else { return .reject(.unknownDeviceToken) }
             if connectedClientName != nil {
@@ -113,7 +113,7 @@ public struct Authenticator: Equatable, Sendable {
             return .accept(DeviceToken(value: token, deviceName: hello.deviceName, issuedAt: now))
         }
 
-        // REQ-SEC-001 / 003: トークンが無いならペアリングコードが要る。
+        // REQ-SEC-001 / 003: without a token, a pairing code is required.
         guard var session = pairing else { return .reject(.pairingModeNotActive) }
         guard let code = hello.pairingCode else {
             pairing = session
@@ -121,7 +121,7 @@ public struct Authenticator: Equatable, Sendable {
         }
 
         let outcome = session.verify(code, now: now)
-        // **失敗回数を書き戻す。** 忘れると回数制限が効かない。
+        // **Write the failure count back.** Forget it and the attempt limit does nothing.
         pairing = session.isLockedOut ? nil : session
 
         switch outcome {

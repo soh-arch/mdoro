@@ -11,12 +11,13 @@ public enum CommandAction: String, Equatable, Sendable, Codable {
     case reorderPresets, restoreDefaultPreset
 }
 
-// 10.2: プロトコル上の `resume` は、エンジン内部の `continueSession` に対応する。
+// 10.2: `resume` on the wire is the engine's `continueSession` inside.
 public enum ConfirmDecisionWire: String, Equatable, Sendable, Codable {
     case complete, discard, resume
 }
 
-// action ごとに使うフィールドが違うため、すべて任意。過不足の判定は `CommandTranslation` が行う。
+// Each action uses different fields, so all of them are optional. `CommandTranslation` decides
+// what is missing and what is spare.
 public struct CommandParams: Equatable, Sendable, Codable {
     public var sessionType: SessionType?
     public var decision: ConfirmDecisionWire?
@@ -42,7 +43,7 @@ public struct CommandParams: Equatable, Sendable, Codable {
 }
 
 public struct CommandPayload: Equatable, Sendable, Codable {
-    // REQ-PRT-003: 同一 ID の再送は無視（冪等に処理）する。
+    // REQ-PRT-003: a resend with the same id is ignored — handled idempotently.
     public var clientRequestId: String
     public var action: CommandAction
     public var params: CommandParams?
@@ -81,7 +82,7 @@ public struct WelcomePayload: Equatable, Sendable, Codable {
     }
 }
 
-// REQ-COM-007: NTP 方式の4点。t1 は要求時、t2/t3 は応答側が入れる。
+// REQ-COM-007: the four points of the NTP method. t1 is set on the request, t2 and t3 by the responder.
 public struct TimeSyncPayload: Equatable, Sendable, Codable {
     public var t1: Date
     public var t2: Date?
@@ -167,9 +168,9 @@ public enum ServerMessage: Equatable, Sendable {
     }
 }
 
-// MARK: - 封筒
+// MARK: - Envelope
 
-// 受け取った1件のメッセージ。ヘッダは REQ-PRT-002 で必須。
+// One message as received. The header is required by REQ-PRT-002.
 public struct Envelope<Body: Sendable & Equatable>: Equatable, Sendable {
     public var header: MessageHeader
     public var body: Body
@@ -199,8 +200,8 @@ public enum MessageCoder {
         let sentAt: Date
     }
 
-    // REQ-PRT-005: **未知のメッセージ種別は無視する。** throw にすると、
-    // 将来のバージョンがメッセージを1つ足しただけで接続が落ちる。
+    // REQ-PRT-005: **an unknown message type is ignored.** Throwing instead would drop the
+    // connection the moment a future version adds a single message.
     public static func decodeClient(_ data: Data) throws -> Envelope<ClientMessage>? {
         let probe = try decoder.decode(TypeProbe.self, from: data)
         let header = MessageHeader(messageId: probe.messageId, sentAt: probe.sentAt)
@@ -233,7 +234,7 @@ public enum MessageCoder {
         return Envelope(header: header, body: body)
     }
 
-    // ペイロードはトップレベルに平置きする。`{"type":..,"messageId":..,"sentAt":..,<payload>}`
+    // The payload sits flat at the top level: `{"type":..,"messageId":..,"sentAt":..,<payload>}`.
     private static func payload<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
         try decoder.decode(T.self, from: data)
     }
@@ -263,7 +264,7 @@ public enum MessageCoder {
         })
     }
 
-    // ヘッダとペイロードを1つの JSON オブジェクトへ合流させる。
+    // Merge the header and the payload into one JSON object.
     private static func encode(
         type: String, header: MessageHeader, payload: () throws -> Data?
     ) throws -> Data {

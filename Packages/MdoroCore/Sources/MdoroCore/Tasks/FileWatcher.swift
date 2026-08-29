@@ -1,8 +1,8 @@
 import Foundation
 
-// REQ-TSK-002 / REQ-PLT-006: Task.md の変更を監視し、300ms のデバウンスを挟んで再読み込みする。
-// **記述子ではなく親ディレクトリを監視する。** 一時ファイル経由の保存で inode が差し替わると、
-// 記述子に張った監視は無効になる。
+// REQ-TSK-002 / REQ-PLT-006: watch Task.md for changes and reread it after a 300ms debounce.
+// **The parent directory is watched, not the descriptor.** A save through a temporary file swaps
+// the inode, and a watch held on the descriptor stops meaning anything.
 public final class FileWatcher: @unchecked Sendable {
     public static let debounceInterval: TimeInterval = 0.3
 
@@ -62,7 +62,7 @@ public final class FileWatcher: @unchecked Sendable {
 
     deinit { stop() }
 
-    // ディレクトリ単位の監視なので無関係な保存でも発火する。デバウンスで束ねる。
+    // The watch is on the directory, so an unrelated save fires it too. The debounce gathers them up.
     private func scheduleNotification() {
         lock.lock(); defer { lock.unlock() }
         pendingWork?.cancel()
@@ -78,8 +78,8 @@ public final class FileWatcher: @unchecked Sendable {
     }
 }
 
-// REQ-TSK-001 / REQ-PLT-003: Task.md の読み込み。
-// **この型に書き込む手段はない。** OS のブックマークと API の両方で読み取り専用を担保する。
+// REQ-TSK-001 / REQ-PLT-003: reading Task.md.
+// **This type offers no way to write.** Read-only is held by the OS bookmark and by the API alike.
 public struct TaskFileReader: Sendable {
     public let fileURL: URL
 
@@ -88,11 +88,12 @@ public struct TaskFileReader: Sendable {
     }
 
     public enum ReadError: Error, Equatable, Sendable {
-        // REQ-ERR-001: Task.md が存在しない / アクセス権がない。
+        // REQ-ERR-001: Task.md is missing, or cannot be reached.
         case unavailable
     }
 
-    // REQ-ERR-003: 先頭 5MB のみを読む。全体をメモリへ載せず、ハンドルから上限ぶんだけ読む。
+    // REQ-ERR-003: only the first 5MB is read. Nothing loads the whole file into memory; the handle
+    // gives up the limit and no more.
     public func read() throws -> TaskParseResult {
         guard let handle = try? FileHandle(forReadingFrom: fileURL) else {
             throw ReadError.unavailable
