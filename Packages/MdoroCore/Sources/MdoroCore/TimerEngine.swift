@@ -184,7 +184,7 @@ public enum TimerEngine {
         }
 
         // REQ-PER-004: if the logical day turns while the question raised at restore is still unanswered,
-        // it commits as discard, which the log records as stopped. The hours it sat there are not part of
+        // it commits as discard, which the log records as stopped. The time it sat there is not part of
         // the elapsed time (REQ-TIM-005), so the end time used is when the trouble was noticed.
         if ctx.runState == .pendingDecision, ctx.committedAt == nil,
            let pending = ctx.pendingDecision, pending.reason == .restoredAfterEnd,
@@ -362,7 +362,7 @@ public enum TimerEngine {
                 effects.append(contentsOf: effs)
             case .discard:
                 ctx.nextSessionType = (ctx.sessionType == .work) ? .shortBreak : .work
-                // REQ-PER-004: the hours it sat there are not part of the elapsed time. The end time used is
+                // REQ-PER-004: the time it sat there is not part of the elapsed time. The end time used is
                 // when the trouble was noticed (pending.endedAt), not now.
                 let (finalized, effs) = finalize(context: ctx, presets: pr, settings: settings, now: now, outcome: .aborted, endedAtOverride: pending.endedAt)
                 ctx = finalized

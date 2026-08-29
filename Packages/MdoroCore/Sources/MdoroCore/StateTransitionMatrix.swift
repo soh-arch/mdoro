@@ -20,7 +20,7 @@ public enum StateTransitionMatrix {
         case .abort:
             return [.running, .paused, .finished]
         case .extend:
-            // WORK only, and inside the grace window: both conditions are guarded in TimerEngine.reduce.
+            // WORK only, and within the window isWithinExtensionWindow defines: both guarded in TimerEngine.reduce.
             return [.running, .paused, .finished]
         case .resetLoopCount:
             return [.idle, .running, .paused, .finished]

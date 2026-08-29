@@ -3,7 +3,7 @@ import Foundation
 // REQ-ERR-010 / Decision 0018: one entry of the diagnostic log.
 //
 // **No string that came from the user goes in here.** Task names, headings, note bodies,
-// paths, service names, device names and IP addresses are dropped **as the line is written**,
+// paths, server names, device names and IP addresses are dropped **as the line is written**,
 // not when the log is exported.
 
 public enum DiagnosticLevel: String, Sendable, Equatable, CaseIterable {

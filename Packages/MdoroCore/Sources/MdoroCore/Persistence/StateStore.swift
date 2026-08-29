@@ -126,7 +126,7 @@ public struct StateStartup {
 }
 
 public extension StateStore {
-    // REQ-PER-002 / 003 / REQ-ERR-017: the read at launch — including what to do when it fails.
+    // REQ-PER-002 / 003 / REQ-ERR-017: the read at launch. **It includes what to do when that read fails.**
     func loadForStartup(now: Date, settings: AppSettings = .default) -> StateStartup {
         var saved: PersistedState?
         var readFailure: StateStoreError?

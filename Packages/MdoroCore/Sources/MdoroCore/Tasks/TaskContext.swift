@@ -125,7 +125,7 @@ public enum TaskReloader {
             return TaskReloadOutcome(context: context, followedFrom: nil, followedTo: nil)
         }
 
-        // The candidates are the lines that appeared this time, plus what REQ-TSK-035 would otherwise miss.
+        // The candidates are the lines that were not in the previous list, plus what REQ-TSK-035 would otherwise miss.
         // When the earlier of two identical texts disappears, the ids after it shift — but those ids are
         // already known, so they do not count as newly appeared. A line whose text matches is therefore
         // a candidate even when its id is known.

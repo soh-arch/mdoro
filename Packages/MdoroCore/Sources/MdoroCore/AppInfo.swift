@@ -8,7 +8,7 @@ public enum AppInfo {
     public static let license = "MIT"
 
     // REQ-NFR-008 / Decision 0021: one support link, in About, and nowhere else. The label to show
-// is held separately from the URL.
+    // is held separately from the URL.
     public static let supportURL = URL(string: "https://buymeacoffee.com/soh.arch")!
     public static let supportLabel = "buymeacoffee.com/soh.arch"
 

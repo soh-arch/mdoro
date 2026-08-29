@@ -59,7 +59,7 @@ public enum TaskParser {
                 break
             }
 
-            // REQ-TSK-012: anything but a space inside the checkbox means completed.
+            // REQ-TSK-012: any character but the ASCII space (U+0020) inside the checkbox means completed.
             let isCompleted = rawLine[markRange] != " "
 
             let indentWidth = rawLine[indentRange].count
