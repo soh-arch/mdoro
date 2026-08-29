@@ -190,6 +190,30 @@ REQ-UIX-026 の「不可能」「サンドボックス上」は Apple の原文�
 
 ---
 
+## 原子的な差し替え（ファイル）
+
+**調査**: [0007](platform/0007-atomic-replacement-is-a-volume-constraint.md) / **確認日**: 2026-08-29 / **対象**: macOS 26.5.1（25F80）/ macOS 26.5 SDK
+
+| 事実 | 確度 |
+| :---- | :---- |
+| **制約は「同一ボリューム」であって「同一ディレクトリ」ではない。** `rename(2)` は同一ファイルシステム内でのみ成立し（`man 2 rename`: "must reside on the **same file system**" / `EXDEV`）、**ディレクトリ関係を見る記述は無い** | 文書化 |
+| `FileManager.replaceItemAt` は "works only when the … parameters are located on the **same volume**" と明記する | 文書化 |
+| **Apple の第一推奨は OS の一時ディレクトリ。同一ディレクトリは「一時ディレクトリが使えないとき」の次善策**（`NSFileManager.h:290` に同文） | 文書化 |
+| `url(for:in:appropriateFor:create:)` の `appropriateFor` は **"Only the volume of this parameter is used."** — **API 自体がボリューム単位で設計されており、ディレクトリを見ていない** | 文書化 |
+| **App Sandbox はこの制約に関与しない。** 基底プロファイル `/System/Library/Sandbox/Profiles/application.sb` に `rename` の規則も、ソースと宛先のディレクトリ関係を見る規則も**存在しない**。サンドボックスは両端のパスを**独立に**評価する | 文書化（**ただし Apple は同ファイルを「私的インタフェース」と宣言している**） |
+| 同プロファイル `:812-813` は、**全マウントポイント直下の `.TemporaryItems/` への読み書きを全アプリに許している** — `itemReplacementDirectory` の置き場所であり、**別階層からの差し替えを OS 側が支えている** | 文書化（同上） |
+| **`/private/tmp` とユーザーのホームは同一 device id**（APFS の firmlink。実測 `16777234`）。**`/tmp` 経由が失敗するのは `EXDEV` ではない** | **実測** |
+| `/tmp` への書き込みが拒否されるのは**サンドボックスのパス規則**による（`system.sb:84-88` は `read-metadata` と `test-existence` しか与えない）。**失敗するのは `rename` ではなく `open` / `write` の段階** | 文書化 |
+| security-scoped bookmark をディレクトリに対して発行すると、**そのサブツリー全体**を覆う（"recursively in nested folders"） | 文書化 |
+| `replaceItemAt` が実際に呼ぶシステムコール | **不明**（逆アセンブルしていない） |
+| 外付けボリューム / SMB 上で `itemReplacementDirectory` が実際に成功するか | **不明**（未実測） |
+
+**条文・コードとの食い違い**: REQ-PLT-004 の「サンドボックス外を跨ぐ `rename` は失敗する」も、
+`LogWriter.swift` / `FileStateStore.swift` の「ディレクトリを跨げば失敗する」も**誤り。**
+**REQ-LOG-004 も同じ前提の上に立っている**（[0007](platform/0007-atomic-replacement-is-a-volume-constraint.md)）。
+
+---
+
 ## 未検証（軸 K で確認する）
 
 **`CONTEXT.md` §3 から移した項目である。**
@@ -199,7 +223,6 @@ REQ-UIX-026 の「不可能」「サンドボックス上」は Apple の原文�
 | 事実として書かれていたこと | 確度 |
 | :---- | :---- |
 | **エディタは保存時に一時ファイル経由で置き換える**（記述子ではなく親ディレクトリを監視する、は**これへの対処**であって事実ではない） | 実測（Obsidian で確認。**日付と手順の記録なし**） |
-| **サンドボックス下では、一時ファイルを同一ディレクトリに置かなければならない**（`FileManager.replaceItemAt` を使う、は**手段の選択**であって事実ではない） | 未検証 |
 | `MenuBarExtra` のラベルを毎秒更新しても安定する | **実測** — 2026-08-26、Debug ビルド、3時間のセッション進行中に CPU 0.1〜0.4%、RSS は約2.5分間で増加なし。**対象**: macOS 26 |
 | 署名は無償の Personal Team。iPhone 実機のアプリは7日で失効する。Push 通知と iCloud は使えない | 未検証 |
 
@@ -211,7 +234,7 @@ REQ-UIX-026 の「不可能」「サンドボックス上」は Apple の原文�
 | 「`FileManager.replaceItemAt` を使う」「親ディレクトリに張る」 | **手段の選択である。** 事実の部分だけを残した |
 | 「Xcode 26.3 以降には MCP サーバーがある」 | **どの条文もこれに依拠していない。** この文書は「**条文が依拠する事実の索引**」であり、開発環境の覚書を置く場所ではない |
 
-**当初の9項目のうち、4項目は調査して上の節へ移した**（Live Activity の開始・更新 / ATS とローカルネットワーク許可の2件）。
+**当初の9項目のうち、5項目は調査して上の節へ移した**（Live Activity の開始・更新 / ATS とローカルネットワーク許可の2件）。
 **「例外は APNs のみ」も「`NSAllowsLocalNetworking` は必須」も誤りだった。**
 
 **`CONTEXT.md` §2 と §6 にも事実が混ざっている**（`isStale` の遅延、`MainActor.assumeIsolated`、
