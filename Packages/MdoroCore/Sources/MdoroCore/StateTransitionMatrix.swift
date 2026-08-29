@@ -1,6 +1,7 @@
 import Foundation
 
-// REQ-TIM-030 / 4.6: 状態遷移マトリクスは「受理可否」のみを定める。副作用は TimerEngine に一本化する。
+// REQ-TIM-030 / 4.6: the state transition matrix decides acceptance only. Side effects are
+// TimerEngine's alone.
 public enum StateTransitionMatrix {
     public static func canAccept(_ action: TimerAction, in runState: RunState) -> Bool {
         acceptedStates(for: action.matrixRow).contains(runState)
@@ -19,7 +20,7 @@ public enum StateTransitionMatrix {
         case .abort:
             return [.running, .paused, .finished]
         case .extend:
-            // WORK 限定・猶予内という条件は TimerEngine.reduce のガードが見る。
+            // WORK only, and inside the grace window: both conditions are guarded in TimerEngine.reduce.
             return [.running, .paused, .finished]
         case .resetLoopCount:
             return [.idle, .running, .paused, .finished]

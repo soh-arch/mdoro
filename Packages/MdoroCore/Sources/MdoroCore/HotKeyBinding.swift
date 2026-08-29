@@ -1,11 +1,11 @@
 import Foundation
 
-// REQ-UIX-033 / Decision 0016: グローバルショートカット。**既定は無効**で、割り当てはユーザーが決める。
+// REQ-UIX-033 / Decision 0016: global shortcuts. **Off by default**; the user picks the assignment.
 public struct HotKeyBinding: Equatable, Sendable, Codable, Hashable {
     public var keyCode: UInt16
-    // NSEvent.ModifierFlags の rawValue（デバイス非依存のぶんのみ）
+    // The rawValue of NSEvent.ModifierFlags (the device-independent bits only).
     public var modifierFlags: UInt
-    // 記録した時点の表示名（"⌘⌥P" など）。キーコード表を持たずに済ませる。
+    // The display name as recorded ("⌘⌥P" and the like), which saves carrying a key code table.
     public var displayName: String
 
     public init(keyCode: UInt16, modifierFlags: UInt, displayName: String) {
@@ -14,7 +14,7 @@ public struct HotKeyBinding: Equatable, Sendable, Codable, Hashable {
         self.displayName = displayName
     }
 
-    // 修飾キーなしの割り当ては受け付けない。単独キーを奪うと文字入力ができなくなる。
+    // A binding without a modifier is refused: taking a bare key away stops the user typing.
     public var hasModifier: Bool {
         let command: UInt = 1 << 20
         let option: UInt = 1 << 19

@@ -1,15 +1,15 @@
 import Foundation
 
-// REQ-TSK-010〜023: Task.md のパース。**読み取り専用**であり、この型はファイルへ書き戻す手段を持たない。
+// REQ-TSK-010 to 023: parsing Task.md. **Read-only** — this type offers no way to write back to the file.
 public enum TaskParseError: Error, Equatable, Sendable {
-    // REQ-ERR-002: 読めたがテキストとして解釈できない。**空リストとして扱ってはならない。**
+    // REQ-ERR-002: it read, but it is not text. **This must never be taken for an empty list.**
     case undecodable
 }
 
 public enum TaskParser {
-    // REQ-ERR-003: ファイルサイズ・行数にかかわらず、タスクは先頭から 1,000 件まで。
+    // REQ-ERR-003: whatever the file's size or line count, the first 1,000 tasks are taken and no more.
     public static let maxTaskCount = 1_000
-    // REQ-ERR-003: 5MB を超えるファイルは先頭 5MB のみを読む。
+    // REQ-ERR-003: past 5MB, only the first 5MB of the file is read.
     public static let maxBytes = 5 * 1_024 * 1_024
     public static let uncategorizedSection = "(Uncategorized)"
 
@@ -17,13 +17,13 @@ public enum TaskParser {
         var items: [TaskItem] = []
         var truncated = false
         var section = uncategorizedSection
-        // REQ-TSK-013: 最初に検出したインデントを1段分とする。
+        // REQ-TSK-013: the first indent found is one level.
         var indentUnit: Int?
-        // 深さごとの直近の親候補。見出しをまたいで引き継がない。
+        // The latest candidate parent at each depth. Nothing carries across a heading.
         var ancestors: [Int: String] = [:]
-        // REQ-TSK-021: 同一ハッシュ内での出現順。ブロック ID の重複にも同じ規則を使う。
+        // REQ-TSK-021: the position among lines sharing a hash. A repeated block id follows the same rule.
         var idOccurrences: [String: Int] = [:]
-        // コードブロックの中は Markdown ではない。見出しもタスクも拾わない。
+        // Inside a code fence nothing is Markdown. Neither headings nor tasks are picked up.
         var insideFence = false
 
         for (index, rawLine) in contents.components(separatedBy: .newlines).enumerated() {
@@ -36,17 +36,17 @@ public enum TaskParser {
 
             let lineRange = NSRange(rawLine.startIndex..., in: rawLine)
 
-            // REQ-TSK-011: 見出しをセクションとして認識する。
+            // REQ-TSK-011: a heading opens a section.
             if let heading = TaskTextNormalizer.headingPattern.firstMatch(in: rawLine, range: lineRange),
                let titleRange = Range(heading.range(at: 2), in: rawLine) {
                 let title = String(rawLine[titleRange]).trimmingCharacters(in: .whitespaces)
                 section = title.isEmpty ? uncategorizedSection : title
-                // 別の見出しに入ったら、前の節のタスクを親として引き継がない。
+                // On entering another heading, no task from the section before it stays a parent.
                 ancestors.removeAll()
                 continue
             }
 
-            // REQ-TSK-010: この正規表現に一致する行だけをタスクとして扱う。
+            // REQ-TSK-010: only a line matching this expression is a task.
             guard let match = TaskTextNormalizer.taskLinePattern.firstMatch(in: rawLine, range: lineRange),
                   let indentRange = Range(match.range(at: 1), in: rawLine),
                   let markRange = Range(match.range(at: 2), in: rawLine),
@@ -59,12 +59,12 @@ public enum TaskParser {
                 break
             }
 
-            // REQ-TSK-012: チェックボックス内が半角スペース以外なら完了済み。
+            // REQ-TSK-012: anything but a space inside the checkbox means completed.
             let isCompleted = rawLine[markRange] != " "
 
             let indentWidth = rawLine[indentRange].count
             if indentUnit == nil, indentWidth > 0 { indentUnit = indentWidth }
-            // REQ-TSK-013: 倍数に満たない中途半端なインデントは、直近の浅い方の深さへ丸める。
+            // REQ-TSK-013: an indent that falls between multiples rounds down to the shallower depth.
             let depth = indentUnit.map { indentWidth / $0 } ?? 0
 
             let remainder = String(rawLine[wholeRange.upperBound...])
@@ -74,21 +74,21 @@ public enum TaskParser {
             let base: String
             let idKind: TaskIdKind
             if let blockId {
-                // REQ-TSK-020: ブロック ID があればそれを採用する。
+                // REQ-TSK-020: a block id, where there is one, is what is used.
                 base = blockId
                 idKind = .blockId
             } else {
-                // REQ-TSK-021: 正規化本文のハッシュ。
+                // REQ-TSK-021: the hash of the normalised text.
                 base = TaskTextNormalizer.contentHash(normalized)
                 idKind = .contentHash
             }
-            // REQ-TSK-021: 同一ハッシュ内での出現順。ブロック ID は重複しうるので同じ規則で一意にする。
-            // 先頭の1件だけ接尾辞を付けず、ブロック ID の見た目を保つ。
+            // REQ-TSK-021: the position among lines sharing a hash. A block id can repeat, so the same rule
+            // makes it unique. The first one takes no suffix, which keeps a block id looking like itself.
             let occurrence = idOccurrences[base, default: 0]
             idOccurrences[base] = occurrence + 1
             let stableId = (idKind == .blockId && occurrence == 0) ? base : "\(base)#\(occurrence)" 
 
-            // REQ-TSK-013 / 014: 親子関係を保持する。
+            // REQ-TSK-013 / 014: keep the parent and child relation.
             ancestors = ancestors.filter { $0.key < depth }
             let parentId = depth > 0 ? ancestors[depth - 1] : nil
             ancestors[depth] = stableId
@@ -111,9 +111,9 @@ public enum TaskParser {
         return TaskParseResult(items: items, wasTruncated: truncated)
     }
 
-    // REQ-ERR-003: 先頭 5MB のみを読む。末尾の不完全なバイト列は捨てる。
-    // REQ-ERR-002: 解釈できなければ throw する。**空の結果を返してはならない。**
-    // 0件と受け取られると、直前まで読めていた一覧を上書きしてしまう。
+    // REQ-ERR-003: only the first 5MB is read, and an incomplete byte sequence at the end is dropped.
+    // REQ-ERR-002: what cannot be decoded throws. **An empty result must never be returned.**
+    // Taken for zero tasks, it would overwrite the list that was readable a moment ago.
     public static func parse(data: Data) throws -> TaskParseResult {
         let limited = data.count > maxBytes ? data.prefix(maxBytes) : data[...]
         var slice = Data(limited)

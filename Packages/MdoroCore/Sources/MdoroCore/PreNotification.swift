@@ -1,16 +1,16 @@
 import Foundation
 
-// REQ-NTF-020: 予告通知のトリガ。プリセットごとに 0〜2 個持つ (10.3 PreNotification)。
+// REQ-NTF-020: a pre-notification trigger. Zero to two per preset (10.3 PreNotification).
 public enum PreNotification: Equatable, Sendable, Hashable {
-    // 終了の n 秒前 (60〜900、60 の倍数)
+    // n seconds before the end (60 to 900, a multiple of 60)
     case beforeEnd(seconds: Int)
-    // セッション長の n% 経過時点 (50〜95、5 の倍数)
+    // at n% of the session elapsed (50 to 95, a multiple of 5)
     case atElapsedPercent(Int)
 
     public static let beforeEndRange = 60...(15 * 60)
     public static let elapsedPercentRange = 50...95
 
-    // REQ-CFG-018: プロトコル経由で範囲外の値を受信した場合に適用しないための検証。
+    // REQ-CFG-018: the check that keeps an out-of-range value arriving over the protocol from being applied.
     public var isWithinValidRanges: Bool {
         switch self {
         case let .beforeEnd(seconds):
@@ -20,7 +20,7 @@ public enum PreNotification: Equatable, Sendable, Hashable {
         }
     }
 
-    // REQ-NTF-020 / 022: 経過割合はセッション長に対する比率なので、延長後は延びた長さに追随する。
+    // REQ-NTF-020 / 022: the percentage is of the session length, so after an extension it follows the longer one.
     public func fireDate(sessionStartedAt: Date, sessionEndAt: Date) -> Date {
         switch self {
         case let .beforeEnd(seconds):
@@ -32,16 +32,16 @@ public enum PreNotification: Equatable, Sendable, Hashable {
     }
 }
 
-// REQ-PRT-001: 両端末が同じ結果を出すよう、発火時刻の決定を共有コードに置く。
+// REQ-PRT-001: deciding the fire times lives in shared code, so both devices reach the same answer.
 public enum PreNotificationSchedule {
-    // 2つのトリガが接近しているとみなす間隔 (REQ-NTF-023)。
+    // How close two triggers have to be to count as adjacent (REQ-NTF-023).
     public static let minimumSpacingSeconds: TimeInterval = 60
 
-    /// スケジュールすべき発火時刻を昇順で返す。
+    /// The fire times to schedule, in ascending order.
     ///
-    /// - REQ-NTF-021: 発火時刻がセッション開始時刻以前になるトリガは除外する。
-    /// - REQ-NTF-022: `now` を過ぎているトリガは除外する（延長による再スケジュール時に再発火させない）。
-    /// - REQ-NTF-023: 2つの発火時刻が 60 秒以内に接近する場合は後者のみを残す。
+    /// - REQ-NTF-021: a trigger that would fire at or before the session start is dropped.
+    /// - REQ-NTF-022: a trigger already past `now` is dropped, so rescheduling after an extension does not fire it again.
+    /// - REQ-NTF-023: when two fire times fall within 60 seconds of each other, only the later one is kept.
     public static func fireDates(
         for triggers: [PreNotification],
         sessionStartedAt: Date,
@@ -65,7 +65,7 @@ public enum PreNotificationSchedule {
     }
 }
 
-// 10.3: 通信・永続化での表現を固定するため、Codable を明示的に書く。
+// 10.3: Codable is written out by hand to fix the representation used on the wire and on disk.
 extension PreNotification: Codable {
     private enum CodingKeys: String, CodingKey {
         case type, seconds, percent

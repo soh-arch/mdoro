@@ -1,7 +1,8 @@
 import Foundation
 
-// REQ-COL-005 / 020: コントラスト比と ΔE を自動検証するため、色を計算可能な値として持つ。
-// hex は生成物であり、比較・検証はすべてここでの数値変換を通す。
+// REQ-COL-005 / 020: colour is held as a computable value so contrast ratio and ΔE can be
+// checked automatically. The hex string is an output; every comparison goes through the
+// conversions here.
 public struct SRGBColor: Equatable, Sendable, Hashable {
     public let red: Double
     public let green: Double
@@ -13,7 +14,7 @@ public struct SRGBColor: Equatable, Sendable, Hashable {
         self.blue = blue
     }
 
-    // 不正な文字列は設計時に気づくべき誤りなので、Optional にせず停止させる。
+    // A malformed string is a mistake to catch at design time, so this traps instead of being optional.
     public init(hex: String) {
         let digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
         precondition(digits.count == 6, "hex must have 6 digits: \(hex)")
@@ -30,7 +31,7 @@ public struct SRGBColor: Equatable, Sendable, Hashable {
         return String(format: "#%02X%02X%02X", channel(red), channel(green), channel(blue))
     }
 
-    // MARK: - 線形化
+    // MARK: - Linearisation
 
     private static func linearize(_ channel: Double) -> Double {
         channel <= 0.04045 ? channel / 12.92 : pow((channel + 0.055) / 1.055, 2.4)
@@ -52,15 +53,15 @@ public struct SRGBColor: Equatable, Sendable, Hashable {
         )
     }
 
-    // MARK: - 輝度とコントラスト
+    // MARK: - Luminance and contrast
 
-    // REQ-COL-021 / 8.5.5: WCAG 2.x の相対輝度。「絶対輝度」もこの値を指す。
+    // REQ-COL-021 / 8.5.5: the WCAG 2.x relative luminance. "Absolute luminance" means this value too.
     public var relativeLuminance: Double {
         let (r, g, b) = linear
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
     }
 
-    // WCAG 2.x のコントラスト比 (1.0〜21.0)。
+    // The WCAG 2.x contrast ratio (1.0 to 21.0).
     public func contrastRatio(against other: SRGBColor) -> Double {
         let a = relativeLuminance
         let b = other.relativeLuminance
@@ -69,7 +70,7 @@ public struct SRGBColor: Equatable, Sendable, Hashable {
 
     // MARK: - OKLab
 
-    // 8.5.5: ΔE は OKLab 上のユークリッド距離。知覚的に均等な空間で測る。
+    // 8.5.5: ΔE is Euclidean distance in OKLab — measured in a perceptually uniform space.
     public var oklab: (L: Double, a: Double, b: Double) {
         let (r, g, b) = linear
         let l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
@@ -83,7 +84,7 @@ public struct SRGBColor: Equatable, Sendable, Hashable {
         )
     }
 
-    // 8.5.5 の表記に合わせ 100 倍して返す（10 未満で混同リスク）。
+    // Scaled by 100 to match the notation of 8.5.5 (below 10 is a risk of confusion).
     public func deltaE(from other: SRGBColor) -> Double {
         let a = oklab, b = other.oklab
         let dL = a.L - b.L, da = a.a - b.a, db = a.b - b.b

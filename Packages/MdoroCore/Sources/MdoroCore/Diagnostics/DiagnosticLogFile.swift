@@ -1,14 +1,14 @@
 import Foundation
 
-// REQ-ERR-010 / Decision 0018: 追記のみ・2世代のログファイル。
-// **古い行を削除する処理を持たない。** 上限に達したらリネームするだけにする。
+// REQ-ERR-010 / Decision 0018: an append-only log kept in two generations.
+// **Nothing here deletes old lines.** At the size limit the file is renamed, and that is all.
 public final class DiagnosticLogFile: @unchecked Sendable {
 
     public let directory: URL
     public var currentURL: URL { directory.appendingPathComponent(DiagnosticLogFormat.currentFileName) }
     public var previousURL: URL { directory.appendingPathComponent(DiagnosticLogFormat.previousFileName) }
 
-    // ログ自体が書けないことも黙らせない。
+    // Not even a log that cannot be written is passed over in silence.
     // REQ-ERR-010 / Decision 0034 / 0035: a domain and a code, never the words the OS chose.
     // This is the one failure whose code has nowhere to be written down — the log is the thing
     // that is broken — so it goes to the settings screen instead, and it goes there as a code.
@@ -42,7 +42,7 @@ public final class DiagnosticLogFile: @unchecked Sendable {
         }
     }
 
-    // 書き出しは「前の世代 → いまの世代」の時系列で1本にまとめる。
+    // The export joins both generations into one, previous then current, in time order.
     public func exportedText() -> String {
         lock.lock()
         defer { lock.unlock() }

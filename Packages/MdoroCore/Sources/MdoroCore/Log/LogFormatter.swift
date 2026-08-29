@@ -1,9 +1,9 @@
 import Foundation
 
-// REQ-LOG-010〜017 / 023: ログ1行と日付見出しの整形。ファイル入出力は持たない。
+// REQ-LOG-010 to 017 / 023: formatting a log line and a day heading. No file I/O here.
 public enum LogFormatter {
     public struct Options: Equatable, Sendable {
-        // REQ-LOG-013: 既定はプレーンテキスト。設定でリンク化を選べる。
+        // REQ-LOG-013: plain text by default. A setting turns the task name into a link.
         public var taskAsLink: Bool
 
         public init(taskAsLink: Bool = false) {
@@ -13,13 +13,13 @@ public enum LogFormatter {
         public static let `default` = Options()
     }
 
-    // REQ-UIX-038: 曜日はロケールに左右させず、英語3文字で固定する。
+    // REQ-UIX-038: weekday names are fixed three-letter English, never taken from the locale.
     static let weekdaySymbols = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
     // REQ-LOG-003: `## YYYY-MM-DD (Day)`
     public static func dayHeading(for logicalDate: Date, calendar: Calendar = .current) -> String {
         var utc = calendar
-        // logicalDate は LogicalDay が暦日として正規化した値なので、同じ暦で読み戻す。
+        // logicalDate was normalised to a calendar day by LogicalDay, so it is read back with the same calendar.
         utc.locale = Locale(identifier: "en_US_POSIX")
         let components = utc.dateComponents([.year, .month, .day, .weekday], from: logicalDate)
         let weekday = weekdaySymbols[((components.weekday ?? 1) - 1) % 7]
@@ -27,12 +27,13 @@ public enum LogFormatter {
                       components.year ?? 0, components.month ?? 0, components.day ?? 0, weekday)
     }
 
-    // REQ-LOG-003 / REQ-LOG-022 / Decision 0014: 日付が読めれば、曜日が書き換えられていても
-    // 同一の見出しとみなす。**曜日の書き換えは REQ-LOG-022 の「改名」には当たらない。**
-    // 別物として末尾に作り直すと、同じ日の見出しが2つ並んで記録が分断される。
+    // REQ-LOG-003 / REQ-LOG-022 / Decision 0014: if the date reads, it is the same heading even when
+    // the weekday has been rewritten. **Rewriting the weekday is not a "rename" under REQ-LOG-022.**
+    // Taking it for a different heading and rebuilding one at the end would leave two headings for
+    // the same day, splitting the record in two.
     //
-    // **日付は `## ` の直後に限る。** 行のどこかにあれば一致とすると、
-    // `## 週次レビュー 2026-08-24 の分` のような見出しに一致し、ユーザーの節へログ行を混入させる。
+    // **The date must follow `## ` directly.** Matching it anywhere in the line would match a heading
+    // such as `## Weekly review for 2026-08-24` and drop log lines into the user's own section.
     public static func headingMatches(_ line: String, logicalDate: Date, calendar: Calendar = .current) -> Bool {
         guard let dateRange = line.range(of: #"^##[ \t]+(\d{4}-\d{2}-\d{2})"#, options: .regularExpression) else {
             return false
@@ -50,7 +51,7 @@ public enum LogFormatter {
         return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
     }
 
-    // 秒は最も近い分へ丸める。切り捨てると完了直後の 24m59s が 24m になる。
+    // Seconds round to the nearest minute. Truncating would turn a just-completed 24m59s into 24m.
     static func minutes(_ seconds: Int) -> Int {
         Int((Double(seconds) / 60).rounded())
     }
@@ -69,22 +70,23 @@ public enum LogFormatter {
         case .aborted: parts.append("⏹ Stopped")
         }
 
-        // REQ-LOG-011: 完了後の周回数を n / longBreakInterval で含める。n は REQ-TIM-025 と同じ剰余表現。
+        // REQ-LOG-011: carry the loop count after completion as n / longBreakInterval. n uses the same
+        // modulo form as REQ-TIM-025.
         if entry.sessionType == .work, entry.outcome == .completed,
            let loopCount = entry.loopCountAfterCompletion, loopCount > 0, entry.longBreakInterval > 0 {
             let display = ((loopCount - 1) % entry.longBreakInterval) + 1
             parts.append("Loop \(display)/\(entry.longBreakInterval)")
         }
 
-        // REQ-LOG-012: 延長が行われた場合は累積延長時間を併記する。
+        // REQ-LOG-012: when the session was extended, the accumulated extension is written alongside.
         if entry.extendedSeconds > 0 {
             parts.append("(+\(minutes(entry.extendedSeconds))m extended)")
         }
 
-        // REQ-LOG-016: A 群がセッション中に編集されていたらプリセット名に * を付す。
+        // REQ-LOG-016: mark the preset name with * when a group A setting was edited during the session.
         parts.append("[\(entry.presetName)\(entry.presetEditedDuringSession ? "*" : "")]")
 
-        // REQ-LOG-010 / 023: タスク名は WORK のみ。開始時点のスナップショットを使う。
+        // REQ-LOG-010 / 023: the task name is for WORK only, and comes from the snapshot made at start.
         if entry.sessionType == .work, let task = entry.taskSnapshot, !task.isEmpty {
             parts.append("— \(options.taskAsLink ? "[[\(task)]]" : plainTaskName(task))")
         }
@@ -92,7 +94,7 @@ public enum LogFormatter {
         return parts.joined(separator: " ")
     }
 
-    // REQ-LOG-013: 本文の [[...]] が意図せずリンクにならないよう括弧を落とす。
+    // REQ-LOG-013: strip the brackets so a [[...]] in the text does not become a link by accident.
     static func plainTaskName(_ text: String) -> String {
         text.replacingOccurrences(of: "[[", with: "")
             .replacingOccurrences(of: "]]", with: "")

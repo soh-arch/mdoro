@@ -1,7 +1,7 @@
 import Foundation
 
-// REQ-ERR-016 / 10.2: `command` を `TimerAction` に翻訳する。
-// **通信層に判断を持たせない。** 形の変換だけを行い、受理可否は状態機械が決める。
+// REQ-ERR-016 / 10.2: translate a `command` into a `TimerAction`.
+// **The transport layer decides nothing.** It converts shapes; the state machine decides what is accepted.
 public enum CommandTranslation {
 
     // 10.2: the fields a `command` can carry. A case rather than a string literal at each
@@ -74,7 +74,7 @@ public enum CommandTranslation {
             return .success(.startWork(presetId: activePresetId, taskSnapshot: selectedTaskSnapshot))
 
         case .startBreak:
-            // 10.2: sessionType は必須。省略できない。
+            // 10.2: sessionType is required and cannot be omitted.
             guard let type = params.sessionType else { return .failure(.missingParameter(.sessionType)) }
             guard type == .shortBreak || type == .longBreak else {
                 return .failure(.invalidParameter(.sessionType))
@@ -93,7 +93,7 @@ public enum CommandTranslation {
             switch decision {
             case .complete: return .success(.confirmRestoredSession(.complete))
             case .discard: return .success(.confirmRestoredSession(.discard))
-            // 10.2: プロトコル上の `resume` は内部の `continueSession` に対応する。
+            // 10.2: `resume` on the wire is `continueSession` inside.
             case .resume: return .success(.confirmRestoredSession(.continueSession))
             }
 
@@ -138,8 +138,9 @@ public enum CommandTranslation {
     }
 }
 
-// REQ-PRT-003: 同一 clientRequestId の再送を無視する。
-// 冪等にしないと、再接続直後の再送で「延長」が二重に効いたり周回数が余分に動いたりする。
+// REQ-PRT-003: a resend carrying a clientRequestId already seen is ignored.
+// Without idempotence, a resend just after reconnecting would extend twice, or move the loop
+// count on by an extra step.
 public struct RequestDeduplicator: Sendable {
     private var seen: [String] = []
     private var seenSet: Set<String> = []
@@ -149,7 +150,7 @@ public struct RequestDeduplicator: Sendable {
         self.capacity = capacity
     }
 
-    // 初めて見た ID なら true。既出なら false（＝処理しない）。
+    // True for an id seen for the first time; false if it has been seen before, meaning: do not process it.
     public mutating func shouldProcess(_ requestId: String) -> Bool {
         guard !seenSet.contains(requestId) else { return false }
         seen.append(requestId)

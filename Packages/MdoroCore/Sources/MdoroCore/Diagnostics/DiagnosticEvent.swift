@@ -1,16 +1,17 @@
 import Foundation
 
-// REQ-ERR-010 / Decision 0018: 診断ログに載せる1件。
+// REQ-ERR-010 / Decision 0018: one entry of the diagnostic log.
 //
-// **利用者由来の文字列をここへ入れないこと。** タスク名・見出し・本文・パス・サーバー名・
-// 端末名・IP アドレスは、書き出しのときではなく**書き込みの時点で**落とす。
+// **No string that came from the user goes in here.** Task names, headings, note bodies,
+// paths, service names, device names and IP addresses are dropped **as the line is written**,
+// not when the log is exported.
 
 public enum DiagnosticLevel: String, Sendable, Equatable, CaseIterable {
     case info = "INFO"
     case warn = "WARN"
     case error = "ERROR"
 
-    // `tail -f` で桁を揃えるための固定幅。
+    // Fixed width, so the columns line up under `tail -f`.
     var padded: String { rawValue.count >= 5 ? rawValue : rawValue + String(repeating: " ", count: 5 - rawValue.count) }
 }
 
@@ -35,7 +36,7 @@ public struct DiagnosticField: Sendable, Equatable {
 public struct DiagnosticEvent: Sendable, Equatable {
     public let timestamp: Date
     public let level: DiagnosticLevel
-    // 「session.start」「log.write」のような、grep しやすい固定語。
+    // A fixed word that greps well, such as "session.start" or "log.write".
     public let code: String
     public let fields: [DiagnosticField]
 
@@ -52,16 +53,16 @@ public struct DiagnosticEvent: Sendable, Equatable {
     }
 }
 
-// Decision 0018: 同定はできるが、内容は復元できない形に落とす。
+// Decision 0018: reduced to a form that identifies without letting the content be recovered.
 public enum DiagnosticRedaction {
 
-    // タスクは `stableId` の下4桁だけで追う。名前は書かない。
+    // A task is followed by the last four digits of its `stableId`. The name is never written.
     public static func taskId(_ stableId: String) -> String {
         String(stableId.suffix(4))
     }
 
-    // ファイルはパスのダイジェストで追う。プロセスをまたいで安定させるため FNV-1a を使う
-    // （Swift の `Hasher` は起動ごとに種が変わる）。
+    // A file is followed by a digest of its path. FNV-1a, so the value is stable across processes
+    // (Swift's `Hasher` is seeded afresh on every launch).
     public static func digest(_ value: String) -> String {
         var hash: UInt32 = 2_166_136_261
         for byte in Array(value.utf8) {
@@ -76,7 +77,7 @@ public enum DiagnosticRedaction {
         return digest(value)
     }
 
-    // 1行1イベントを崩さないための最低限の防御。改行や空白が値に紛れても行が割れない。
+    // The minimum defence for one event per line: a newline or space inside a value cannot split it.
     static func token(_ value: String) -> String {
         let cleaned = value.unicodeScalars.map { scalar -> Character in
             if CharacterSet.whitespacesAndNewlines.contains(scalar) { return "_" }

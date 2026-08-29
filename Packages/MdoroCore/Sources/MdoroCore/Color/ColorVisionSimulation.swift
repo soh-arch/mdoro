@@ -1,22 +1,23 @@
 import Foundation
 
-// REQ-COL-020: セッション3色が色覚多様性下でも識別できることを検証するための変換 (8.5.5)。
-// Viénot, Brettel & Mollon (1999) の二色覚シミュレーション。線形 sRGB に対して適用する。
+// REQ-COL-020: the transform used to check that the three session colours stay distinguishable
+// under colour vision deficiency (8.5.5). The dichromat simulation of Viénot, Brettel & Mollon
+// (1999), applied to linear sRGB.
 public enum ColorVision: String, CaseIterable, Sendable {
-    case normal      // 一般
-    case deuteranope // 2型 (deutan)
-    case protanope   // 1型 (protan)
+    case normal      // ordinary vision
+    case deuteranope // type 2 (deutan)
+    case protanope   // type 1 (protan)
 
     public func simulate(_ color: SRGBColor) -> SRGBColor {
         guard self != .normal else { return color }
         let (r, g, b) = color.linear
 
-        // 線形 RGB → LMS
+        // linear RGB → LMS
         let l = 17.8824 * r + 43.5161 * g + 4.11935 * b
         let m = 3.45565 * r + 27.1554 * g + 3.86714 * b
         let s = 0.0299566 * r + 0.184309 * g + 1.46709 * b
 
-        // 失われた錐体の応答を、残る2つから再構成する。
+        // Rebuild the missing cone's response from the two that remain.
         let l2: Double, m2: Double, s2: Double
         switch self {
         case .protanope:
@@ -31,7 +32,7 @@ public enum ColorVision: String, CaseIterable, Sendable {
             l2 = l; m2 = m; s2 = s
         }
 
-        // LMS → 線形 RGB
+        // LMS → linear RGB
         return SRGBColor(
             linearR: 0.080944 * l2 - 0.130504 * m2 + 0.116721 * s2,
             linearG: -0.0102485 * l2 + 0.0540194 * m2 - 0.113615 * s2,

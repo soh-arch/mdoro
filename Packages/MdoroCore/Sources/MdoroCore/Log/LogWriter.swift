@@ -1,13 +1,13 @@
 import Foundation
 
 public enum LogWriteError: Error, Equatable, Sendable {
-    // REQ-LOG-002: 作成先ディレクトリが存在しない。REQ-LOG-021: Task.md と同一パス。
+    // REQ-LOG-002: the target directory does not exist. REQ-LOG-021: the same path as Task.md.
     case invalidFilePath
     // REQ-ERR-010 / Decision 0034: the OS failure is carried as a domain and a code.
     // It never carries `localizedDescription`, which changes language and names files.
     case readFailed(ErrorCode)
     case writeFailed(ErrorCode)
-    // 挿入以外の変更が起きようとした。
+    // A change other than an insertion was about to happen.
     case wouldModifyExistingLines
 }
 
@@ -48,12 +48,12 @@ extension LogWriteError: ReportableError {
     }
 }
 
-// REQ-LOG-001〜004 / 022: 実績ログへの追記。
-// **このアプリが利用者のファイルへ書き込む唯一の経路である。**
+// REQ-LOG-001 to 004 / 022: appending to the session log.
+// **This is the only path by which the app writes to a file of the user's.**
 public struct LogWriter: Sendable {
     public let fileURL: URL
-    // REQ-LOG-021 を書き込みのたびに確かめるために持つ。
-    // 設定画面の検証だけに頼ると、呼び忘れ・設定値の破損・シンボリックリンクで素通りする。
+    // Held so REQ-LOG-021 can be checked on every write.
+    // Relying on the settings screen alone lets a missed call, a corrupted value, or a symlink through.
     public let taskFileURL: URL?
     public let options: LogFormatter.Options
 
@@ -65,14 +65,14 @@ public struct LogWriter: Sendable {
 
     private var fileManager: FileManager { .default }
 
-    // REQ-LOG-021: ログファイルのパストして Task.md と同一のファイルを指定できない。
+    // REQ-LOG-021: the log file path may not name the same file as Task.md.
     public static func validate(logFileURL: URL, taskFileURL: URL?) throws {
         if let taskFileURL,
            logFileURL.standardizedFileURL.resolvingSymlinksInPath()
             == taskFileURL.standardizedFileURL.resolvingSymlinksInPath() {
             throw LogWriteError.invalidFilePath
         }
-        // REQ-LOG-002: 作成先ディレクトリが存在しない場合はエラーとし、設定の修正を促す。
+        // REQ-LOG-002: a missing target directory is an error, and the user is asked to fix the setting.
         let directory = logFileURL.deletingLastPathComponent()
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory),
@@ -82,10 +82,10 @@ public struct LogWriter: Sendable {
     }
 
     public func append(_ entry: LogEntry, calendar: Calendar = .current) throws {
-        // REQ-LOG-021 / 第1原則: 書き込む直前に、書き込み先が Task.md でないことを確かめる。
+        // REQ-LOG-021 / first principle: immediately before writing, confirm the destination is not Task.md.
         try Self.validate(logFileURL: fileURL, taskFileURL: taskFileURL)
 
-        // REQ-LOG-004: 書き込み前にファイルを再読み込みし、外部変更を取り込んでから追記する。
+        // REQ-LOG-004: reread the file before writing, so changes made elsewhere are carried over.
         let existing: String
         if fileManager.fileExists(atPath: fileURL.path) {
             do {
@@ -94,7 +94,7 @@ public struct LogWriter: Sendable {
                 throw LogWriteError.readFailed(ErrorCode(error))
             }
         } else {
-            // REQ-LOG-002: ファイルが存在しない場合は新規作成する。
+            // REQ-LOG-002: create the file when it does not exist.
             existing = ""
         }
 
@@ -114,8 +114,8 @@ public struct LogWriter: Sendable {
         try writeAtomically(insertion.contents)
     }
 
-    // REQ-LOG-004 / REQ-PLT-004: 一時ファイルへ書き出してから差し替える。
-    // **同一ディレクトリ内**に置く。サンドボックス下でディレクトリを跨ぐ rename は失敗する。
+    // REQ-LOG-004 / REQ-PLT-004: write to a temporary file, then swap it in.
+    // It goes **in the same directory**: under the sandbox, a rename across directories fails.
     private func writeAtomically(_ contents: String) throws {
         let directory = fileURL.deletingLastPathComponent()
         let temporaryURL = directory.appendingPathComponent(".\(fileURL.lastPathComponent).\(UUID().uuidString).tmp")
@@ -133,8 +133,8 @@ public struct LogWriter: Sendable {
     }
 }
 
-// REQ-LOG-005 / REQ-ERR-004: 書き込みに失敗してもタイマーを止めない。
-// キューに積んで再試行し、3回失敗した時点で通知する。
+// REQ-LOG-005 / REQ-ERR-004: a failed write never stops the timer.
+// Entries are queued and retried; at the third failure the user is told.
 public final class LogWriteQueue: @unchecked Sendable {
     public static let failureThreshold = 3
 
@@ -142,7 +142,7 @@ public final class LogWriteQueue: @unchecked Sendable {
         public var written: Int
         public var pending: Int
         public var consecutiveFailures: Int
-        // 3回失敗に達した。
+        // The third consecutive failure was reached.
         public var shouldNotify: Bool
         public var lastError: LogWriteError?
     }
@@ -156,8 +156,8 @@ public final class LogWriteQueue: @unchecked Sendable {
         queue = entries
     }
 
-    // 未書き込みのぶん。**プロセスをまたいで失わないよう永続化する** (REQ-LOG-005)。
-    // committedAt は既に立っているので、ここで落とすと二度と書き直されない。
+    // What has not been written yet. **Persisted so it survives across processes** (REQ-LOG-005).
+    // committedAt is already set, so anything dropped here is never written again.
     public var pendingEntries: [LogEntry] {
         lock.lock(); defer { lock.unlock() }
         return queue
@@ -173,8 +173,8 @@ public final class LogWriteQueue: @unchecked Sendable {
         queue.append(entry)
     }
 
-    // 先頭から順に書き込む。失敗したらそこで止め、残りはキューに保持したままにする。
-    // 順序を守るのは、ログが時系列の記録だからである。
+    // Written from the front, in order. On a failure it stops there and the rest stays queued.
+    // The order is kept because the log is a record in time.
     @discardableResult
     public func flush(using write: (LogEntry) throws -> Void) -> FlushResult {
         lock.lock(); defer { lock.unlock() }

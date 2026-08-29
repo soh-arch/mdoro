@@ -1,6 +1,7 @@
 import Foundation
 
-// REQ-COL-002 / 8.5.4: ビューは役割名で色を参照し、色相名トークン (ink-solid 等) を直接使わない。
+// REQ-COL-002 / 8.5.4: views reference colour by role name, never a hue token (ink-solid and
+// the like) directly.
 public enum ColorRole: String, CaseIterable, Sendable {
     case sessionFocus
     case sessionShortBreak
@@ -19,7 +20,7 @@ public enum ColorRole: String, CaseIterable, Sendable {
         }
     }
 
-    // REQ-COL-012: danger (Clay) をセッション種別の表示に使ってはならない。
+    // REQ-COL-012: danger (Clay) must never stand for a session type.
     public var isSessionRole: Bool {
         switch self {
         case .sessionFocus, .sessionShortBreak, .sessionLongBreak: return true
@@ -27,8 +28,8 @@ public enum ColorRole: String, CaseIterable, Sendable {
         }
     }
 
-    // REQ-COL-011: セッション状態に使ってよいのは -graphic と -text だけ。
-    // 帯 (-subtle の地に -line の枠) は warning に予約する。
+    // REQ-COL-011: only -graphic and -text may be used for a session state.
+    // The banner treatment (a -subtle ground inside a -line border) is reserved for warning.
     public var permittedRoles: Set<HueRole> {
         isSessionRole ? [.graphic, .text] : Set(HueRole.allCases)
     }
@@ -53,7 +54,7 @@ public extension SessionType {
         }
     }
 
-    // REQ-COL-010 / 013: 色だけに頼らせない。線種でも区別する。
+    // REQ-COL-010 / 013: never colour alone. The stroke style tells them apart too.
     var progressRingStyle: ProgressRingStyle {
         switch self {
         case .work: return .solid

@@ -1,13 +1,13 @@
 import Foundation
 
-// REQ-PRT-004: プロトコルバージョンを hello / welcome で交換し、非互換なら接続を拒否する。
+// REQ-PRT-004: the protocol version is exchanged in hello / welcome, and an incompatible one is refused.
 public enum PomodoroProtocol {
     public static let version = 1
 
     public static func isCompatible(_ other: Int) -> Bool { other == version }
 }
 
-// REQ-PRT-002: すべてのメッセージは type / messageId / sentAt を必須で持つ。
+// REQ-PRT-002: every message carries type / messageId / sentAt. None of them is optional.
 public struct MessageHeader: Equatable, Sendable, Codable {
     public var messageId: String
     public var sentAt: Date
@@ -31,8 +31,8 @@ public struct ConnectionState: Equatable, Sendable, Codable {
     }
 }
 
-// 10.2 stateSnapshot のペイロード。
-// REQ-COM-007〜009: clockOffsetMs / roundTripMs は**含めない**。クライアントが自分で測る値である。
+// The payload of 10.2 stateSnapshot.
+// REQ-COM-007 to 009: clockOffsetMs / roundTripMs are **not carried**. The client measures those itself.
 public struct StateSnapshot: Equatable, Sendable, Codable {
     public var timer: TimerContext
     public var task: TaskContext
@@ -105,7 +105,7 @@ public struct SessionEventPayload: Equatable, Sendable, Codable {
     public var sessionType: SessionType
     public var loopCount: Int
     public var nextSessionType: SessionType
-    // decisionRequired のときのみ。
+    // Only for decisionRequired.
     public var reason: PendingDecision.Reason?
 
     public init(
@@ -120,7 +120,7 @@ public struct SessionEventPayload: Equatable, Sendable, Codable {
     }
 }
 
-// 10.2 error.code。TimerError から変換して送る。
+// 10.2 error.code. Converted from TimerError before sending.
 public enum ProtocolErrorCode: String, Equatable, Sendable, Codable, CaseIterable {
     case invalidStateForAction
     case extendWindowClosed

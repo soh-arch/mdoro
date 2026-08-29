@@ -1,8 +1,8 @@
 import Foundation
 
-// REQ-UIX-004: 接続状態の表示に必要な区分だけを共有する。
+// REQ-UIX-004: only the distinctions the connection display needs are shared.
 //
-// **区分と役は共有し、言葉は共有しない**（Decision 0022）。The words each platform shows live
+// **The cases and their roles are shared; the words are not** (Decision 0022). The words each platform shows live
 // in its own `Format`, so they reach a String Catalog; a package has no catalogue to reach,
 // and the three words here were already written a second time on the iPhone.
 public enum ConnectionStatus: String, Equatable, Sendable, Codable, CaseIterable {
@@ -10,7 +10,7 @@ public enum ConnectionStatus: String, Equatable, Sendable, Codable, CaseIterable
     case reconnecting
     case disconnected
 
-    // REQ-COL-010: 色のみで区別しない。通常画面では色に加えて形の違うアイコンを添える。
+    // REQ-COL-010: never colour alone. The normal screen adds an icon of a different shape to the colour.
     public var symbolName: String {
         switch self {
         case .connected: return "iphone.gen3"
@@ -19,8 +19,8 @@ public enum ConnectionStatus: String, Equatable, Sendable, Codable, CaseIterable
         }
     }
 
-    // REQ-UIX-004: **表示する側から見た「相手の端末」**。`symbolName` を両端で使うと指す相手が逆になる。
-    // 名前は `SymbolNameTests` で実在を検証する。
+    // REQ-UIX-004: **the peer device, as seen from the side that shows it.** Using `symbolName` on
+    // both ends points at the wrong device. `SymbolNameTests` checks that these names exist.
     public var peerSymbolName: String {
         #if os(macOS)
         switch self {

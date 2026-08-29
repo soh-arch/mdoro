@@ -1,10 +1,12 @@
 import Foundation
 
-// REQ-TIM: 4章の状態機械。ログ書き込み・通知・ファイル入出力は行わず、Effect として呼び出し側へ渡す。
+// REQ-TIM: the state machine of chapter 4. It writes no log, raises no notification and touches
+// no file; all of that leaves as an Effect for the caller.
 public enum TimerEngine {
-    // REQ-TIM-043: FINISHED の猶予はプリセット非依存の固定値。REQ-TIM-046 の受付ウィンドウと一致させる。
+    // REQ-TIM-043: the grace after FINISHED is fixed and does not depend on the preset. It is kept
+    // in step with the window of REQ-TIM-046.
     public static let extensionGraceSeconds: TimeInterval = 60
-    // REQ-TIM-046: RUNNING / PAUSED で延長を受け付ける残り時間の上限。
+    // REQ-TIM-046: the most time that may remain for RUNNING or PAUSED to accept an extension.
     public static let extensionWindowSeconds: TimeInterval = 5 * 60
 
     public struct Reduction: Equatable {
@@ -17,7 +19,8 @@ public enum TimerEngine {
         StateTransitionMatrix.canAccept(action, in: runState)
     }
 
-    // REQ-TIM-046 / Decision 0010: RUNNING / PAUSED は残り 5 分以下、FINISHED は終了から 1 分以内。
+    // REQ-TIM-046 / Decision 0010: five minutes or less remaining for RUNNING / PAUSED; within one
+    // minute of the end for FINISHED.
     public static func isWithinExtensionWindow(_ context: TimerContext, now: Date) -> Bool {
         switch context.runState {
         case .running:
@@ -35,7 +38,7 @@ public enum TimerEngine {
 
     // MARK: - PENDING_DECISION
 
-    // REQ-PER-008 / 009: 通知を取り消し、Live Activity を終了させる。再スケジュールはしない。
+    // REQ-PER-008 / 009: cancel the notifications and end the Live Activity. Nothing is rescheduled.
     static let pendingDecisionEffects: [Effect] = [.cancelScheduledNotifications, .endLiveActivity]
 
     static func enterPendingDecision(
@@ -52,9 +55,10 @@ public enum TimerEngine {
         return ctx
     }
 
-    // MARK: - 起動時の復元 (REQ-PER-002 / 003)
+    // MARK: - Restoring at launch (REQ-PER-002 / 003)
 
-    // REQ-PER-003(d): tick() と分ける。不在中に終わっていたセッションを、無条件に完了扱いしてはならない。
+    // REQ-PER-003(d): kept apart from tick(). A session that ended while nobody was there must not be
+    // taken for completed without asking.
     public static func restore(
         context: TimerContext,
         presets: PresetContext,
@@ -66,11 +70,12 @@ public enum TimerEngine {
 
         switch ctx.runState {
         case .idle, .pendingDecision:
-            // 既に判断待ちのものはそのまま引き継ぐ。日跨ぎの自動確定は tick() が扱う (REQ-PER-004)。
+            // Anything already waiting on a decision carries straight over. Committing it when the day turns
+            // is tick()'s work (REQ-PER-004).
             return Reduction(context: ctx, presets: presets, effects: [])
 
         case .paused:
-            // REQ-TIM-033: 一時停止は終了時刻を持たない。放置しすぎたら確認へ倒す。
+            // REQ-TIM-033: a pause has no end time. Left too long, it falls through to a question.
             guard let pausedAt = ctx.pausedAt,
                   now.timeIntervalSince(pausedAt) >= Double(settings.idleResetHours) * 3600 else {
                 return Reduction(context: ctx, presets: presets, effects: [])
@@ -82,8 +87,8 @@ public enum TimerEngine {
             break
         }
 
-        // (a) 確定済み → 完了しているものとして IDLE で復元し、ログを再度書かない。
-        //     休憩は REQ-TIM-044 により通常この経路を通る。
+        // (a) Already committed → restored as completed, in IDLE, and the log is not written again.
+        //     By REQ-TIM-044 a break normally comes through here.
         if ctx.committedAt != nil {
             ctx.runState = .idle
             ctx.pendingDecision = nil
@@ -92,13 +97,13 @@ public enum TimerEngine {
         }
 
         guard let endAt = ctx.sessionEndAt else {
-            // 終了時刻を持たない未確定セッションは復元しようがない。IDLE へ落として続行する。
+            // An uncommitted session with no end time cannot be restored. It drops to IDLE and carries on.
             ctx.runState = .idle
             ctx.lastUpdatedAt = now
             return Reduction(context: ctx, presets: presets, effects: [])
         }
 
-        // (b) 未確定かつ終了時刻が未来 → そのまま RUNNING で復元する。
+        // (b) Uncommitted, and the end time is still ahead → restored as it was, RUNNING.
         if now < endAt {
             ctx.runState = .running
             ctx.finishedAt = nil
@@ -106,8 +111,8 @@ public enum TimerEngine {
             return Reduction(context: ctx, presets: presets, effects: [])
         }
 
-        // ここから先は「不在中に終了時刻を過ぎていた」場合。
-        // FINISHED への到達そのものは tick() と同じ規則で反映する。
+        // From here on, the end time passed while nobody was there.
+        // Reaching FINISHED itself follows the same rules tick() uses.
         if ctx.runState == .running {
             ctx.finishedAt = endAt
             ctx.runState = .finished
@@ -122,7 +127,8 @@ public enum TimerEngine {
         let finishedAt = ctx.finishedAt ?? endAt
         ctx.lastUpdatedAt = now
 
-        // (c) 猶予内 → WORK は FINISHED のまま復元する。休憩は猶予を持たないのでここで確定させる (REQ-TIM-044)。
+        // (c) Within the grace → WORK is restored still FINISHED. A break has no grace, so it is
+        //     committed here (REQ-TIM-044).
         if now.timeIntervalSince(finishedAt) <= extensionGraceSeconds {
             if ctx.sessionType == .work {
                 return Reduction(context: ctx, presets: presets, effects: [])
@@ -131,8 +137,9 @@ public enum TimerEngine {
             return Reduction(context: finalized, presets: presets, effects: effs)
         }
 
-        // (d) 猶予超過 → 判断を仰ぐ。応答まで周回数を加算せずログも記録しない。
-        //     FINISHED 到達時に加算した周回数はここで戻す (REQ-TIM-042 と同じ理由)。
+        // (d) Past the grace → ask. Until the answer comes, the loop count does not move and nothing
+        //     is logged. The count added on reaching FINISHED is taken back here, for the reason
+        //     REQ-TIM-042 gives.
         if ctx.sessionType == .work {
             ctx.loopCount = max(0, ctx.loopCount - 1)
             ctx.nextSessionType = standardNextSessionType(after: .work, loopCount: ctx.loopCount, longBreakInterval: interval)
@@ -141,9 +148,10 @@ public enum TimerEngine {
         return Reduction(context: ctx, presets: presets, effects: pendingDecisionEffects)
     }
 
-    // MARK: - 時間経過による自動遷移
+    // MARK: - Transitions time makes on its own
 
-    // REQ-TIM-010/020/043/044: 終了時刻到達・延長猶予満了を、明示的な操作なしに反映する。
+    // REQ-TIM-010/020/043/044: reaching the end time, and the extension grace running out, take
+    // effect with nobody having to do anything.
     public static func tick(
         context: TimerContext,
         presets: PresetContext,
@@ -160,22 +168,24 @@ public enum TimerEngine {
             ctx.lastUpdatedAt = now
 
             if ctx.sessionType == .work {
-                // REQ-TIM-012/015/020: 完了と仮定する前の loopCount で次種別を決めてから加算する。
+                // REQ-TIM-012/015/020: the next type is decided from the loopCount before the completion is
+                // assumed, and only then is the count raised.
                 let next = standardNextSessionType(after: .work, loopCount: ctx.loopCount, longBreakInterval: interval)
                 ctx.loopCount += 1
                 ctx.nextSessionType = next
-                // WORK は延長猶予があるため、ここでは確定しない (REQ-TIM-043)。
+                // WORK has a grace for extending, so nothing is committed here (REQ-TIM-043).
             } else {
                 ctx.nextSessionType = .work
-                // REQ-TIM-044: 休憩には猶予がなく、到達と同時に確定する。
+                // REQ-TIM-044: a break has no grace; it commits the moment it is reached.
                 let (finalized, effs) = finalize(context: ctx, presets: presets, settings: settings, now: now, outcome: .completed)
                 ctx = finalized
                 effects.append(contentsOf: effs)
             }
         }
 
-        // REQ-PER-004: 復元時の確認が未応答のまま論理日が変われば、discard (中断扱い) として確定する。
-        // 放置された実時間はログに含めない (REQ-TIM-005) ため、終了時刻は異常検知時点を使う。
+        // REQ-PER-004: if the logical day turns while the question raised at restore is still unanswered,
+        // it commits as discard, which the log records as stopped. The hours it sat there are not part of
+        // the elapsed time (REQ-TIM-005), so the end time used is when the trouble was noticed.
         if ctx.runState == .pendingDecision, ctx.committedAt == nil,
            let pending = ctx.pendingDecision, pending.reason == .restoredAfterEnd,
            LogicalDay.date(for: now, dayStartHour: settings.logicalDayStartHour) != ctx.logicalDate {
@@ -190,7 +200,7 @@ public enum TimerEngine {
 
         if ctx.runState == .finished, ctx.sessionType == .work, ctx.committedAt == nil,
            let finishedAt = ctx.finishedAt, now.timeIntervalSince(finishedAt) > extensionGraceSeconds {
-            // REQ-TIM-043: 猶予超過時点で確定する。
+            // REQ-TIM-043: it commits the moment the grace runs out.
             let (finalized, effs) = finalize(context: ctx, presets: presets, settings: settings, now: now, outcome: .completed)
             ctx = finalized
             effects.append(contentsOf: effs)
@@ -199,7 +209,7 @@ public enum TimerEngine {
         return Reduction(context: ctx, presets: presets, effects: effects)
     }
 
-    // MARK: - 操作の適用
+    // MARK: - Applying an action
 
     public static func reduce(
         action: TimerAction,
@@ -213,7 +223,8 @@ public enum TimerEngine {
         var pr = ticked.presets
         var effects = ticked.effects
 
-        // REQ-LOG-018: 拒否された場合でも、直前の tick() (および action 処理中にここまで積まれた) Effect は失わない。
+        // REQ-LOG-018: even on a refusal, the effects from the preceding tick() — and any gathered while
+        // handling the action up to this point — are not lost.
         func fail(_ error: TimerError) -> Result<Reduction, TimerFailure> {
             .failure(TimerFailure(error: error, effects: effects))
         }
@@ -243,7 +254,8 @@ public enum TimerEngine {
             ctx = startSession(type: type, preset: preset, settings: settings, now: now, context: ctx, taskSnapshot: nil)
 
         case .pause:
-            // 表示側と同じく切り上げる。切り捨てると一時停止した瞬間に残りが1秒減って見える。
+            // Rounded up, as the display rounds. Truncating would take a second off the remainder the instant
+            // the timer was paused.
             ctx.remainingSeconds = max(0, Int((ctx.sessionEndAt ?? now).timeIntervalSince(now).rounded(.up)))
             ctx.pausedAt = now
             ctx.runState = .paused
@@ -253,7 +265,7 @@ public enum TimerEngine {
             guard let pausedAt = ctx.pausedAt else { return fail(.invalidStateForAction) }
             let idleSeconds = now.timeIntervalSince(pausedAt)
             if idleSeconds >= Double(settings.idleResetHours) * 3600 {
-                // REQ-TIM-033: 放置しすぎた一時停止は自動再開せず、確認を要求する。
+                // REQ-TIM-033: a pause left too long does not resume on its own; it asks first.
                 ctx = enterPendingDecision(ctx, reason: .pausedTooLong, endedAt: pausedAt, now: now)
                 effects.append(contentsOf: pendingDecisionEffects)
             } else {
@@ -266,7 +278,7 @@ public enum TimerEngine {
             }
 
         case .skip:
-            // REQ-TIM-016: スキップ後の推奨は常に SHORT_BREAK (WORK の場合)。
+            // REQ-TIM-016: after a skip the suggestion is always SHORT_BREAK, when what was skipped was WORK.
             ctx.nextSessionType = (ctx.sessionType == .work) ? .shortBreak : .work
             let (finalized, effs) = finalize(context: ctx, presets: pr, settings: settings, now: now, outcome: .skipped)
             ctx = finalized
@@ -274,7 +286,7 @@ public enum TimerEngine {
 
         case .abort:
             if ctx.runState == .finished {
-                // REQ-TIM-036: 加算済みの周回数を取り消す。
+                // REQ-TIM-036: take back the loop count that was already added.
                 ctx.loopCount = max(0, ctx.loopCount - 1)
             }
             ctx.nextSessionType = (ctx.sessionType == .work) ? .shortBreak : .work
@@ -283,11 +295,11 @@ public enum TimerEngine {
             effects.append(contentsOf: effs)
 
         case .extend:
-            // REQ-TIM-044: 休憩に延長はない。
+            // REQ-TIM-044: a break cannot be extended.
             guard ctx.sessionType == .work else { return fail(.invalidStateForAction) }
             guard let activePreset = pr.activePreset else { return fail(.presetNotFound) }
             let extendSeconds = activePreset.extendSeconds
-            // REQ-TIM-046: 受付ウィンドウ外の延長は受理しない。
+            // REQ-TIM-046: an extension outside the window is not accepted.
             guard isWithinExtensionWindow(ctx, now: now) else { return fail(.extendWindowClosed) }
             switch ctx.runState {
             case .running:
@@ -295,7 +307,7 @@ public enum TimerEngine {
             case .paused:
                 ctx.remainingSeconds = (ctx.remainingSeconds ?? 0) + extendSeconds
             case .finished:
-                // REQ-TIM-042: 加算済みの周回数を取り消したうえで RUNNING へ戻す。
+                // REQ-TIM-042: take back the loop count already added, then return to RUNNING.
                 ctx.loopCount = max(0, ctx.loopCount - 1)
                 ctx.nextSessionType = standardNextSessionType(after: .work, loopCount: ctx.loopCount, longBreakInterval: activePreset.longBreakInterval)
                 ctx.sessionEndAt = (ctx.sessionEndAt ?? now).addingTimeInterval(TimeInterval(extendSeconds))
@@ -317,7 +329,7 @@ public enum TimerEngine {
                 ctx = finalized
                 effects.append(contentsOf: effs)
             }
-            // REQ-TIM-022(a) / REQ-TIM-012: 明示リセット後は 0 / WORK に戻す。
+            // REQ-TIM-022(a) / REQ-TIM-012: after a deliberate reset it goes back to 0 and WORK.
             ctx.loopCount = 0
             ctx.nextSessionType = .work
             ctx.lastUpdatedAt = now
@@ -350,22 +362,23 @@ public enum TimerEngine {
                 effects.append(contentsOf: effs)
             case .discard:
                 ctx.nextSessionType = (ctx.sessionType == .work) ? .shortBreak : .work
-                // REQ-PER-004: 実経過時間には放置していた実時間を含めない。now ではなく
-                // 異常検知時点 (pending.endedAt) を終了時刻として使う。
+                // REQ-PER-004: the hours it sat there are not part of the elapsed time. The end time used is
+                // when the trouble was noticed (pending.endedAt), not now.
                 let (finalized, effs) = finalize(context: ctx, presets: pr, settings: settings, now: now, outcome: .aborted, endedAtOverride: pending.endedAt)
                 ctx = finalized
                 effects.append(contentsOf: effs)
             }
 
         case let .updateSettings(updated):
-            // REQ-PER-004: 境界が動いただけで日は跨いでいない。比較の基準を張り替え、自動確定させない。
+            // REQ-PER-004: the boundary moved, but no day was crossed. The basis for the comparison is reset
+            // so nothing commits by itself.
             if updated.logicalDayStartHour != settings.logicalDayStartHour {
                 ctx.logicalDate = LogicalDay.date(for: now, dayStartHour: updated.logicalDayStartHour)
                 ctx.lastUpdatedAt = now
             }
 
         case .selectTask, .clearTaskSelection, .reloadTasks:
-            // タスク一覧の保持は TaskContext の担当。ここは受理することだけを保証する。
+            // Holding the task list is TaskContext's job. All that is guaranteed here is that the action is accepted.
             break
 
         case let .selectPreset(id):
@@ -379,7 +392,7 @@ public enum TimerEngine {
             if let idx = pr.presets.firstIndex(where: { $0.id == updated.id }) {
                 pr.presets[idx] = updated
             }
-            // REQ-CFG-017: 実行中セッションが使っているプリセットの A 群項目が編集された。
+            // REQ-CFG-017: a group A setting was edited on the preset the running session is using.
             let aGroupChanged = old.workSeconds != updated.workSeconds
                 || old.shortBreakSeconds != updated.shortBreakSeconds
                 || old.longBreakSeconds != updated.longBreakSeconds
@@ -424,10 +437,10 @@ public enum TimerEngine {
         return .success(Reduction(context: ctx, presets: pr, effects: effects))
     }
 
-    // MARK: - 内部ヘルパー
+    // MARK: - Internal helpers
 
-    // REQ-TIM-012/015: 「現在(または直前)のセッションが正常完了したと仮定したときの次」。
-    // 倍数判定は loopCount + 1 (完了後の値) に対して行う。
+    // REQ-TIM-012/015: the next session, assuming the current one — or the one just past — completed
+    // normally. The multiple is tested against loopCount + 1, the value after completion.
     static func standardNextSessionType(after type: SessionType, loopCount: Int, longBreakInterval: Int) -> SessionType {
         switch type {
         case .work:
@@ -438,7 +451,7 @@ public enum TimerEngine {
         }
     }
 
-    // REQ-TIM-005: 一時停止累計を差し引いた正味稼働時間。
+    // REQ-TIM-005: the net working time, with the accumulated pauses taken out.
     static func computeElapsedSeconds(context: TimerContext, endedAt: Date) -> Int {
         guard let startedAt = context.sessionStartedAt else { return 0 }
         var paused = context.accumulatedPausedSeconds
@@ -448,9 +461,9 @@ public enum TimerEngine {
         return max(0, Int(endedAt.timeIntervalSince(startedAt)) - paused)
     }
 
-    // REQ-LOG-018/019: committedAt を見て冪等に確定し、REQ-TIM-035 に従って IDLE へ遷移する。
-    // endedAtOverride: REQ-PER-004 のように、実際に確定した時刻 (now) ではなく
-    // 異常を検知した時刻を実経過時間の終端として使いたい場合に指定する。
+    // REQ-LOG-018/019: committedAt makes this idempotent, and REQ-TIM-035 sends it on to IDLE.
+    // endedAtOverride: for cases like REQ-PER-004, where the elapsed time should end at the moment
+    // the trouble was noticed rather than at the moment of committing (now).
     static func finalize(
         context: TimerContext,
         presets: PresetContext,
@@ -459,7 +472,7 @@ public enum TimerEngine {
         outcome: LogOutcome,
         endedAtOverride: Date? = nil
     ) -> (TimerContext, [Effect]) {
-        // REQ-LOG-019: committedAt が非 nil ならこのセッションは確定済み。再確定しない。
+        // REQ-LOG-019: a non-nil committedAt means this session is committed. It does not commit twice.
         guard context.committedAt == nil else {
             return (context, [])
         }
@@ -479,12 +492,12 @@ public enum TimerEngine {
         let elapsed = computeElapsedSeconds(context: context, endedAt: endedAt)
         let interval = presets.activePreset?.longBreakInterval ?? 4
 
-        // REQ-LOG-019: IDLE へ遷移する前に committedAt を立てる。
+        // REQ-LOG-019: committedAt is set before the move to IDLE.
         var committed = context
         committed.committedAt = now
 
         var effects: [Effect] = []
-        // REQ-TIM-032: 正味稼働時間が60秒未満はログに記録しない。
+        // REQ-TIM-032: net working time under 60 seconds is not logged.
         if elapsed >= 60, let startedAt = committed.sessionStartedAt {
             let entry = LogEntry(
                 sessionType: committed.sessionType,
@@ -522,13 +535,13 @@ public enum TimerEngine {
         var ctx = context
         var loopCount = ctx.loopCount
 
-        // REQ-TIM-022(b): 未使用時間が idleResetHours 以上ならリセット。
+        // REQ-TIM-022(b): idle for idleResetHours or more, and the count resets.
         if let lastEnded = ctx.lastSessionEndedAt, now.timeIntervalSince(lastEnded) >= Double(settings.idleResetHours) * 3600 {
             loopCount = 0
         }
 
         let newLogicalDate = LogicalDay.date(for: now, dayStartHour: settings.logicalDayStartHour)
-        // REQ-TIM-022(c): 論理日が変化していたらリセット。
+        // REQ-TIM-022(c): the logical day changed, so the count resets.
         if newLogicalDate != ctx.logicalDate {
             loopCount = 0
         }
@@ -551,7 +564,7 @@ public enum TimerEngine {
         ctx.plannedDurationSeconds = duration
         ctx.extendedSeconds = 0
         ctx.loopCount = loopCount
-        // REQ-TIM-013: 推奨に従わず任意の種別を開始した場合も、この規則で再計算する。
+        // REQ-TIM-013: the same rule recalculates it when a type is started against the suggestion.
         ctx.nextSessionType = standardNextSessionType(after: type, loopCount: loopCount, longBreakInterval: preset.longBreakInterval)
         ctx.logicalDate = newLogicalDate
         ctx.committedAt = nil
@@ -564,8 +577,9 @@ public enum TimerEngine {
         return ctx
     }
 
-    // REQ-PRS-012: 連番付与、30文字超は末尾切り詰め。
-    // **切り詰めるのは base 側。** 全体を 30 文字へ丸めると連番が落ち、候補が base と同一になって無限に回る。
+    // REQ-PRS-012: a number is appended, and anything past 30 characters is cut from the end.
+    // **What is cut is the base.** Trimming the whole to 30 would drop the number, leaving the
+    // candidate equal to the base and the loop turning for ever.
     static func uniqueName(base: String, in presets: PresetContext) -> String {
         guard presets.hasNameConflict(base) else { return base }
         var suffix = 2

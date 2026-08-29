@@ -1,23 +1,24 @@
 import Foundation
 
-// REQ-LOG-001 / 003 / 022: ログファイルへの「行の挿入」だけを行う純粋関数。
+// REQ-LOG-001 / 003 / 022: pure functions that do one thing to the log file — insert lines.
 //
-// このファイルはユーザー自身も編集する。**既存行を1行でも書き換えればユーザーの資産を壊す。**
-// 挿入位置の計算と既存行の保存検証をここに閉じ込め、入出力を持つ LogWriter から分離する。
+// The user edits this file too. **Rewriting even one existing line destroys something of theirs.**
+// Working out where to insert, and checking that nothing else moved, is kept here, apart from
+// LogWriter, which is the part that touches the disk.
 public enum LogFileEditor {
 
     public enum EditError: Error, Equatable, Sendable {
-        // 既存行が消えた・変わった。到達したら実装の誤りなので書き込みを中止する。
+        // An existing line vanished or changed. Reaching this is a bug, so the write is abandoned.
         case wouldModifyExistingLines
     }
 
     public struct Insertion: Equatable, Sendable {
         public let contents: String
-        // 実際に挿入した行 (見出しを新設した場合は見出しを含む)。
+        // The lines actually inserted (including the heading, when a new one was created).
         public let insertedLines: [String]
     }
 
-    // 既存の内容へ1セッション分の行を挿入する。
+    // Insert one session's line into the existing contents.
     public static func inserting(
         line: String,
         underHeading heading: String,
@@ -25,10 +26,10 @@ public enum LogFileEditor {
         into existing: String,
         calendar: Calendar = .current
     ) throws -> Insertion {
-        // 既存ファイルの改行コードに合わせる。挿入行だけ LF になると、CRLF のファイルで混ざる。
+        // Match the existing file's line ending. An LF-only insertion would mix into a CRLF file.
         let newline = existing.contains("\r\n") ? "\r\n" : "\n"
         var lines = existing.isEmpty ? [] : existing.components(separatedBy: newline)
-        // 末尾の改行で生じる空要素は、挿入位置の計算から外して最後に戻す。
+        // The empty element a trailing newline leaves is held out of the position arithmetic and put back at the end.
         var trailingNewline = false
         if let last = lines.last, last.isEmpty {
             lines.removeLast()
@@ -42,12 +43,12 @@ public enum LogFileEditor {
         if let headingIndex = lines.firstIndex(where: {
             LogFormatter.headingMatches($0, logicalDate: logicalDate, calendar: calendar)
         }) {
-            // REQ-LOG-003: 当該見出しが既に存在する場合は、その日付セクションの末尾へ追記する。
+            // REQ-LOG-003: when the heading already exists, append at the end of that day's section.
             var end = lines.index(after: headingIndex)
             while end < lines.count, !lines[end].hasPrefix("## ") {
                 end = lines.index(after: end)
             }
-            // セクション末尾の空行より前に入れる。空行は次の見出しとの間隔なので動かさない。
+            // Insert above the blank lines closing the section: they are the gap before the next heading, so they stay put.
             var position = end
             while position > lines.index(after: headingIndex),
                   lines[position - 1].trimmingCharacters(in: .whitespaces).isEmpty {
@@ -56,8 +57,8 @@ public enum LogFileEditor {
             insertedLines = [line]
             insertIndex = position
         } else {
-            // REQ-LOG-022: 見出しが外部で消えていたら再作成して**ファイル末尾へ**追記する。
-            // 既存の行を復元・修正しようとしてはならない。
+            // REQ-LOG-022: if the heading was removed elsewhere, recreate it and append **at the end of the
+            // file.** Never try to restore or repair existing lines.
             var prefix: [String] = []
             if let last = lines.last, !last.trimmingCharacters(in: .whitespaces).isEmpty {
                 prefix.append("")
@@ -68,7 +69,7 @@ public enum LogFileEditor {
 
         lines.insert(contentsOf: insertedLines, at: insertIndex)
 
-        // **挿入以外のことをしていないことを、書き込む前に確かめる。** 意図ではなく検査で守る。
+        // **Before writing, confirm that nothing but an insertion happened.** Guarded by a check, not by intent.
         guard preservesAllLines(original: original, updated: lines, insertedAt: insertIndex, count: insertedLines.count) else {
             throw EditError.wouldModifyExistingLines
         }
@@ -77,7 +78,7 @@ public enum LogFileEditor {
         return Insertion(contents: contents, insertedLines: insertedLines)
     }
 
-    // 更新後の行列から挿入分を取り除くと、元の行列に一致すること。
+    // Removing the inserted lines from the updated array must give back the original array.
     static func preservesAllLines(original: [String], updated: [String], insertedAt index: Int, count: Int) -> Bool {
         guard updated.count == original.count + count else { return false }
         var rebuilt = updated
