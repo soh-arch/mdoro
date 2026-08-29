@@ -115,7 +115,8 @@ public struct LogWriter: Sendable {
     }
 
     // REQ-LOG-004 / REQ-PLT-004: write to a temporary file, then swap it in.
-    // It goes **in the same directory**: under the sandbox, a rename across directories fails.
+    // It goes **in the same directory**, which is one way to satisfy the real constraint: the two
+    // paths must be on the same volume (`docs/PLATFORM.md`). Directories do not enter into it.
     private func writeAtomically(_ contents: String) throws {
         let directory = fileURL.deletingLastPathComponent()
         let temporaryURL = directory.appendingPathComponent(".\(fileURL.lastPathComponent).\(UUID().uuidString).tmp")

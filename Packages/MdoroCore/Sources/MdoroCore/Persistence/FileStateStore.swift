@@ -1,8 +1,8 @@
 import Foundation
 
 // REQ-PER-001 / 002: persisted as JSON inside the app container.
-// A write goes through a temporary file in the same directory. **Under the sandbox, a rename
-// across directories fails.**
+// A write goes through a temporary file in the same directory — one way to keep both paths on
+// **the same volume**, which is what a rename actually requires (`docs/PLATFORM.md`).
 public struct FileStateStore: StateStore {
     public let fileURL: URL
 

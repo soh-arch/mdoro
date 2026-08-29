@@ -2,7 +2,7 @@
 
 このファイルは**今の状態だけ**を書く。経緯は書かない。経緯が必要なら `docs/decisions/` を参照する。
 
-- 要件の正本: `SPEC.md`（v2.22、243要件）
+- 要件の正本: `SPEC.md`（v2.23、243要件）
 - 運用の正本: `CLAUDE.md`
 - 判断と意図の正本: `docs/decisions/`
 - ビルド手順・環境: `docs/DEVELOPMENT.md`
@@ -85,6 +85,11 @@
 `MainWindowView` / メニューバーのラベルに `Timer.publish(...).autoconnect()` を `.onReceive` で
 張ったところ**発火せず、残り時間の表示が固まった**（実機で確認）。
 時計は `AppModel.displayNow` が進める。**ビュー側で時間を持たない。**
+
+**これは観測された事実であって、SwiftUI の一般則ではない**（POL-066・2026-08-29）。
+`Timer.publish(...).autoconnect()` + `.onReceive` は通常は機能する。**原因は特定していない** ——
+`MenuBarExtra` のラベルという文脈に固有かもしれない。**一般則として読まないこと。**
+時間を1箇所（`AppModel`）で進める理由は、**この観測ではなく、両端で同じ値を見せるため**である。
 状態の正本が Mac にある以上（3原則の2つ目）、表示用の現在時刻もモデルが配る。
 
 ### サンドボックスの許可はファイル単位では足りない
@@ -270,6 +275,22 @@ Apple がどう振る舞うかは `PLATFORM.md`、Mdoro が何をするかは `S
 
 ---
 
+## 4b. 第三者の素材
+
+**SF Symbols のうち2つは、Apple が用途を制限しているものである**（POL-082・2026-08-29）。
+
+| シンボル | 制限 |
+| :---- | :---- |
+| `iphone.gen3` / `iphone.gen3.slash` | "may not be modified and **may only be used to refer to Apple's iPhone**" |
+
+**Mdoro の用法は適合している** —— `ConnectionStatus` の記号は接続先の iPhone そのものを指しており、
+変更もしていない（[platform/0006](platform/0006-sf-symbols-catalog-and-availability.md)）。
+
+**違反ではないが、公開する以上、制限付きの素材を使っていることは把握しておく。**
+軸 J（ライセンスと第三者素材）で扱う。**利用者向けの文書に書くことではない。**
+
+---
+
 ## 4. リポジトリ外の成果物
 
 Git に入っていないため、失われると復元できない。
@@ -307,10 +328,10 @@ Git に入っていないため、失われると復元できない。
 
 | 正本 | 状態 |
 | :---- | :---- |
-| `SPEC.md` | **v2.22 / 243要件** |
+| `SPEC.md` | **v2.23 / 243要件** |
 | `decisions/` | **0001〜0039** |
-| `platform/` | **0001**（ロック画面の背景）/ **0002**（開始と更新の門）/ **0003**（メニューバーの地と色）/ **0004**（データ上限とネットワーク）/ **0005**（ローカルネットワークと接続に要る設定）/ **0006**（SF Symbols のカタログと可用性） |
-| `PUNCHLIST.md` | **done 64 / open 30 / 決定済み 3 / deferred 1 / rejected 1 / 不要 1**（計 100。**実測した値であり、目算ではない**） |
+| `platform/` | **0001**（ロック画面の背景）/ **0002**（開始と更新の門）/ **0003**（メニューバーの地と色）/ **0004**（データ上限とネットワーク）/ **0005**（ローカルネットワークと接続に要る設定）/ **0006**（SF Symbols のカタログと可用性）/ **0007**（原子的な差し替えはボリュームの制約） |
+| `PUNCHLIST.md` | **done 85 / open 15 / 決定済み 4 / 現状維持 1 / deferred 1 / rejected 1 / 不要 1**（計 108。**実測した値であり、目算ではない**） |
 | テスト | `swift test` **278件 / 49スイート**。Mac 側 5件、iOS 側 3件（**`xcodebuild test` が要る。CI は `swift test` のみ**） |
 
 **役は5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / **platform-researcher**。
