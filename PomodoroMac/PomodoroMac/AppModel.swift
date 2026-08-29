@@ -752,7 +752,8 @@ final class AppModel {
                 DiagnosticField("file", DiagnosticRedaction.optionalDigest(settings.logFolderPath)),
                 DiagnosticField("why", result.lastError?.diagnosticSummary ?? "-"),
             ])
-            // REQ-ERR-004: notify at the point where three writes in a row have failed.
+            // REQ-ERR-004 / Decision 0039: notify once three writes have failed — three in a row,
+            // or three of the last ten attempts.
             if result.shouldNotify {
                 notifications.notifyLogWriteFailure()
             }

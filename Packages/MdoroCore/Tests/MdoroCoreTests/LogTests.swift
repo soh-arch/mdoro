@@ -356,6 +356,14 @@ struct LogWriterTests {
 @Suite("Retrying a failed write (REQ-LOG-005 / REQ-ERR-004)")
 struct LogWriteQueueTests {
 
+    // One flush that writes a single entry, or refuses it. An entry has to be queued for a flush to
+    // fail at all: with nothing to write, there is nothing to refuse.
+    @discardableResult
+    private func flushOne(_ queue: LogWriteQueue, failing: Bool) -> LogWriteQueue.FlushResult {
+        queue.enqueue(entry())
+        return queue.flush { _ in if failing { throw writeRefused } }
+    }
+
     @Test func failuresKeepEntriesQueuedAndNotifyOnTheThirdAttempt() {
         let queue = LogWriteQueue()
         queue.enqueue(entry())
@@ -404,6 +412,109 @@ struct LogWriteQueueTests {
         }
         #expect(result.written == 1)
         #expect(result.pending == 1)
+    }
+
+    // REQ-ERR-004 / Decision 0039: the failure that comes and goes is the one worth hearing about.
+    // A run of three would never be reached here, and the old rule stayed silent forever.
+    @Test func failuresThatComeAndGoStillReachTheThreshold() {
+        let queue = LogWriteQueue()
+
+        flushOne(queue, failing: true)
+        flushOne(queue, failing: false)
+        let second = flushOne(queue, failing: true)
+        #expect(!second.shouldNotify, "two failures out of ten are not enough")
+        flushOne(queue, failing: false)
+        let third = flushOne(queue, failing: true)
+
+        #expect(third.recentFailures == LogWriteQueue.failureThreshold)
+        #expect(third.consecutiveFailures == 1, "no run of failures was ever built up")
+        #expect(third.shouldNotify, "REQ-ERR-004: three of the last ten flushes failed")
+    }
+
+    // Decision 0039: counting is bounded, so a failure from long ago cannot push a later one over
+    // the threshold. Counting cumulatively would report the state of months ago as the state now.
+    @Test func failuresThatLeftTheWindowNoLongerCount() {
+        let queue = LogWriteQueue()
+
+        flushOne(queue, failing: true)
+        flushOne(queue, failing: true)
+        for _ in 0 ..< LogWriteQueue.recentWindow {
+            flushOne(queue, failing: false)
+        }
+
+        flushOne(queue, failing: true)
+        let result = flushOne(queue, failing: true)
+        #expect(result.recentFailures == 2, "the two earlier failures have fallen out of the window")
+        #expect(!result.shouldNotify)
+    }
+
+    // Decision 0039: the window is ten flushes wide. The counts here are written out rather than
+    // read from `recentWindow`, because a test that asks the constant how wide it is can only show
+    // that a window exists — not that it is ten.
+    @Test func theWindowIsTenFlushesWide() {
+        let justOutside = LogWriteQueue()
+        flushOne(justOutside, failing: true)
+        for _ in 0 ..< 8 { flushOne(justOutside, failing: false) }
+        flushOne(justOutside, failing: true)
+        let eleventhFlush = flushOne(justOutside, failing: true)
+        #expect(eleventhFlush.recentFailures == 2, "the first failure is eleven flushes back and has left the window")
+        #expect(!eleventhFlush.shouldNotify)
+
+        let justInside = LogWriteQueue()
+        flushOne(justInside, failing: true)
+        for _ in 0 ..< 7 { flushOne(justInside, failing: false) }
+        flushOne(justInside, failing: true)
+        let tenthFlush = flushOne(justInside, failing: true)
+        #expect(tenthFlush.recentFailures == 3, "the first failure is ten flushes back and still counts")
+        #expect(tenthFlush.consecutiveFailures == 2, "so the notification cannot be coming from a run of three")
+        #expect(tenthFlush.shouldNotify, "REQ-ERR-004: three of the last ten flushes failed")
+    }
+
+    // Decision 0039: a flush with nothing queued attempted no write and is no evidence either way.
+    // Counting it as a success would let idle flushes wash real failures out of the window — and
+    // `flush` is public, so the queue cannot lean on its callers to never ask.
+    @Test func aFlushThatWroteNothingDoesNotFillTheWindow() {
+        let queue = LogWriteQueue()
+
+        flushOne(queue, failing: true)
+        flushOne(queue, failing: false)
+        flushOne(queue, failing: true)
+        flushOne(queue, failing: false)
+
+        // The queue is empty now, so these attempt nothing at all.
+        var idle = queue.flush { _ in }
+        for _ in 0 ..< 7 { idle = queue.flush { _ in } }
+        #expect(idle.written == 0)
+        #expect(idle.recentFailures == 2, "eight idle flushes did not push the two failures out")
+        #expect(idle.consecutiveFailures == 0, "the run counter still resets, as it did before the window existed")
+
+        let result = flushOne(queue, failing: true)
+        #expect(result.recentFailures == 3)
+        #expect(result.shouldNotify, "REQ-ERR-004: the third real failure is still the third one")
+    }
+
+    // The user is told once while the same trouble stands (existing behaviour), and a single
+    // success is not enough to make the same trouble worth reporting twice.
+    @Test func successesArmTheNotificationAgainOnceTheWindowIsClear() {
+        let queue = LogWriteQueue()
+
+        flushOne(queue, failing: true)
+        flushOne(queue, failing: false)
+        flushOne(queue, failing: true)
+        flushOne(queue, failing: false)
+        #expect(flushOne(queue, failing: true).shouldNotify)
+
+        let afterOneSuccess = flushOne(queue, failing: false)
+        #expect(afterOneSuccess.recentFailures == LogWriteQueue.failureThreshold)
+        #expect(!afterOneSuccess.shouldNotify, "the same trouble is not reported twice")
+
+        for _ in 0 ..< LogWriteQueue.recentWindow {
+            flushOne(queue, failing: false)
+        }
+        flushOne(queue, failing: true)
+        flushOne(queue, failing: true)
+        let again = flushOne(queue, failing: true)
+        #expect(again.shouldNotify, "REQ-ERR-004: trouble that starts again after it cleared is reported again")
     }
 }
 

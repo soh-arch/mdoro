@@ -134,15 +134,29 @@ public struct LogWriter: Sendable {
 }
 
 // REQ-LOG-005 / REQ-ERR-004: a failed write never stops the timer.
-// Entries are queued and retried; at the third failure the user is told.
+// Entries are queued and retried; the user is told once three of them have failed — three in a
+// row, or three of the last ten (Decision 0039).
 public final class LogWriteQueue: @unchecked Sendable {
+    // REQ-ERR-004: three failures are enough to speak up.
     public static let failureThreshold = 3
+    // REQ-ERR-004 / Decision 0039: how far back a failure keeps counting. Failures that come and go
+    // never build up a run, and a bug that refuses one write in three would otherwise stay quiet
+    // forever — which is exactly the bug worth hearing about.
+    public static let recentWindow = 10
+
+    private enum FlushOutcome {
+        case succeeded
+        case failed
+    }
 
     public struct FlushResult: Equatable, Sendable {
         public var written: Int
         public var pending: Int
+        // Kept for diagnostics: it tells steady failure apart from intermittent failure.
         public var consecutiveFailures: Int
-        // The third consecutive failure was reached.
+        // How many of the last `recentWindow` flushes failed, this one included.
+        public var recentFailures: Int
+        // A threshold was reached and the user has not been told about it yet.
         public var shouldNotify: Bool
         public var lastError: LogWriteError?
     }
@@ -150,6 +164,8 @@ public final class LogWriteQueue: @unchecked Sendable {
     private let lock = NSLock()
     private var queue: [LogEntry] = []
     private var consecutiveFailures = 0
+    // The outcome of each of the last `recentWindow` flushes, oldest first.
+    private var recentOutcomes: [FlushOutcome] = []
     private var didNotify = false
 
     public init(entries: [LogEntry] = []) {
@@ -196,21 +212,37 @@ public final class LogWriteQueue: @unchecked Sendable {
             }
         }
 
-        if lastError == nil {
-            consecutiveFailures = 0
-            didNotify = false
-        } else {
-            consecutiveFailures += 1
+        // Decision 0039: one outcome per flush, only the last `recentWindow` of them kept.
+        // A flush with nothing queued tried to write nothing, so it is evidence of neither success
+        // nor failure and stays out of the window. Letting it in would let idle flushes wash real
+        // failures out — ten of them now, where the old counter only ever lost two.
+        // `consecutiveFailures` is deliberately left alone: resetting on such a flush is how it
+        // behaved before this window existed, and only the window is being corrected here.
+        let attemptedAWrite = written > 0 || lastError != nil
+        if attemptedAWrite {
+            recentOutcomes.append(lastError == nil ? .succeeded : .failed)
+            if recentOutcomes.count > Self.recentWindow {
+                recentOutcomes.removeFirst(recentOutcomes.count - Self.recentWindow)
+            }
         }
+        consecutiveFailures = lastError == nil ? 0 : consecutiveFailures + 1
+        let recentFailures = recentOutcomes.count(where: { $0 == .failed })
 
+        // REQ-ERR-004: a run of three is the special case of three within the last ten, so the
+        // second test alone would already decide this. Both are spelled out because a run is what
+        // the reader looks for, and because each number is reported on its own.
         let reachedThreshold = consecutiveFailures >= Self.failureThreshold
+            || recentFailures >= Self.failureThreshold
         let shouldNotify = reachedThreshold && !didNotify
-        if shouldNotify { didNotify = true }
+        // Saying it once is enough while the same trouble stands. Enough successes to fall back
+        // under both thresholds arm it again.
+        didNotify = reachedThreshold
 
         return FlushResult(
             written: written,
             pending: queue.count,
             consecutiveFailures: consecutiveFailures,
+            recentFailures: recentFailures,
             shouldNotify: shouldNotify,
             lastError: lastError
         )
