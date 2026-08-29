@@ -9,13 +9,13 @@ public enum ColorMode: String, CaseIterable, Sendable {
 
 // REQ-COL-002 / 8.5.2: views never reference this directly. They reference ColorRole.
 public enum ColorHue: String, CaseIterable, Sendable {
-    case ink    // indigo 235°
-    case sage   // celadon 142°
-    case ochre  // yellow ochre 66°
-    case clay   // red ochre 30°
+    case ink    // ai (indigo), 235°
+    case sage   // seiji (celadon), 142°
+    case ochre  // odo (yellow ochre), 66°
+    case clay   // bengara (red ochre), 30°
 }
 
-// The five roles of 8.5.3. **Take the wrong one and the contrast guarantee is gone.**
+// The five roles of 8.5.3, with the hover and on-solid variants. **Take the wrong one and the contrast guarantee is gone.**
 public enum HueRole: String, CaseIterable, Sendable {
     case subtle
     case subtleHover
