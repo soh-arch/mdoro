@@ -78,9 +78,12 @@ final class AppModel {
     // POL-047: the notification centre belongs to the OS, so a test needs somewhere else to
     // send to. **The default is the same as production.**
     private let notifications: any SessionNotifying
-    private let idleSleepGuard = IdleSleepGuard()
+    // POL-053: holding off idle sleep reaches the whole machine, not this process, so a test
+    // needs somewhere else to say it. **The default is the same as production.**
+    private let idleSleep: any IdleSleepGuarding
     private let hotKeys = HotKeyCenter()
-    private let server = MdoroServer()
+    // POL-054: built here rather than at the declaration so it can be handed the diagnostic log.
+    private let server: MdoroServer
     // REQ-ERR-010 / Decision 0018: a diagnostic log that carries neither task names nor paths.
     let diagnostics: DiagnosticLog
     // Which tab the settings window opens on.
@@ -112,25 +115,32 @@ final class AppModel {
 
     // MARK: - Creation
 
-    // The diagnostic log, the bookmarks and the destination for notifications are arguments so that
-    // this can be verified. **The defaults are the same as production**, and only when they are
-    // replaced does this run outside the user's Vault, outside the log the user collects, and outside
-    // the user's notification centre. The third one is POL-047: the suite runs inside this app, under
-    // its bundle identifier, so a request it hands the centre is delivered to the person at the machine.
+    // The diagnostic log, the bookmarks, the destination for notifications and the hold on idle sleep
+    // are arguments so that this can be verified. **The defaults are the same as production**, and only
+    // when they are replaced does this run outside the user's Vault, outside the log the user collects,
+    // outside the user's notification centre and off their power settings. The last two are POL-047 and
+    // POL-053: the suite runs inside this app, under its bundle identifier, so a request it hands the
+    // centre is delivered to the person at the machine — and an activity it begins keeps that machine
+    // awake for as long as the run lasts.
     init(
         store: any StateStore,
         now: Date = Date(),
         storeUnavailable: StateStoreError? = nil,
         diagnostics: DiagnosticLog? = nil,
         bookmarks: VaultBookmarks = VaultBookmarks.load(),
-        notifications: (any SessionNotifying)? = nil
+        notifications: (any SessionNotifying)? = nil,
+        idleSleep: (any IdleSleepGuarding)? = nil
     ) {
         self.store = store
         self.storeUnavailable = storeUnavailable
         // They cannot be built at the default-value position (DiagnosticLog and NotificationScheduler
         // both live on the MainActor).
-        self.diagnostics = diagnostics ?? DiagnosticLog()
+        let diagnosticLog = diagnostics ?? DiagnosticLog()
+        self.diagnostics = diagnosticLog
         self.notifications = notifications ?? NotificationScheduler()
+        self.idleSleep = idleSleep ?? IdleSleepGuard()
+        // POL-054: the server writes its refusals to the same log the rest of the app writes to.
+        self.server = MdoroServer(diagnostics: diagnosticLog)
         self.bookmarks = bookmarks
 
         // REQ-ERR-017 / Decision 0035 / 0036: **swallowing a failure cannot be told apart from not failing.**
@@ -273,7 +283,7 @@ final class AppModel {
         tickTask?.cancel()
         tickTask = nil
         stopWatchingTaskFile()
-        idleSleepGuard.end()
+        idleSleep.end()
         hotKeys.unregisterAll()
         server.stop()
         infoServer?.stop()
@@ -403,9 +413,9 @@ final class AppModel {
     private func syncSideEffectsToState() {
         // REQ-PER-006: idle sleep is held off only while RUNNING.
         if timer.runState == .running {
-            idleSleepGuard.begin()
+            idleSleep.begin()
         } else {
-            idleSleepGuard.end()
+            idleSleep.end()
         }
 
         // REQ-NTF-003 / 022: whether the fire time or the content of the notification changes, cancel and reschedule.

@@ -569,6 +569,43 @@ struct FailuresThatReachSomeoneTests {
         }
     }
 
+    // POL-054: the refusal reaches the iPhone, and it reached nobody else. "It will not pair" is
+    // the report; five wrong codes, a pairing window that had closed and a token this Mac no
+    // longer knows all left the same silence in the log the reader pastes into an issue.
+    //
+    // **A line that has to be remembered is a line that gets forgotten**, so the record and the
+    // send are one call, and this holds it that way: every `AuthFailedPayload` the file builds
+    // has to be inside `refuse`. `MdoroMacTests` reads what comes out; this reads whether every
+    // path goes through it, and it runs in CI, which that target does not.
+    @Test func everyRefusalTheServerSendsIsWrittenDownFirst() throws {
+        let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
+        let beforeEachPayload = server.components(separatedBy: "AuthFailedPayload(").dropLast()
+        #expect(!beforeEachPayload.isEmpty, "nothing here refuses a connection any more")
+        for text in beforeEachPayload {
+            let enclosingFunction = text.components(separatedBy: "func ").last ?? ""
+            #expect(
+                enclosingFunction.hasPrefix("refuse("),
+                "POL-054: a refusal is sent from somewhere other than `refuse`, so it is never written down"
+            )
+        }
+        // And `refuse` writes one. Both halves, because either alone passes with the other gone.
+        let refuseBody = try #require(server.components(separatedBy: "func refuse(").last)
+        #expect(
+            refuseBody.prefix(300).contains("record(refusal:"),
+            "POL-054: `refuse` no longer records anything, so every refusal is silent again"
+        )
+        let recordBody = try #require(server.components(separatedBy: "func record(refusal").last)
+        #expect(
+            recordBody.prefix(300).contains("conn.refused"),
+            "POL-054: the refusal no longer reaches the diagnostic log"
+        )
+        // Decision 0018: the code, never the name of the device that was turned away.
+        #expect(
+            !recordBody.prefix(300).contains("deviceName"),
+            "Decision 0018: the refused device's name is being written to the diagnostic log"
+        )
+    }
+
     // MARK: - REQ-ERR-010: the diagnostic log's own write
 
     // The one code that goes on a screen. It cannot go to the log — the log is what failed —

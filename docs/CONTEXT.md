@@ -187,7 +187,10 @@ iPhone は起動時に**最後に受け取ったスナップショットを復�
 
 アプリが終了しても、Live Activity はロック画面に残る。起動し直したときに
 `Activity.activities` から**拾い直さないと、凍ったままの古い1件の横に新しい1件が並ぶ。**
-`end()` は自分が握っている1件だけでなく、**OS 上にあるものを全部畳む。**
+**`LiveActivityController.end()` は、自分が握っている1件だけでなく、`Activity.activities` を回して
+OS 上にあるものを全部畳む**（POL-065・2026-08-29 に明確化）。**これは自前の実装の説明であって、
+`Activity.end(...)` の性質ではない** —— ActivityKit の `end(_:dismissalPolicy:)` はインスタンスに対する操作である。
+**プラットフォームの事実の形をした、自分のコードの説明だった。**
 
 ### 自前のパレットを敷いたら、器の外観も揃える
 
@@ -331,8 +334,8 @@ Git に入っていないため、失われると復元できない。
 | `SPEC.md` | **v2.23 / 243要件** |
 | `decisions/` | **0001〜0039** |
 | `platform/` | **0001**（ロック画面の背景）/ **0002**（開始と更新の門）/ **0003**（メニューバーの地と色）/ **0004**（データ上限とネットワーク）/ **0005**（ローカルネットワークと接続に要る設定）/ **0006**（SF Symbols のカタログと可用性）/ **0007**（原子的な差し替えはボリュームの制約） |
-| `PUNCHLIST.md` | **done 85 / open 15 / 決定済み 4 / 現状維持 1 / deferred 1 / rejected 1 / 不要 1**（計 108。**実測した値であり、目算ではない**） |
-| テスト | `swift test` **278件 / 49スイート**。Mac 側 5件、iOS 側 3件（**`xcodebuild test` が要る。CI は `swift test` のみ**） |
+| `PUNCHLIST.md` | **done 89 / open 12 / 決定済み 4 / 現状維持 1 / deferred 1 / rejected 1 / 不要 1**（計 109。**実測した値であり、目算ではない**） |
+| テスト | `swift test` **284件 / 49スイート**。**Mac 側 13件 / iOS 側 8件**（`xcodebuild test` が要る。**CI は `swift test` のみ**）。**2026-08-29 に実測**（それまでの「Mac 5 / iOS 3」は古かった） |
 
 **役は5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / **platform-researcher**。
 
