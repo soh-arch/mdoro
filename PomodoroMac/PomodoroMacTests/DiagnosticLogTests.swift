@@ -78,7 +78,10 @@ private func record(
         diagnostics: DiagnosticLog(directory: directory),
         // Empty bookmarks. A log write stops at `log.blocked` and never reaches the user's folder.
         bookmarks: VaultBookmarks(),
-        notifications: notifications
+        notifications: notifications,
+        // POL-053: every case below runs a session to its end, and RUNNING is where REQ-PER-006
+        // tells the OS to keep the machine awake. `IdleSleepTests` is where that rule is checked.
+        idleSleep: RecordedSleepGuard()
     )
     model.diagnostics.open(preset: preset, settings: settings)
     body(model)

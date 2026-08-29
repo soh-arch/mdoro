@@ -105,6 +105,30 @@ struct TestHostTests {
         }
     }
 
+    // POL-053: the same hole, one dependency along. REQ-PER-006 tells the OS to keep the machine
+    // awake for as long as a session is RUNNING, and `ProcessInfo.beginActivity` raises a system
+    // assertion — it does not stop at the process, and no bundle identifier separates the suite's
+    // from the app's. Every test that started a session was holding the machine of whoever ran it
+    // awake, including the host app's own model, which had substituted three things and not this.
+    //
+    // Read exactly as the check above: `AppModel()` with no arguments is the app running for a
+    // person; anything built with arguments is built for a test and has to say where this goes.
+    @Test func noModelBuiltForATestCanHoldTheMacAwake() throws {
+        for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
+            let files = try swiftFiles(under: directory, recursive: true)
+            #expect(!files.isEmpty, "\(directory) could not be read; it moved, or its name changed")
+            for (name, text) in files {
+                for construction in text.components(separatedBy: "AppModel(").dropFirst() {
+                    guard !construction.hasPrefix(")") else { continue }
+                    #expect(
+                        construction.prefix(400).contains("idleSleep:"),
+                        "POL-053: \(name) builds an AppModel that holds the reader's Mac awake"
+                    )
+                }
+            }
+        }
+    }
+
     // POL-047 / REQ-UIX-030: a scene is placed before any view of it appears, so `.task`
     // cannot reach one. The window opens itself at launch and the menu bar mark is inserted
     // with it — Mdoro taking the screen, and the menu bar, of whoever runs the suite.
