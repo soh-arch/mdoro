@@ -39,7 +39,7 @@ struct DiagnosticFormatTests {
         #expect(DiagnosticLevel.error.padded.count == 5)
     }
 
-    // 値に改行が紛れても1行1イベントが崩れない。
+    // A newline slipping into a value does not break one event per line.
     @Test func fieldValuesCannotBreakTheLine() {
         let event = DiagnosticEvent(code: "x", fields: [DiagnosticField("k", "a\nb c")])
         #expect(DiagnosticLogFormat.line(event).contains("k=a_b_c"))
@@ -52,7 +52,7 @@ struct DiagnosticFormatTests {
         #expect(text.contains("arch=arm64"))
     }
 
-    // ヘッダに載るのは「挙動に効く設定」だけで、パスもファイル名も載らない。
+    // The header carries only the settings that affect behaviour. No paths, and no file names.
     @Test func headerSettingsCarryNoPaths() {
         var settings = AppSettings()
         settings.taskFilePath = "/Users/someone/Vault/秘密の計画/Task.md"
@@ -97,7 +97,7 @@ struct DiagnosticFormatTests {
 @Suite("Diagnostic log redaction (Decision 0018)")
 struct DiagnosticRedactionTests {
 
-    // 起動をまたいでも同じ値になること。`Hasher` は種が変わるので使えない。
+    // The value has to come out the same across launches. `Hasher` cannot be used: its seed changes.
     @Test func digestIsStableAndShort() {
         let a = DiagnosticRedaction.digest("/Users/x/Vault/Task.md")
         let b = DiagnosticRedaction.digest("/Users/x/Vault/Task.md")
@@ -144,7 +144,7 @@ struct DiagnosticRotationTests {
         #expect(current.hasPrefix("# Mdoro diagnostic log"))
     }
 
-    // 上限は 2 世代ぶん。放っておいても増え続けない。
+    // The cap is two generations. Left alone, it does not keep growing.
     @Test func neverKeepsMoreThanTwoFiles() throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -158,7 +158,7 @@ struct DiagnosticRotationTests {
         #expect(contents.count == 2)
     }
 
-    // 書き出しは「前の世代 → いまの世代」の順に1本へ。
+    // The export joins them into one, previous generation then current.
     @Test func exportJoinsBothGenerationsInOrder() throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -174,7 +174,8 @@ struct DiagnosticRotationTests {
     }
 
     @Test func writingWhenTheDirectoryIsUnavailableIsReportedNotSwallowed() {
-        // 書けない場所を指す。**黙って捨てない**ことを確かめる（CONTEXT「失敗を黙らせない」）。
+        // Point at a place that cannot be written. Confirms it **is not dropped in silence**
+        // (CONTEXT, "never silence a failure").
         let file = DiagnosticLogFile(directory: URL(fileURLWithPath: "/dev/null/nope"), header: header)
         file.write(DiagnosticEvent(code: "tick"))
         #expect(file.lastFailure != nil)

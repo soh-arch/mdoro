@@ -5,8 +5,8 @@ import Foundation
 @Suite("Robust loading (REQ-ERR-001 / 002 / 003)")
 struct TaskLoadRobustnessTests {
 
-    // REQ-ERR-002: パースに失敗しても空リストで上書きしない。
-    // Obsidian の保存途中を読んだだけでも起こりうる。
+    // REQ-ERR-002: a failed parse must never overwrite the list with an empty one.
+    // Reading Obsidian part-way through a save is enough to cause it.
     @Test func undecodableDataThrowsInsteadOfReturningAnEmptyList() {
         let broken = Data([0xFF, 0xFE, 0xFF, 0xFE, 0xFF, 0xFE, 0xFF, 0xFE])
         #expect(throws: TaskParseError.undecodable) { try TaskParser.parse(data: broken) }
@@ -30,7 +30,7 @@ struct TaskLoadRobustnessTests {
         #expect(!outcome.context.loadFailed)
     }
 
-    // REQ-ERR-001: Task.md が存在しない / アクセス権がない。
+    // REQ-ERR-001: Task.md does not exist, or there is no permission for it.
     @Test func missingFileIsReportedAsUnavailable() {
         let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("no-such-\(UUID().uuidString).md")
         #expect(throws: TaskFileReader.ReadError.unavailable) { try TaskFileReader(fileURL: url).read() }
@@ -56,14 +56,14 @@ struct TaskLoadRobustnessTests {
 @Suite("Parsing boundaries (REQ-TSK-011 / 013 / 015 / 020)")
 struct TaskParsingEdgeTests {
 
-    // 見出しをまたいで親子関係を引き継がない。
+    // Parentage is never carried across a heading.
     @Test func parentageDoesNotLeakAcrossHeadings() {
         let items = TaskParser.parse("## A\n- [ ] 親A\n\n## B\n    - [ ] Bの下の字下げ").items
         let leaked = items.first { $0.section == "B" }!
         #expect(leaked.parentId == nil, "a task under another heading must not become the parent")
     }
 
-    // コードブロックの中は Markdown ではない。
+    // Inside a fenced block is not Markdown.
     @Test func fencedBlocksAreIgnored() {
         let text = """
         - [ ] 本物のタスク
@@ -80,7 +80,8 @@ struct TaskParsingEdgeTests {
         #expect(result.grouped(showCompleted: true).map(\.name) == [TaskParser.uncategorizedSection])
     }
 
-    // ブロック ID が重複していても一意にする。重複すると2件目が選択できず、UI も破綻する。
+    // Duplicate block IDs are still made unique. Duplicates leave the second one unselectable,
+    // and break the UI with it.
     @Test func duplicateBlockIdsStayUnique() {
         let items = TaskParser.parse("- [ ] タスク ^abc\n- [ ] 別のタスク ^abc").items
         #expect(Set(items.map(\.stableId)).count == 2)
@@ -88,8 +89,8 @@ struct TaskParsingEdgeTests {
         #expect(items[0].idKind == .blockId)
     }
 
-    // REQ-TSK-015 の除去が本文を壊さないこと。
-    // ここが壊れると、実在しないタスク名が PomodoroLog.md に恒久的に残る。
+    // The stripping of REQ-TSK-015 must not damage the text.
+    // Break this, and a task name that never existed stays in PomodoroLog.md for good.
     @Test func displayTextPreservesUnpairedSymbols() {
         #expect(TaskParser.parse("- [ ] snake_case_name を直す").items[0].displayText == "snake_case_name を直す")
         #expect(TaskParser.parse("- [ ] 2*3 の計算").items[0].displayText == "2*3 の計算")
@@ -102,7 +103,8 @@ struct TaskParsingEdgeTests {
                 "REQ-TSK-015: raw tag syntax must not survive into the display text or the log line")
     }
 
-    // REQ-TSK-022: 絵文字は表示形式によらず落とす。落ち方が揺れると stableId が揺れる。
+    // REQ-TSK-022: emoji are dropped whatever their presentation. A wobble in how they drop makes
+    // stableId wobble with it.
     @Test func emojiAreRemovedRegardlessOfPresentation() {
         let plain = TaskParser.parse("- [ ] タスク").items[0].normalizedText
         for decorated in ["- [ ] タスク 🔥", "- [ ] タスク ❤️", "- [ ] タスク ☀", "- [ ] タスク 1️⃣"] {
@@ -132,8 +134,8 @@ struct FileWatcherTests {
         var count: Int { lock.lock(); defer { lock.unlock() }; return value }
     }
 
-    // REQ-PLT-006: Obsidian は一時ファイル経由で置き換える。記述子に張った監視は
-    // inode 差し替えで無効化されるため、親ディレクトリを監視する。
+    // REQ-PLT-006: Obsidian replaces the file through a temporary one. A watch put on the
+    // descriptor is voided when the inode is swapped, so the parent directory is watched instead.
     @Test func detectsReplacementThroughATemporaryFile() throws {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -145,7 +147,7 @@ struct FileWatcherTests {
         try watcher.start()
         defer { watcher.stop() }
 
-        // atomically: true は一時ファイル経由の置き換えになる。inode が変わる。
+        // atomically: true replaces the file through a temporary one. The inode changes.
         try "- [ ] 書き換え後".write(to: file, atomically: true, encoding: .utf8)
 
         let deadline = Date().addingTimeInterval(3)
@@ -153,7 +155,7 @@ struct FileWatcherTests {
         #expect(counter.count >= 1, "a change must be detected even when the inode is replaced")
     }
 
-    // REQ-TSK-002: 300ms のデバウンスを挟む。連続保存のたびに読み直さない。
+    // REQ-TSK-002: a 300ms debounce sits in between. It does not re-read on every save in a burst.
     @Test func burstOfChangesIsCoalescedIntoOneNotification() throws {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

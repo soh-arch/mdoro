@@ -11,11 +11,11 @@ import MdoroCore
 // places and every test in the repository would still pass. So these read the file back
 // rather than the fields handed in, which is the only version a reader on an issue sees.
 //
-// **利用者の資産に触れないこと。** ブックマークは空を渡す（Vault にもログにも書けない）、
-// 診断ログは一時ディレクトリへ向ける、状態はメモリに置く。
-// 既定のままだと、テストがホストアプリの本番の保存先へ書きに行く。
+// **Never touch what belongs to the user.** Empty bookmarks are handed in (nothing can be written
+// to the vault or to the log), the diagnostic log points at a temporary directory, and the state
+// is kept in memory. Left at their defaults, these tests write to the host app's real destinations.
 
-// 1行1イベント: `timestamp LEVEL code key=value ...`。
+// One event per line: `timestamp LEVEL code key=value ...`.
 private struct LoggedEvent {
     let level: String
     let code: String
@@ -33,7 +33,7 @@ private struct LoggedEvent {
     }
 }
 
-// Decision 0034: `case(domain:code)` と、それ以外を受け付けない。
+// Decision 0034: `case(domain:code)`, and nothing else is accepted.
 private func hasDiagnosticShape(_ value: String) -> Bool {
     guard let open = value.firstIndex(of: "("), value.hasSuffix(")") else { return false }
     let caseName = value[value.startIndex..<open]
@@ -70,13 +70,13 @@ private func record(
         settings: settings,
         savedAt: Date()
     )
-    // POL-047: 通知も受け口を差し替える。**この的は利用者の通知センターである。**
-    // これらのテストが読むのは診断ログであって通知ではない。
+    // POL-047: the notification sink is swapped out too. **The real target is the user's own
+    // Notification Centre.** What these tests read is the diagnostic log, not the notifications.
     let notifications = RecordedNotifications()
     let model = AppModel(
         store: InMemoryStateStore(initial: saved),
         diagnostics: DiagnosticLog(directory: directory),
-        // 空のブックマーク。ログの書き込みは `log.blocked` で止まり、利用者のフォルダに届かない。
+        // Empty bookmarks. A log write stops at `log.blocked` and never reaches the user's folder.
         bookmarks: VaultBookmarks(),
         notifications: notifications
     )
@@ -87,7 +87,7 @@ private func record(
         contentsOf: directory.appendingPathComponent(DiagnosticLogFormat.currentFileName),
         encoding: .utf8
     )
-    // 読み終わったら片付ける。判定はここから先、text に対して行う。
+    // Clean up once it has been read. From here on, everything is judged against text.
     try? FileManager.default.removeItem(at: directory)
     return Recording(
         directory: directory,
@@ -97,8 +97,8 @@ private func record(
     )
 }
 
-// 終わったセッションを1つ作る。`send` は実時刻で `sessionEndAt` を置くので、
-// 終了はそこを跨いだ `tick` で起こす。
+// Make one session that has finished. `send` puts `sessionEndAt` on the real clock, so the finish
+// is caused by a `tick` that steps past it.
 @MainActor
 private func runOneSessionToItsEnd(_ model: AppModel, taskSnapshot: String) {
     model.send(.startWork(presetId: model.presets.activePresetId, taskSnapshot: taskSnapshot))
@@ -123,17 +123,17 @@ struct DiagnosticLogTests {
             runOneSessionToItsEnd(model, taskSnapshot: "task")
         }
 
-        // 診断ログは今までどおり書かれる。
+        // The diagnostic log is written as it always was.
         #expect(recording.events("notify.test").count == 1)
         #expect(recording.events("notify.finished").count == 1)
-        // そして配信はここで止まっている。
+        // And delivery stops right here.
         #expect(recording.notifications.contains(.soundTest(.chime)))
         #expect(recording.notifications.contains(.sessionFinished(.work)))
         #expect(recording.notifications.filter { $0 == .soundTest(.chime) }.count == 1)
     }
 
-    // Decision 0018: 読み手は issue を開いた第三者で、`chime` が何の音かを引く表がない。
-    // 名前を落として raw value だけにすると、行は通るが読めなくなる。
+    // Decision 0018: the reader is a stranger on an issue, with no table saying what sound `chime`
+    // is. Dropping the name for the raw value alone leaves a line that parses but cannot be read.
     @Test func aSoundIsWrittenWithTheNameTheSettingsScreenShows() throws {
         var preset = Preset.standard()
         preset.notificationSound = .chime
@@ -145,15 +145,16 @@ struct DiagnosticLogTests {
 
         let test = try #require(recording.events("notify.test").first)
         let finished = try #require(recording.events("notify.finished").first)
-        // `chime` だけでも `sound=chime(Glass)` に含まれてしまうので、値そのものを見る。
+        // `chime` on its own is contained in `sound=chime(Glass)`, so look at the value itself.
         #expect(test.fields["sound"] == "chime(Glass)")
         #expect(finished.fields["sound"] == "chime(Glass)")
         #expect(test.fields["sound"] != NotificationSound.chime.rawValue)
-        // 先頭のヘッダも同じ値を持つ（Decision 0018 の環境ヘッダ）。
+        // The header at the top carries the same value (the environment header of Decision 0018).
         #expect(recording.text.contains("sound=chime(Glass)"))
     }
 
-    // 音は5つあり、そのうち2つは raw value と表示名が同じなので、1つだけ見ても差が出ない。
+    // There are five sounds, and two of them have the same raw value as display name, so looking
+    // at only one shows no difference.
     @Test func everySoundIsWrittenTheSameWay() throws {
         for sound in NotificationSound.allCases {
             var preset = Preset.standard()
@@ -164,18 +165,18 @@ struct DiagnosticLogTests {
         }
     }
 
-    // Decision 0034: `why` は、誰が投げた失敗でも `case(domain:code)`。
+    // Decision 0034: whoever threw the failure, `why` is `case(domain:code)`.
     @Test func everyReasonIsWrittenAsADomainAndACode() throws {
         let recording = try record(preset: Preset.standard()) { model in
-            // IDLE では延長できない。拒否された操作は記録される。
+            // Extending is not possible in IDLE. A rejected action is recorded.
             model.send(.extend)
-            // 終わったセッションを確定させると、書き込み先が無いことが分かる。
+            // Committing a session that has finished reveals there is nowhere to write it.
             runOneSessionToItsEnd(model, taskSnapshot: "task")
             model.send(.startWork(presetId: model.presets.activePresetId, taskSnapshot: "task"))
         }
 
         let reasons = recording.events.compactMap { $0.fields["why"] }.filter { $0 != "-" }
-        #expect(!reasons.isEmpty, "`why` を持つ行が1つも出ていない。テストが何も確かめていない")
+        #expect(!reasons.isEmpty, "not one line carries `why`, so this test checked nothing")
         for reason in reasons {
             #expect(hasDiagnosticShape(reason), "not `case(domain:code)`: \(reason)")
         }
@@ -186,8 +187,8 @@ struct DiagnosticLogTests {
         #expect(blocked.fields["why"] == ErrorCode.logFolderNotSet.summary("noFolder"))
     }
 
-    // REQ-ERR-010 / Decision 0018: **書き出すときに伏せるのではなく、載せない。**
-    // タスク名・パス・ファイル名・ホスト名を与えたうえで、ファイル全体を見る。
+    // REQ-ERR-010 / Decision 0018: **it is never put in, rather than masked on the way out.**
+    // Hand in a task name, a path, a file name and a host name, then look at the whole file.
     @Test func nothingTheUserWroteReachesTheFile() throws {
         let taskName = "REVIEWTHEQUARTERLYPLAN"
         let vaultPath = "/Users/someone/Vault/UNIQUETASKFILE.md"
@@ -206,7 +207,8 @@ struct DiagnosticLogTests {
             runOneSessionToItsEnd(model, taskSnapshot: taskName)
             model.send(.startWork(presetId: model.presets.activePresetId, taskSnapshot: taskName))
             model.reloadTasksFromDisk()
-            // 設定が変わった行も出させる。ここが `vault=` `logDir=` を書く経路。
+            // Make it emit the settings-changed line too. This is the path that writes `vault=`
+            // and `logDir=`.
             model.settings.logicalDayStartHour = 5
             model.stop()
         }
@@ -214,16 +216,17 @@ struct DiagnosticLogTests {
         for secret in [taskName, vaultPath, logFolder, logFileName, presetName, hostName] {
             #expect(
                 !recording.text.contains(secret),
-                "REQ-ERR-010: `\(secret)` が診断ログに出ている"
+                "REQ-ERR-010: `\(secret)` appears in the diagnostic log"
             )
         }
-        // パスは載せないが、同じ設定を使い続けているかは追える（Decision 0018）。
+        // The path is never put in, but whether the same setting is still in use can be
+        // followed (Decision 0018).
         #expect(recording.text.contains("vault=\(DiagnosticRedaction.digest(vaultPath))"))
-        // 走査が空のファイルを見ていないこと。
-        #expect(recording.events.count > 3, "行が少なすぎる。上の禁止語検査は何も見ていない")
+        // The scan must not have been looking at an empty file.
+        #expect(recording.events.count > 3, "too few lines, so the forbidden-word check above saw nothing")
     }
 
-    // 選ばれているタスクがあることは記録するが、それが何かは記録しない。
+    // That a task is selected is recorded; which task it is, never.
     @Test func aSelectedTaskIsCountedNotNamed() throws {
         let recording = try record(preset: Preset.standard()) { model in
             model.send(.startWork(presetId: model.presets.activePresetId, taskSnapshot: "SOMETASKNAME"))

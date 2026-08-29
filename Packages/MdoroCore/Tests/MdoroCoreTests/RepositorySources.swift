@@ -5,7 +5,7 @@ import Foundation
 // not). Reading their source is how those rules stay checked in CI, and it is the same route
 // `MenuBarMarkTests` already takes to the asset catalogue.
 
-// Tests/MdoroCoreTests/ から5つ上がリポジトリのルート。
+// Five levels up from Tests/MdoroCoreTests/ is the repository root.
 var repositoryRoot: URL {
     var url = URL(fileURLWithPath: #filePath)
     for _ in 0..<5 { url.deleteLastPathComponent() }
@@ -34,8 +34,8 @@ func withoutComments(_ text: String) -> String {
 // silence a guard on notifications reaching the reader.
 //
 // The folders here are the ones Xcode owns and the ones still carrying their pre-Mdoro names
-// (工程9 の積み残し). **They will move.** Every caller has to hear about it, so the check is
-// on the way in rather than in each of them.
+// (left over from stage 9). **They will move.** Every caller has to hear about it, so the check
+// is on the way in rather than in each of them.
 struct MissingSourceDirectory: Error, CustomStringConvertible {
     let path: String
     var description: String { "\(path) is not a directory — it moved, or it was renamed" }

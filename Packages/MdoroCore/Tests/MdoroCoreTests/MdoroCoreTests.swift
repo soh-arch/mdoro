@@ -28,9 +28,9 @@ private func makePresetContext(_ preset: Preset) -> PresetContext {
     PresetContext(presets: [preset], activePresetId: preset.id)
 }
 
-private let referenceDate = Date(timeIntervalSince1970: 1_700_000_000) // 固定時刻。相対秒だけで検証する。
+private let referenceDate = Date(timeIntervalSince1970: 1_700_000_000) // A fixed instant. Only relative seconds are checked.
 
-// MARK: - 4.6 状態遷移マトリクス
+// MARK: - 4.6 State transition matrix
 
 @Suite("State transition matrix (4.6)")
 struct StateTransitionMatrixTests {
@@ -110,13 +110,13 @@ struct StateTransitionMatrixTests {
         let preset = makePreset()
         let presets = makePresetContext(preset)
         let context = TimerContext.idle(now: referenceDate)
-        // pause は IDLE では受理されない。
+        // pause is not accepted in IDLE.
         let result = TimerEngine.reduce(action: .pause, context: context, presets: presets, now: referenceDate)
         #expect(result == .failure(TimerFailure(error: .invalidStateForAction, effects: [])))
     }
 }
 
-// MARK: - 周回数と nextSessionType
+// MARK: - Loop count and nextSessionType
 
 @Suite("Loop count and nextSessionType (4.3 / 4.4)")
 struct LoopCountTests {
@@ -173,13 +173,13 @@ struct LoopCountTests {
     }
 
     @Test func loopCountZeroNeverSuggestsLongBreakEvenWithInterval1() {
-        // REQ-TIM-015: loopCount が 0 のときに倍数判定で LONG_BREAK を導いてはならない。
+        // REQ-TIM-015: when loopCount is 0, the multiple check must not lead to LONG_BREAK.
         let next = TimerEngine.standardNextSessionType(after: .shortBreak, loopCount: 0, longBreakInterval: 1)
         #expect(next == .work)
     }
 
     @Test func resetLoopCountImmediatelySuggestsWork() throws {
-        let preset = makePreset(interval: 1) // 最も LONG_BREAK が出やすい設定
+        let preset = makePreset(interval: 1) // the setting most likely to produce LONG_BREAK
         let presets = makePresetContext(preset)
         let idle = TimerContext.idle(now: referenceDate)
         let started = try TimerEngine.reduce(action: .startWork(presetId: preset.id, taskSnapshot: nil), context: idle, presets: presets, now: referenceDate).get()
@@ -193,7 +193,7 @@ struct LoopCountTests {
     }
 }
 
-// MARK: - 延長・FINISHED からの周回取り消し
+// MARK: - Extending, and taking a loop back from FINISHED
 
 @Suite("Extend and undo from FINISHED (4.7)")
 struct ExtendAndFinishedTests {
@@ -206,7 +206,7 @@ struct ExtendAndFinishedTests {
         let finished = TimerEngine.tick(context: started.context, presets: presets, now: endAt).context
         #expect(finished.loopCount == 1)
 
-        let extendTime = endAt.addingTimeInterval(30) // 猶予内 (REQ-TIM-043: 1分)
+        let extendTime = endAt.addingTimeInterval(30) // within the grace (REQ-TIM-043: one minute)
         let extended = try TimerEngine.reduce(action: .extend, context: finished, presets: presets, now: extendTime).get()
 
         #expect(extended.context.runState == .running)
@@ -245,10 +245,10 @@ struct ExtendAndFinishedTests {
 
         let afterGrace = endAt.addingTimeInterval(TimerEngine.extensionGraceSeconds + 1)
         let afterResult = TimerEngine.reduce(action: .extend, context: finished, presets: presets, now: afterGrace)
-        // 猶予超過後は tick() が先に確定させ IDLE へ遷移するため、extend はマトリクス上拒否される。
-        // ただし拒否時も、tick() が確定させた commitLog は失われてはならない (REQ-LOG-018)。
+        // Past the grace, tick() commits first and moves to IDLE, so the matrix rejects extend.
+        // Even when it is rejected, the commitLog tick() produced must not be lost (REQ-LOG-018).
         guard case let .failure(failure) = afterResult else {
-            Issue.record("猶予超過後の extend は拒否されるべき")
+            Issue.record("extend past the grace was accepted")
             return
         }
         #expect(failure.error == .invalidStateForAction)
@@ -256,7 +256,7 @@ struct ExtendAndFinishedTests {
     }
 }
 
-// MARK: - 確定処理の冪等性 (REQ-LOG-019)
+// MARK: - Committing is idempotent (REQ-LOG-019)
 
 @Suite("Committing is idempotent")
 struct CommitIdempotencyTests {
@@ -288,14 +288,14 @@ struct CommitIdempotencyTests {
         #expect(firstAbort.effects.count == 1)
         #expect(firstAbort.context.runState == .idle)
 
-        // 同じ操作を確定後のコンテキストに対して再度行うと、マトリクス上 IDLE では abort が拒否される。
+        // Repeating the same action on the committed context: the matrix rejects abort in IDLE.
         let secondAbort = TimerEngine.reduce(action: .abort, context: firstAbort.context, presets: presets, now: abortTime.addingTimeInterval(5))
         #expect(secondAbort == .failure(TimerFailure(error: .invalidStateForAction, effects: [])))
     }
 
     @Test func startWorkResetAbortAllFinalizeOnlyOnceFromFinished() throws {
-        // CLAUDE.md: 休憩が FINISHED に留まる間の中断・次セッション開始・リセットで二重記録されないことを、
-        // それぞれ独立したシナリオとして確認する。
+        // CLAUDE.md: check, as three independent scenarios, that aborting, starting the next
+        // session, and resetting while a break sits in FINISHED do not record twice.
         let preset = makePreset()
         let presets = makePresetContext(preset)
 
@@ -319,7 +319,7 @@ struct CommitIdempotencyTests {
     }
 }
 
-// MARK: - 実経過時間 (REQ-TIM-005)
+// MARK: - Net elapsed time (REQ-TIM-005)
 
 @Suite("Net elapsed time across a pause")
 struct NetWorkingTimeTests {
@@ -330,30 +330,31 @@ struct NetWorkingTimeTests {
 
         let started = try TimerEngine.reduce(action: .startWork(presetId: preset.id, taskSnapshot: nil), context: idle, presets: presets, now: referenceDate).get()
 
-        let pauseTime = referenceDate.addingTimeInterval(300) // 5分経過後に一時停止
+        let pauseTime = referenceDate.addingTimeInterval(300) // pause after five minutes have passed
         let paused = try TimerEngine.reduce(action: .pause, context: started.context, presets: presets, now: pauseTime).get()
         #expect(paused.context.remainingSeconds == 1200)
 
-        let resumeTime = pauseTime.addingTimeInterval(600) // 10分間一時停止
+        let resumeTime = pauseTime.addingTimeInterval(600) // paused for ten minutes
         let resumed = try TimerEngine.reduce(action: .resume, context: paused.context, presets: presets, now: resumeTime).get()
         #expect(resumed.context.accumulatedPausedSeconds == 600)
 
         let endAt = resumed.context.sessionEndAt!
         #expect(endAt == resumeTime.addingTimeInterval(1200))
 
-        // 猶予内、終了時刻ちょうどで中断して、確定されるログの実経過時間を検証する。
+        // Abort exactly at the end time, within the grace, and check the net elapsed time of
+        // the log that gets committed.
         let ticked = TimerEngine.tick(context: resumed.context, presets: presets, now: endAt)
         let aborted = try TimerEngine.reduce(action: .abort, context: ticked.context, presets: presets, now: endAt).get()
 
         guard case let .commitLog(entry)? = aborted.effects.first else {
-            Issue.record("commitLog effect が見つからない")
+            Issue.record("no commitLog effect was produced")
             return
         }
         #expect(entry.elapsedSeconds == 25 * 60, "the 10-minute pause must be excluded, leaving a net 25 minutes")
     }
 }
 
-// MARK: - 9.5 設定変更の適用タイミング (A/B/C 群)
+// MARK: - 9.5 When a settings change takes effect (groups A/B/C)
 
 @Suite("When a settings change takes effect (9.5)")
 struct SettingsApplicationTests {
@@ -365,7 +366,7 @@ struct SettingsApplicationTests {
         let originalEndAt = started.context.sessionEndAt
 
         var updated = preset
-        updated.workSeconds = 40 * 60 // A群: 時間項目の変更
+        updated.workSeconds = 40 * 60 // group A: changing a duration
         let result = try TimerEngine.reduce(action: .updatePreset(updated), context: started.context, presets: started.presets, now: referenceDate.addingTimeInterval(10)).get()
         presets = result.presets
 
@@ -381,11 +382,12 @@ struct SettingsApplicationTests {
         let started = try TimerEngine.reduce(action: .startWork(presetId: preset.id, taskSnapshot: nil), context: idle, presets: presets, now: referenceDate).get()
 
         var updated = preset
-        updated.extendSeconds = 10 * 60 // B群
+        updated.extendSeconds = 10 * 60 // group B
         let afterUpdate = try TimerEngine.reduce(action: .updatePreset(updated), context: started.context, presets: presets, now: referenceDate.addingTimeInterval(5)).get()
 
         let beforeExtend = afterUpdate.context.sessionEndAt!
-        // REQ-TIM-046: 延長は残り5分以下でしか受け付けないため、受付ウィンドウ内まで進める。
+        // REQ-TIM-046: an extension is only accepted with five minutes or less remaining, so
+        // move forward into the acceptance window.
         let withinWindow = beforeExtend.addingTimeInterval(-60)
         let extended = try TimerEngine.reduce(action: .extend, context: afterUpdate.context, presets: afterUpdate.presets, now: withinWindow).get()
 
@@ -398,31 +400,31 @@ struct SettingsApplicationTests {
         let idle = TimerContext.idle(now: referenceDate)
 
         var invalid = preset
-        invalid.workSeconds = 999_999 // REQ-CFG-018: 範囲外
+        invalid.workSeconds = 999_999 // REQ-CFG-018: out of range
         let result = TimerEngine.reduce(action: .updatePreset(invalid), context: idle, presets: presets, now: referenceDate)
         #expect(result == .failure(TimerFailure(error: .settingOutOfRange, effects: [])))
     }
 
     @Test func deletingNonexistentPresetReturnsPresetNotFound() {
         let preset = makePreset()
-        let presets = makePresetContext(preset) // プリセットは1件のみ
+        let presets = makePresetContext(preset) // only one preset exists
         let idle = TimerContext.idle(now: referenceDate)
 
         let result = TimerEngine.reduce(action: .deletePreset(id: "missing"), context: idle, presets: presets, now: referenceDate)
 
         guard case let .failure(failure) = result else {
-            Issue.record("存在しない ID の削除は拒否されるべき")
+            Issue.record("deleting an id that does not exist was accepted")
             return
         }
         #expect(failure.error == .presetNotFound, "an unknown id must return presetNotFound, not cannotDeleteLastPreset")
     }
 }
 
-// MARK: - レビュー指摘の再現テスト
+// MARK: - Reproducing the review findings
 
 @Suite("Review findings (2026-08-25)")
 struct ReviewFixTests {
-    // uniqueName: 30文字ちょうどの名前を複製しても回り続けないこと。
+    // uniqueName: duplicating a name of exactly 30 characters must not spin forever.
     @Test func duplicatePresetOfMaxLengthNameDoesNotHangAndStaysWithinLimit() {
         let longName = String(repeating: "あ", count: 30)
         let preset = makePreset(id: "long", name: longName)
@@ -442,7 +444,7 @@ struct ReviewFixTests {
         #expect(result != longName, "a number must be appended, so the result differs from the original name")
     }
 
-    // 2. reduce が拒否時に tick() の Effect を捨てる。
+    // 2. reduce throws away the Effect from tick() when it rejects.
     @Test func rejectedActionAfterBreakFinishesStillSurfacesCommitLog() throws {
         let preset = makePreset(short: 5 * 60)
         let presets = makePresetContext(preset)
@@ -450,28 +452,28 @@ struct ReviewFixTests {
         let started = try TimerEngine.reduce(action: .startBreak(type: .shortBreak, presetId: preset.id), context: idle, presets: presets, now: referenceDate).get()
         let endAt = started.context.sessionEndAt!
 
-        // pause は IDLE では受理されないが、reduce 内部の tick() が休憩を先に確定させている。
+        // pause is not accepted in IDLE, but tick() inside reduce has already committed the break.
         let result = TimerEngine.reduce(action: .pause, context: started.context, presets: presets, now: endAt)
 
         guard case let .failure(failure) = result else {
-            Issue.record("拒否されるはずが成功した")
+            Issue.record("the action succeeded instead of being rejected")
             return
         }
         #expect(failure.error == .invalidStateForAction)
         #expect(failure.effects.count == 1, "REQ-LOG-018: a commitLog produced by tick must survive a rejected action")
     }
 
-    // 3. confirmRestoredSession(.discard) が放置時間を実経過時間に混入させる。
+    // 3. confirmRestoredSession(.discard) lets the idle hours leak into the net elapsed time.
     @Test func discardAfterLongPauseExcludesIdleTimeFromElapsed() throws {
         let preset = makePreset(work: 25 * 60)
         let presets = makePresetContext(preset)
         let idle = TimerContext.idle(now: referenceDate)
         let started = try TimerEngine.reduce(action: .startWork(presetId: preset.id, taskSnapshot: nil), context: idle, presets: presets, now: referenceDate).get()
 
-        let pauseTime = referenceDate.addingTimeInterval(600) // 10分作業してから一時停止
+        let pauseTime = referenceDate.addingTimeInterval(600) // pause after ten minutes of work
         let paused = try TimerEngine.reduce(action: .pause, context: started.context, presets: presets, now: pauseTime).get()
 
-        let resumeAttemptTime = pauseTime.addingTimeInterval(13 * 3600) // 13時間放置 (idleResetHours=12 を超過)
+        let resumeAttemptTime = pauseTime.addingTimeInterval(13 * 3600) // left for 13 hours (past idleResetHours=12)
         let resumed = try TimerEngine.reduce(action: .resume, context: paused.context, presets: presets, now: resumeAttemptTime).get()
         #expect(resumed.context.runState == .pendingDecision)
         let pending = try #require(resumed.context.pendingDecision)
@@ -481,13 +483,13 @@ struct ReviewFixTests {
         let discarded = try TimerEngine.reduce(action: .confirmRestoredSession(.discard), context: resumed.context, presets: presets, now: discardTime).get()
 
         guard case let .commitLog(entry)? = discarded.effects.first else {
-            Issue.record("commitLog effect が見つからない")
+            Issue.record("no commitLog effect was produced")
             return
         }
         #expect(entry.elapsedSeconds == 600, "REQ-PER-004: the 13 idle hours must not count toward elapsed time")
     }
 
-    // 4. committedAt が確定処理でも常に nil のまま。
+    // 4. committedAt stays nil even when a session is committed.
     @Test func finalizeSetsCommittedAtAndIsIdempotentOnReuse() throws {
         let preset = makePreset()
         let presets = makePresetContext(preset)
@@ -500,14 +502,15 @@ struct ReviewFixTests {
         #expect(firstEffects.count == 1)
         #expect(firstContext.committedAt != nil, "REQ-LOG-019: a successful commit must set committedAt")
 
-        // 同じ「確定済み」コンテキストを誤って再度 finalize しても、二重に commitLog を出してはならない。
+        // Calling finalize again by mistake on the same already-committed context must not emit
+        // a second commitLog.
         let (secondContext, secondEffects) = TimerEngine.finalize(context: firstContext, presets: presets, settings: .default, now: endAt.addingTimeInterval(60), outcome: .aborted)
         #expect(secondEffects.isEmpty, "a context that already has committedAt must not commit again")
         #expect(secondContext == firstContext)
     }
 }
 
-// MARK: - 延長受付ウィンドウ (REQ-TIM-046)
+// MARK: - Extend acceptance window (REQ-TIM-046)
 
 @Suite("Extend acceptance window (REQ-TIM-046)")
 struct ExtensionWindowTests {
@@ -518,15 +521,15 @@ struct ExtensionWindowTests {
         let started = try TimerEngine.reduce(action: .startWork(presetId: preset.id, taskSnapshot: nil), context: idle, presets: presets, now: referenceDate).get()
         let endAt = started.context.sessionEndAt!
 
-        // 残り 5 分ちょうどより前は受け付けない。
+        // Earlier than exactly five minutes remaining is not accepted.
         let tooEarly = endAt.addingTimeInterval(-(TimerEngine.extensionWindowSeconds + 1))
         guard case let .failure(failure) = TimerEngine.reduce(action: .extend, context: started.context, presets: presets, now: tooEarly) else {
-            Issue.record("REQ-TIM-046: 残り5分より前の延長は拒否されるべき")
+            Issue.record("REQ-TIM-046: extend earlier than five minutes remaining was accepted")
             return
         }
         #expect(failure.error == .extendWindowClosed)
 
-        // 残り 5 分ちょうどは境界として受け付ける。
+        // Exactly five minutes remaining is the boundary, and is accepted.
         let boundary = endAt.addingTimeInterval(-TimerEngine.extensionWindowSeconds)
         let accepted = try TimerEngine.reduce(action: .extend, context: started.context, presets: presets, now: boundary).get()
         #expect(accepted.context.sessionEndAt == endAt.addingTimeInterval(TimeInterval(preset.extendSeconds)),
@@ -541,7 +544,7 @@ struct ExtensionWindowTests {
         let endAt = started.context.sessionEndAt!
         let finished = TimerEngine.tick(context: started.context, presets: presets, now: endAt).context
 
-        // 終了後 10 秒でも 55 秒でも、新しい終了時刻は同じ。
+        // At 10 seconds after the end or at 55, the new end time is the same.
         let early = try TimerEngine.reduce(action: .extend, context: finished, presets: presets, now: endAt.addingTimeInterval(10)).get()
         let late = try TimerEngine.reduce(action: .extend, context: finished, presets: presets, now: endAt.addingTimeInterval(55)).get()
         #expect(early.context.sessionEndAt == endAt.addingTimeInterval(5 * 60))
@@ -557,7 +560,7 @@ struct ExtensionWindowTests {
         #expect(paused.context.remainingSeconds ?? 0 > Int(TimerEngine.extensionWindowSeconds))
 
         guard case let .failure(failure) = TimerEngine.reduce(action: .extend, context: paused.context, presets: presets, now: referenceDate.addingTimeInterval(61)) else {
-            Issue.record("REQ-TIM-046: 残り5分を超える PAUSED の延長は拒否されるべき")
+            Issue.record("REQ-TIM-046: extend while PAUSED with more than five minutes remaining was accepted")
             return
         }
         #expect(failure.error == .extendWindowClosed)
@@ -582,7 +585,7 @@ struct ExtensionWindowTests {
     }
 }
 
-// MARK: - 予告通知 (REQ-NTF-020〜023)
+// MARK: - Pre-notifications (REQ-NTF-020–023)
 
 @Suite("Heads-up notification triggers (REQ-NTF-020–023)")
 struct PreNotificationTests {
@@ -590,7 +593,8 @@ struct PreNotificationTests {
     private var end: Date { referenceDate.addingTimeInterval(25 * 60) }
 
     @Test func validRangesFollowTheApprovedGrid() {
-        // REQ-NTF-020: 残り時間は 1〜15 分を1分刻み、経過割合は 50〜95% を5刻み。
+        // REQ-NTF-020: remaining time is 1–15 minutes in steps of 1; elapsed percent is 50–95%
+        // in steps of 5.
         #expect(PreNotification.beforeEnd(seconds: 60).isWithinValidRanges)
         #expect(PreNotification.beforeEnd(seconds: 15 * 60).isWithinValidRanges)
         #expect(!PreNotification.beforeEnd(seconds: 30).isWithinValidRanges)
@@ -617,7 +621,7 @@ struct PreNotificationTests {
     }
 
     @Test func triggerBeforeSessionStartIsDropped() {
-        // REQ-NTF-021: 25分のセッションに「30分前」は成立しない。
+        // REQ-NTF-021: "30 minutes before the end" does not hold for a 25-minute session.
         let dates = PreNotificationSchedule.fireDates(
             for: [.beforeEnd(seconds: 30 * 60)],
             sessionStartedAt: start, sessionEndAt: end, now: start
@@ -626,7 +630,7 @@ struct PreNotificationTests {
     }
 
     @Test func elapsedPercentFollowsTheExtendedDuration() {
-        // REQ-NTF-022: 延長後は新しい終了時刻を基準に計算し直す。
+        // REQ-NTF-022: after an extension, recalculate against the new end time.
         let before = PreNotificationSchedule.fireDates(
             for: [.atElapsedPercent(80)], sessionStartedAt: start, sessionEndAt: end, now: start
         )
@@ -640,7 +644,7 @@ struct PreNotificationTests {
     }
 
     @Test func alreadyElapsedTriggerIsNotRescheduled() {
-        // REQ-NTF-022: 既に発火済みのトリガを再発火させない。
+        // REQ-NTF-022: a trigger that has already fired is not fired again.
         let dates = PreNotificationSchedule.fireDates(
             for: [.atElapsedPercent(50), .beforeEnd(seconds: 60)],
             sessionStartedAt: start, sessionEndAt: end,
@@ -650,8 +654,9 @@ struct PreNotificationTests {
     }
 
     @Test func closeTriggersCollapseToTheLaterOne() {
-        // REQ-NTF-023: 60秒以内に接近する場合は後者のみ。
-        // 25分の80% = 20分経過 = 残り5分。「残り5分前」と一致するため後者だけが残る。
+        // REQ-NTF-023: when two come within 60 seconds of each other, only the later one.
+        // 80% of 25 minutes = 20 minutes elapsed = 5 minutes left. That coincides with
+        // "5 minutes before the end", so only the later one survives.
         let dates = PreNotificationSchedule.fireDates(
             for: [.atElapsedPercent(80), .beforeEnd(seconds: 5 * 60)],
             sessionStartedAt: start, sessionEndAt: end, now: start
@@ -659,7 +664,7 @@ struct PreNotificationTests {
         #expect(dates.count == 1)
         #expect(dates == [start.addingTimeInterval(20 * 60)])
 
-        // 十分に離れていれば2件とも残る。
+        // Far enough apart, and both survive.
         let spread = PreNotificationSchedule.fireDates(
             for: [.atElapsedPercent(50), .beforeEnd(seconds: 60)],
             sessionStartedAt: start, sessionEndAt: end, now: start

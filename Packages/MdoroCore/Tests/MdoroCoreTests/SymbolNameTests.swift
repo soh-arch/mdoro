@@ -13,21 +13,23 @@ private func symbolExists(_ name: String) -> Bool {
 }
 #endif
 
-// **存在しない SF Symbol 名は、エラーにならず何も描かれない。**
-// 実在しない名前を指定するとメニューバー項目が丸ごと消える。名前を増やしたらここに足すこと。
+// **A missing SF Symbol name is not an error; nothing is drawn.**
+// Name one that does not exist and the whole menu bar item disappears. When a name is added, add
+// it here.
 @Suite("SF Symbol names exist (REQ-UIX-030 / 035)")
 struct SymbolNameTests {
 
-    // `peerSymbolName` は `#if os(macOS)` で分岐するため、テストを走らせた側の名前しか通らない。
-    // **もう片方の名前は、名指しで確かめる。** SF Symbols のカタログは両プラットフォームで共通。
+    // `peerSymbolName` branches on `#if os(macOS)`, so only the name for the side the tests ran on
+    // goes through. **The other name is checked by naming it.** The SF Symbols catalogue is common
+    // to both platforms.
     @Test func peerSymbolsOfBothPlatformsExist() {
         for name in ["iphone.gen3", "iphone.gen3.slash",
                      "laptopcomputer", "laptopcomputer.slash",
                      "arrow.trianglehead.2.clockwise",
-                     // 設定タブとタスク一覧で使う名前も、ここで実在を確かめる。
+                     // The names used by the settings tabs and the task list are checked here too.
                      "timer", "gearshape", "folder", "paintpalette",
                      "largecircle.fill.circle", "circle",
-                     // Live Activity のセッション記号。
+                     // The session symbols of the Live Activity.
                      "cup.and.saucer", "moon.zzz"] {
             #expect(symbolExists(name), "\(name) does not exist")
         }
@@ -42,8 +44,9 @@ struct SymbolNameTests {
         }
     }
 
-    // REQ-COL-010: 接続状態は色だけでなく形でも区別する。同じ形を使い回すと区別にならない。
-    // メニューバーの印は接続状態を示さない（Decision 0031）ので、ここでは見ない。
+    // REQ-COL-010: connection state is told apart by shape as well as colour. Reusing one shape
+    // tells nothing apart. The menu bar mark does not show the connection state (Decision 0031),
+    // so it is not looked at here.
     @Test func connectionStatusSymbolsAreDistinct() {
         let onScreen = Set(ConnectionStatus.allCases.map(\.symbolName))
         #expect(onScreen.count == ConnectionStatus.allCases.count)

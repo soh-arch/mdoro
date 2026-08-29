@@ -45,7 +45,7 @@ private func entry(
 @Suite("Log line formatting (REQ-LOG-010–017)")
 struct LogFormatterTests {
 
-    // 7.2 の出力例をそのまま再現できること。
+    // Reproduce the example output of 7.2 exactly.
     @Test func matchesTheExamplesInSection72() {
         #expect(LogFormatter.line(for: entry(), calendar: calendar)
                 == "- 09:00–09:25 WORK 25m ✅ Loop 1/4 [Standard] — 仕様書のレビュー")
@@ -71,44 +71,48 @@ struct LogFormatterTests {
                 == "- 11:35–11:43 WORK 8m ⏹ Stopped [ディープワーク] — プロトコル設計")
     }
 
-    // REQ-LOG-011: 周回は REQ-TIM-025 と同じ剰余表現で、UI の表示と一致させる。
+    // REQ-LOG-011: the loop uses the same modulo form as REQ-TIM-025, matching what the UI shows.
     @Test func loopCountUsesTheSameModuloAsTheUI() {
         #expect(LogFormatter.line(for: entry(loopAfter: 4), calendar: calendar).contains("Loop 4/4"))
         #expect(LogFormatter.line(for: entry(loopAfter: 5), calendar: calendar).contains("Loop 1/4"))
         #expect(LogFormatter.line(for: entry(loopAfter: 8), calendar: calendar).contains("Loop 4/4"))
     }
 
-    // 周回は WORK の**正常完了行**のみ。
-    // REQ-LOG-011 は「WORK の正常完了行に含めること」という**肯定の MUST** しか定めていない。
-    // 「それ以外の行に出してはならない」の根拠は条文ではなく次の2つなので、併記しておく。
-    //   - 中断・スキップ: §4.5 操作の定義（どちらも周回数は「加算しない」）
-    //   - 休憩行・Stopped 行: §7.2 の出力例（SHORT_BREAK / LONG_BREAK / ⏹ Stopped のどれにも Loop がない）
+    // The loop belongs to a **normally completed WORK line** only.
+    // REQ-LOG-011 states nothing but the **positive MUST**: "include it on a completed WORK line".
+    // "It must not appear on any other line" rests on the two below rather than on the article,
+    // so both are written down here.
+    //   - Aborted and skipped: §4.5, the definition of the actions (neither adds to the loop count)
+    //   - Break lines and Stopped lines: §7.2, the example output (no Loop on SHORT_BREAK /
+    //     LONG_BREAK / ⏹ Stopped)
     //
-    // 出力される語は `Loop n/m`。同じ `loopCountAfterCompletion` を持つ完了行が周回を出すことを
-    // 対照として先に確かめ、以下の否定が「周回を出す条件が揃っているのに抑止されている」ことを示すようにする。
+    // The word emitted is `Loop n/m`. A completed line carrying the same `loopCountAfterCompletion`
+    // is checked first as a control, so that the negatives below show the loop is suppressed even
+    // though every condition for emitting it is met.
     @Test func loopCountIsOmittedForBreaksAndAbnormalEndings() {
         #expect(LogFormatter.line(for: entry(), calendar: calendar).contains("Loop 1/4"),
                 "control: the same input on a completed WORK line does carry the loop")
 
         #expect(!LogFormatter.line(for: entry(outcome: .aborted), calendar: calendar).contains("Loop"))
         #expect(!LogFormatter.line(for: entry(outcome: .skipped), calendar: calendar).contains("Loop"))
-        // 休憩は2種とも見る。longBreak だけだと `sessionType != .longBreak` の実装を見逃す。
+        // Look at both kinds of break. With longBreak alone, an implementation written as
+        // `sessionType != .longBreak` slips through.
         #expect(!LogFormatter.line(for: entry(type: .shortBreak, task: nil), calendar: calendar).contains("Loop"))
         #expect(!LogFormatter.line(for: entry(type: .longBreak, task: nil), calendar: calendar).contains("Loop"))
     }
 
-    // REQ-LOG-016: A 群がセッション中に編集されたらプリセット名に * を付す。
+    // REQ-LOG-016: when group A is edited during a session, mark the preset name with a *.
     @Test func editedPresetIsMarkedWithAnAsterisk() {
         #expect(LogFormatter.line(for: entry(edited: true), calendar: calendar).contains("[Standard*]"))
         #expect(!LogFormatter.line(for: entry(edited: false), calendar: calendar).contains("*"))
     }
 
-    // REQ-LOG-010 / 023: タスク名は WORK のみ。
+    // REQ-LOG-010 / 023: the task name is for WORK only.
     @Test func taskNameOnlyAppearsForWork() {
         #expect(!LogFormatter.line(for: entry(type: .shortBreak, task: "残っていたら異常", loopAfter: nil), calendar: calendar).contains("残っていたら異常"))
     }
 
-    // REQ-LOG-013: 既定はリンクにならないプレーンテキスト。設定でリンク化を選べる。
+    // REQ-LOG-013: plain text that is not a link by default. A setting can make it a link.
     @Test func taskNameIsPlainByDefaultAndLinkableByOption() {
         let plain = LogFormatter.line(for: entry(task: "プロトコル設計"), calendar: calendar)
         #expect(plain.hasSuffix("— プロトコル設計"))
@@ -118,16 +122,17 @@ struct LogFormatterTests {
         #expect(linked.hasSuffix("— [[プロトコル設計]]"))
     }
 
-    // 本文に [[...]] が残っていても、既定ではリンクにしない。
+    // Even when [[...]] is left in the text, the default does not turn it into a link.
     @Test func bracketsInTheTaskNameDoNotBecomeALink() {
         let line = LogFormatter.line(for: entry(task: "[[設計ノート]]"), calendar: calendar)
         #expect(!line.contains("[["))
     }
 
-    // REQ-LOG-017: 論理日は sessionStartedAt 基準。境界をまたいだセッションは開始側の見出しへ。
+    // REQ-LOG-017: the logical day comes from sessionStartedAt. A session that crosses the
+    // boundary goes under the heading of the day it started.
     @Test func logicalDayComesFromTheSessionStart() {
         let startHour = 4
-        // 03:50 開始 → 論理日は前日 (境界 04:00 の手前)。
+        // Starting at 03:50 → the logical day is the previous one (short of the 04:00 boundary).
         let lateNight = calendar.date(from: DateComponents(year: 2026, month: 8, day: 25, hour: 3, minute: 50))!
         let crossed = calendar.date(from: DateComponents(year: 2026, month: 8, day: 25, hour: 4, minute: 15))!
         let day = LogicalDay.date(for: lateNight, dayStartHour: startHour, calendar: calendar)
@@ -143,7 +148,7 @@ struct LogFormatterTests {
         #expect(LogFormatter.line(for: crossing, calendar: calendar).hasPrefix("- 03:50–04:15"))
     }
 
-    // REQ-LOG-003: `## YYYY-MM-DD (曜日)`
+    // REQ-LOG-003: `## YYYY-MM-DD (weekday)`
     @Test func dayHeadingFormat() {
         #expect(LogFormatter.dayHeading(for: logicalDay, calendar: calendar) == "## 2026-08-24 (Mon)")
     }
@@ -165,7 +170,7 @@ struct LogFileEditorTests {
         #expect(result == "## 2026-08-24 (Mon)\n\n- 新しい行\n")
     }
 
-    // REQ-LOG-003: 当該見出しが既にあれば、その日付セクションの末尾へ追記する。
+    // REQ-LOG-003: when the heading already exists, append to the end of that day's section.
     @Test func appendsToTheEndOfTheMatchingDaySection() throws {
         let existing = """
         ## 2026-08-23 (Sun)
@@ -190,7 +195,7 @@ struct LogFileEditorTests {
         #expect(lines[index + 2] == "## 2026-08-25 (Tue)", "the new line must land before the next day's section")
     }
 
-    // **既存行は1行たりとも変えない。** これが第一原則。
+    // **Never change a single existing line.** This is the first principle.
     @Test func neverModifiesOrDropsExistingLines() throws {
         let existing = """
         # 実績ログ
@@ -215,8 +220,8 @@ struct LogFileEditorTests {
         #expect(before == after, "the order and content of existing lines must be preserved")
     }
 
-    // REQ-LOG-022: 見出しが外部で削除・改名されていたら、再作成してファイル末尾へ追記する。
-    // 既存の行を復元・修正しようとしてはならない。
+    // REQ-LOG-022: when the heading has been deleted or renamed outside the app, recreate it and
+    // append at the end of the file. Never try to restore or correct the existing lines.
     @Test func missingHeadingIsRecreatedAtTheEndOfFile() throws {
         let existing = """
         ## 2026-08-23 (Sun)
@@ -228,8 +233,8 @@ struct LogFileEditorTests {
         #expect(result.contains("- 前日の行"))
     }
 
-    // Decision 0014: 曜日を書き換えられていても、日付が読めれば同じ日として扱う。
-    // **利用者は自分のログを自分で編集する。** 見出しを2つ作って記録を分断しない。
+    // Decision 0014: even when the weekday has been rewritten, a readable date means the same day.
+    // **Users edit their own logs.** Never split the record by making a second heading.
     @Test func renamedHeadingIsMatchedByItsDate() throws {
         let existing = "## 2026-08-24 (Monday)\n\n- 既存の行\n"
         let result = try insert(into: existing)
@@ -237,7 +242,8 @@ struct LogFileEditorTests {
         #expect(result.contains("## 2026-08-24 (Monday)"), "must not rewrite the existing heading")
     }
 
-    // REQ-LOG-003 / REQ-LOG-022: ユーザーが自分で書いた見出しに日付が含まれていても、当該見出しとみなさない。
+    // REQ-LOG-003 / REQ-LOG-022: a heading the user wrote is not taken as the day's heading, even
+    // when it contains the date.
     @Test func userHeadingContainingADateIsNotTreatedAsTheDaySection() throws {
         let existing = "## 週次レビュー 2026-08-24 の分\n\n- ユーザーのメモ\n"
         let result = try insert(into: existing)
@@ -248,7 +254,8 @@ struct LogFileEditorTests {
         #expect(inserted > memo + 1, "must not insert into a section the user wrote")
     }
 
-    // 既存行を1行でも失う挿入は、書き込む前に止める。第1原則を守る最後の砦。
+    // An insertion that would lose even one existing line is stopped before the write. The last
+    // line of defence for the first principle.
     @Test func theGuardRejectsAnInsertionThatWouldLoseLines() {
         #expect(!LogFileEditor.preservesAllLines(
             original: ["a", "b"], updated: ["a", "新", "c"], insertedAt: 1, count: 1),
@@ -260,7 +267,7 @@ struct LogFileEditorTests {
             original: ["a", "b"], updated: ["a", "新", "b"], insertedAt: 1, count: 1))
     }
 
-    // CRLF のファイルへ挿入しても改行コードを混ぜない。
+    // Inserting into a CRLF file must not mix line endings.
     @Test func crlfFilesKeepTheirLineEndings() throws {
         let existing = "## 2026-08-24 (Mon)\r\n\r\n- 既存の行\r\n"
         let result = try insert(into: existing)
@@ -305,7 +312,7 @@ struct LogWriterTests {
         """)
     }
 
-    // REQ-LOG-004: 書き込み前に再読み込みし、外部変更を取り込んでから追記する。
+    // REQ-LOG-004: re-read before writing, take in the external changes, then append.
     @Test func externalEditsMadeBetweenWritesAreKept() throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -323,7 +330,7 @@ struct LogWriterTests {
         #expect(contents.contains("Loop 2/4"))
     }
 
-    // REQ-LOG-002: 作成先ディレクトリが存在しない場合はエラー。
+    // REQ-LOG-002: an error when the destination directory does not exist.
     @Test func missingDirectoryIsRejected() {
         let url = URL(fileURLWithPath: "/nonexistent-\(UUID().uuidString)/PomodoroLog.md")
         #expect(throws: LogWriteError.invalidFilePath) {
@@ -331,7 +338,7 @@ struct LogWriterTests {
         }
     }
 
-    // REQ-LOG-021 / 3原則: Task.md と同一パスは指定できない。
+    // REQ-LOG-021 / the first principle: the same path as Task.md can never be chosen.
     @Test func theTaskFileCanNeverBeTheLogFile() {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -407,8 +414,8 @@ struct LogTaskSnapshotTests {
                longBreakSeconds: 15 * 60, longBreakInterval: 4, extendSeconds: 5 * 60)
     }
 
-    // FINISHED / PENDING_DECISION の間に選び直しても、確定するログ行には反映しない。
-    // 反映すると、作業していないタスクが実績として記録される。
+    // Reselecting during FINISHED / PENDING_DECISION is not reflected in the log line that gets
+    // committed. Reflecting it would record a task nobody worked on.
     @Test func changingTheSelectionAfterFinishDoesNotChangeTheLoggedName() throws {
         let p = preset()
         let presets = PresetContext(presets: [p], activePresetId: p.id)
@@ -420,7 +427,7 @@ struct LogTaskSnapshotTests {
         ).get().context
         let endAt = started.sessionEndAt!
 
-        // FINISHED に到達させたあと、別のタスクを選び直す。
+        // After reaching FINISHED, select a different task.
         let finished = TimerEngine.tick(context: started, presets: presets, now: endAt).context
         #expect(finished.runState == .finished)
         let reselected = try TimerEngine.reduce(
@@ -428,10 +435,10 @@ struct LogTaskSnapshotTests {
             context: finished, presets: presets, now: endAt.addingTimeInterval(10)
         ).get().context
 
-        // 猶予満了で確定させる。
+        // Let the grace run out so it commits.
         let committed = TimerEngine.tick(context: reselected, presets: presets, now: endAt.addingTimeInterval(120))
         guard case let .commitLog(entry) = committed.effects.first else {
-            Issue.record("commitLog が出ていない")
+            Issue.record("no commitLog was emitted")
             return
         }
         #expect(entry.taskSnapshot == "開始時に選んでいたタスク")

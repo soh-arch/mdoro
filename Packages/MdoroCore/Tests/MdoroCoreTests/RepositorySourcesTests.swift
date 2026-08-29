@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
-// **走査は、走査先が消えたときにこそ落ちなければならない。**
+// **A scan must fail precisely when its target has disappeared.**
 //
 // Several suites here hold rules that live in the app targets by reading their source
 // (`ColorLiteralTests`, `StringCatalogTests`, `TestHostTests`, `NotationSampleTests`). Every
@@ -22,7 +22,8 @@ struct RepositorySourcesTests {
         #expect(throws: MissingSourceDirectory.self) {
             try swiftFiles(under: "PomodoroMac/PomodoroMacTests-renamed", recursive: true)
         }
-        // 非再帰の枝も同じ答えを返すこと。片方だけ直すと、次に緩むのはもう片方になる。
+        // The non-recursive branch has to answer the same way. Fix only one and the next to go
+        // slack is the other.
         #expect(throws: MissingSourceDirectory.self) {
             try swiftFiles(under: "PomodoroMac/NoSuchFolder")
         }
@@ -35,7 +36,7 @@ struct RepositorySourcesTests {
         }
     }
 
-    // そして、実在する走査先は今までどおり読めること。
+    // And a target that is really there still reads as it always did.
     @Test func aDirectoryThatIsThereStillReads() throws {
         let files = try swiftFiles(under: "PomodoroMac/PomodoroMacTests", recursive: true)
         #expect(!files.isEmpty)

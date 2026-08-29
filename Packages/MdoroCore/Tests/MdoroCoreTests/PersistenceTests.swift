@@ -21,7 +21,7 @@ private func context(_ p: Preset) -> PresetContext {
     PresetContext(presets: [p], activePresetId: p.id)
 }
 
-// 「開始した WORK セッション」を作り、指定した時刻まで進めずに返す。
+// Build a WORK session that has started, and return it without advancing time any further.
 private func startedWork(_ p: Preset, at start: Date = reference) throws -> TimerContext {
     let presets = context(p)
     return try TimerEngine.reduce(
@@ -33,13 +33,13 @@ private func startedWork(_ p: Preset, at start: Date = reference) throws -> Time
 @Suite("Restore decision (REQ-PER-003)")
 struct RestoreTests {
 
-    // (a) 確定済みは IDLE で復元し、ログを再度書かない。
+    // (a) An already committed session restores to IDLE, and the log is never written again.
     @Test func committedSessionRestoresToIdleWithoutRewritingLog() throws {
         let p = preset()
         let presets = context(p)
         let started = try startedWork(p)
         let endAt = started.sessionEndAt!
-        // 猶予を過ぎるまで動かし、確定させる。
+        // Run it past the grace so that it commits.
         let committed = TimerEngine.tick(context: started, presets: presets, now: endAt.addingTimeInterval(120))
         #expect(committed.effects.count == 1)
         #expect(committed.context.committedAt != nil)
@@ -49,7 +49,7 @@ struct RestoreTests {
         #expect(restored.effects.isEmpty, "REQ-PER-003(a): must not write the log again for an already committed session")
     }
 
-    // (b) 終了時刻が未来ならそのまま RUNNING。
+    // (b) With the end time still in the future, it stays RUNNING.
     @Test func futureSessionRestoresAsRunning() throws {
         let p = preset()
         let started = try startedWork(p)
@@ -59,7 +59,7 @@ struct RestoreTests {
         #expect(restored.effects.isEmpty)
     }
 
-    // (c) 猶予内は FINISHED のまま。延長も中断もまだ選べる。
+    // (c) Within the grace it stays FINISHED. Extend and abort are both still available.
     @Test func withinGraceRestoresAsFinished() throws {
         let p = preset()
         let started = try startedWork(p)
@@ -73,7 +73,7 @@ struct RestoreTests {
                 "REQ-PER-003(c): within the grace period, Extend stays available as in normal operation")
     }
 
-    // (d) 猶予超過は必ずユーザーに聞く。黙って実績にしない。
+    // (d) Past the grace, always ask the user. Never turn it into a record in silence.
     @Test func beyondGraceAsksTheUser() throws {
         let p = preset()
         let started = try startedWork(p)
@@ -88,7 +88,8 @@ struct RestoreTests {
         #expect(restored.effects.isEmpty == false)
     }
 
-    // tick() と restore() を取り違えると、閉じている間に過ぎたセッションが黙って実績になる。
+    // Mix up tick() and restore(), and a session that ran out while the app was closed becomes
+    // a record in silence.
     @Test func restoreDoesNotSilentlyCompleteWhatTickWould() throws {
         let p = preset()
         let presets = context(p)
@@ -104,8 +105,8 @@ struct RestoreTests {
         #expect(restored.context.runState == .pendingDecision)
     }
 
-    // 休憩は猶予を持たない (REQ-TIM-044)。未確定のまま終了時刻を過ぎていて、
-    // かつ猶予相当の時間内なら、待たせる理由がないのでここで確定させる。
+    // A break has no grace (REQ-TIM-044). When it is past its end time uncommitted and still
+    // inside the equivalent of the grace, there is no reason to make anyone wait: commit here.
     @Test func uncommittedBreakWithinGraceCommitsImmediately() throws {
         let p = preset()
         let presets = context(p)
@@ -122,7 +123,7 @@ struct RestoreTests {
         #expect(restored.effects.contains { if case .commitLog = $0 { return true } else { return false } })
     }
 
-    // 放置しすぎた一時停止は、復元時も確認へ倒す (REQ-TIM-033)。
+    // A pause left too long falls through to the confirmation on restore as well (REQ-TIM-033).
     @Test func longPausedSessionRestoresToPendingDecision() throws {
         let p = preset()
         let presets = context(p)
@@ -149,7 +150,8 @@ struct PendingDecisionTests {
         return (restored.context, presets)
     }
 
-    // REQ-PER-008 / 009: 遷移時に通知の取り消しと Live Activity の終了を伝える。
+    // REQ-PER-008 / 009: the transition asks for the notifications to be cancelled and for the
+    // Live Activity to end.
     @Test func enteringPendingDecisionCancelsNotificationsAndEndsLiveActivity() throws {
         let p = preset()
         let presets = context(p)
@@ -170,7 +172,7 @@ struct PendingDecisionTests {
         #expect(resumed.effects.contains(.endLiveActivity))
     }
 
-    // REQ-PER-004: 未応答のまま論理日が変われば discard として確定する。
+    // REQ-PER-004: left unanswered across a change of logical day, it commits as a discard.
     @Test func unansweredDecisionIsDiscardedOnLogicalDayRollover() throws {
         let (pending, presets) = try restoredPending()
         let nextDay = reference.addingTimeInterval(36 * 3600)
@@ -179,7 +181,7 @@ struct PendingDecisionTests {
         let rolled = TimerEngine.tick(context: pending, presets: presets, now: nextDay)
         #expect(rolled.context.committedAt != nil, "crossing the logical day boundary must commit the session")
         guard case let .commitLog(entry) = rolled.effects.first else {
-            Issue.record("commitLog が出ていない")
+            Issue.record("no commitLog was emitted")
             return
         }
         #expect(entry.outcome == .aborted, "REQ-PER-004: discard commits with the aborted outcome, logged as Stopped")
@@ -196,12 +198,12 @@ struct PendingDecisionTests {
         #expect(stillToday.effects.isEmpty)
     }
 
-    // REQ-PER-004: 境界そのものを動かしただけでは自動確定してはならない。
+    // REQ-PER-004: moving the boundary itself must not commit the session on its own.
     @Test func changingLogicalDayStartHourDoesNotTriggerAutoCommit() throws {
         let (pending, presets) = try restoredPending()
         let now = pending.lastUpdatedAt.addingTimeInterval(60)
 
-        // この時点で境界を動かすと論理日が変わってしまう設定に切り替える。
+        // Switch to a setting where moving the boundary at this point changes the logical day.
         var shifted = AppSettings.default
         shifted.logicalDayStartHour = (AppSettings.default.logicalDayStartHour + 12) % 24
 
@@ -212,7 +214,7 @@ struct PendingDecisionTests {
         #expect(updated.context.committedAt == nil, "a settings change alone must not commit the session")
         #expect(updated.context.runState == .pendingDecision)
 
-        // 続けて tick しても、新しい境界を基準にしているので発火しない。
+        // A tick that follows does not fire either, because it works from the new boundary.
         let ticked = TimerEngine.tick(context: updated.context, presets: presets, settings: shifted, now: now.addingTimeInterval(60))
         #expect(ticked.context.committedAt == nil)
         #expect(ticked.effects.isEmpty)
@@ -247,7 +249,8 @@ struct StateStoreTests {
         try store.save(state)
         #expect(try store.load() == state)
 
-        // 上書き保存でも壊れないこと (差し替え先が既に存在する経路)。
+        // Saving over an existing file must not break it (the path where the replacement target
+        // already exists).
         var updated = state
         updated.selectedTaskSnapshot = "タスクB"
         updated.savedAt = reference.addingTimeInterval(60)
@@ -287,7 +290,7 @@ struct StateStoreTests {
         )) { try store.load() }
     }
 
-    // REQ-PER-002: 起動時は読み込みと復元判定が一続きであること。
+    // REQ-PER-002: at launch, loading and the restore decision are one continuous step.
     @Test func loadAndRestoreAppliesTheRestoreRules() throws {
         let state = try sample()
         let store = InMemoryStateStore(initial: state)
@@ -321,7 +324,8 @@ struct PendingLogPersistenceTests {
         )
     }
 
-    // 確定時に committedAt が立つため（REQ-LOG-019）、キューを失うと記録は二度と書かれない。
+    // committedAt is set on commit (REQ-LOG-019), so losing the queue means the record is never
+    // written again.
     @Test func pendingEntriesSurviveARestart() throws {
         let queue = LogWriteQueue()
         queue.enqueue(entry(reference))
@@ -335,7 +339,7 @@ struct PendingLogPersistenceTests {
             pendingLogEntries: queue.pendingEntries, savedAt: reference
         ))
 
-        // 再起動を模して読み直す。
+        // Read it back, imitating a restart.
         let reloaded = try #require(try store.load())
         #expect(reloaded.pendingLogEntries.count == 2)
 
@@ -346,7 +350,7 @@ struct PendingLogPersistenceTests {
         #expect(written == [reference, reference.addingTimeInterval(1800)], "the queue order survives the restart")
     }
 
-    // 項目を増やす前に保存されたファイルも読めること。
+    // A file saved before this field existed must still load.
     @Test func stateSavedBeforeThisFieldExistedStillLoads() throws {
         let json = """
         {"schemaVersion":1,
@@ -375,16 +379,16 @@ private extension JSONDecoder {
 @Suite("Hot key bindings (REQ-UIX-033)")
 struct HotKeyBindingTests {
 
-    // 修飾キーなしは受け付けない。単独キーを奪うと文字入力ができなくなる。
+    // A binding with no modifier is not accepted. Taking a bare key away stops text entry.
     @Test func modifierIsRequired() {
         let command = NSEventModifierFlagsCommand
         #expect(HotKeyBinding(keyCode: 35, modifierFlags: command, displayName: "⌘P").hasModifier)
         #expect(!HotKeyBinding(keyCode: 35, modifierFlags: 0, displayName: "P").hasModifier)
-        // Caps Lock などの修飾は割り当てに使えない。
+        // Modifiers such as Caps Lock cannot be used for a binding.
         #expect(!HotKeyBinding(keyCode: 35, modifierFlags: 1 << 16, displayName: "P").hasModifier)
     }
 
-    // REQ-UIX-033 / Decision 0016: 既定は未設定。何も登録しない。
+    // REQ-UIX-033 / Decision 0016: unassigned by default. Nothing is registered.
     @Test func defaultIsUnassigned() {
         #expect(AppSettings.default.pauseResumeHotKey == nil)
         #expect(AppSettings.default.launchAtLogin == false)
@@ -405,7 +409,7 @@ struct HotKeyBindingTests {
     }
 }
 
-// NSEvent.ModifierFlags の rawValue（AppKit に依存せず値だけを使う）。
+// The rawValue of NSEvent.ModifierFlags (only the values, with no dependency on AppKit).
 private let NSEventModifierFlagsControl: UInt = 1 << 18
 private let NSEventModifierFlagsOption: UInt = 1 << 19
 private let NSEventModifierFlagsCommand: UInt = 1 << 20

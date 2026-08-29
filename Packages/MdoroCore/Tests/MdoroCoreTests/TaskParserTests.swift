@@ -41,7 +41,7 @@ struct TaskParserTests {
         #expect(result.items.contains { $0.displayText == "プラスのマーカー" })
     }
 
-    // REQ-TSK-011: 見出しごとにグループ化。見出しより前は「（未分類）」。
+    // REQ-TSK-011: a group per heading. Tasks above the first heading go into "(Uncategorized)".
     @Test func headingsBecomeSectionsAndPrecedingTasksAreUncategorized() {
         let result = TaskParser.parse(sample)
         let sections = result.grouped(showCompleted: true).map(\.name)
@@ -49,7 +49,7 @@ struct TaskParserTests {
         #expect(result.items.first?.section == TaskParser.uncategorizedSection)
     }
 
-    // REQ-TSK-012: 半角スペース以外はすべて完了扱い。
+    // REQ-TSK-012: any character but the ASCII space (U+0020) counts as completed.
     @Test func anyNonSpaceMarkMeansCompleted() {
         let result = TaskParser.parse(sample)
         let completed = result.items.filter(\.isCompleted).map(\.displayText)
@@ -67,7 +67,7 @@ struct TaskParserTests {
         #expect(all.count == result.items.count)
     }
 
-    // REQ-TSK-013 / 014: 最初に検出したインデントを1段とし、親子関係を持つ。
+    // REQ-TSK-013 / 014: the first indent detected is one level, and parentage follows from it.
     @Test func indentDefinesDepthAndParentage() {
         let result = TaskParser.parse(sample)
         let parent = result.items.first { $0.displayText == "仕様書のレビュー" }!
@@ -78,7 +78,7 @@ struct TaskParserTests {
     }
 
     @Test func partialIndentRoundsDownToTheShallowerDepth() {
-        // 1段 = 4スペース。6スペースは中途半端なので深さ1へ丸める。
+        // One level = 4 spaces. 6 spaces falls in between, so it rounds down to depth 1.
         let text = """
         - [ ] 親
             - [ ] 子
@@ -95,7 +95,7 @@ struct TaskParserTests {
         #expect(TaskParser.parse(text).items.map(\.depth) == [0, 1, 2])
     }
 
-    // REQ-TSK-015: 生の記法をそのまま表示しない。
+    // REQ-TSK-015: raw syntax is never shown as it is.
     @Test func markdownIsStrippedForDisplay() {
         let result = TaskParser.parse(sample)
         let item = result.items.first { $0.displayText.contains("リンクつき") }!
@@ -105,7 +105,7 @@ struct TaskParserTests {
         #expect(item.displayText.contains("外部"))
     }
 
-    // REQ-ERR-003 / REQ-TSK-037: 1,000 件で打ち切り、打ち切りを伝える。
+    // REQ-ERR-003 / REQ-TSK-037: cut off at 1,000 items, and say that it was cut off.
     @Test func parsingStopsAtOneThousandTasks() {
         let text = (1...1_200).map { "- [ ] タスク\($0)" }.joined(separator: "\n")
         let result = TaskParser.parse(text)
@@ -130,7 +130,7 @@ struct TaskParserTests {
 @Suite("Task IDs (REQ-TSK-020–023)")
 struct TaskIdTests {
 
-    // REQ-TSK-020 / 023: ブロック ID があれば優先し、種別を保持する。
+    // REQ-TSK-020 / 023: a block ID takes precedence, and the kind is kept.
     @Test func blockIdWinsAndIsRecorded() {
         let item = TaskParser.parse("- [ ] ブロックIDつき ^task-1").items[0]
         #expect(item.stableId == "task-1")
@@ -144,7 +144,7 @@ struct TaskIdTests {
         #expect(item.stableId.hasPrefix(TaskTextNormalizer.contentHash("ふつうのタスク")))
     }
 
-    // REQ-TSK-020 の値打ち: 文言を直しても選択が維持される。
+    // What REQ-TSK-020 is worth: editing the wording keeps the selection.
     @Test func blockIdSurvivesTextEdits() {
         let before = TaskParser.parse("- [ ] 仕様書のレビュー ^abc123").items[0]
         let after = TaskParser.parse("- [ ] 仕様書の再レビュー（追記あり） ^abc123").items[0]
@@ -157,14 +157,14 @@ struct TaskIdTests {
         #expect(before.stableId != after.stableId)
     }
 
-    // REQ-TSK-021: 同一ハッシュ内での出現順で区別する。
+    // REQ-TSK-021: told apart by the order they appear in within the same hash.
     @Test func duplicateBodiesGetDistinctIds() {
         let items = TaskParser.parse("- [ ] 同じ本文\n- [ ] 同じ本文\n- [ ] 同じ本文").items
         #expect(Set(items.map(\.stableId)).count == 3)
         #expect(items.allSatisfy { $0.normalizedText == "同じ本文" })
     }
 
-    // REQ-TSK-022: 装飾の差だけで別タスクにしない。
+    // REQ-TSK-022: a difference in decoration alone never makes it a different task.
     @Test func normalizationAbsorbsDecorationDifferences() {
         let plain = TaskParser.parse("- [ ] 仕様書のレビュー").items[0]
         let decorated = TaskParser.parse("- [ ]   **仕様書のレビュー**  #仕事 🔥  ").items[0]
