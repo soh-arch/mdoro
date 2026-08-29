@@ -309,34 +309,40 @@ Git に入っていないため、失われると復元できない。
 | :---- | :---- |
 | `SPEC.md` | **v2.19 / 243要件** |
 | `decisions/` | **0001〜0038** |
-| `platform/` | **0001**（ロック画面の背景）/ **0002**（Live Activity の開始と更新の門）/ **0003**（メニューバーの地と色） |
-| `PUNCHLIST.md` | **done 50 / review 2 / open 16 / deferred 1 / rejected 1** |
+| `platform/` | **0001**（ロック画面の背景）/ **0002**（開始と更新の門）/ **0003**（メニューバーの地と色）/ **0004**（データ上限とネットワーク）/ **0005**（ローカルネットワークと接続に要る設定） |
+| `PUNCHLIST.md` | **done 54 / review 3 / open 18 / deferred 1 / rejected 1 / 不要 1** |
 | テスト | `swift test` **275件 / 49スイート**。Mac 側 5件、iOS 側 3件（**`xcodebuild test` が要る。CI は `swift test` のみ**） |
 
 **役は5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / **platform-researcher**。
 
 **進行中**
 
-- **[PR #15](https://github.com/soh-arch/mdoro/pull/15) は merge 済み**（2026-08-29）。
-  工程14c の残りと、プラットフォームの事実を仕様書から追い出す構造変更が `main` に入った
-- **`fix/axis-k-platform-facts`** — 軸 K の調査記録（[0002](platform/0002-live-activity-background-start-and-suspend.md) /
-  [0003](platform/0003-menu-bar-ground-and-status-item-color.md)）。**事実の記録のみ。条文はまだ直していない**
+- **[PR #15](https://github.com/soh-arch/mdoro/pull/15) / [#16](https://github.com/soh-arch/mdoro/pull/16) は merge 済み**（2026-08-29）。
+  工程14c の残り、事実を仕様書から追い出す構造変更、**SPEC v2.19**（軸 K の最初の2件の訂正）が `main` に入った
+- **`fix/axis-k-round-two`** — 軸 K の3〜5件目（[0004](platform/0004-live-activity-payload-size-and-network.md) /
+  [0005](platform/0005-local-network-privacy-and-platform-settings.md)）とコード側の走査。**事実の記録のみ。条文はまだ直していない**
 
 **軸 K の洗い出し（POL-058）は完了した。** 81件のうち **出典があったのは1件**（REQ-UIX-027・
 POL-057 で直した結果）。**根拠なし 46件。** 一覧は `PUNCHLIST.md` の付録。
 
-**そのうち2件を一次情報で確認した。どちらも条文が誤っていた。**
+**そのうち MUST が依拠する5件を一次情報で確認した。**
 
 | 条文 | 結果 |
 | :---- | :---- |
-| `SPEC.md:818`（8.3 冒頭） | 「例外は **APNs による push-to-start のみ**」が**誤り**。サーバー不要の開始経路が2つある。**REQ-NTF-002 の支えは崩れていない**が、根拠が入れ替わる |
-| REQ-COL-022 / REQ-UIX-035 | 「地は可変」は正しいが、「**コントラストを保証できない**」「**色を使えない**」は**誤り**。SDK は逆に "guarantees" と書いている |
+| `SPEC.md:818`（8.3 冒頭） | 「例外は **APNs のみ**」が**誤り**。サーバー不要の開始経路が2つある。**v2.19 で訂正済み** |
+| REQ-COL-022 / REQ-UIX-035 | 「地は可変」は正しいが「**色を使えない**」は**誤り**。SDK は逆に "guarantees" と書く。**v2.19 で訂正済み** |
+| REQ-UIX-025（4KB） | **数値は正しい。** ただし上限は**静的と動的の合計**で、条文の限定が緩すぎる |
+| REQ-UIX-026（ネットワーク） | 「不可能」も「サンドボックス上」も**正しい。誤っているのは主語** — 不可能なのは **Live Activity** であってウィジェット拡張ではない |
+| **REQ-PLT-001 / 3.5 の表8行** | **「1つでも欠けると接続が成立しない」は誤り。接続に効くのは4行。** `NSAllowsLocalNetworking` は**不要**（ATS は Network.framework に掛からない） |
+| REQ-PLT-008 | **正しい。** Apple 自身が `-65570` と `.localNetworkDenied` のコード例を載せている |
 
-**条文はまだ直していない。** どちらも MUST の水準と設計の理由に触れるため、**人間の判断を待つ**
-（POL-060 / POL-061 / POL-072）。
+**残る条文の訂正（POL-062 / 063 / 064）はまだ入れていない。**
+
+**コード側の走査も完了した**（POL-071）。**訂正済みの前提をコードが引いている箇所が8件**、
+**コードが独自にプラットフォームの事実を主張している箇所が26件**。一覧は `PUNCHLIST.md` の付録。
 
 **残っている open**: POL-053〜056（工程14c の残り・いずれも minor）/ 059（Widget のコメント）/
-**軸 K の POL-062〜073**。**blocker は無い。**
+**軸 K の POL-059 / 062〜080**。**blocker は無い。**
 
 **次にやること**: 工程14a（コメントの英語化。**行数を実測し直す**）→ 工程14b の軸 E / F / H / I / J →
 **工程15（README の作り直し）** → 工程16（軸 G）→ 公開。

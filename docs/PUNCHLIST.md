@@ -109,21 +109,28 @@
 | **POL-056** | 受け取る側が引く文言の出所が2種類（`ProtocolErrorCode.displayMessage` は `MdoroCore`、`AuthFailureCode` は `ConnectionViews` の `LocalizedStringKey`）。同じ 10.2 の役割なのに揃っていない | [0022](decisions/0022-english-only-ui.md) / 10.2 | — | agent | minor | open | — |
 | **POL-057** | **REQ-UIX-027 が、確認されていないプラットフォームの事実を前提にしている。** 「背景が利用者の壁紙である」が事実か未確認のまま、固定値と半透明素材で組むことを MUST で要求している。**この条文は改訂履歴に一度も現れず、Live Activity の実装が2回書き直された後も突き合わされていない。** 同じ理由から引かれた REQ-COL-022（メニューバー）は「色を使わない」という別の答えに落ち着いている。**意匠の問題ではなく、条文が実態に則していない問題として扱う** | REQ-UIX-027 / REQ-COL-022 / `CONTEXT.md` §3 | — | **human** | major | done | `fix/final-audit-items` |
 | **POL-058** | **軸 K の洗い出し。** 仕様書と `CONTEXT.md` §2 が主張しているプラットフォームの事実を列挙し、確度で分ける。**`PLATFORM.md` の `未検証` 8項目**（§3 から移送）も対象。条文が事実を抱えている箇所は `PLATFORM.md` への参照に置き換える。**結果は下の付録。81件のうち出典があったのは1件** | [0038](decisions/0038-platform-facts-are-not-the-specs-job.md) | K | `platform-researcher` | major | done | `fix/final-audit-items` |
-| **POL-059** | `MdoroWidgetLiveActivity.swift` のコメントが**誤った前提を引いている**（`// REQ-UIX-027: 背景は壁紙なので…`）。条文は v2.18 で訂正済み | [platform/0001](platform/0001-live-activity-lock-screen-background.md) | K | agent | minor | open | — |
+| **POL-059** | **訂正済みの前提をコードが引いている箇所が8件**（走査で判明。当初は1件と見ていた）。壁紙3件（`MdoroWidgetLiveActivity.swift:13` / `ColorLiteralTests.swift:39-45,159-161`）、メニューバーの色2件（`MenuBarMark.swift:4` / `MenuBarViews.swift:5`）、WebSocket とロック中1件（iOS の `NotificationScheduler.swift:6`）、開始の門2件（`LiveActivityController.swift:8-9,81,152` / `ClientModel.swift:42`）。**条文は v2.18 / v2.19 で訂正済み。コードだけが古い前提を語り続けている** | [platform/0001](platform/0001-live-activity-lock-screen-background.md) / [0002](platform/0002-live-activity-background-start-and-suspend.md) / [0003](platform/0003-menu-bar-ground-and-status-item-color.md) | K | agent | **major** | open | — |
 | **POL-060** | **8.3 冒頭の「プラットフォーム制約（Apple 公式で確認済み）」に出典がない**（`SPEC.md:818`）。REQ-NTF-002（**MUST**）、REQ-UIX-020 / 022 の **MUST→SHOULD 格下げの唯一の理由**、REQ-UIX-024 の禁止、第14章の帰結がこの一文に乗る。さらに **[0009](decisions/0009-live-activity-scope.md) は出典欄に「仕様書 8.3 冒頭」、[0030](decisions/0030-live-activity-is-display-only.md) は「`CONTEXT.md` §3（一次情報で確認済み）」と書いており、その §3 は [0038](decisions/0038-platform-facts-are-not-the-specs-job.md) で空になった。**「確認済み」という文字列だけが**4文書**を巡回していた（`CONTEXT.md:653` も §3 を指す）。**調査完了（[platform/0002](platform/0002-live-activity-background-start-and-suspend.md)）: (b) と suspend は文書化されていたが、「例外は APNs による push-to-start のみ」は誤り。サーバー不要の開始経路が2つある**（`LiveActivityIntent` / iOS 26 のスケジュール開始）。**REQ-NTF-002 の支えは崩れていない**（根拠が「WebSocket が切れる」から「suspend 中はコードが走らない」に変わる）。**人間の決定（2026-08-29）: 事実を条文から追い出し `PLATFORM.md` を参照する。挙動は変えない。** SPEC v2.19 で反映 | `SPEC.md:818` / [platform/0002](platform/0002-live-activity-background-start-and-suspend.md) | K | **human** | **major** | done | `fix/axis-k-platform-facts` |
 | **POL-061** | **REQ-COL-022（MUST）「メニューバーの地は可変でコントラストを保証できない」に出典がない**（`SPEC.md:1028`）。REQ-UIX-030・REQ-UIX-035（ともに **MUST**）と [0031](decisions/0031-the-menu-bar-mark-shows-the-session.md) の「印を3枚に分ける」設計がこの上に乗る。**[0038](decisions/0038-platform-facts-are-not-the-specs-job.md) 自身が「同じ問題に2つの答えがあり、片方は検証されていなかった」と名指ししている。**直ったのは壁紙側（POL-057）で、**調査完了（[platform/0003](platform/0003-menu-bar-ground-and-status-item-color.md)）: 「地は可変」は正しい。しかし「コントラストを保証できない」は誤りで、`NSStatusBarButton.h` は テンプレート画像について "This guarantees that the button will look correct" と明記している。そして REQ-UIX-035 の「色を使えないため」も誤り** — `NSButton.contentTintColor` は テンプレート画像に色を載せる正規 API で、系統的な扱いと**併用**すると書かれている。禁止されているのは `statusItem.view` だけ。**ただし形状で区別すること自体には別の根拠がある**（`accessibilityDisplayShouldDifferentiateWithoutColor` の "shapes or glyphs"）。**人間の決定（2026-08-29）: 理由だけ差し替える。処方（テンプレート画像・印3枚）は変えない。** 根拠を `accessibilityDisplayShouldDifferentiateWithoutColor` に置き換えた。SPEC v2.19 で反映 | REQ-COL-022 / [platform/0003](platform/0003-menu-bar-ground-and-status-item-color.md) | K | **human** | **major** | done | `fix/axis-k-platform-facts` |
-| **POL-062** | **3.5 の表8行すべてに出典がない**（`SPEC.md:483-494`）のに、REQ-PLT-001（**MUST**）が「いずれか1つでも欠けると接続が成立しない」と断定している。**同じ内容を `PLATFORM.md` は `未検証` としており、MUST の条文が未検証の事実に依拠している**（[0038](decisions/0038-platform-facts-are-not-the-specs-job.md) が禁じた形そのもの） | REQ-PLT-001 / 3.5 | K | **human** | major | open | — |
-| **POL-063** | **否定的事実の上に立つ MUST が2件。** REQ-UIX-026「Live Activity 拡張からのネットワークアクセスはサンドボックス上**不可能**」、REQ-PLT-008「許可状態を問い合わせる API は**存在しない**」＋生の `-65570`（REQ-ERR-014 がこれに依拠）。**「不可能」「存在しない」は最も検証されにくい形の主張** | REQ-UIX-026 / REQ-PLT-008 | K | **human** | major | open | — |
-| **POL-064** | **数値だけの MUST。** ~~REQ-UIX-028（8時間 / 計12時間）~~ は [platform/0002](platform/0002-live-activity-background-start-and-suspend.md) で**正しいと確認できた。残るは REQ-UIX-025（動的データ 4KB）のみ**。出典なし | REQ-UIX-025 | K | **human** | minor | open | — |
+| **POL-062** | **3.5 の表8行すべてに出典がなく、REQ-PLT-001（MUST）が「いずれか1つでも欠けると接続が成立しない」と断定している。****調査完了（[platform/0005](platform/0005-local-network-privacy-and-platform-settings.md)）: 断定は誤り。8行中、接続の成立に効くのは4行。** `NSAllowsLocalNetworking` は**不要**（**ATS は Network.framework に適用されない**）、`NSSupportsLiveActivities` と `files.user-selected.read-write` は**接続と無関係**、`network.client` は**理由が誤り**。`NSBonjourServices` の「対象: iOS」も誤り（**macOS 11.0+ にもあり、登録側にも要る**）。**「DHCP では `NSExceptionDomains` で回避できない」も誤り**（Apple は CIDR レンジを明示）。**完全に正しいのは `NSLocalNetworkUsageDescription` の1行だけ** | REQ-PLT-001 / [platform/0005](platform/0005-local-network-privacy-and-platform-settings.md) | K | **human** | major | review | — |
+| **POL-063** | **否定的事実の上に立つ MUST が2件。両方とも調査完了。****REQ-PLT-008（「許可状態を問い合わせる API は存在しない」＋ `-65570`）は正しい** — TN3179 が "There's **no general API**…(FB8711182)" と明文で否定し、**Apple 自身が `-65570` と `.localNetworkDenied` のコード例を載せている**（[platform/0005](platform/0005-local-network-privacy-and-platform-settings.md)）。正確には「**公開 API としては**存在しない」。**REQ-UIX-026 も「不可能」「サンドボックス上」は Apple の原文どおりで正しいが、主語が誤っている** — 不可能なのは **Live Activity** であって**ウィジェット拡張ではない**（[platform/0004](platform/0004-live-activity-payload-size-and-network.md)） | REQ-UIX-026 / REQ-PLT-008 | K | **human** | major | review | — |
+| **POL-064** | **数値だけの MUST。両方とも調査完了。** ~~REQ-UIX-028（8時間 / 計12時間）~~ は [platform/0002](platform/0002-live-activity-background-start-and-suspend.md) で**正しいと確認できた。REQ-UIX-025 の 4KB も数値は正しい。ただし条文の限定が誤っている（緩すぎる方向に）** — 上限は**静的（`ActivityAttributes`）と動的（`ContentState`）の合計**に掛かる。**動的だけを 4KB に収めても制約を満たしたことにならない。** プッシュ限定でもない（[platform/0004](platform/0004-live-activity-payload-size-and-network.md)） | REQ-UIX-025 / [platform/0004](platform/0004-live-activity-payload-size-and-network.md) | K | **human** | minor | review | — |
 | **POL-065** | **`CONTEXT.md:185` の記述が API の性質と食い違う疑い。**「`end()` は OS 上にあるものを全部畳む」は `Activity.end(...)` の説明ではなく、**`Activity.activities` を回す自前の実装の説明**である可能性。**プラットフォームの事実の形をした、自分のコードの説明** | `CONTEXT.md` §2 | K | agent | minor | open | — |
 | **POL-066** | **`CONTEXT.md:83`「ビューに Timer を置くと表示が止まる」が、原因未特定のまま一般則として書かれている。** `Timer.publish(...).autoconnect()` + `.onReceive` は通常機能する。**観測された文脈（`MenuBarExtra` のラベル）に固有かもしれない** | `CONTEXT.md` §2 | K | **human** | minor | open | — |
 | **POL-067** | **空になった `§3` を根拠として指す参照が8箇所残っている。** `CONTEXT.md:483,647,653` / `SPEC.md:1580` / [0021](decisions/0021-published-as-oss-named-mdoro.md) / [0024](decisions/0024-rename-everything-to-mdoro.md) / [0030](decisions/0030-live-activity-is-display-only.md) / [0031](decisions/0031-the-menu-bar-mark-shows-the-session.md)。**行き先を `PLATFORM.md` へ張り替える**（[0038](decisions/0038-platform-facts-are-not-the-specs-job.md) 自身の §3 への言及は経緯なので残す）。**Live Activity に関わる3箇所は SPEC v2.19 で修復済み**（0009 / 0030 / `CONTEXT.md:661`）。**残り5箇所**（`CONTEXT.md:497` / `SPEC.md:1580` / 0021 / 0024 / 0031）は署名・通知・接続の話で、**それぞれの事実がまだ確認されていない** | [0038](decisions/0038-platform-facts-are-not-the-specs-job.md) | K | agent | minor | open | — |
 | **POL-068** | **REQ-UIX-035 の参照先が誤り**（`SPEC.md:843`）。「iPhone は背面に回れば接続が切れる（**3.5 のプラットフォーム制約**）」とあるが、**この主張は 3.5 になく 8.3 冒頭にある。** POL-060 への依存が1件、参照の誤りで見えなくなっている | REQ-UIX-035 | K | agent | minor | done | `fix/axis-k-platform-facts` |
 | **POL-069** | **`PLATFORM.md` の `未検証` に設計判断が混ざっている。** 2（通知を事前スケジュールする＝**REQ-NTF-002 そのもの**）、5（`replaceItemAt` を使う）、6（親ディレクトリに張る）は手段の選択であって事実ではない。7（Xcode の MCP サーバー）は**どの条文も依拠していない**（索引に置く性質の項目ではない） | `PLATFORM.md` | K | agent | minor | open | — |
 | **POL-070** | **OPEN-007 が未決のまま、条文は断定している。** OPEN-007（`SPEC.md:1579`）は「無償 Personal Team で Time Sensitive を有効化できるか」を未決とするが、REQ-NTF-005 と第14章は「利用できない」と断定済み。**capability の有効化と配信挙動は別事象** | OPEN-007 / REQ-NTF-005 | K | **human** | minor | open | — |
-| **POL-071** | **同じ誤前提がコードと外向け文書に残っていないかを見ていない。** POL-059 で `MdoroWidgetLiveActivity.swift` に1件見つかったが、**軸 K の対象は `docs/` の3ファイルだけだった。** `AGENTS.md` は「事実は両方に書いてよい」という規約上、**同種の主張を二重に持っている可能性がある** | [0038](decisions/0038-platform-facts-are-not-the-specs-job.md) / `CLAUDE.md` | K | — | minor | open | — |
+| **POL-071** | **同じ誤前提がコードと外向け文書に残っていないかの走査。****完了（2026-08-29・付録）: 既知の誤り8件 / 条文にない主張26件 / 条文と一致19件 / 出典あり2件。** 起票は POL-059・074〜078 | [0038](decisions/0038-platform-facts-are-not-the-specs-job.md) / `CLAUDE.md` | K | `repo-auditor` | minor | done | `fix/axis-k-round-two` |
 | **POL-072** | **iOS 26 に、サーバー不要で背面から Live Activity を開始する API がある**（`request(...alertConfiguration:start:)`）。**対象バージョンちょうどで入った。** 条文は「完全ローカル駆動と push-to-start は二者択一」という構図を前提にしているが、**その構図が一次情報と合っていない。** 第15章 FUT-013 の位置づけと、REQ-UIX-020 / 022 の格下げ理由に効く。**人間の決定（2026-08-29）: いまは採らない。** FUT-013 を「背面から開始・更新する3経路（うち2つはサーバー不要）」として書き直し、**採否を未決のまま残した**。スケジュール開始は開始時刻が事前に決まる場合の道具で、**利用者の操作で始まる Mdoro のセッションには現状あてはまらない** | [platform/0002](platform/0002-live-activity-background-start-and-suspend.md) / FUT-013 | K | **human** | major | done | `fix/axis-k-platform-facts` |
 | **POL-073** | **`NSStatusBarButton` に `contentTintColor` が実際に効くかは静的に確認できない。** ヘッダが "Only applicable to borderless buttons" と限定しており、status bar button の `isBordered` の実値は実行しないと分からない。**軸 K で唯一、実測が要る点だった** | [platform/0003](platform/0003-menu-bar-ground-and-status-item-color.md) | K | — | minor | **不要** | — |
+| **POL-074** | **コードが独自にプラットフォームの事実を主張している箇所が26件**（`PLATFORM.md` に項目が無いもの）。ダイナミックアイランドの寸法5件、Bonjour / ネットワーク3件、SF Symbols とアセット3件、サンドボックスとファイル4件、通知と署名2件、Keychain 1件、SwiftUI / AppKit 4件、Xcode ツールチェーン3件、外向け文書4件。**うち9件は `CONTEXT.md` §2 / §6 に実測の記録があり、残り17件は根拠がない。** 一覧は付録 | [0038](decisions/0038-platform-facts-are-not-the-specs-job.md) | K | **human** | major | open | — |
+| **POL-075** | **`docs/DEVELOPMENT.md` が、空になった `CONTEXT.md` §3 を指したまま「再調査しない」と言い続けている。** 指している ATS・ローカルネットワーク許可・Live Activity は、移送先の `PLATFORM.md` では**いずれも `未検証` に格下げされていた**（そして ATS は [platform/0005](platform/0005-local-network-privacy-and-platform-settings.md) で**このアプリに無関係**と判明した）。**[0038](decisions/0038-platform-facts-are-not-the-specs-job.md) の趣旨と正面から食い違い、今回の誤りが残った経路そのもの** | [0038](decisions/0038-platform-facts-are-not-the-specs-job.md) / `DEVELOPMENT.md` | K | agent | **major** | open | — |
+| **POL-076** | **`AGENTS.md` の署名と通知の記述が、実測より弱い。** `AGENTS.md:61-64` は "an unsigned build will not deliver them"（配信されないだけ、と読める）と書くが、`CONTEXT.md` §2 の実測は **ad-hoc 署名で `requestAuthorization` 自体が失敗し、権限は `notDetermined` のまま、設定にアプリが現れない**。**貢献者は「通知が来ない」を見ても `codesign -dv` を見に行く手がかりを持たない。** あわせて `AGENTS.md:89` が **「242 requirements」のまま**（正は 243。**二重に持った事実の片方だけが古くなった実例**） | `AGENTS.md` / `CONTEXT.md` §2 | K | agent | major | open | — |
+| **POL-077** | **「SF Symbols のカタログは両プラットフォームで共通」という出典なしの主張の上に、テストの検査方法そのものが乗っている**（`SymbolNameTests.swift:22`）。`peerSymbolsOfBothPlatformsExist` は走らせた側の OS で「もう片方の名前」の実在を確かめる。**共通でなければ、このテストは「確かめたつもり」で通り続ける。** POL-027 と同じ、**always-true になりうる検査** | REQ-UIX-034 ほか | K | `platform-researcher` | **major** | open | — |
+| **POL-078** | **`rename` についてのコードの主張が、条文より広い。** REQ-PLT-004 は「サンドボックス**外**（`/tmp` 等）**を跨ぐ**」だが、`LogWriter.swift:118-119` / `FileStateStore.swift:4` は「サンドボックス下では**ディレクトリを跨げば**失敗する」と読める。**`PLATFORM.md` ではこの項目は `未検証`** | REQ-PLT-004 | K | **human** | minor | open | — |
+| **POL-079** | **REQ-PLT-007 が「取り返しがつかない」ように読める。** TN3179 は「バックグラウンドでの拒否を**システムは記録しない**。後でフォアグラウンドで操作すれば、初回であるかのようにダイアログを出す」と明記している（[platform/0005](platform/0005-local-network-privacy-and-platform-settings.md)）。**条文の「黙って拒否される」は正しいが、回復可能であることが書かれていない。** また**この条項は iOS のもので、macOS には対応する記述が無い** | REQ-PLT-007 | K | agent | minor | open | — |
+| **POL-080** | **シミュレータはローカルネットワークプライバシーを実装していない**（"Test your local network privacy behavior on a real device" — TN3179）。**`AGENTS.md` にも `DEVELOPMENT.md` にも書かれていない。** 貢献者がシミュレータで接続を試して「動く／動かない」を誤って結論づける | [platform/0005](platform/0005-local-network-privacy-and-platform-settings.md) / `AGENTS.md` | K | agent | minor | open | — |
 | **POL-015** | REQ-ERR-014 が OS 設定画面のパスを日本語で規定。英語化すると日本語ロケールの利用者の画面と一致しない。REQ-SEC-005 とも粒度が食い違う | REQ-ERR-014 / REQ-SEC-005 / 0.12節 | C | human | minor | done | `docs/spec-v2.10` |
 | **POL-021** | 非スコープの「複数ユーザー対応」が、人の話か端末の話か読めない。第14章「1対1接続」は端末の話 | [0021](decisions/0021-published-as-oss-named-mdoro.md) / 第14章 | D | agent | minor | done | `docs/spec-v2.10` |
 | **POL-022** | 「ユーザー」約30件 / 「利用者」約11件が混在。**一括置換は禁止**（macOS のユーザーアカウント等3件は対象外） | [0021](decisions/0021-published-as-oss-named-mdoro.md) / REQ-UIX-042 | D | agent | minor | done | `fix/final-audit-items` |
@@ -275,6 +282,58 @@ ActivityKit の「iOS 16.1+」、「Xcode 26.3 以降」）。**残り42件は�
 2. **実測の再現性。** `実測の記録あり` はすべて n=1
 3. **コード側。** `MdoroWidgetLiveActivity.swift` のように**条文と同じ誤前提をコードが引いている例**が [platform/0001](platform/0001-live-activity-lock-screen-background.md) で見つかっているが、**同種のものがコード中に他にあるかは見ていない**（→ POL-071）
 4. **`AGENTS.md` と `docs/DEVELOPMENT.md`。** 対象外とした（→ POL-071）
+
+---
+
+## 付録: 軸 K のコード側走査（POL-071 の出力・2026-08-29）
+
+`repo-auditor` が `Packages/MdoroCore/`（Sources 27本・Tests 21本）、`PomodoroMac/`（Mac 18本・iOS 10本・
+Widget 2本・テスト5本）、`AGENTS.md`、`docs/DEVELOPMENT.md` を通読し、
+**「Apple / iOS / macOS / Xcode がどう振る舞うか」を述べている記述**を分類したもの。**読み取りのみ。**
+
+| 区分 | 件数 |
+| :-- | --: |
+| **既知の誤り**（調査で誤りと判明した前提を引いている） | **8** |
+| **条文にない主張**（コードが独自に事実を主張。`PLATFORM.md` に項目が無い） | **26** |
+| 条文と一致（条文自体の正しさは別問題） | 19 |
+| 出典あり | 2 |
+| 事実ではない（設計判断・自分の実装の説明） | 6 |
+
+### 既知の誤り 8件（→ POL-059）
+
+| # | 場所 | 記述 | 何が誤りか |
+| :-- | :---- | :---- | :---- |
+| K-1 | `PomodoroWidget/MdoroWidgetLiveActivity.swift:13` | `// REQ-UIX-027: 背景は壁紙なので…` | [0001](platform/0001-live-activity-lock-screen-background.md)。条文は v2.18 で訂正済み |
+| K-2 | `MdoroCoreTests/ColorLiteralTests.swift:39-45` | "it is drawn over the reader's wallpaper" | 同上。**POL-059 は当初 widget の1件しか挙げていなかった** |
+| K-3 | `MdoroCoreTests/ColorLiteralTests.swift:159-161` | "because it draws on the reader's wallpaper" | 同上。**「除外の理由を将来もう一度読ませる」テストに付いており、誤った理由が再読させる位置に固定されている** |
+| K-4 | `MdoroCore/MenuBarMark.swift:4` | `// 色が使えないので状態は形だけで示す。` | [0003](platform/0003-menu-bar-ground-and-status-item-color.md)。**色は使える。**条文は v2.19 で訂正済み |
+| K-5 | `PomodoroMac/Views/MenuBarViews.swift:5` | `// 地の明るさが変わりコントラストを保証できない。` | 同上。**SDK は逆に "This guarantees…" と明記。処方は正しいまま、理由だけが誤り** |
+| K-6 | `PomodoroiOS/Client/NotificationScheduler.swift:6` | `// ロック中・背面では WebSocket が OS に止められるため…` | [0002](platform/0002-live-activity-background-start-and-suspend.md)。**誤りが2つ重なる** — 「ロック中」は条件名が違い、「WebSocket が切れる」は**不明**。v2.19 は根拠を「suspend 中はコードが走らない」に差し替え済み |
+| K-7 | `PomodoroiOS/Client/LiveActivityController.swift:8-9` | `// 開始できるのはフォアグラウンドにある間だけ` / `// MUST に戻す実装を書かないこと。` | 同上。**留保が落ちている**うえ、**「MUST に戻すな」の根拠が、訂正された側の (a) に置かれている** |
+| K-8 | `LiveActivityController.swift:81,152` / `PomodoroiOS/ClientModel.swift:42` | `// REQ-UIX-020: フォアグラウンドでないと開始できない。` ×3 | 同上（`MdoroiOSApp.swift:25` だけは留保付きで問題ない） |
+
+### 条文にない主張 26件（→ POL-074）
+
+**うち9件は `CONTEXT.md` §2 / §6 に実測の記録がある。残り17件は根拠がない。**
+
+| 分類 | 件数 | 主なもの |
+| :-- | --: | :---- |
+| ダイナミックアイランドの寸法 | 5 | 端の2領域が外周まで届く／`.center` が幅を全部取る（§6 に実測）／高さが固定で行が消える／`.padding()` の 16 が二重になる（**数値**） |
+| Bonjour・ネットワーク | 3 | ポート確定前に返すと TXT が 0 になる／**登録が消えず macOS が番号を付け直す。古いほうが番号が小さい**（`deduplicated` の正しさがこの順序に乗る）／`MainActor.assumeIsolated` がトラップする（§2 に実測） |
+| SF Symbols・アセット | 3 | 存在しない名前は黙って描かれない（§2 に実測）／**「カタログは両プラットフォームで共通」（→ POL-077）**／テンプレート画像でないと地に追随しない |
+| サンドボックス・ファイル | 4 | **ディレクトリを跨ぐ `rename` は失敗する（→ POL-078）**／コンテナ内はブックボマーク不要／ダイアログ由来の URL はスコープが開いている／`RegisterEventHotKey` はアクセシビリティ権限を要さない |
+| 通知・署名 | 2 | 前面では委譲が無いと通知が出ない（§2 に実測）／**「署名のないビルド」— §2 の実測は `ad-hoc 署名` に限定しており、限定が落ちている** |
+| Keychain | 1 | UserDefaults はバックアップで持ち出せる |
+| SwiftUI・AppKit | 4 | 窓より高いと上を切る（§6）／**iOS 26 は隣り合うツールバー項目をまとめる**（バージョンを名指し）／`List(selection:)` は `.tint` で変わらない（§6）／`.link` は自前の色を受け付けない（3箇所に同文） |
+| Xcode ツールチェーン | 3 | **`StringCatalogTests` の4つの前提**（`.stringsdata`、見つからないキーの返り、補間の型でキーが変わる、カタログは Xcode だけが書く）／**`TestHost` の2つの前提（POL-047 の全体がここに乗る）**／シーンは view が現れる前に置かれる |
+| 外向け文書 | 4 | `AGENTS.md` の署名と通知（→ POL-076）／`AGENTS.md` の「`swift test` に macOS 26 が要る」／**`DEVELOPMENT.md` が空の §3 を指して「再調査しない」（→ POL-075）**／`_NSSVGImageRep`（**アンダースコアで始まる非公開の型**）に乗っていることが `DEVELOPMENT.md` から読めない |
+
+### 走査が見なかったもの
+
+- **軸 F（コメント規律）と軸 C（英語化）** — 別の軸なので触れていない
+  （**`MdoroCore` と Mac / iOS のコメントの大半は日本語のまま。工程14a の対象**）
+- `Info.plist` / `.xcconfig` / `.xcstrings` — Swift ではないため対象外と判断
+- `docs/platform/0001`〜`0003` の**本文** — `PLATFORM.md` の要約と SPEC 改訂履歴で突き合わせた
 
 ---
 
