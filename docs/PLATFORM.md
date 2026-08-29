@@ -65,6 +65,56 @@
 
 ---
 
+## Live Activity — 開始と更新の門
+
+**調査**: [0002](platform/0002-live-activity-background-start-and-suspend.md) / **確認日**: 2026-08-29 / **対象**: iOS 26
+
+| 事実 | 確度 |
+| :---- | :---- |
+| Live Activity の開始は**原則フォアグラウンドに限られる**（Apple 自身は "In general" と留保）。API は背面からの開始を `ActivityAuthorizationError.visibility` で弾く | 文書化 |
+| **開始の例外は APNs だけではない。** `LiveActivityIntent`（iOS 17.0+）は、**アプリを開かずにアプリのプロセスを起動して** `perform()` を走らせ、そこから開始できる。さらに iOS 26.0+ の `request(...alertConfiguration:start:)` は、**指定日時にアプリが背面にあってもシステムが開始する**（`AlertConfiguration` 必須、開始まで `.pending`）。**どちらもサーバーを要さない** | 文書化 |
+| **更新にフォアグラウンドは要求されない。** `Activity.update(_:)` はバックグラウンド実行中も使える（Apple は `BackgroundTasks` を例示）。**制約の門は running / suspended であって、フォアグラウンド / 背面ではない** | 文書化 |
+| バックグラウンド移行後、`applicationDidEnterBackground(_:)` は **5 秒**で戻る必要があり、戻った直後にシステムが suspend する。`beginBackgroundTask` で延長でき、残りは `backgroundTimeRemaining` で読める | 文書化 |
+| **suspend 中はプロセス内のコードが実行されない。** 予定外の状態変化をその時点で Live Activity へ反映することはできない | 文書化 |
+| `LiveActivityIntent.perform()` は**アプリ本体のプロセスで走る**（REQ-UIX-024 の記述は正しい） | 文書化 |
+| 継続時間の上限は**アクティブ8時間 / 残留を含め計12時間**（REQ-UIX-028 の数値は正しい） | 文書化 |
+| **`BackgroundTasks` からの反映は禁止されていない。** `earliestBeginDate` は「それより早く始まらない」ことのみを保証し、起動時刻を保証しない。**不可能ではなく、保証できない** | 文書化 |
+| suspend 時に WebSocket が切れるか | **不明。** Apple の記述は TN2277（2011年・iOS 4・**archive**）の「資源を回収して閉じる**ことがある**」のみ。**ただしコードが走らない以上、ソケットの生死は帰結を変えない** |
+| **「ロック中」を条件にした制約** | **不明。** どの文書にも見つからなかった。**門は running / suspended であって locked / unlocked ではない** |
+
+**このアプリは `URLSessionWebSocketTask` を使っていない**（Network.framework の `NWConnection` +
+`NWProtocolWebSocket`）。**`URLSessionWebSocketTask` についての記述は、このコードには適用できない**
+（[0002](platform/0002-live-activity-background-start-and-suspend.md)）。
+
+**残り時間の表示はこの門の対象外である。** `Text(timerInterval:)` はシステムが自律更新するため、
+反映できないのは**予定外の状態変化**（一時停止・再開・延長・スキップ・中断）に限られる。
+
+**確かめられなかったこと**（`NWConnection` の実挙動、スケジュール開始の実挙動ほか）は
+[0002](platform/0002-live-activity-background-start-and-suspend.md) に列挙してある。
+
+---
+
+## メニューバー（macOS）
+
+**調査**: [0003](platform/0003-menu-bar-ground-and-status-item-color.md) / **確認日**: 2026-08-29 / **対象**: macOS 26 / macOS 26.5 SDK
+
+| 事実 | 確度 |
+| :---- | :---- |
+| **メニューバーは既定で透過である。** Reduce transparency を有効にすると solid gray になる。**「地が可変」は正しい** | 文書化 |
+| **合成の詳細（壁紙の素通しか、ぼかしを伴うマテリアルか）は開発者向け文書に記述が無い。** HIG『The menu bar』は背景に一切触れない | 不明 |
+| **テンプレート画像を `statusItem.button.image` に載せると、OS が地に応じて正しく描く。** `NSStatusBarButton.h`: "This guarantees that the button will look correct in various button states and appearances (such as dark menu bar)"。**ただし「正しく見える」であって、コントラスト比の保証ではない** | 文書化 |
+| **メニューバーで色を使うことは禁止されていない。** `NSButton.contentTintColor`（10.14+）は「テンプレート画像とテキストに色を適用する。他の theme-appropriate effects と**併用**される」と明記。**禁止されているのは `statusItem.view`（カスタムビュー）のみ。** HIG の "Consider using a symbol" は**推奨であって禁止ではない** | 文書化 |
+| `NSStatusBarButton` が `contentTintColor` の言う borderless に該当し、実際に色が乗るかは**未実測**。ヘッダは "Only applicable to borderless buttons" と限定する | 不明 |
+| Reduce transparency / Increase contrast / **Differentiate without color** は `NSWorkspace`（`NSAccessibility.h` のカテゴリ）から読め、`NSWorkspace.accessibilityDisplayOptionsDidChangeNotification` で変化を監視できる（**`NotificationCenter.default` ではない**）。**Increase contrast がメニューバーに何をするかは文書に無い** | 文書化 / 効果は不明 |
+| `accessibilityDisplayShouldDifferentiateWithoutColor` は "UI should not convey information using color alone and instead should use **shapes or glyphs**" と述べる。**形状で区別することには、色の可否とは別の一次的根拠がある** | 文書化 |
+| **`isLuminanceReduced` は macOS のメニューバーとは無関係。** macOS 13.0+ で宣言はあるが、文書が挙げる成立条件は watchOS の wrist-down のみ。**Always-On ディスプレイの概念であり、混線と思われる** | **前提の誤り** |
+
+**条文との食い違い**: REQ-COL-022 の括弧内の理由（コントラストを保証できない）と、
+REQ-UIX-035 の「**色を使えないため**」は、上表と食い違う（[0031](decisions/0031-the-menu-bar-mark-shows-the-session.md) も同じ理由に乗る）。
+**処方（テンプレート画像を使う）は Apple の推奨と一致する。食い違っているのは理由のほうである。**
+
+---
+
 ## 未検証（軸 K で確認する）
 
 **`CONTEXT.md` §3 から移した項目である。**
@@ -73,7 +123,6 @@
 
 | 事実として書かれていたこと | 確度 |
 | :---- | :---- |
-| Live Activity はフォアグラウンドの間しか開始できず、更新も running の間だけ。ロック中の反映は不可能（[0009](decisions/0009-live-activity-should-not-must.md)） | 未検証（判断の記録はあるが、事実の出典は無い） |
 | iPhone の通知を WebSocket に依存させない。絶対時刻のローカル通知として事前スケジュールする | 未検証 |
 | ATS は IP アドレス直接接続を既定で拒否する（iOS 17 / macOS 14 以降）。`NSAllowsLocalNetworking = YES` が必須 | 未検証 |
 | ローカルネットワーク許可の状態を問い合わせる API はない。`NWBrowser` の `-65570` と `NWConnection` の `.localNetworkDenied` で検出する。初回取得は必ずフォアグラウンドで | 未検証 |
@@ -83,5 +132,9 @@
 | `MenuBarExtra` のラベルを毎秒更新しても安定する | **実測** — 2026-08-26、Debug ビルド、3時間のセッション進行中に CPU 0.1〜0.4%、RSS は約2.5分間で増加なし。**対象**: macOS 26 |
 | 署名は無償の Personal Team。iPhone 実機のアプリは7日で失効する。Push 通知と iCloud は使えない | 未検証 |
 
-**`CONTEXT.md` §2 にも事実が混ざっている**（`isStale` の遅延、`.center`、`MainActor.assumeIsolated`、
-SF Symbol の実在検証など）。**軸 K で仕分ける。**
+**この表から1項目減った。** Live Activity の開始・更新は [0002](platform/0002-live-activity-background-start-and-suspend.md) で調べ、上の節へ移した。
+**「例外は APNs のみ」は誤りだった。**
+
+**`CONTEXT.md` §2 と §6 にも事実が混ざっている**（`isStale` の遅延、`MainActor.assumeIsolated`、
+SF Symbol の実在検証、展開ダイナミックアイランドの `.center` など）。**軸 K で仕分ける。**
+**洗い出しは `PUNCHLIST.md` の付録にある。**

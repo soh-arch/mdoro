@@ -16,7 +16,7 @@ perform() → LiveActivityCommandBridge.send()
           → handler は isConnected を見て、false なら何もしない
 ```
 
-**iPhone が suspend されると WebSocket は切れる**（`CONTEXT.md` §3 の確定事項）。したがって:
+**iPhone が suspend されるとアプリのコードは実行されない**（[`docs/platform/0002`](../platform/0002-live-activity-background-start-and-suspend.md)）。したがって:
 
 | 状況 | 結果 |
 | :---- | :---- |
@@ -68,5 +68,10 @@ REQ-UIX-024 は**条件つきの条文へ書き換える**。
 ## 出典と確度
 
 - **事実**: 押しても効かないことは 2026-08-28 の実機報告。原因はソースの確認による。
-- **事実**: suspend 中に WebSocket が切れることは `CONTEXT.md` §3（一次情報で確認済み）。
+- **事実**: **依拠すべきは「suspend 中はアプリのコードが実行されない」である**
+  （[`docs/platform/0002`](../platform/0002-live-activity-background-start-and-suspend.md)、2026-08-29）。
+  **2026-08-29 以前、この欄は `CONTEXT.md` §3 を「一次情報で確認済み」として指していたが、
+  §3 にその出典は無く、現在は [0038](0038-platform-facts-are-not-the-specs-job.md) により空である。**
+  **WebSocket が切れること自体は現行の一次情報で確認できていない**が、
+  **コードが走らない以上、ソケットの生死はこの判断を変えない。**
 - **事実**: `ActivityConfiguration` が `dynamicIsland:` を必須とすることは API 定義による。
