@@ -194,7 +194,8 @@ struct PresetEditorView: View {
         }
     }
 
-    private func describe(_ trigger: PreNotification, in preset: Preset) -> String {
+    // 追加メニューの項目（`Button` の題）と同じ鍵になるよう、同じ書き方で組む。
+    private func describe(_ trigger: PreNotification, in preset: Preset) -> LocalizedStringKey {
         switch trigger {
         case let .beforeEnd(seconds): return "\(seconds / 60) min left"
         case let .atElapsedPercent(percent): return "at \(percent)% elapsed"
@@ -211,8 +212,10 @@ struct PresetEditorView: View {
     }
 
     // REQ-UIX-009: 適用タイミング（9.5 の A / B / C 群）の注記。
-    private func groupNote(_ markdown: String) -> some View {
-        Text(.init(markdown))
+    // **`LocalizedStringKey` で受ける。** `String` を `LocalizedStringKey(_:)` に通すと
+    // 実行時に鍵が組まれ、Xcode の抽出対象から外れる（Decision 0022）。
+    private func groupNote(_ markdown: LocalizedStringKey) -> some View {
+        Text(markdown)
             .font(.footnote)
             .foregroundStyle(.secondary)
     }
@@ -231,7 +234,7 @@ struct PresetEditorView: View {
     }
 
     private func minuteStepper(
-        _ title: String, _ seconds: Binding<Int>, range: ClosedRange<Int>, role: ColorRole? = nil
+        _ title: LocalizedStringKey, _ seconds: Binding<Int>, range: ClosedRange<Int>, role: ColorRole? = nil
     ) -> some View {
         // REQ-CFG-011 / 012: UI は分単位、内部は秒。直接入力とステッパーの両方を出す。
         HStack {
@@ -264,7 +267,7 @@ struct PresetEditorView: View {
 
     // 分ではない数値（周回など）。並びは minuteStepper と揃える。
     private func countStepper(
-        _ title: String, _ value: Binding<Int>, range: ClosedRange<Int>, unit: String
+        _ title: LocalizedStringKey, _ value: Binding<Int>, range: ClosedRange<Int>, unit: LocalizedStringKey
     ) -> some View {
         HStack {
             Text(title)
@@ -303,6 +306,8 @@ struct PresetEditorView: View {
 
     private func create() {
         var new = Preset.standard(id: UUID().uuidString)
+        // **保存される値であって画面の文言ではない。** 利用者はこの場で改名でき、以後この文字列は
+        // プリセットの中身として持ち回られる（`Preset.standard()` の "Standard" と同じ扱い）。
         new.name = "New Preset"
         new.isBuiltInDefault = false
         errorMessage = message(for: model.send(.createPreset(new)))
@@ -323,12 +328,12 @@ struct PresetEditorView: View {
     private func message(for error: TimerError?) -> String? {
         switch error {
         case nil: return nil
-        case .presetNameConflict: return "Another preset already has that name."
-        case .presetLimitReached: return "Up to 10 presets."
-        case .cannotDeleteActivePreset: return "The preset in use cannot be deleted."
-        case .cannotDeleteLastPreset: return "The last preset cannot be deleted."
-        case .settingOutOfRange: return "That is outside the allowed range."
-        default: return "That action was not accepted."
+        case .presetNameConflict: return String(localized: "Another preset already has that name.")
+        case .presetLimitReached: return String(localized: "Up to 10 presets.")
+        case .cannotDeleteActivePreset: return String(localized: "The preset in use cannot be deleted.")
+        case .cannotDeleteLastPreset: return String(localized: "The last preset cannot be deleted.")
+        case .settingOutOfRange: return String(localized: "That is outside the allowed range.")
+        default: return String(localized: "That action was not accepted.")
         }
     }
 }

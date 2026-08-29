@@ -128,7 +128,9 @@ private struct StatusNotice: View {
         }
     }
 
-    private func notice(_ text: String, _ symbol: String) -> some View {
+    // **`LocalizedStringKey` で受ける。** `String` を渡すと `Label` の verbatim 初期化子に
+    // 解決され、この拡張が出す2文だけがカタログに載らない（Decision 0022）。
+    private func notice(_ text: LocalizedStringKey, _ symbol: String) -> some View {
         Label(text, systemImage: symbol)
             .font(.system(size: WidgetFontSize.secondary))
             .foregroundStyle(.secondary)

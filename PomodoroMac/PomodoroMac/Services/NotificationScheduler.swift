@@ -65,9 +65,9 @@ final class NotificationScheduler {
         preset: Preset
     ) {
         let content = UNMutableNotificationContent()
-        content.title = "\(Self.label(for: type)) has ended"
+        content.title = String(localized: "\(Self.label(for: type)) has ended")
 
-        var body = "Next: \(Self.label(for: nextType))"
+        var body = String(localized: "Next: \(Self.label(for: nextType))")
         if type == .work, let taskName, !taskName.isEmpty {
             body = "\(taskName)\n\(body)"
         }
@@ -101,9 +101,9 @@ final class NotificationScheduler {
 
         for (index, fireDate) in fireDates.enumerated() {
             let content = UNMutableNotificationContent()
-            content.title = "Ending soon"
+            content.title = String(localized: "Ending soon")
             let remaining = Int((sessionEndAt.timeIntervalSince(fireDate) / 60).rounded())
-            content.body = "About \(max(1, remaining)) min left"
+            content.body = String(localized: "About \(max(1, remaining)) min left")
             apply(sound: preset.notificationSound, timeSensitive: preset.timeSensitiveNotifications, to: content)
 
             // 絶対時刻で撃つ。相対秒だとスリープ復帰でずれる（3原則の3つ目）。
@@ -133,8 +133,8 @@ final class NotificationScheduler {
     // REQ-LOG-005 / REQ-ERR-004: ログの書き込みに3回失敗したことを伝える。
     func notifyLogWriteFailure() {
         let content = UNMutableNotificationContent()
-        content.title = "The session log cannot be written"
-        content.body = "Check the destination in Settings. The timer keeps running."
+        content.title = String(localized: "The session log cannot be written")
+        content.body = String(localized: "Check the destination in Settings. The timer keeps running.")
         content.sound = .default
         deliverNow(content, identifier: "log-write-failed")
     }
@@ -143,8 +143,8 @@ final class NotificationScheduler {
     // 音源を直接鳴らすと、通知が届かない状態を試聴が隠してしまう。
     func deliverSoundTest(preset: Preset) {
         let content = UNMutableNotificationContent()
-        content.title = "Notification test"
-        content.body = "This is what you get at each boundary."
+        content.title = String(localized: "Notification test")
+        content.body = String(localized: "This is what you get at each boundary.")
         apply(sound: preset.notificationSound, timeSensitive: preset.timeSensitiveNotifications, to: content)
         deliverNow(content, identifier: "sound-test.\(UUID().uuidString)")
     }
@@ -172,9 +172,9 @@ final class NotificationScheduler {
 
     static func label(for type: SessionType) -> String {
         switch type {
-        case .work: return "Focus"
-        case .shortBreak: return "Short Break"
-        case .longBreak: return "Long Break"
+        case .work: return String(localized: "Focus")
+        case .shortBreak: return String(localized: "Short Break")
+        case .longBreak: return String(localized: "Long Break")
         }
     }
 }
@@ -189,9 +189,15 @@ struct NotificationPermission: Equatable, Sendable {
 
     // 音が鳴らない理由を、鳴らない側で説明できるようにする。
     var problem: String? {
-        if !isAuthorized { return "Notifications for this app are turned off in macOS Settings (\(status))." }
-        if !alertsEnabled { return "Banners are turned off for this app in macOS Settings." }
-        if !soundEnabled { return "Sound is turned off for this app in macOS Settings. No choice made here will play." }
+        if !isAuthorized {
+            return String(localized: "Notifications for this app are turned off in macOS Settings (\(status)).")
+        }
+        if !alertsEnabled {
+            return String(localized: "Banners are turned off for this app in macOS Settings.")
+        }
+        if !soundEnabled {
+            return String(localized: "Sound is turned off for this app in macOS Settings. No choice made here will play.")
+        }
         return nil
     }
 }

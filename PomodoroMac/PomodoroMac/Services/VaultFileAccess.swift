@@ -108,14 +108,18 @@ extension VaultFileAccess.AccessError: ReportableError {
 
     // A bookmark goes bad when the folder moves or is removed, so every sentence points
     // the user back at the chooser rather than at a retry.
+    //
+    // Decision 0034 keeps the sentence beside the case; Decision 0022 keeps it in the
+    // catalogue. **Both hold here because this failure lives in the app target.** The same
+    // sentences in MdoroCore stay literals — a package has no catalogue to put them in.
     var displayMessage: String {
         switch self {
         case .bookmarkCreationFailed:
-            "Mdoro was not given access to that folder. Choose it again in Settings."
+            String(localized: "Mdoro was not given access to that folder. Choose it again in Settings.")
         case .bookmarkResolutionFailed:
-            "The folder Mdoro was given access to can no longer be found. Choose it again in Settings."
+            String(localized: "The folder Mdoro was given access to can no longer be found. Choose it again in Settings.")
         case .accessDenied:
-            "Mdoro is no longer allowed into that folder. Choose it again in Settings."
+            String(localized: "Mdoro is no longer allowed into that folder. Choose it again in Settings.")
         }
     }
 }

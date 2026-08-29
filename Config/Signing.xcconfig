@@ -1,0 +1,14 @@
+// Signing is per developer, and nothing about it belongs in the repository.
+//
+// Leave DEVELOPMENT_TEAM empty here. Put your own team id in
+// Config/Signing.local.xcconfig, which git ignores:
+//
+//     DEVELOPMENT_TEAM = ABCDE12345
+//
+// Without a team the apps still build; on macOS they are signed to run
+// locally. Notifications need a real signature, so set your team before
+// testing those (docs/CONTEXT.md §3).
+
+DEVELOPMENT_TEAM =
+
+#include? "Signing.local.xcconfig"

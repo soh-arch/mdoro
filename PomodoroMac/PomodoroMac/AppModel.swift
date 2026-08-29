@@ -194,14 +194,16 @@ final class AppModel {
             case .granted:
                 notificationAuthorizationError = nil
             case .notAllowed:
-                notificationAuthorizationError =
-                    "Notifications are turned off for Mdoro. Turn them on in System Settings > Notifications."
+                notificationAuthorizationError = String(
+                    localized: "Notifications are turned off for Mdoro. Turn them on in System Settings > Notifications."
+                )
                 diagnostics.write("notify.authorize", level: .warn, [
                     DiagnosticField("why", ErrorCode.notificationsNotAllowed.summary("notAllowed")),
                 ])
             case let .failed(code):
-                notificationAuthorizationError =
-                    "Mdoro could not ask for permission to send notifications. Open System Settings > Notifications and allow them there."
+                notificationAuthorizationError = String(
+                    localized: "Mdoro could not ask for permission to send notifications. Open System Settings > Notifications and allow them there."
+                )
                 diagnostics.write("notify.authorize", level: .warn, [
                     DiagnosticField("why", code.summary("requestFailed")),
                 ])
@@ -489,7 +491,7 @@ final class AppModel {
             // REQ-SEC-005 / REQ-ERR-008: 待ち受けられない事実を隠さない。
             // REQ-ERR-010 / Decision 0034: the screen keeps the fact and gives up the reason.
             // The reason is a code now, and `server.start` below is where it goes instead.
-            serverStartError = "Mdoro cannot listen for iPhone connections."
+            serverStartError = String(localized: "Mdoro cannot listen for iPhone connections.")
             diagnostics.write("server.start", level: .error, [
                 DiagnosticField("why", ErrorCode(error).summary("startFailed")),
             ])
@@ -553,12 +555,12 @@ final class AppModel {
         switch command.action {
         case .selectTask:
             guard let stableId = command.params?.stableId else {
-                reject(.invalidStateForAction, "No stableId", command)
+                reject(.missingParameter(.stableId), command)
                 return
             }
             // REQ-TSK-036: 現在の一覧に存在しない stableId は受け付けず、選択も変えない。
             guard tasks.item(id: stableId) != nil else {
-                reject(.taskNotFound, "That task no longer exists", command)
+                reject(.taskNotFound, command)
                 return
             }
             selectTask(id: stableId)
@@ -574,7 +576,7 @@ final class AppModel {
 
         case .updateSettings:
             guard let updated = command.params?.settings else {
-                reject(.invalidStateForAction, "No settings", command)
+                reject(.missingParameter(.settings), command)
                 return
             }
             // didSet が検証・永続化・状態機械への反映をまとめて行う
@@ -591,30 +593,33 @@ final class AppModel {
             activePresetId: presets.activePresetId,
             selectedTaskSnapshot: tasks.selectedTaskSnapshot
         )
-        // 10.2 / Decision 0034 / 0035: `message` は診断用。診断ログの `why` と同じ
-        // `case(domain:code)` で書く。**画面の文言は受け取る側が `code` から引く**ので、
-        // ここを変えても iPhone の表示は動かない。
         switch translated {
         case let .success(action):
-            if let error = send(action) {
-                server.broadcast(.error(ProtocolErrorPayload(
-                    code: ProtocolErrorCode(error),
-                    message: error.diagnosticSummary,
-                    relatedRequestId: command.clientRequestId
-                )))
-            }
+            if let error = send(action) { reject(error, command) }
         case let .failure(failure):
-            server.broadcast(.error(ProtocolErrorPayload(
-                code: failure.protocolErrorCode,
-                message: failure.diagnosticSummary,
-                relatedRequestId: command.clientRequestId
-            )))
+            reject(failure, command)
         }
     }
 
-    private func reject(_ code: ProtocolErrorCode, _ message: String, _ command: CommandPayload) {
+    // 10.2 / Decision 0034 / 0035: `message` は診断用。診断ログの `why` と同じ
+    // `case(domain:code)` で書く。**画面の文言は受け取る側が `code` から引く**ので、
+    // ここを変えても iPhone の表示は動かない。
+    //
+    // Taking the failure itself, rather than a code and a sentence, is what keeps that true:
+    // no parameter is left for prose, so a call site cannot write one by accident. Three did.
+    private func reject(_ failure: CommandTranslation.Failure, _ command: CommandPayload) {
         server.broadcast(.error(ProtocolErrorPayload(
-            code: code, message: message, relatedRequestId: command.clientRequestId
+            code: failure.protocolErrorCode,
+            message: failure.diagnosticSummary,
+            relatedRequestId: command.clientRequestId
+        )))
+    }
+
+    private func reject(_ error: TimerError, _ command: CommandPayload) {
+        server.broadcast(.error(ProtocolErrorPayload(
+            code: ProtocolErrorCode(error),
+            message: error.diagnosticSummary,
+            relatedRequestId: command.clientRequestId
         )))
     }
 
@@ -637,7 +642,7 @@ final class AppModel {
             sourcePath: settings.taskFilePath,
             itemCount: tasks.items.count,
             isTruncated: tasks.wasTruncated,
-            parseError: tasks.loadFailed ? "Could not read the task file" : nil
+            parseError: tasks.loadFailed ? String(localized: "Could not read the task file") : nil
         )
     }
 
@@ -686,7 +691,9 @@ final class AppModel {
         guard let bookmark = bookmarks.logFolder else {
             // 出力先が未設定でも記録は捨てず、キューへ残す。
             logWriteFailed = true
-            lastLogError = "No folder is set for the session log. Choose one in Settings; entries stay queued until then."
+            lastLogError = String(
+                localized: "No folder is set for the session log. Choose one in Settings; entries stay queued until then."
+            )
             // REQ-ERR-010 / Decision 0034: `why` is always `case(domain:code)`.
             diagnostics.write("log.blocked", level: .warn, [
                 DiagnosticField("why", ErrorCode.logFolderNotSet.summary("noFolder")),
@@ -729,8 +736,9 @@ final class AppModel {
             // REQ-ERR-010 / Decision 0034: keep the domain and the code, never the OS text.
             logWriteFailed = true
             let failure = error as? VaultFileAccess.AccessError
-            lastLogError = failure?.displayMessage
-                ?? "The session log could not be written. Check the folder set in Settings; unwritten entries stay queued."
+            lastLogError = failure?.displayMessage ?? String(
+                localized: "The session log could not be written. Check the folder set in Settings; unwritten entries stay queued."
+            )
             diagnostics.write("log.write", level: .error, [
                 DiagnosticField("written", 0),
                 DiagnosticField("pending", logQueue.pendingCount),

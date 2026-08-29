@@ -485,6 +485,44 @@ struct FailuresThatReachSomeoneTests {
         }
     }
 
+    // Three refusals the Mac raises before the state machine sees the command — no `stableId`,
+    // a task that is gone, no `settings` — were the last ones sent as a sentence. `AppModel`
+    // is in the Mac target, so its source is what says whether any prose is left.
+    //
+    // **宣言ではなく形を見る。** Checking only that the three sentences are gone would pass
+    // again the moment someone writes a fourth, so every payload the file builds is held to
+    // `case(domain:code)` instead.
+    @Test func theRefusalsTheMacRaisesItselfCarryACodeAndNoSentence() throws {
+        let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
+        for prose in ["No stableId", "That task no longer exists", "No settings"] {
+            #expect(!appModel.contains(prose), "10.2: `\(prose)` still goes out as `error.message`")
+        }
+        let payloads = appModel.components(separatedBy: "ProtocolErrorPayload(").dropFirst()
+        #expect(!payloads.isEmpty, "nothing here builds an error payload any more")
+        for payload in payloads {
+            #expect(
+                payload.prefix(200).contains("diagnosticSummary"),
+                "Decision 0034: an `error.message` written in a shape of its own"
+            )
+        }
+
+        // 10.2 / Decision 0035: **iPhone の画面は `code` から引く。** Each of the three keeps
+        // the code it was already sent under, so the sentence a reader sees does not move.
+        #expect(CommandTranslation.Failure.missingParameter(.stableId)
+            .protocolErrorCode == .invalidStateForAction)
+        #expect(CommandTranslation.Failure.missingParameter(.settings)
+            .protocolErrorCode == .invalidStateForAction)
+        #expect(ProtocolErrorCode(TimerError.taskNotFound) == .taskNotFound)
+        #expect(
+            ProtocolErrorCode.invalidStateForAction.displayMessage
+                == "Your Mac did not accept that. The timer is not in a state where it applies."
+        )
+        #expect(
+            ProtocolErrorCode.taskNotFound.displayMessage
+                == "That task is no longer in the list. Reload the tasks and pick it again."
+        )
+    }
+
     // MARK: - REQ-ERR-010: the diagnostic log's own write
 
     // The one code that goes on a screen. It cannot go to the log — the log is what failed —

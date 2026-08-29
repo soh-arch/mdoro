@@ -1,0 +1,41 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%lld / %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "%lld/%lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "Disconnected from your Mac" : {
+
+    },
+    "Focus" : {
+
+    },
+    "Long Break" : {
+
+    },
+    "Short Break" : {
+
+    },
+    "This may be out of date" : {
+
+    }
+  },
+  "version" : "1.0"
+}

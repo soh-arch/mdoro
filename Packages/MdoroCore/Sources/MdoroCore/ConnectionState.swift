@@ -1,18 +1,14 @@
 import Foundation
 
 // REQ-UIX-004: 接続状態の表示に必要な区分だけを共有する。
+//
+// **区分と役は共有し、言葉は共有しない**（Decision 0022）。The words each platform shows live
+// in its own `Format`, so they reach a String Catalog; a package has no catalogue to reach,
+// and the three words here were already written a second time on the iPhone.
 public enum ConnectionStatus: String, Equatable, Sendable, Codable, CaseIterable {
     case connected
     case reconnecting
     case disconnected
-
-    public var label: String {
-        switch self {
-        case .connected: return "Connected"
-        case .reconnecting: return "Reconnecting"
-        case .disconnected: return "Not connected"
-        }
-    }
 
     // REQ-COL-010: 色のみで区別しない。通常画面では色に加えて形の違うアイコンを添える。
     public var symbolName: String {

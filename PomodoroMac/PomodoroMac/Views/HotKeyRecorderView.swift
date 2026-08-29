@@ -31,10 +31,11 @@ struct HotKeyRecorderView: View {
     }
 
     private var label: String {
-        if isRecording { return "Press a key" }
-        guard let binding else { return "Not set" }
+        if isRecording { return String(localized: "Press a key") }
+        guard let binding else { return String(localized: "Not set") }
         // 他アプリに取られていると、割り当ててあるのに効かない。それを隠さない。
-        return isActive ? binding.displayName : "\(binding.displayName) (unavailable)"
+        // **キー名は利用者の押した組み合わせで、設定に保存される値。** 訳す対象ではない。
+        return isActive ? binding.displayName : String(localized: "\(binding.displayName) (unavailable)")
     }
 
     private func startRecording() {

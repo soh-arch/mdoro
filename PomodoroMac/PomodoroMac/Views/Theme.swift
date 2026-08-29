@@ -50,7 +50,9 @@ enum Format {
     }
 
     static func spokenRemaining(_ seconds: Int) -> String {
-        seconds >= 60 ? "\(seconds / 60) minutes \(seconds % 60) seconds left" : "\(seconds) seconds left"
+        seconds >= 60
+            ? String(localized: "\(seconds / 60) minutes \(seconds % 60) seconds left")
+            : String(localized: "\(seconds) seconds left")
     }
 
     static func sessionLabel(_ type: SessionType) -> String {
@@ -60,11 +62,21 @@ enum Format {
     // 読み上げ用。印が形で示している実行状態を、言葉でも言う。
     static func runStateLabel(_ state: RunState) -> String {
         switch state {
-        case .idle: return "Not running"
-        case .running: return "Running"
-        case .paused: return "Paused"
-        case .finished: return "Ended"
-        case .pendingDecision: return "Needs a decision"
+        case .idle: return String(localized: "Not running")
+        case .running: return String(localized: "Running")
+        case .paused: return String(localized: "Paused")
+        case .finished: return String(localized: "Ended")
+        case .pendingDecision: return String(localized: "Needs a decision")
+        }
+    }
+
+    // REQ-UIX-004: 接続状態の言葉。**区分と役は `ConnectionStatus`、言葉はここ。**
+    // iPhone 側の `Format` も同じ3語を自分で持つ。
+    static func connectionLabel(_ status: ConnectionStatus) -> String {
+        switch status {
+        case .connected: return String(localized: "Connected")
+        case .reconnecting: return String(localized: "Reconnecting")
+        case .disconnected: return String(localized: "Not connected")
         }
     }
 
