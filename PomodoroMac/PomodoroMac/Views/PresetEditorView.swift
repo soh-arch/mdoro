@@ -20,7 +20,7 @@ struct PresetEditorView: View {
             if let preset = selected {
                 editor(for: preset)
             } else {
-                Text("Choose a preset").foregroundStyle(.secondary).padding()
+                Text("Choose a preset").foregroundStyle(theme.textSecondary).padding()
             }
         }
         // 設定は macOS 側でいつでも変わる。開くたびに見に行く。
@@ -34,10 +34,10 @@ struct PresetEditorView: View {
                     HStack {
                         Text(preset.name)
                         if preset.id == model.presets.activePresetId {
-                            Text("In use").font(.caption2).foregroundStyle(.secondary)
+                            Text("In use").font(.caption2).foregroundStyle(theme.textSecondary)
                         }
                     }
-                    Text(Format.presetShape(preset)).font(.caption).foregroundStyle(.secondary)
+                    Text(Format.presetShape(preset)).font(.caption).foregroundStyle(theme.textSecondary)
                 }
                 .tag(preset.id)
             }
@@ -217,7 +217,7 @@ struct PresetEditorView: View {
     private func groupNote(_ markdown: LocalizedStringKey) -> some View {
         Text(markdown)
             .font(.footnote)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(theme.textSecondary)
     }
 
     // MARK: - 編集の適用
@@ -261,7 +261,7 @@ struct PresetEditorView: View {
                 seconds.wrappedValue = max(seconds.wrappedValue - 60, range.lowerBound * 60)
             }
             .labelsHidden()
-            Text("min").foregroundStyle(.secondary)
+            Text("min").foregroundStyle(theme.textSecondary)
         }
     }
 
@@ -284,7 +284,7 @@ struct PresetEditorView: View {
                 value.wrappedValue = max(value.wrappedValue - 1, range.lowerBound)
             }
             .labelsHidden()
-            Text(unit).foregroundStyle(.secondary)
+            Text(unit).foregroundStyle(theme.textSecondary)
         }
     }
 

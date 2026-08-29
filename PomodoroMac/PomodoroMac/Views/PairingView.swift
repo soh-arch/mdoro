@@ -16,7 +16,7 @@ struct PairingSection: View {
                     // REQ-SEC-003: 3分間のみ有効。残り時間を出さないと失効の理由が分からない。
                     Text("Enter this code in the iPhone app (\(model.pairingRemainingSeconds) s left)")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.textSecondary)
                     Button("Stop pairing") { model.endPairing() }
                 }
             } else {
@@ -27,7 +27,7 @@ struct PairingSection: View {
                 }
                 Text("Pairing stays open for three minutes. Five wrong codes end it.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
             }
 
             if let error = model.serverStartError {
@@ -41,7 +41,7 @@ struct PairingSection: View {
                     .foregroundStyle(theme.color(.danger, .text))
                 Text("Check that this app is allowed in System Settings > Privacy & Security > Local Network.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
             }
         }
     }

@@ -4,6 +4,7 @@ import MdoroCore
 
 // REQ-UIX-033: ホットキーの割り当て UI。既定は未割り当て。
 struct HotKeyRecorderView: View {
+    @Environment(\.theme) private var theme
     @Binding var binding: HotKeyBinding?
     let isActive: Bool
 
@@ -13,7 +14,7 @@ struct HotKeyRecorderView: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(label)
-                .foregroundStyle(isRecording ? .secondary : .primary)
+                .foregroundStyle(isRecording ? theme.textSecondary : theme.textPrimary)
                 .frame(minWidth: 90, alignment: .trailing)
                 .monospaced()
 
