@@ -22,6 +22,15 @@ final class MdoroServer {
     private(set) var connectedDeviceName: String?
     private(set) var lastHeartbeatAt: Date?
 
+    // POL-054 / REQ-ERR-010: a refused connection is the one thing that happens here and nowhere
+    // else, and the person reporting it cannot see any of it. Without a line, "it will not pair"
+    // reaches an issue with no way to tell five wrong codes from a token the Mac no longer knows.
+    private let diagnostics: DiagnosticLog
+
+    init(diagnostics: DiagnosticLog) {
+        self.diagnostics = diagnostics
+    }
+
     private var listener: NWListener?
     private let queue = DispatchQueue(label: "MdoroMac.Server")
     private var callbacks: Callbacks?
@@ -181,8 +190,26 @@ final class MdoroServer {
             startApprovalTimeout()
 
         case let .reject(code):
-            sendThenClose(.authFailed(AuthFailedPayload(code: code)), to: source)
+            refuse(code, of: payload, to: source)
         }
+    }
+
+    // POL-054: **the only way a refusal leaves this process**, so the record cannot be forgotten on
+    // a path someone adds later.
+    private func refuse(_ code: AuthFailureCode, of hello: HelloPayload, to connection: NWConnection) {
+        record(refusal: code, of: hello)
+        sendThenClose(.authFailed(AuthFailedPayload(code: code)), to: connection)
+    }
+
+    // REQ-ERR-010 / Decision 0018: the code, and nothing beside it.
+    //
+    // **The hello is taken and deliberately not written.** The device name, the token and the
+    // pairing code are all in hand at this exact moment; Decision 0018 keeps them out of the file
+    // by never putting them in, not by masking them on the way out, and a test hands one of each
+    // in and reads the whole file back. What is left is one of six codes, which is what tells a
+    // stranger on an issue five wrong codes from a token this Mac no longer knows.
+    func record(refusal code: AuthFailureCode, of hello: HelloPayload) {
+        diagnostics.write("conn.refused", level: .warn, [DiagnosticField("why", code.diagnosticSummary)])
     }
 
     // REQ-SEC-004: refused on its own after 60 seconds.
@@ -203,7 +230,8 @@ final class MdoroServer {
         pendingApproval = nil
 
         guard approved else {
-            sendThenClose(.authFailed(AuthFailedPayload(code: .connectionRejectedByUser)), to: pending.connection)
+            // The 60-second timeout arrives here too, and reads as the same refusal in the log.
+            refuse(.connectionRejectedByUser, of: pending.hello, to: pending.connection)
             return
         }
         // Drop the existing connection, then have it authenticate afresh.

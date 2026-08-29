@@ -82,7 +82,8 @@ final class AppModel {
     // needs somewhere else to say it. **The default is the same as production.**
     private let idleSleep: any IdleSleepGuarding
     private let hotKeys = HotKeyCenter()
-    private let server = MdoroServer()
+    // POL-054: built here rather than at the declaration so it can be handed the diagnostic log.
+    private let server: MdoroServer
     // REQ-ERR-010 / Decision 0018: a diagnostic log that carries neither task names nor paths.
     let diagnostics: DiagnosticLog
     // Which tab the settings window opens on.
@@ -134,9 +135,12 @@ final class AppModel {
         self.storeUnavailable = storeUnavailable
         // They cannot be built at the default-value position (DiagnosticLog and NotificationScheduler
         // both live on the MainActor).
-        self.diagnostics = diagnostics ?? DiagnosticLog()
+        let diagnosticLog = diagnostics ?? DiagnosticLog()
+        self.diagnostics = diagnosticLog
         self.notifications = notifications ?? NotificationScheduler()
         self.idleSleep = idleSleep ?? IdleSleepGuard()
+        // POL-054: the server writes its refusals to the same log the rest of the app writes to.
+        self.server = MdoroServer(diagnostics: diagnosticLog)
         self.bookmarks = bookmarks
 
         // REQ-ERR-017 / Decision 0035 / 0036: **swallowing a failure cannot be told apart from not failing.**
