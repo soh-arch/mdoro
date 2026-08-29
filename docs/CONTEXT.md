@@ -310,7 +310,7 @@ Git に入っていないため、失われると復元できない。
 | `SPEC.md` | **v2.21 / 243要件** |
 | `decisions/` | **0001〜0038** |
 | `platform/` | **0001**（ロック画面の背景）/ **0002**（開始と更新の門）/ **0003**（メニューバーの地と色）/ **0004**（データ上限とネットワーク）/ **0005**（ローカルネットワークと接続に要る設定）/ **0006**（SF Symbols のカタログと可用性） |
-| `PUNCHLIST.md` | **done 57 / open 18 / deferred 1 / rejected 1 / 不要 1** |
+| `PUNCHLIST.md` | **done 58 / review 2 / doing 1 / open 19 / 決定済み 3 / deferred 1 / rejected 1 / 不要 1**（計 85。**実測した値であり、目算ではない**） |
 | テスト | `swift test` **275件 / 49スイート**。Mac 側 5件、iOS 側 3件（**`xcodebuild test` が要る。CI は `swift test` のみ**） |
 
 **役は5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / **platform-researcher**。
@@ -607,7 +607,8 @@ iPhone はリスト、Mac は Form のまま、意味だけを揃える。
 8. `docs/` は日本語のまま公開する。README にその一文を置く
 9. **メニューバーの印。済**（2026-08-28）。待機 / 進行中 / 一時停止の3枚
    （[0031](decisions/0031-the-menu-bar-mark-shows-the-session.md)、仕様 v2.9）。
-   **印は接続状態を示さない。** iPhone は背面に回れば切れるので、載せると常時「未接続」の顔になる。
+   **印は接続状態を示さない。** iPhone は背面へ回ればやがて suspend され、その間はコードが走らない。
+   載せると常時「未接続」の顔になる。
    正本は `docs/images/icons/`、書き出しは `swift Tools/make_icon.swift`
 
 #### 人間の Xcode 操作が要る作業

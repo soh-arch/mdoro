@@ -31,6 +31,9 @@ Mac と iPhone の2端末でひとつのタイマーを共有する。素朴に�
 `docs/CONTEXT.md` の Apple プラットフォーム確定事項）。バックグラウンドでは WebSocket が切れるため、
 `sessionEndAt` を配る設計でなければ iPhone 側に終了を伝える手段が存在しない。
 
+> **訂正（2026-08-29）**: 上の「WebSocket が切れる」は**現行の一次情報で確認できていない**（唯一の出典は 2011年・iOS 4・archive の TN2277 で、しかも「切れる**ことがある**」）。**依拠すべきは「suspend 中はアプリのコードが実行されない」であり、判断そのものは動かない**（[`docs/platform/0002`](../platform/0002-live-activity-background-start-and-suspend.md)、SPEC v2.21）。
+
+
 単調時計と壁時計を使い分けるのは、システム時刻の変更やスリープ復帰で残り時間が飛ぶのを防ぐため。
 一方でログの表記と `sessionEndAt` は人間が読む時刻でなければならない。
 
