@@ -2,6 +2,29 @@ import Foundation
 import Network
 import MdoroCore
 
+// REQ-ERR-009: a broken message is thrown away on its own, but ten in a row say the line itself
+// is no good, not the one message. Counting is the whole of it — the reconnect belongs to the client.
+struct BrokenMessageCounter {
+    // REQ-ERR-009: "ten in a row". The number the requirement names, in one place.
+    static let limit = 10
+
+    private(set) var count = 0
+
+    // True when this failure is the tenth in a row, and the count starts over at that point:
+    // anything still in flight on the doomed connection must not ask for a second reconnect.
+    mutating func recordBroken() -> Bool {
+        count += 1
+        guard count >= Self.limit else { return false }
+        count = 0
+        return true
+    }
+
+    // A message that decodes puts the count back to zero — the requirement says *in a row*.
+    mutating func reset() {
+        count = 0
+    }
+}
+
 // REQ-COM-001: the iPhone is the child (the client).
 // **It does not settle a session as complete** (REQ-COM-012). It only passes the state it receives straight up.
 @MainActor
@@ -39,6 +62,7 @@ final class MdoroClient {
     private var keepaliveTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
     private var isStopping = false
+    private var brokenMessages = BrokenMessageCounter()
 
     private let deviceName = "iPhone"
 
@@ -64,6 +88,8 @@ final class MdoroClient {
         guard let target, let port = target.websocketPort,
               case let .service(name, type, domain, interface) = target.endpoint else { return }
         status = (status == .connected) ? .reconnecting : .connecting
+        // REQ-ERR-009: every connection counts its own broken messages from zero.
+        brokenMessages.reset()
 
         // Connect to the host Bonjour points at, on the port taken from the TXT record.
         _ = (name, type, domain, interface)
@@ -137,8 +163,27 @@ final class MdoroClient {
     }
 
     private func handle(_ data: Data) {
-        // REQ-ERR-009: a broken message is thrown away and the connection is kept.
-        guard let envelope = try? MessageCoder.decodeServer(data) else { return }
+        let decoded: Envelope<ServerMessage>?
+        do {
+            decoded = try MessageCoder.decodeServer(data)
+        } catch {
+            // REQ-ERR-009: a broken message is thrown away and the connection is kept —
+            // until ten have come in a row, and then the connection is made again.
+            if brokenMessages.recordBroken() {
+                // **The backoff is left where it is, on purpose.** REQ-COM-004 winds it back on a
+                // `welcome`, which is the only proof the line carries this protocol again. A peer
+                // that emits rubbish goes on emitting it, and a reset would send us knocking every
+                // second. This reconnect says the peer is wrong, not that the network dropped.
+                connection?.cancel()
+                scheduleReconnect()
+            }
+            return
+        }
+        // The envelope was well formed, so the peer is speaking: the run of ten starts over.
+        brokenMessages.reset()
+        // REQ-PRT-005: a type this version does not know decodes to nil. That is forward
+        // compatibility, not corruption — it is ignored and it is not counted as broken.
+        guard let envelope = decoded else { return }
 
         switch envelope.body {
         case let .welcome(payload):
