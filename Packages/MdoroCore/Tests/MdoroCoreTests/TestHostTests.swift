@@ -34,19 +34,27 @@ struct TestHostTests {
         }
     }
 
-    // A guard placed after the call it is meant to prevent is not a guard. `model.start()` is
-    // where everything that reaches outside the process begins, on both platforms.
+    // A guard placed after the call it is meant to prevent is not a guard.
+    //
+    // Ordering against `model.start()` alone was too weak to match this test's own name: it
+    // would have accepted the guard sitting *below* `UNUserNotificationCenter.current()
+    // .delegate = …`, which is the suite taking over notification presentation for the app.
+    // Every line in the block is something the suite must not do, so the guard has to be the
+    // first statement — nothing is allowed in front of it.
     @Test func theGuardComesBeforeAnythingStarts() throws {
         for path in entryPoints {
             let text = withoutComments(try source(path))
-            let guardAt = text.range(of: guardClause)
-            let startAt = text.range(of: "model.start()")
-            #expect(startAt != nil, "\(path) no longer calls model.start(); this test is watching the wrong call")
-            guard let guardAt, let startAt else { continue }
+            let block = try #require(text.range(of: ".task {"), "\(path) has no .task to guard")
+            let firstStatement = text[block.upperBound...]
+                .split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .first { !$0.isEmpty }
             #expect(
-                guardAt.lowerBound < startAt.lowerBound,
-                "POL-047: \(path) starts the app before it checks whether this is a test run"
+                firstStatement == guardClause,
+                "POL-047: \(path) does `\(firstStatement ?? "nothing")` before asking whether this is a test run"
             )
+            // 見張る先が消えていないこと。**空振りする検査は、通っている検査と区別がつかない。**
+            #expect(text.contains("model.start()"), "\(path) no longer calls model.start()")
         }
     }
 
@@ -66,22 +74,32 @@ struct TestHostTests {
         )
     }
 
-    // The guards above stop the app from *starting*. They do not stop a test from picking up
-    // a production dependency itself, and one did: `DiagnosticLogTests` built an `AppModel`
-    // and asked it for a notification, which went to `UNUserNotificationCenter` under the
-    // app's own bundle identifier and arrived on the product owner's screen mid-session.
+    // The guards above stop the app from *starting*. They do not stop a model from being
+    // built holding the real thing, and two were: `DiagnosticLogTests` asked one for a
+    // notification, which went to `UNUserNotificationCenter` under the app's own bundle
+    // identifier and arrived on the product owner's screen mid-session — and the host app's
+    // own model, which substituted its store and its bookmarks but not this.
     //
-    // The default is the real centre, and it has to be — that is the app. So what has to
-    // hold is that a test never takes it. The parameter has a default, which is exactly what
-    // makes forgetting it silent, so the omission is what this reads for.
-    @Test func noTestBuildsAModelThatCanReachTheNotificationCentre() throws {
-        for (name, text) in try swiftFiles(under: "PomodoroMac/PomodoroMacTests", recursive: true) {
-            let constructions = text.components(separatedBy: "AppModel(").dropFirst()
-            for construction in constructions {
-                #expect(
-                    construction.prefix(400).contains("notifications:"),
-                    "POL-047: \(name) builds an AppModel that delivers to the reader's notification centre"
-                )
+    // The default is the real centre, and it has to be: that is the app. **`AppModel()` with
+    // no arguments is the app running for a person** and is the only form exempt here.
+    // Anything built with arguments is built for a test — by the suite, or by the host app
+    // *for* the suite — and has to name a destination that is not the reader's.
+    //
+    // Both directories, because the host app's construction sat in neither the seam nor this
+    // check and was the only one in the repository to get past both.
+    @Test func noModelBuiltForATestCanReachTheNotificationCentre() throws {
+        for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
+            let files = try swiftFiles(under: directory, recursive: true)
+            #expect(!files.isEmpty, "\(directory) は読めていない。移動したか、名前が変わっている")
+            for (name, text) in files {
+                for construction in text.components(separatedBy: "AppModel(").dropFirst() {
+                    // `AppModel()` — the production one. Nothing substituted, nothing to check.
+                    guard !construction.hasPrefix(")") else { continue }
+                    #expect(
+                        construction.prefix(400).contains("notifications:"),
+                        "POL-047: \(name) builds an AppModel that delivers to the reader's notification centre"
+                    )
+                }
             }
         }
     }
