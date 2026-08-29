@@ -2,12 +2,41 @@ import Foundation
 import UserNotifications
 import MdoroCore
 
+// POL-047: everything `AppModel` can ask of the notification centre, so a test can stand
+// where the centre does.
+//
+// This is the boundary the reader's Mac is on the other side of. `UNUserNotificationCenter`
+// belongs to the OS, not to the app: a request handed to it is delivered to the person using
+// the machine, and `removeAllPendingNotificationRequests` throws away notifications the real
+// app scheduled. The suite runs inside MdoroMac.app (`TestHost`) and shares its bundle
+// identifier, so there is no separate centre for it to talk to — the product owner was
+// getting notifications mid-session from a test run.
+//
+// A seam rather than a check inside `deliverNow`: the app should not carry a branch that
+// says "unless this is a test", and the cancellations reach the same centre as the
+// deliveries, so one place has to cover both. `AppModel` already takes `diagnostics` and
+// `bookmarks` this way, for the same reason and with the same default.
+@MainActor
+protocol SessionNotifying {
+    func requestAuthorization() async -> NotificationScheduler.AuthorizationOutcome
+    func currentPermission() async -> NotificationPermission
+    func notifySessionFinished(type: SessionType, nextType: SessionType, taskName: String?, preset: Preset)
+    func reschedulePreNotifications(
+        preset: Preset, sessionType: SessionType,
+        sessionStartedAt: Date?, sessionEndAt: Date?, now: Date
+    )
+    func cancelPreNotifications()
+    func cancelAll()
+    func notifyLogWriteFailure()
+    func deliverSoundTest(preset: Preset)
+}
+
 // REQ-NTF-001 / 004 / 005 / 007 / 020〜023: Mac 側の通知。
 //
 // Mac はアプリが動き続けている前提に立てるので、終了通知は状態遷移を検知して即時に出す。
 // 予告通知だけは発火時刻が未来なので事前スケジュールする。
 @MainActor
-final class NotificationScheduler {
+final class NotificationScheduler: SessionNotifying {
 
     private let center = UNUserNotificationCenter.current()
     private var scheduledPreNotificationIds: [String] = []

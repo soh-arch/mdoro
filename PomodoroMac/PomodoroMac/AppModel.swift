@@ -71,7 +71,9 @@ final class AppModel {
     // MARK: - 依存
 
     private let store: any StateStore
-    private let notifications = NotificationScheduler()
+    // POL-047: the notification centre belongs to the OS, so a test needs somewhere else to
+    // send to. **既定は本番と同じ。**
+    private let notifications: any SessionNotifying
     private let idleSleepGuard = IdleSleepGuard()
     private let hotKeys = HotKeyCenter()
     private let server = MdoroServer()
@@ -104,19 +106,23 @@ final class AppModel {
 
     // MARK: - 生成
 
-    // 診断ログとブックマークを引数に取るのは検証のため。**既定は本番と同じ**で、
-    // 差し替えたときだけ、利用者の Vault と利用者が集めるログの外で動く。
+    // 診断ログ・ブックマーク・通知の宛先を引数に取るのは検証のため。**既定は本番と同じ**で、
+    // 差し替えたときだけ、利用者の Vault と利用者が集めるログ、そして利用者の通知センターの
+    // 外で動く。The third one is POL-047: the suite runs inside this app, under its bundle
+    // identifier, so a request it hands the centre is delivered to the person at the machine.
     init(
         store: any StateStore,
         now: Date = Date(),
         storeUnavailable: StateStoreError? = nil,
         diagnostics: DiagnosticLog? = nil,
-        bookmarks: VaultBookmarks = VaultBookmarks.load()
+        bookmarks: VaultBookmarks = VaultBookmarks.load(),
+        notifications: (any SessionNotifying)? = nil
     ) {
         self.store = store
         self.storeUnavailable = storeUnavailable
-        // 既定値の位置では組み立てられない（DiagnosticLog は MainActor 上にある）。
+        // 既定値の位置では組み立てられない（DiagnosticLog も NotificationScheduler も MainActor 上にある）。
         self.diagnostics = diagnostics ?? DiagnosticLog()
+        self.notifications = notifications ?? NotificationScheduler()
         self.bookmarks = bookmarks
 
         // REQ-ERR-017 / Decision 0035 / 0036: **握り潰しは、失敗しないことと区別がつかない。**

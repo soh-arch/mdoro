@@ -66,6 +66,26 @@ struct TestHostTests {
         )
     }
 
+    // The guards above stop the app from *starting*. They do not stop a test from picking up
+    // a production dependency itself, and one did: `DiagnosticLogTests` built an `AppModel`
+    // and asked it for a notification, which went to `UNUserNotificationCenter` under the
+    // app's own bundle identifier and arrived on the product owner's screen mid-session.
+    //
+    // The default is the real centre, and it has to be — that is the app. So what has to
+    // hold is that a test never takes it. The parameter has a default, which is exactly what
+    // makes forgetting it silent, so the omission is what this reads for.
+    @Test func noTestBuildsAModelThatCanReachTheNotificationCentre() throws {
+        for (name, text) in try swiftFiles(under: "PomodoroMac/PomodoroMacTests", recursive: true) {
+            let constructions = text.components(separatedBy: "AppModel(").dropFirst()
+            for construction in constructions {
+                #expect(
+                    construction.prefix(400).contains("notifications:"),
+                    "POL-047: \(name) builds an AppModel that delivers to the reader's notification centre"
+                )
+            }
+        }
+    }
+
     // XCTest sets the variable in the host process. Nothing else does, and an app run by a
     // person never has it — which is the whole reason the check is safe to leave in.
     @Test func theVariableXCTestSetsIsWhatDecides() {
