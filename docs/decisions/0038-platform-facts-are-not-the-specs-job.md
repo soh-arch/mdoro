@@ -59,6 +59,29 @@ Live Activity の実装が2回書き直された後も、一度も突き合わ�
 調査は `platform-researcher`（`.claude/agents/platform-researcher.md`）が行う。
 **一次情報に当たり、確度を3区分（文書化 / 実測 / 不明）で分け、推測で埋めない。**
 
+### 参照が付いているなら、事実が載っていてよい（2026-08-29 追記）
+
+**禁じているのは「事実を書くこと」ではなく、「どこから来た事実か追えなくなること」である。**
+参照が付いていれば追える。**参照の無い断定だけを禁じる。**
+
+コードのコメントにもこれを適用する。**コメントは原則として「条文が何を要求しているか」を述べ、
+事実は `docs/PLATFORM.md` に委ねる。ただし、事実そのものを1行書いたほうが誤解を防げる場合は、
+参照を付けたうえで書いてよい。**
+
+実例（POL-085・[PR #19](https://github.com/soh-arch/mdoro/pull/19)）:
+
+```swift
+// Reaches the system's dismiss button, not the view above (docs/PLATFORM.md).
+.activitySystemActionForegroundColor(.primary)
+```
+
+**`activitySystemActionForegroundColor` という API 名は「本体の前景色」と読める。**
+実際に決まるのは終了ボタンの文字色だけである（[platform/0001](../platform/0001-live-activity-lock-screen-background.md)）。
+**名前が実際の効果と食い違うとき、参照だけを置いても読み手は誤解したまま通り過ぎる。**
+
+**判断したのは人間である**（2026-08-29）。理由を明示したうえでの例外であること自体が、
+この記録の趣旨に適う。**理由の書かれていない例外は、次に読む人にとって参照の無い断定と変わらない。**
+
 ## 理由・設計意図
 
 **条文が外部の事実を抱えると、事実が変わったときにどの要件が影響を受けるのか読めなくなる。**

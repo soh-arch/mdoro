@@ -86,6 +86,11 @@ a valid signature — an unsigned build will not deliver them.
   no notes about what used to be there.
 - Cite the requirement ID that justifies non-obvious behaviour:
   `// REQ-TIM-035: the only way out of FINISHED is IDLE`.
+- **A comment says what the clause requires, not what the OS does.** Platform facts live in
+  `docs/PLATFORM.md`, with the research behind them in `docs/platform/`. State one in a comment
+  only where leaving it out would mislead — an API whose name suggests a wider effect than it
+  has — and point at `docs/PLATFORM.md` when you do. An unsourced assertion about the OS is
+  what goes stale without anyone noticing.
 
 ## Requirements and decisions
 
