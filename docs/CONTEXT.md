@@ -514,7 +514,7 @@ OSS の README として質が足りず、**作者自身の活用例が無い。
 
 1. **改名は全範囲**（[0024](decisions/0024-rename-everything-to-mdoro.md)）。**Xcode 操作は1回にまとめて人間へ依頼する**
    （bundle ID 3つ・ターゲット名・スキーム・フォルダ名・モジュール名。[0013](decisions/0013-pbxproj-is-owned-by-xcode.md)）。
-   **bundle ID が変わるので、通知の許可は取り直しになる**（§3「通知には正しい署名が要る」）
+   **bundle ID が変わるので、通知の許可は取り直しになる**（§2「通知には正しい署名が要る」）
 2. コード側で機械的に追随するもの: **Bonjour サービス型**（`_pomodoro._tcp`）、Keychain のサービス名、
    状態ファイルの置き場所、診断ログの出力先（`~/Library/Logs/Pomodoro`）、ログファイルの既定名（`PomodoroLog.md`）。
    **どれも「両端で一致していないと繋がらない・読めない」もの。片方だけ変えない**

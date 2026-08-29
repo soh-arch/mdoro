@@ -1653,7 +1653,7 @@ JSON では判別子 `type` を持つオブジェクトとして表現する。
 | **OPEN-004** | ~~Live Activity の 8 時間上限~~（REQ-UIX-028 で解決）。無制限モード（REQ-TIM-045）を実装する場合の再開方法のみ未決。 |
 | **OPEN-005** | ~~Mac アプリを App Sandbox 有効で配布するか~~（3.5 節で有効を前提に確定）。 |
 | **OPEN-007** | 無償の Personal Team で Time Sensitive Notifications capability を有効化できるか（REQ-NTF-005 は SHOULD のため着手の障害にはならない）。 |
-| **OPEN-008** | ~~`MenuBarExtra` の label で残り時間を毎秒更新した場合の安定性~~（実測により解決。`CONTEXT.md` §3）。 |
+| **OPEN-008** | ~~`MenuBarExtra` の label で残り時間を毎秒更新した場合の安定性~~（実測により解決。`docs/PLATFORM.md`）。 |
 | **OPEN-017** | ~~`Mdoro` への改名の範囲~~（解決: **全範囲で行う。** `decisions/0024-rename-everything-to-mdoro.md`）。 |
 | **OPEN-018** | ~~ツール固有のタスク記法への対応範囲~~（解決: **標準のチェックボックス記法のみを読む。** `decisions/0025-standard-checkbox-syntax-only.md`）。 |
 | **OPEN-019** | ~~ライセンス~~（解決: **MIT**。2026-08-27）。 |
