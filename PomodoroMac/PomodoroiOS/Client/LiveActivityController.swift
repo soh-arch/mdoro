@@ -43,7 +43,8 @@ final class LiveActivityController {
     // Funnels into one of start, update or end.
     //
     // `isConnected` is **the caller's connection state right now**. The snapshot's `connection` is the
-    // value the Mac told about itself, and it stays behind after nothing can be received any more.
+    // value the Mac told about itself, and it goes on saying "connected" after nothing can be
+    // received any more.
     func sync(
         snapshot: StateSnapshot, clockOffset: TimeInterval,
         isForeground: Bool, isConnected: Bool, serverName: String
@@ -112,7 +113,7 @@ final class LiveActivityController {
     }
 
     // A Live Activity stays on the lock screen even when the process dies.
-    // Without picking it up again, **a new one lines up beside the old one, still frozen.**
+    // Without picking it up again, **a new one lines up beside the still-frozen old one.**
     private func adoptOrphanedActivity() {
         guard activity == nil else { return }
         let existing = Activity<MdoroActivityAttributes>.activities

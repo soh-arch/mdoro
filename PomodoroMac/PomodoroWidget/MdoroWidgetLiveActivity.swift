@@ -90,7 +90,7 @@ struct MdoroWidgetLiveActivity: Widget {
     }
 }
 
-// REQ-UIX-041: font sizes are given explicitly in pt. **The height is fixed**, and if the type grows a line drops out.
+// REQ-UIX-041: font sizes are given explicitly in pt. **The height is fixed**, and if the text grows a line drops out.
 // REQ-UIX-042: the spacing is chosen from 8.6.2's values.
 private enum WidgetInset {
     // The inset from the edge that keeps clear of the island's rounded corners.

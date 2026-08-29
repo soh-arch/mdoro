@@ -74,7 +74,7 @@ final class NotificationScheduler {
         add(content, at: endAt, identifier: Self.endPrefix + UUID().uuidString)
     }
 
-    // REQ-NTF-007 / 020–023: the heads-up notifications. Deciding the fire times belongs to MdoroCore.
+    // REQ-NTF-007 / 020–023: the pre-notifications. Deciding the fire times belongs to MdoroCore.
     private func schedulePreNotifications(preset: Preset, sessionType: SessionType, startedAt: Date, endAt: Date) {
         guard sessionType == .work, !preset.preNotifications.isEmpty else { return }
 

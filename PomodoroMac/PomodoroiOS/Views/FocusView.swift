@@ -83,7 +83,7 @@ struct FocusView: View {
         }
     }
 
-    // REQ-COL-013: the type is told apart by **line style** as well as colour (Focus solid / Short thin solid / Long double).
+    // REQ-COL-013: the type is told apart by **stroke style** as well as colour (Focus solid / Short thin solid / Long double).
     // It is a bar rather than a ring because a ring wide enough to circle REQ-UIX-010's digits does not
     // fit the short edge in landscape.
     @ViewBuilder

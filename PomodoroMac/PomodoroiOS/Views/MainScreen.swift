@@ -41,7 +41,8 @@ struct MainScreen: View {
             }
             .background(theme.background)
             // REQ-ERR-016 / Decision 0035: a refusal goes **where it is noticed right after the action**.
-            // A banner set into the body puts a refusal pressed after scrolling down to the task list off the screen.
+            // With a banner set into the body, a refusal pressed after scrolling down to the task
+            // list ends up off the screen.
             // Laid over the bottom edge, within reach, it is seen wherever the eye is.
             .overlay(alignment: .bottom) {
                 if let refusal = model.lastRefusal {
