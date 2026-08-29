@@ -165,6 +165,8 @@ struct LogFileEditorTests {
         ).contents
     }
 
+    // POL-087: the file the app creates for itself ends with a newline. Nothing of the user's is
+    // being preserved here, and a Markdown file ending mid-line makes the next write share that line.
     @Test func emptyFileGetsHeadingAndLine() throws {
         let result = try insert(into: "")
         #expect(result == "## 2026-08-24 (Mon)\n\n- 新しい行\n")
@@ -222,12 +224,10 @@ struct LogFileEditorTests {
 
     // REQ-LOG-022: when the heading has been deleted or renamed outside the app, recreate it and
     // append at the end of the file. Never try to restore or correct the existing lines.
+    // POL-087: the file ends with a newline, so the result does too. A file that ends without one is
+    // the subject of `aFileWithoutATrailingNewlineDoesNotGainOne`; this one is about the heading.
     @Test func missingHeadingIsRecreatedAtTheEndOfFile() throws {
-        let existing = """
-        ## 2026-08-23 (Sun)
-
-        - 前日の行
-        """
+        let existing = "## 2026-08-23 (Sun)\n\n- 前日の行\n"
         let result = try insert(into: existing)
         #expect(result.hasSuffix("## 2026-08-24 (Mon)\n\n- 新しい行\n"))
         #expect(result.contains("- 前日の行"))
@@ -279,6 +279,54 @@ struct LogFileEditorTests {
         let existing = "## 2026-08-24 (Mon)\n\n- 既存の行\n"
         let result = try insert(into: existing)
         #expect(result == "## 2026-08-24 (Mon)\n\n- 既存の行\n- 新しい行\n")
+    }
+
+    // POL-087 / REQ-LOG-001: **a file that did not end with a newline must not come back with one.**
+    // Plenty of editors leave a Markdown file without a final newline, and appending is all this is
+    // allowed to do to the user's file — the last line is one of theirs, and a byte was being added
+    // to it. Both branches are read: the day's heading found, and the heading recreated.
+    @Test func aFileWithoutATrailingNewlineDoesNotGainOne() throws {
+        #expect(
+            try insert(into: "## 2026-08-24 (Mon)\n\n- 既存の行")
+                == "## 2026-08-24 (Mon)\n\n- 既存の行\n- 新しい行"
+        )
+        #expect(
+            try insert(into: "## 2026-08-23 (Sun)\n\n- 前日の行")
+                == "## 2026-08-23 (Sun)\n\n- 前日の行\n\n## 2026-08-24 (Mon)\n\n- 新しい行"
+        )
+        // The same for CRLF, where the byte that would have been added is two.
+        #expect(
+            try insert(into: "## 2026-08-24 (Mon)\r\n\r\n- 既存の行")
+                == "## 2026-08-24 (Mon)\r\n\r\n- 既存の行\r\n- 新しい行"
+        )
+    }
+
+    // POL-087: **the guard is not what keeps the ending.** `preservesAllLines` compares arrays of
+    // lines, and the two files below reduce to the same array — it returns the same verdict for
+    // both and never looks at the final byte. It passed all the while one was being added, which
+    // is why the test above reads the whole string instead of asking the guard.
+    @Test func theGuardCannotSeeATrailingNewline() throws {
+        let withoutNewline = "## 2026-08-24 (Mon)\n\n- 既存の行"
+        let inserted = try LogFileEditor.inserting(
+            line: "- 新しい行",
+            underHeading: LogFormatter.dayHeading(for: logicalDay, calendar: calendar),
+            logicalDate: logicalDay, into: withoutNewline, calendar: calendar
+        )
+        let insertedIntoTheSameFileWithOne = try LogFileEditor.inserting(
+            line: "- 新しい行",
+            underHeading: LogFormatter.dayHeading(for: logicalDay, calendar: calendar),
+            logicalDate: logicalDay, into: withoutNewline + "\n", calendar: calendar
+        )
+        #expect(inserted.insertedLines == insertedIntoTheSameFileWithOne.insertedLines,
+                "the two files differ by one byte, and it is not one the insertion knows about")
+        #expect(inserted.contents + "\n" == insertedIntoTheSameFileWithOne.contents,
+                "the ending is the only difference between the two results")
+
+        // And this is the array the guard is handed for both of them. It accepts the insertion, as
+        // it always did — so passing it says nothing about how the file ends.
+        let heldLines = ["## 2026-08-24 (Mon)", "", "- 既存の行"]
+        #expect(LogFileEditor.preservesAllLines(
+            original: heldLines, updated: heldLines + ["- 新しい行"], insertedAt: 3, count: 1))
     }
 }
 

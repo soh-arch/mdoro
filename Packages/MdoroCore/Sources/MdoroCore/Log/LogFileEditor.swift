@@ -29,11 +29,17 @@ public enum LogFileEditor {
         // Match the existing file's line ending. An LF-only insertion would mix into a CRLF file.
         let newline = existing.contains("\r\n") ? "\r\n" : "\n"
         var lines = existing.isEmpty ? [] : existing.components(separatedBy: newline)
-        // The empty element a trailing newline leaves is held out of the position arithmetic and put back at the end.
-        var trailingNewline = false
+        // REQ-LOG-001: whether the file ends with a newline belongs to the file, not to us. The empty
+        // element a trailing one leaves is held out of the position arithmetic and put back at the end
+        // — **put back only if it was there.** Adding one is a change to a line already in the file, and
+        // insertion is the only thing allowed here.
+        //
+        // A file that does not exist yet is given one. There is nothing of the user's to preserve, and a
+        // Markdown file ending mid-line makes whatever is written next share that line.
+        var endsWithNewline = existing.isEmpty
         if let last = lines.last, last.isEmpty {
             lines.removeLast()
-            trailingNewline = true
+            endsWithNewline = true
         }
         let original = lines
 
@@ -74,7 +80,8 @@ public enum LogFileEditor {
             throw EditError.wouldModifyExistingLines
         }
 
-        let contents = lines.joined(separator: newline) + newline
+        // The guard above compares arrays of lines, so it never saw this byte. It has to be carried.
+        let contents = lines.joined(separator: newline) + (endsWithNewline ? newline : "")
         return Insertion(contents: contents, insertedLines: insertedLines)
     }
 
