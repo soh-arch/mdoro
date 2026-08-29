@@ -102,7 +102,13 @@ and ask.** Do not guess. A guess that ships becomes a requirement nobody chose.
 ## Pull requests
 
 - Branch per change. **One PR does one thing.**
-- Conventional Commits, citing the requirement ID.
+- **Conventional Commits.** Subject line is `type: summary`. The types in use are `feat`,
+  `fix`, `docs`, `refactor`, `test`, `chore`, `build`. **No scope** — this repo has never
+  used one. Write the summary as a statement, not a label.
+- **Name the requirement ID your change rests on**, in the commit body. A `Refs REQ-TIM-035`
+  trailer at the end keeps the history greppable. This is the part that matters: it is how a
+  maintainer checks a change against `docs/SPEC.md` without reconstructing your reasoning,
+  and `docs/` is in Japanese, so the ID may be the only thing you and the maintainer both read.
 - `swift test` must pass. CI runs it on every pull request.
 - A human merges. Nothing lands on `main` directly.
 
