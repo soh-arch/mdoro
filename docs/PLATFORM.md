@@ -115,6 +115,58 @@ REQ-UIX-035 の「**色を使えないため**」は、上表と食い違う（[
 
 ---
 
+## Live Activity — データの上限とネットワーク
+
+**調査**: [0004](platform/0004-live-activity-payload-size-and-network.md) / **確認日**: 2026-08-29 / **対象**: iOS 26 / iPhoneOS26.5.sdk
+
+| 事実 | 確度 |
+| :---- | :---- |
+| **上限 4KB は静的（`ActivityAttributes`）と動的（`ContentState`）の合計に掛かる。** "can't exceed a **combined** size of 4 KB"。**プッシュ限定ではない** — "including data for **ActivityKit updates** and ActivityKit push notifications" と明記されている。測るのは **encoded**（シリアライズ後）の大きさ | 文書化 |
+| `request(...)` が超過すると `ActivityAuthorizationError.attributesTooLarge` を throw し、開始しない | 文書化 |
+| **`update` / `end` は `async` のみで `throws` を持たず、超過時の挙動はどの文書にも無い** | **不明** |
+| `update` / `end` のリファレンスは「`state` **単体**が 4KB」と書き、概説記事の「**合計** 4KB」と**食い違う。両方が現行。安全側は合計** | 文書化（矛盾あり） |
+| **Live Activity はネットワークにアクセスできない。** "Each Live Activity runs in its own **sandbox**, and — **unlike a widget** — it can't access the network or receive location updates" | 文書化 |
+| **ウィジェット拡張のネットワークは可能であり、Apple が専用記事で手順を書いている**（インライン / バックグラウンド `URLSession`）。ただし "a request may not have enough time to complete before the system halts the widget extension" — **不可能ではなく、当てにできない** | 文書化 |
+| `LiveActivityIntent.perform()` は**アプリ本体のプロセス**で走るため、この制約の対象外。**境界は表示面ではなくプロセスである** | 文書化 |
+| **`com.apple.security.network.client` は macOS 専用**（対応プラットフォームは macOS 10.7 のみ）。**iOS に相当する entitlement は無く、この制約は entitlement で開けられない** | 文書化 |
+
+**条文との食い違い**: REQ-UIX-025 は「**動的データ**が 4KB」と書くが、上限は静的との**合計**である。
+REQ-UIX-026 の「不可能」「サンドボックス上」は Apple の原文どおりで**正しいが、主語が誤っている** —
+**不可能なのは Live Activity であって、ウィジェット拡張ではない。**
+
+**4KB が 4096 バイトか 4000 バイトかは分からない。** Apple は "4 KB" と "4KB" を混用し、
+**バイト数を一度も示さない**（[0004](platform/0004-live-activity-payload-size-and-network.md)）。
+
+---
+
+## ローカルネットワークと、接続に要る設定
+
+**調査**: [0005](platform/0005-local-network-privacy-and-platform-settings.md) / **確認日**: 2026-08-29 / **対象**: macOS 26.5.1（25F80）/ iOS 26 / Xcode 26.6
+
+| 事実 | 確度 |
+| :---- | :---- |
+| **ATS は Network.framework に適用されない。** "ATS doesn't apply to calls your app makes to lower-level networking interfaces like the Network framework or CFNetwork"。**このアプリの通信経路に ATS は一度も掛からない**（REQ-PLT-002 が Network.framework を指定。`URLSession` の使用は0件）。**`NSAllowsLocalNetworking` は必須ではない** | 文書化 |
+| iOS 17 / macOS 14 以降、ATS が IP 直結を既定で拒否するのは**事実**。ただし対処は `NSExceptionDomains` への**個別 IP と CIDR レンジ**の列挙であると Apple が明記している。**「DHCP では回避できない」は誤り** | 文書化 |
+| **Bonjour の「登録」も許可を要する**（TN3179: Registering a service with Bonjour = **yes**）。一方「TCP を待ち受けて accept する」ことは許可を要しない（**no**）。**Mac が許可を要する理由は待ち受けではなく登録である** | 文書化 |
+| **`NSBonjourServices` は iOS 限定ではない。** macOS 11.0+ に存在し、TN3179 は**登録側・探索側の双方に**要求する。`NSNetServices.h` は "NSBonjourServices and NSLocalNetworkUsageDescription are **required** in Info.plist"（`NSNetServicesMissingRequiredConfigurationError`、`macos(11.0)`）と明記 | 文書化（+ SDK ヘッダ） |
+| ローカルネットワークプライバシーは **macOS 15 で導入**（iOS は 14）。macOS では `launchd` **デーモン**・root プロセス・Terminal / SSH 起動のコマンドラインツールが自動許可される。**GUI アプリと `launchd` エージェントは例外に入らない** | 文書化 |
+| **許可状態を問い合わせる公開 API は存在しない。** "There's **no general API** that returns whether the current process has local network access (FB8711182)"。検出は `NWBrowser` の `kDNSServiceErr_PolicyDenied`（**-65570**）と `NWConnection` の `currentPath?.unsatisfiedReason == .localNetworkDenied`。**Apple がそのコード例を載せている** | 文書化 |
+| `UnsatisfiedReason.localNetworkDenied` は macOS 11.0 / iOS 14.2 から。**iOS 26 / macOS 26 で新設も変更も非推奨も無い。** `-65570` に SDK ヘッダのコメントは無く、**意味づけの根拠は TN3179 のみ** | 文書化（SDK） |
+| **バックグラウンドでの拒否は記録されない**（iOS）。フォアグラウンドで再試行すれば初回として提示される。**取り逃しは恒久ではない。** macOS に同じ条項は無い | 文書化 |
+| **Bonjour（`mDNSResponder`）へのアクセスは `network.client` または `network.server` の どちらかで開く。** `network.client` を「Bonjour のため」とする理由は OS の判定と一致しない | **実測**（`/System/Library/Sandbox/Profiles/application.sb:759-762`） |
+| security-scoped bookmark に**追加の entitlement は要らない**。`files.user-selected.read-write` があれば `com.apple.scopedbookmarksagent.xpc` が開く | **実測**（`application.sb:295-300`） |
+| **シミュレータはローカルネットワークプライバシーを実装していない。実機でしか検証できない** | 文書化 |
+| macOS では許可を未決定へ戻せない（FB14944392）。許可の同一性には Apple 発行の署名が要る（REQ-PLT-009） | 文書化 |
+| `securityScopeAllowOnlyReadAccess` で読み取り専用のブックマークを作れる（REQ-PLT-003） | 文書化 |
+| `network.client` を外して macOS 版が動くか | **不明**（未実測） |
+| 設定漏れと許可拒否が同じエラーコードで返るか | **不明** |
+
+**条文との食い違い**: REQ-PLT-001 の「いずれか1つでも欠けると接続が成立しない」は**導けない**
+（8行中、接続の成立に効くのは**4行**）。**完全に正しいのは `NSLocalNetworkUsageDescription` の行だけである。**
+**REQ-PLT-008 は正しい**（精確を期すなら「**公開 API としては**存在しない」）。
+
+---
+
 ## 未検証（軸 K で確認する）
 
 **`CONTEXT.md` §3 から移した項目である。**
@@ -124,8 +176,6 @@ REQ-UIX-035 の「**色を使えないため**」は、上表と食い違う（[
 | 事実として書かれていたこと | 確度 |
 | :---- | :---- |
 | iPhone の通知を WebSocket に依存させない。絶対時刻のローカル通知として事前スケジュールする | 未検証 |
-| ATS は IP アドレス直接接続を既定で拒否する（iOS 17 / macOS 14 以降）。`NSAllowsLocalNetworking = YES` が必須 | 未検証 |
-| ローカルネットワーク許可の状態を問い合わせる API はない。`NWBrowser` の `-65570` と `NWConnection` の `.localNetworkDenied` で検出する。初回取得は必ずフォアグラウンドで | 未検証 |
 | サンドボックス下の原子的書き込みは同一ディレクトリ内で `FileManager.replaceItemAt` を使う | 未検証 |
 | ファイル監視は記述子ではなく親ディレクトリに張る。エディタは一時ファイル経由で保存する | 実測（Obsidian で確認。**日付と手順の記録なし**） |
 | Xcode 26.3 以降には MCP サーバーがある（`xcrun mcpbridge`） | 未検証 |

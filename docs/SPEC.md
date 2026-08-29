@@ -1,6 +1,6 @@
 # システム要件定義・仕様書：Mdoro（Mac–iPhone 連携の集中セッションタイマー）
 
-**バージョン:** 2.19
+**バージョン:** 2.20
 **最終更新:** 2026-08-29
 **ステータス:** 実装着手可
 
@@ -349,6 +349,29 @@ Live Activity の実装が2回書き直された後も、一度も突き合わ�
 「確認済み」という文字列だけが 8.3 → [0009](decisions/0009-live-activity-should-not-must.md) → [0030](decisions/0030-live-activity-is-display-only.md) → `CONTEXT.md` §3 と巡回していた。
 **§3 は [0038](decisions/0038-platform-facts-are-not-the-specs-job.md) で空になっている。**
 
+### 0.25 v2.19 からの変更点（v2.20）
+
+**軸 K の3〜5件目。3.5 の表がいちばん壊れていた。** 要件数は変わらない（**243要件**）。
+
+**疑っていた条文が正しく、疑っていなかった表が誤っていた。**
+
+| 分類 | 内容 |
+| :---- | :---- |
+| **訂正** | 3.5 冒頭の「**いずれか1つでも欠けると接続が成立しない**」は誤り。**8行中、接続の成立に効くのは4行**（[platform/0005](platform/0005-local-network-privacy-and-platform-settings.md)）。表に**「必要性」欄**を足し、接続に効くもの・別の機能のためのもの・不要なものを分けた |
+| **訂正** | `NSAllowsLocalNetworking` は**不要**。**ATS は Network.framework に適用されない**（REQ-PLT-002 が Network.framework を MUST で指定している以上、**このアプリの通信経路に ATS は一度も掛からない**）。**掛からない仕組みへの対処が、MUST の表に載っていた** |
+| **訂正** | 「DHCP 環境では `NSExceptionDomains` に IP を列挙する回避策は使えない」も誤り。**Apple は個別 IP と CIDR レンジの列挙を明示している。** この記述は削除した（そもそもこのアプリに ATS は無関係のため） |
+| **訂正** | `NSBonjourServices` の「対象: iOS」は誤り。**macOS 11.0 以降にも存在し、登録側にも要る。** `NSNetServices.h` は "NSBonjourServices and NSLocalNetworkUsageDescription are **required** in Info.plist" と明記している |
+| **訂正** | `com.apple.security.network.client` の理由「Bonjour の登録・探索」は誤り。**`mDNSResponder` への門は `network.client` または `network.server` のどちらかで開く**（macOS 26.5.1 の `application.sb` を実測）。**Mac は `server` を持つ。** ただし**外して動くかは実測していない**ため、要否は「未確認」とした |
+| **訂正** | REQ-UIX-025 の「**動的データ**は 4KB 以内」は限定が誤り（緩すぎる方向に）。**上限は静的（`ActivityAttributes`）と動的（`ContentState`）の合計に掛かる**（[platform/0004](platform/0004-live-activity-payload-size-and-network.md)）。**数値 4KB 自体は正しい** |
+| **訂正** | REQ-UIX-026 の「不可能」「サンドボックス上」は **Apple の原文どおりで正しい。誤っていたのは主語である** — 不可能なのは **Live Activity** であって、**ウィジェット拡張ではない**（Apple は "unlike a widget" と対比し、ウィジェットのネットワークアクセスは専用記事で手順を書いている）。**将来ウィジェットを足したとき、旧文は文書化された正規の手段を誤って禁じていた** |
+| **補足** | REQ-PLT-007 に「**この拒否は記録されない**」を追記。フォアグラウンドで再試行すればダイアログは出る。旧文は**取り返しがつかないように読めた**。あわせて**これが iOS の条項である**ことを明記 |
+| **確認** | **REQ-PLT-008 は正しかった。** Apple は "There's **no general API** that returns whether the current process has local network access (FB8711182)" と明文で述べ、**`-65570` と `.localNetworkDenied` のコード例まで載せている。** 精確を期して「**公開**  API」と書き換えた（非公開シンボルは SDK に存在する）。**否定的事実だから怪しい、は今回は外れだった** |
+| **確認** | **REQ-PLT-003**（`securityScopeAllowOnlyReadAccess`）、**REQ-PLT-009**（Apple 発行の署名 / macOS では未決定へ戻せない）、**REQ-UIX-028**（8時間 / 計12時間）、**REQ-UIX-024**（`perform()` はアプリ本体のプロセス）は、いずれも**一次情報で正しいと確認できた** |
+| **影響** | **実装は変わらない。** ただし **`ActivityAttributes` と `ContentState` の合計が 4KB に収まっているかは未確認**（POL-064）。`network.client` を外すかどうかも**実測が要る**ため触っていない |
+
+**軸 K で確認した5件のうち、条文が完全に正しかったのは REQ-PLT-008 の1件だけである。**
+残りはすべて「**制約そのものは本物だが、付いていた限定が誤り**」という同じ壊れ方だった。
+
 ---
 
 ## 1. 概要
@@ -500,35 +523,37 @@ Live Activity の実装が2回書き直された後も、一度も突き合わ�
 
 ### 3.5 プラットフォーム構成要件
 
-以下はいずれか1つでも欠けると接続が成立しない。実装着手時に最初に設定すること。
+**実装着手時に最初に設定すること。ただし、すべてが接続の成立に効くわけではない。**
+下表の「必要性」欄が何のために要る設定かを示す。**事実の出典は `docs/PLATFORM.md`
+「ローカルネットワークと、接続に要る設定」**（調査: [`docs/platform/0005`](platform/0005-local-network-privacy-and-platform-settings.md)）。
 
 **Info.plist**
 
-| 対象 | キー | 値・内容 | 理由 |
-| :---- | :---- | :---- | :---- |
-| iOS / macOS | `NSAppTransportSecurity` → `NSAllowsLocalNetworking` | `YES` | **iOS 17 / macOS 14 以降、ATS は IP アドレスへの接続を既定で拒否する。** Bonjour で解決したアドレスへ接続するため必須。DHCP 環境では `NSExceptionDomains` に IP を列挙する回避策は使えない |
-| iOS | `NSBonjourServices` | `_mdoro._tcp` | 未列挙だとサービスの探索が失敗する |
-| iOS / macOS | `NSLocalNetworkUsageDescription` | 用途の説明文 | ローカルネットワークプライバシー。**macOS も 15 以降は必要**（Bonjour の登録側にも許可が要る） |
-| iOS | `NSSupportsLiveActivities` | `YES` | Live Activity（8.3） |
+| 対象 | キー | 値・内容 | 必要性 | 理由 |
+| :---- | :---- | :---- | :---- | :---- |
+| **iOS / macOS** | `NSBonjourServices` | `_mdoro._tcp` | **接続に必須** | 登録側・探索側の**双方**に要る。**macOS も対象**（`NSBonjourServices` は macOS 11.0 以降にも存在する） |
+| iOS / macOS | `NSLocalNetworkUsageDescription` | 用途の説明文 | **接続に必須** | ローカルネットワークプライバシー。**macOS も 15 以降は必要。** Mac 側に許可が要るのは待ち受けるからではなく、**Bonjour に登録するから**である |
+| iOS | `NSSupportsLiveActivities` | `YES` | **接続とは無関係** | Live Activity（8.3）のために必須。**アプリ本体のターゲットに置く**（拡張側ではない） |
+| — | `NSAppTransportSecurity` → `NSAllowsLocalNetworking` | — | **不要** | **ATS は Network.framework に適用されない**（REQ-PLT-002 が指定している）。**このアプリの通信経路に ATS は掛からない。** 設定しても害はないが、無くても接続は成立する（v2.20 で「必須」を撤回） |
 
 **App Sandbox entitlements（macOS）**
 
-| entitlement | 理由 |
-| :---- | :---- |
-| `com.apple.security.network.server` | WebSocket サーバーとして待ち受ける |
-| `com.apple.security.network.client` | Bonjour の登録・探索 |
-| `com.apple.security.files.user-selected.read-write` | ログファイルへの追記 |
+| entitlement | 必要性 | 理由 |
+| :---- | :---- | :---- |
+| `com.apple.security.network.server` | **接続に必須** | WebSocket サーバーとして待ち受ける。**Bonjour（`mDNSResponder`）への門も、これで開く** |
+| `com.apple.security.network.client` | **要否は未確認** | 「Bonjour の登録・探索のため」という理由は**誤り**（門は client **または** server で、Mac は server を持つ）。**外して動くかは実測していない**（v2.20 で理由を撤回） |
+| `com.apple.security.files.user-selected.read-write` | **接続とは無関係** | ログファイルへの追記。**security-scoped bookmark に追加の entitlement は要らない**（REQ-PLT-003） |
 
 | 要件ID | レベル | 仕様内容 |
 | :---- | :---- | :---- |
-| **REQ-PLT-001** | **MUST** | 上表の Info.plist キーと entitlements をすべて設定すること。 |
+| **REQ-PLT-001** | **MUST** | 上表のうち**必要性が「不要」でないものをすべて設定すること。** 接続の成立に効くのは `NSBonjourServices`・`NSLocalNetworkUsageDescription`・`com.apple.security.network.server` である。**「いずれか1つでも欠けると接続が成立しない」という旧文は誤りだった**（v2.20。[`docs/platform/0005`](platform/0005-local-network-privacy-and-platform-settings.md)）。 |
 | **REQ-PLT-002** | **MUST** | WebSocket の実装には **Network.framework**（`NWListener` / `NWConnection`、または Swift の `NetworkListener` / `NetworkConnection`）を用いること。Bonjour の登録・探索・接続の3操作すべてを同一フレームワークで扱えるため。 |
 | **REQ-PLT-003** | **MUST** | `Task.md` 用のブックマークは `securityScopeAllowOnlyReadAccess` を付けて**読み取り専用**として生成すること。REQ-TSK-001 の「書き込みを行わない」を OS レベルで担保する。 |
 | **REQ-PLT-004** | **MUST** | ログの原子的書き込み（REQ-LOG-004）は、**ログファイルと同一ディレクトリ内**の一時ファイルを経由し、`FileManager.replaceItemAt(_:withItemAt:)` を用いること。サンドボックス外（`/tmp` 等）を跨ぐ `rename` は失敗する。 |
 | **REQ-PLT-005** | **MUST** | セキュリティスコープ付きリソースへのアクセスは `startAccessingSecurityScopedResource()` / `stopAccessingSecurityScopedResource()` を必ず対で呼ぶこと。 |
 | **REQ-PLT-006** | **MUST** | ファイル監視（REQ-TSK-002）は、対象ファイルの記述子ではなく**親ディレクトリ**を監視するか、`.delete` / `.rename` イベントで監視対象を張り直すこと。**エディタは保存時に一時ファイル経由の置き換えを行うことがあり**（Obsidian で実際に確認）、記述子に張った監視は inode 差し替え後に無効化される。 |
-| **REQ-PLT-007** | **MUST** | ローカルネットワーク許可の初回取得は、必ずアプリが**フォアグラウンドにある状態**で行うこと。バックグラウンドで未決定のままローカルネットワーク操作を行うと、許可ダイアログが表示されないまま黙って拒否される。 |
-| **REQ-PLT-008** | **MUST** | ローカルネットワーク許可の状態を直接問い合わせる API は存在しない。`NWBrowser` の `kDNSServiceErr_PolicyDenied`（-65570）および `NWConnection` の `currentPath?.unsatisfiedReason == .localNetworkDenied` によって拒否を検出すること（REQ-ERR-008 / REQ-ERR-014）。 |
+| **REQ-PLT-007** | **MUST** | ローカルネットワーク許可の初回取得は、必ずアプリが**フォアグラウンドにある状態**で行うこと。バックグラウンドで未決定のままローカルネットワーク操作を行うと、許可ダイアログが表示されないまま黙って拒否される。**ただしこの拒否は記録されない** — 後でフォアグラウンドで操作すれば、初回であるかのようにダイアログが出る。**取り返しがつかないわけではない。** なお**これは iOS の条項であり、macOS には対応する記述が無い**（`docs/PLATFORM.md`）。 |
+| **REQ-PLT-008** | **MUST** | ローカルネットワーク許可の状態を直接問い合わせる**公開 API は存在しない**（Apple が明文で述べている。`docs/PLATFORM.md`）。`NWBrowser` の `kDNSServiceErr_PolicyDenied`（-65570）および `NWConnection` の `currentPath?.unsatisfiedReason == .localNetworkDenied` によって拒否を検出すること（REQ-ERR-008 / REQ-ERR-014）。 |
 | **REQ-PLT-009** | **SHOULD** | macOS 版は Apple 発行の署名 ID で署名すること。ad-hoc 署名ではローカルネットワーク許可の同一性が保たれず、挙動が不安定になる。なお macOS では許可状態を未決定へ戻す手段がない。検証の手順は `DEVELOPMENT.md` に置く。 |
 
 
@@ -853,8 +878,8 @@ v1.0 の「StandBy モード」を実現可能な形式に再定義する。
 | **REQ-UIX-022** | **SHOULD** | アプリが running である間に状態が変化した場合（開始・一時停止・再開・延長・セッション種別変更）、Live Activity を更新すること。セッション終了・中断時は終了させること。 |
 | **REQ-UIX-023** | **MUST** | Live Activity の `ActivityContent.staleDate` を、**次にアプリが状態を確認できる保証がない時刻**（既定では更新時刻＋90秒）に設定すること。`context.isStale` が真のとき、Live Activity 上に情報が古い可能性があることを明示すること。**ダイナミックアイランドのコンパクト表示・ミニマル表示では、文言を置く余地がないため注意記号で示してよい。** また、`isStale` の切り替わりは OS が決めるため期限どおりとは限らない（実測で4分遅れ）。**接続が切れたことはクライアントが知っているので、`isStale` とは別に自分で示すこと。****アプリが running かつ接続が生きている間は、状態が変化していなくても `staleDate` を押し出し続けること**（既定 60 秒間隔）。状態同期は変化時のみ行われる（REQ-COM-006）ため、押し出さなければ正常動作中でも 90 秒で陳腐化表示になる。 |
 | **REQ-UIX-024** | **SHOULD** | Live Activity 上に「一時停止 / 再開」ボタンを `LiveActivityIntent` として配置してよい。`perform()` は**アプリ本体のプロセス**で実行されるため、その中で Mac への再接続とコマンド送信を試みること。接続に失敗した場合は Live Activity を `isStale` 表示へ切り替え、状態を変更したかのように見せてはならない。**この再接続と失敗の提示を実装しない限り、ボタンを置いてはならない**（`decisions/0030-live-activity-is-display-only.md`）。iPhone が suspend されると WebSocket は切れるため、実装がなければボタンは常に無反応になる。 |
-| **REQ-UIX-025** | **MUST** | Live Activity へ渡す動的データは **4KB 以内**に収めること。タスク名は表示可能長で切り詰めること。 |
-| **REQ-UIX-026** | **MUST** | Live Activity 拡張からネットワークにアクセスしないこと（サンドボックス上不可能）。表示に必要な情報はすべて `ActivityAttributes` / `ContentState` として渡すこと。 |
+| **REQ-UIX-025** | **MUST** | Live Activity へ渡すデータは **4KB 以内**に収めること。**上限は `ActivityAttributes`（静的）と `ContentState`（動的）の合計に掛かる。動的データだけを 4KB に収めても、この要件を満たしたことにならない**（v2.20 で訂正。`docs/PLATFORM.md`）。測るのは**シリアライズ後**の大きさである。タスク名は表示可能長で切り詰めること。 |
+| **REQ-UIX-026** | **MUST** | **Live Activity からネットワークにアクセスしないこと**（サンドボックス上不可能。Apple が明記している）。表示に必要な情報はすべて `ActivityAttributes` / `ContentState` として渡すこと。**この禁止は Live Activity に掛かるのであって、ウィジェット拡張という入れ物に掛かるのではない**（v2.20 で訂正。ウィジェットのネットワークアクセスは Apple が手順を文書化している。`docs/PLATFORM.md`）。**境界は表示面ではなくプロセスである** — `LiveActivityIntent.perform()` はアプリ本体のプロセスで走るため、この禁止の対象外（REQ-UIX-024）。 |
 | **REQ-UIX-027** | **MUST** | Live Activity の配色は 8.5 のトークンをそのまま適用しないこと。8.5.3 の保証は `--bg` を地とした場合のものであり、ロック画面の器はそれとは別の背景を持つ（`PLATFORM.md`「Live Activity」）。<br>・**ロック画面**: 器の既定背景を用いる場合は、前景をシステムに委ねてよい。**カスタム背景色を敷く場合は、ライト・ダークの両モードで通用する組み合わせを自分で保証すること** — システムは背景色から前景色を導出しない。<br>・**Always-On の輝度低下時はダークモードとして描かれる。** `isLuminanceReduced` で検出できる。<br>・**ダイナミックアイランド**: 背景は不透明な黒で固定であり、変更できない。**ここは固定値でコントラストを組める。** |
 | **REQ-UIX-028** | **MUST** | Live Activity の継続時間上限（アクティブ8時間、ロック画面残留を含め最大12時間）を超えた場合、アプリ復帰時に新しい Live Activity を開始すること。この上限は無制限モード（REQ-TIM-045）を実装する場合にのみ実務上の問題となる。 |
 
