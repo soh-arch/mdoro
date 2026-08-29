@@ -106,13 +106,20 @@ public struct ProtocolErrorPayload: Equatable, Sendable, Codable {
     }
 }
 
+// 10.2 / Decision 0034 / 0035: `message` is diagnostic. The receiver's wording comes from
+// `code`, so the sender does not choose it.
+//
+// The code settles the message, so there is no second argument — the same reason
+// `AppModel.reject` takes the failure itself rather than a code and a sentence. Three call
+// sites wrote prose into `error.message` while there was a parameter for it; the two here
+// did the same, into a field no screen ever read. Decoding still takes what arrived.
 public struct AuthFailedPayload: Equatable, Sendable, Codable {
     public var code: AuthFailureCode
     public var message: String
 
-    public init(code: AuthFailureCode, message: String) {
+    public init(code: AuthFailureCode) {
         self.code = code
-        self.message = message
+        self.message = code.diagnosticSummary
     }
 }
 

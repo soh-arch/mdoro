@@ -261,6 +261,7 @@ struct ErrorReportingTests {
             .bookmarkCreationFailed, .bookmarkResolutionFailed, .accessDenied,
         ] + TimerError.allCases.map(\.errorCode)
             + CommandTranslation.Parameter.allCases.map(\.errorCode)
+            + AuthFailureCode.allCases.map(\.errorCode)
         let allOurs = table.allSatisfy { $0.domain == ErrorCode.ownDomain }
         #expect(allOurs)
         #expect(Set(table.map(\.code)).count == table.count, "Decision 0034: a code means one thing")
@@ -296,6 +297,34 @@ struct ErrorReportingTests {
                 )
             }
         }
+    }
+
+    // A refused connection goes out over the wire too, and 10.2 keeps `authFailed.message`
+    // diagnostic just as it keeps `error.message` diagnostic — so it is held to the same
+    // shape. Six hand-written sentences used to sit in that field instead (POL-050).
+    @Test func aRefusedConnectionCarriesADomainAndACodeToo() {
+        let fromTheOS = LogWriteError.writeFailed(ErrorCode(domain: NSCocoaErrorDomain, code: 513))
+        var seen = Set<String>()
+        for code in AuthFailureCode.allCases {
+            #expect(code.errorCode.domain == ErrorCode.ownDomain, "\(code) has no domain")
+            #expect(
+                hasDiagnosticShape(code.diagnosticSummary),
+                "not `case(domain:code)`: \(code.diagnosticSummary)"
+            )
+            #expect(code.diagnosticSummary == "\(code.rawValue)(\(code.errorCode))")
+            #expect(
+                shape(of: code.diagnosticSummary) == shape(of: fromTheOS.diagnosticSummary),
+                "\(code.diagnosticSummary) is shaped differently from \(fromTheOS.diagnosticSummary)"
+            )
+            // Decision 0018 rewrites whitespace in a field; there must be none to rewrite.
+            #expect(
+                DiagnosticField("why", code.diagnosticSummary).value == code.diagnosticSummary,
+                "the log format must not have to rewrite \(code.diagnosticSummary)"
+            )
+            #expect(seen.insert(code.diagnosticSummary).inserted, "\(code) reads as another refusal")
+        }
+        let codes = AuthFailureCode.allCases.map(\.errorCode.code)
+        #expect(Set(codes).count == codes.count, "Decision 0034: a code means one thing")
     }
 
     // Decision 0034: a reader must not be able to tell where a failure came from by its shape.

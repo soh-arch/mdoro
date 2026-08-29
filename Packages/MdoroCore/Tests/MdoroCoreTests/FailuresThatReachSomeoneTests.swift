@@ -523,6 +523,46 @@ struct FailuresThatReachSomeoneTests {
         )
     }
 
+    // POL-050: the refusals in `MdoroServer` were the last ones sent as prose. Six sentences
+    // went into `authFailed.message`, which no screen reads — the iPhone takes `code` and
+    // keeps its own wording, exactly as it does for `error` (10.2 / Decision 0035). So they
+    // reached nobody, in a shape nothing else in the app uses.
+    //
+    // The payload has no parameter for a sentence any more, so the compiler holds this for
+    // anyone who builds. That is not everyone: `swift test` cannot compile the Mac target,
+    // and the parameter could come back. **宣言ではなく形を見る** — every payload the file
+    // builds is read, not just the six sentences that were there.
+    @Test func theRefusalsTheServerSendsCarryACodeAndNoSentence() throws {
+        let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
+        for prose in [
+            "Wrong pairing code", "Start pairing on the Mac", "Pairing ended after five wrong codes",
+            "This device is not registered", "Another device is connected",
+            "The connection was not approved",
+        ] {
+            #expect(!server.contains(prose), "10.2: `\(prose)` still goes out as `authFailed.message`")
+        }
+        let payloads = server.components(separatedBy: "AuthFailedPayload(").dropFirst()
+        #expect(!payloads.isEmpty, "nothing here refuses a connection any more")
+        for payload in payloads {
+            #expect(
+                !payload.prefix(200).contains("message:"),
+                "Decision 0034: an `authFailed.message` written in a shape of its own"
+            )
+        }
+
+        // 10.2 / Decision 0035: the sentence the iPhone shows comes from the code, so none of
+        // this moved what a reader sees. `ConnectionViews` still owns those six.
+        #expect(AuthFailedPayload(code: .invalidPairingCode).code == .invalidPairingCode)
+        #expect(
+            AuthFailedPayload(code: .invalidPairingCode).message
+                == AuthFailureCode.invalidPairingCode.diagnosticSummary
+        )
+        let views = try source("PomodoroMac/PomodoroiOS/Views/ConnectionViews.swift")
+        for code in AuthFailureCode.allCases {
+            #expect(views.contains("case .\(code.rawValue):"), "the iPhone has nothing to say for \(code)")
+        }
+    }
+
     // MARK: - REQ-ERR-010: the diagnostic log's own write
 
     // The one code that goes on a screen. It cannot go to the log — the log is what failed —
