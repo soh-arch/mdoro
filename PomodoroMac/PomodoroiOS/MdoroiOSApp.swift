@@ -17,12 +17,13 @@ struct MdoroiOSApp: App {
                     // Bonjour services, schedule notifications and open a Live Activity on
                     // the reader's own phone. See `TestHost`.
                     guard !TestHost.isRunning else { return }
-                    // REQ-NTF-011: 通知から起動したときは、同期が取れるまで断定的に表示しない。
+                    // REQ-NTF-011: when launched from a notification, do not show anything as settled
+                    // until a sync has happened.
                     delegate.onNotificationOpened = { model.markAwaitingSync() }
                     UNUserNotificationCenter.current().delegate = delegate
                     model.start()
                 }
-                // REQ-UIX-020: フォアグラウンドかどうかで Live Activity の開始可否が変わる。
+                // REQ-UIX-020: whether a Live Activity can be started turns on whether the app is in the foreground.
                 .onChange(of: scenePhase) { _, phase in
                     model.setForeground(phase == .active)
                 }
@@ -30,7 +31,7 @@ struct MdoroiOSApp: App {
     }
 }
 
-// 通知タップの受け口。
+// Where a notification tap lands.
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     var onNotificationOpened: (() -> Void)?
 
@@ -41,7 +42,7 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
         await MainActor.run { onNotificationOpened?() }
     }
 
-    // 前面にいるあいだも区切りは知らせる。
+    // Even while the app is in front, the end of a session is announced.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification

@@ -1,7 +1,7 @@
 import SwiftUI
 import MdoroCore
 
-// REQ-COL-001 / 002: 色リテラルを書かず、役割名で引く。Mac 側と同じ出典（8.5.3）を使う。
+// REQ-COL-001 / 002: no colour literals; looked up by role name. The same source as the Mac side (8.5.3).
 struct Theme {
     let palette: ColorPalette
 
@@ -15,7 +15,7 @@ struct Theme {
         self.palette = .palette(for: mode)
     }
 
-    // REQ-UIX-014 / 8.5.6: 集中表示ビューは低輝度の暗色基調に固定する。
+    // REQ-UIX-014 / 8.5.6: the focus view is fixed to a low-luminance dark palette.
     init(focusView: Bool) {
         self.palette = .dark
     }
@@ -46,7 +46,7 @@ enum Format {
         String(format: "%02d:%02d", seconds / 60, seconds % 60)
     }
 
-    // REQ-UIX-006: VoiceOver では「残り12分30秒」のように読み上げる。
+    // REQ-UIX-006: VoiceOver reads the remaining time out as "12 minutes 30 seconds left" and the like.
     static func spokenRemaining(_ seconds: Int) -> LocalizedStringKey {
         seconds >= 60
             ? "\(seconds / 60) minutes \(seconds % 60) seconds left"

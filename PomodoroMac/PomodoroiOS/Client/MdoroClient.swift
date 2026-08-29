@@ -2,8 +2,8 @@ import Foundation
 import Network
 import MdoroCore
 
-// REQ-COM-001: iPhone は子（クライアント）。
-// **セッションの完了を確定しない**（REQ-COM-012）。受け取った状態をそのまま上へ渡すだけ。
+// REQ-COM-001: the iPhone is the child (the client).
+// **It does not settle a session as complete** (REQ-COM-012). It only passes the state it receives straight up.
 @MainActor
 final class MdoroClient {
 
@@ -42,7 +42,7 @@ final class MdoroClient {
 
     private let deviceName = "iPhone"
 
-    // MARK: - 接続
+    // MARK: - Connection
 
     func connect(to server: DiscoveredServer, pairingCode: String? = nil, callbacks: Callbacks) {
         self.callbacks = callbacks
@@ -65,7 +65,7 @@ final class MdoroClient {
               case let .service(name, type, domain, interface) = target.endpoint else { return }
         status = (status == .connected) ? .reconnecting : .connecting
 
-        // Bonjour が示すホストへ、TXT で得たポートで繋ぐ。
+        // Connect to the host Bonjour points at, on the port taken from the TXT record.
         _ = (name, type, domain, interface)
         let host = NWEndpoint.hostPort(
             host: NWEndpoint.Host("\(name).local"),
@@ -92,7 +92,7 @@ final class MdoroClient {
         receive(on: connection)
     }
 
-    // REQ-COM-004: 指数バックオフで再接続する（初回1秒、上限30秒）。
+    // REQ-COM-004: reconnect with exponential backoff (one second the first time, thirty seconds at most).
     private func scheduleReconnect() {
         guard !isStopping else { return }
         keepaliveTask?.cancel(); keepaliveTask = nil
@@ -110,7 +110,7 @@ final class MdoroClient {
 
     private func sendHello() {
         let token = target.map { TokenKeychain.load(serverName: $0.name) } ?? nil
-        // トークンもコードも無いなら入力を促す。
+        // With neither a token nor a code, ask for one to be entered.
         if token == nil, pairingCode == nil {
             status = .needsPairing
             return
@@ -118,7 +118,7 @@ final class MdoroClient {
         send(.hello(HelloPayload(deviceToken: token, pairingCode: pairingCode, deviceName: deviceName)))
     }
 
-    // MARK: - 受信
+    // MARK: - Receiving
 
     private func receive(on connection: NWConnection) {
         connection.receiveMessage { [weak self] data, context, _, error in
@@ -137,7 +137,7 @@ final class MdoroClient {
     }
 
     private func handle(_ data: Data) {
-        // REQ-ERR-009: 壊れたメッセージは捨て、接続は維持する。
+        // REQ-ERR-009: a broken message is thrown away and the connection is kept.
         guard let envelope = try? MessageCoder.decodeServer(data) else { return }
 
         switch envelope.body {
@@ -151,13 +151,13 @@ final class MdoroClient {
 
         case let .authFailed(payload):
             status = .failed(payload.code)
-            // 使えないトークンは捨てる。
+            // A token that cannot be used is thrown away.
             if payload.code == .unknownDeviceToken, let target {
                 TokenKeychain.delete(serverName: target.name)
             }
 
         case let .timeSyncPong(payload):
-            // REQ-COM-007 / 008: t4 は応答の受信時刻。
+            // REQ-COM-007 / 008: t4 is when the reply was received.
             guard let t2 = payload.t2, let t3 = payload.t3 else { return }
             timeSync.add(TimeSyncSample(t1: payload.t1, t2: t2, t3: t3, t4: Date()))
 
@@ -175,7 +175,7 @@ final class MdoroClient {
         }
     }
 
-    // MARK: - 送信
+    // MARK: - Sending
 
     func send(_ message: ClientMessage) {
         guard let connection, let data = try? MessageCoder.encode(Envelope(body: message)) else { return }
@@ -184,12 +184,12 @@ final class MdoroClient {
         connection.send(content: data, contentContext: context, completion: .contentProcessed { _ in })
     }
 
-    // REQ-PRT-003: コマンドには clientRequestId を付ける。再送しても二重に効かない。
+    // REQ-PRT-003: a command carries a clientRequestId. Resending does not take effect twice.
     func send(command action: CommandAction, params: CommandParams? = nil) {
         send(.command(CommandPayload(action: action, params: params)))
     }
 
-    // REQ-COM-005 / 007: 5秒ごとにハートビートと時刻同期を送る。
+    // REQ-COM-005 / 007: a heartbeat and a time sync go out every five seconds.
     private func startKeepalive() {
         keepaliveTask?.cancel()
         keepaliveTask = Task { [weak self] in

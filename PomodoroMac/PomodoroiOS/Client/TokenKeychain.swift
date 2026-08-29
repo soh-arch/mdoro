@@ -1,8 +1,8 @@
 import Foundation
 import Security
 
-// REQ-SEC-001: デバイストークンは Keychain に保存する。
-// UserDefaults に置くと、バックアップや設定の書き出しで持ち出せてしまう。
+// REQ-SEC-001: the device token is kept in the Keychain.
+// Put in UserDefaults, it could be carried off in a backup or a settings export.
 enum TokenKeychain {
     private static let service = "com.sohta.Mdoro.deviceToken"
 

@@ -1,13 +1,14 @@
 import SwiftUI
 import MdoroCore
 
-// REQ-UIX-004 / REQ-COM-013: 接続状態を常時視認できること。
+// REQ-UIX-004 / REQ-COM-013: the connection state must be visible at all times.
 struct ConnectionBanner: View {
     @Environment(\.theme) private var theme
     @Environment(ClientModel.self) private var model
     @State private var pairingCode = ""
 
-    // REQ-UIX-046: 帯は**注意を要する状態にだけ**使う。正常時は点と短いラベルで足りる。
+    // REQ-UIX-046: a banner is used **only for a state that needs attention**. When all is well, a dot
+    // and a short label are enough.
     private var needsAttention: Bool {
         !model.isConnected || model.isAwaitingFirstSync || model.liveActivityProblem != nil
     }
@@ -35,7 +36,7 @@ struct ConnectionBanner: View {
                 Image(systemName: model.connectionStatus.peerSymbolName)
                 Text(Format.connectionLabel(model.connectionStatus))
                 Spacer()
-                // REQ-PER-011: 永続化された状態を出しているあいだは取得時刻を併記する。
+                // REQ-PER-011: while a persisted state is on show, the time it was received is shown alongside it.
                 if !model.isConnected, let at = model.snapshotReceivedAt {
                     Text("Last received \(at.formatted(date: .omitted, time: .shortened))")
                         .font(.caption)
@@ -45,14 +46,15 @@ struct ConnectionBanner: View {
             .font(.footnote)
             .foregroundStyle(theme.color(model.connectionStatus.colorRole, .text))
 
-            // REQ-NTF-011: 同期が取れるまで「同期中」と示し、確定していない情報を断定的に見せない。
+            // REQ-NTF-011: until a sync has happened it says "syncing", and information that is not
+            // settled is not shown as if it were.
             if model.isAwaitingFirstSync {
                 Text("Syncing…")
                     .font(.footnote)
                     .foregroundStyle(theme.color(.warning, .text))
             }
 
-            // Live Activity が出せない理由は隠さない。
+            // Do not hide the reason a Live Activity cannot be shown.
             if let problem = model.liveActivityProblem {
                 Text("Live Activity: \(problem)")
                     .font(.caption)
@@ -73,7 +75,7 @@ struct ConnectionBanner: View {
 
     @ViewBuilder
     private var notice: some View {
-        // REQ-ERR-014: ローカルネットワーク許可の拒否は、Wi-Fi 未接続とは別の文言にする。
+        // REQ-ERR-014: local network permission being denied gets different wording from not being on Wi-Fi.
         if model.localNetworkDenied {
             Text("Local network access is not allowed")
                 .font(.callout.weight(.medium))
@@ -94,14 +96,14 @@ struct ConnectionBanner: View {
                 .foregroundStyle(theme.textSecondary)
             pairingField
         } else if model.servers.count > 1 {
-            // REQ-ERR-005: 複数見つかったら一覧から選ばせる。
+            // REQ-ERR-005: when more than one is found, let the user choose from a list.
             Text("Choose a Mac").font(.footnote).foregroundStyle(theme.textSecondary)
             ForEach(model.servers) { server in
                 Button(server.name) { model.connect(to: server) }
                     .font(.footnote)
             }
         } else if model.servers.isEmpty {
-            // REQ-ERR-008: 汎用的な接続エラーにしない。
+            // REQ-ERR-008: do not fall back on a generic connection error.
             Text("Not connected to your Mac")
                 .font(.callout.weight(.medium))
             Text("Join the same Wi-Fi network as your Mac.")
@@ -110,7 +112,7 @@ struct ConnectionBanner: View {
         }
     }
 
-    // REQ-SEC-001: 6桁のペアリングコードを入力させる。
+    // REQ-SEC-001: the six-digit pairing code is entered here.
     private var pairingField: some View {
         HStack {
             TextField("Six-digit code", text: $pairingCode)
@@ -142,7 +144,8 @@ struct ConnectionBanner: View {
     }
 }
 
-// REQ-UIX-036 / REQ-PER-005: 復帰時の確認。切断中は Mac 側で確認が必要である旨を出す。
+// REQ-UIX-036 / REQ-PER-005: the confirmation on return. While disconnected, it says the confirmation
+// has to happen on the Mac.
 struct PendingDecisionCard: View {
     @Environment(\.theme) private var theme
     @Environment(ClientModel.self) private var model
@@ -172,7 +175,7 @@ struct PendingDecisionCard: View {
                 }
                 .buttonStyle(.bordered)
             } else {
-                // REQ-PER-005: 切断中は iPhone から応答できない。
+                // REQ-PER-005: while disconnected, the iPhone cannot answer.
                 Text("Your Mac needs a decision")
                     .font(.footnote)
                     .foregroundStyle(theme.textSecondary)
@@ -195,7 +198,7 @@ struct PendingDecisionCard: View {
     }
 }
 
-// REQ-TSK-004: タスク一覧を iPhone からも閲覧・選択できること。
+// REQ-TSK-004: the task list must be viewable and selectable from the iPhone as well.
 struct TaskListSectionView: View {
     @Environment(\.theme) private var theme
     @Environment(ClientModel.self) private var model
@@ -232,9 +235,10 @@ struct TaskListSectionView: View {
                         model.send(.selectTask, params: CommandParams(stableId: item.stableId))
                     } label: {
                         HStack(spacing: 8) {
-                            // REQ-TSK-014: 子タスクは字下げして並べる。
+                            // REQ-TSK-014: child tasks are laid out indented.
                             if item.depth > 0 { Spacer().frame(width: CGFloat(item.depth) * 16) }
-                            // REQ-COL-010: 形で区別したうえで色も足す。意味を持つ図形なので `-graphic`。
+                            // REQ-COL-010: told apart by shape first, with colour added on top. It is
+                            // a shape that carries meaning, so `-graphic`.
                             let isSelected = model.snapshot?.task.selectedTaskId == item.stableId
                             Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
                                 .foregroundStyle(isSelected
