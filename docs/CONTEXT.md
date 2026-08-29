@@ -2,7 +2,7 @@
 
 このファイルは**今の状態だけ**を書く。経緯は書かない。経緯が必要なら `docs/decisions/` を参照する。
 
-- 要件の正本: `SPEC.md`（v2.19、243要件）
+- 要件の正本: `SPEC.md`（v2.20、243要件）
 - 運用の正本: `CLAUDE.md`
 - 判断と意図の正本: `docs/decisions/`
 - ビルド手順・環境: `docs/DEVELOPMENT.md`
@@ -307,10 +307,10 @@ Git に入っていないため、失われると復元できない。
 
 | 正本 | 状態 |
 | :---- | :---- |
-| `SPEC.md` | **v2.19 / 243要件** |
+| `SPEC.md` | **v2.20 / 243要件** |
 | `decisions/` | **0001〜0038** |
 | `platform/` | **0001**（ロック画面の背景）/ **0002**（開始と更新の門）/ **0003**（メニューバーの地と色）/ **0004**（データ上限とネットワーク）/ **0005**（ローカルネットワークと接続に要る設定） |
-| `PUNCHLIST.md` | **done 54 / review 3 / open 18 / deferred 1 / rejected 1 / 不要 1** |
+| `PUNCHLIST.md` | **done 57 / open 18 / deferred 1 / rejected 1 / 不要 1** |
 | テスト | `swift test` **275件 / 49スイート**。Mac 側 5件、iOS 側 3件（**`xcodebuild test` が要る。CI は `swift test` のみ**） |
 
 **役は5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / **platform-researcher**。
@@ -336,7 +336,7 @@ POL-057 で直した結果）。**根拠なし 46件。** 一覧は `PUNCHLIST.m
 | **REQ-PLT-001 / 3.5 の表8行** | **「1つでも欠けると接続が成立しない」は誤り。接続に効くのは4行。** `NSAllowsLocalNetworking` は**不要**（ATS は Network.framework に掛からない） |
 | REQ-PLT-008 | **正しい。** Apple 自身が `-65570` と `.localNetworkDenied` のコード例を載せている |
 
-**残る条文の訂正（POL-062 / 063 / 064）はまだ入れていない。**
+**条文の訂正は SPEC v2.20 で入れた**（POL-062 / 063 / 064）。**軸 K で確認した5件のうち、条文が完全に正しかったのは REQ-PLT-008 の1件だけだった。**
 
 **コード側の走査も完了した**（POL-071）。**訂正済みの前提をコードが引いている箇所が8件**、
 **コードが独自にプラットフォームの事実を主張している箇所が26件**。一覧は `PUNCHLIST.md` の付録。
