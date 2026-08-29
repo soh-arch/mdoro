@@ -131,7 +131,7 @@ struct MainWindowView: View {
             }
             Spacer()
         }
-        // **The text on a button never wraps.**
+        // **Do not let the text on a button wrap.**
         .lineLimit(1)
     }
 
