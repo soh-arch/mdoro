@@ -168,6 +168,22 @@
 | **POL-115** | **REQ-COM-010（MUST）が実装されていない。3原則の3つ目に触れる。** 条文は「**残り時間の算出には単調増加時計（`ContinuousClock` / `mach_continuous_time`）を用い**、壁時計は `sessionEndAt` の生成・ログの時刻表記・論理日の判定にのみ用いる。**壁時計が単調時計に対し2秒以上乖離したら再同期し通知を再スケジュールする**」だが、**`ContinuousClock` / `mach_continuous_time` は製品コードに0件。** 両端とも `displayNow = Date()`（壁時計）で残り時間を出しており、**後半（乖離の検出と再同期）も無い。****利用者の報告（2026-08-30）**: 「開発開始から今までは iPhone のほうが 0.8s 程度遅かったが、いまは 0.8s 〜 −0.8s の範囲で変化し、iPhone が早いこともある」。**確かめたこと**: 時刻同期の計算式（REQ-COM-008）自体は条文どおりで、**Mac 側の処理遅延（t3−t2）は相殺される。** 往復 500ms 超は棄却されるので、**ネットワークの非対称性だけでは offset の誤差は ±0.25s を超えられない。****±0.8s はその範囲を超えている。****確かめていないこと**: 壁時計が補正された瞬間は観測していない（状況証拠）。**`timeSync.offset` はどこにも記録されておらず、推定値が振れているのか表示だけなのかが読めない** | REQ-COM-010 / 3原則 | — | **human** | **major** | open | — |
 | **POL-116** | **多重起動を防ぐ仕組みが無い。** POL-114 を直すと「1プロセス＝1登録」になるが、**`MdoroMac` が2つ動いていれば登録は2つ出る。** 実測の「プロセス2・登録5」は、**片方が4回 `start()` した形と整合する。** ログイン時起動（[0016](decisions/0016-standard-settings-and-hotkeys.md)）と手動起動、Xcode のビルドとインストール済みの並存などの経路がある。**実装役の申告** | REQ-COM-002 | — | **human** | minor | open | — |
 | **POL-117** | **iPhone 側の `ClientModel.start()` も冪等ではない**（`ClientModel.swift:54`）。`browser.start()` と `startTicking()` は自分で畳むが、**`requestAuthorization` / `discardOrphansIfUnconfirmed()` / `restoreLastSnapshot()` は繰り返される。** iOS の `WindowGroup` では実害が出にくいが、**「片方のプラットフォームで踏んだ穴は、もう片方も見に行く」に該当する。** 実装役の申告 | POL-114 / REQ-PRT-001 | — | agent | minor | open | — |
+| **POL-118** | **未設定のログ保存先が「失敗」として扱われ、キューに積まれ、フォルダを選んだ瞬間に過去分が一括で書き込まれる。条文と決定に3つ違反している**（軸 E・**blocker**）。REQ-LOG-002（**MUST**）は「未設定の間は**書き込みを試みず、キューにも積まない**」、[0033](decisions/0033-unset-log-path-records-nothing.md) は「**未設定は失敗ではなく未構成**」「再試行キューは**対象外**」。実装は (1) `enqueueLog` が**無条件に積む**（`AppModel.swift:741-745`）(2) `flushLogQueue` が**未設定を失敗として扱う** —— `logWriteFailed = true`、エラー文言、`log.blocked` を warn で記録（`:751-762`）(3) `setLogFolder` の末尾が **`flushLogQueue()`**（`:909`。コメントは REQ-LOG-005 を引くが 0033 は対象外としている）。**キューは `state.json` に永続化されるので再起動をまたいで溜まり続ける。****公開後は全利用者がこの状態から始まる** —— 未設定のまま数日使い、後からフォルダを選んだ瞬間に、**選んだ覚えのない過去数日分が一度に書き込まれる。****POL-020 は done だが、直したのは条文だけで実装は当時のまま** | REQ-LOG-002 / [0033](decisions/0033-unset-log-path-records-nothing.md) | E | agent | **major** | open | — |
+| **POL-119** | **「OS が書き込みを拒否する」が、README の薦める構成では成立しない。** 読み取り専用ブックマークが守るのは**そのブックマーク経由のアクセス**であって「`Task.md` というファイル」ではない。ログの保存先は**フォルダ単位で読み書き**が付く（[0015](decisions/0015-log-folder-scoped-access.md)）。**README 自身が「a log file next to it」と同一フォルダを標準構成として説明しており、その構成では `Task.md` はアプリが読み書きできるフォルダの中に入る。** 実際に守っているのは `LogWriter.validate` のパス比較 —— **コードの規律**。振る舞いは正しいが、**「構造で守っている」という理由付けが実態と違う**（[0002](decisions/0002-task-md-read-only.md)）。`SECURITY.md` の "the sandbox enforces it, not just the code" は**新しい README が引き写してはいけない一文** | REQ-PLT-003 / [0002](decisions/0002-task-md-read-only.md) | E | **human** | major | open | — |
+| **POL-120** | **`MdoroLog.md` の読み込みと差し替えの間に外部の編集が入ると、その編集が黙って消える。** `preservesAllLines` が見ているのは「**自分が読み込んだスナップショット**と、それに1行挿入した配列」の差だけで、**ディスク上の実体が読み込み後に変わったかを一切見ていない**（mtime も inode もサイズも再確認しない）。窓は数ミリ秒だが、**キューのフラッシュは1行ごとに読み直すので行数分だけ窓が開く。****POL-087 は「配列比較が見ていなかったバイト」、これは「配列比較が見ていない時間」。** 設定画面には注意書きがあるが（REQ-LOG-020）、**README には無い** | REQ-LOG-004 / [0002](decisions/0002-task-md-read-only.md) | E | **human** | major | open | — |
+| **POL-121** | **`SECURITY.md:24` が示す診断ログの場所が実在しない。** `~/Library/Logs/Mdoro` と書いているが、**サンドボックス有効なので実体は `~/Library/Containers/com.sohta.MdoroMac/Data/Library/Logs/Mdoro/mdoro.log`**（実測: 142,844バイト。`~/Library/Logs/Mdoro` は**この機械に存在しない**）。同じ誤りが [0018](decisions/0018-diagnostic-log-policy.md) §4 にもある。**アプリ本体は正しい**（設定画面が実パスを表示し "Show in Finder" もある）。**誤っているのは文書だけ** | [0018](decisions/0018-diagnostic-log-policy.md) | E | agent | major | open | — |
+| **POL-122** | **LAN 上の通信が平文であることが、どの文書にも書かれていない。** `NWParameters.tcp` に TLS を積む経路がコードに無い。同じ LAN の第三者から見えるのは **(1) Markdown のタスク一覧すべて (2) `Task.md` とログフォルダの絶対パス (3) デバイストークンそのもの**。**`SECURITY.md` という名前の文書がこれに触れていない。** README の「Everything happens on your LAN」は、**LAN の中では守られていないことを言っていない** | REQ-SEC-002 / `SECURITY.md` | E | **human** | major | open | — |
+| **POL-123** | **発行したトークンを失効させる経路が存在しない。** `issuedTokens.insert` はあるが **`remove` はコードベース全体に無い。** iPhone の「Mac を削除」は**iPhone の Keychain を消すだけ**で、Mac の `issuedDeviceTokens` はそのまま。**端末を売却・紛失したとき、利用者に止める手段が無い**（`.plist` を手で消すしかない）。**実測: この機械の `issuedDeviceTokens` に3個溜まっている** —— **POL-113 の帰結 (2) が確認された。** そして **(3) は POL-113 の書き方より悪い** —— 「名前がずれていると消し損ねる」ではなく、**名前が一致していても Mac 側は消えない** | REQ-SEC-002 / POL-113 | E | **human** | major | open | — |
+| **POL-124** | **機械に対する副作用が README のどこにも書かれていない。** **セッション実行中、Mac はスリープしない** —— プロセス内ではなく**機械全体のアサーション**で `pmset -g assertions` に出る。**設定で切れない**（`runState == .running` に固定で紐付く）。ログイン項目とグローバルホットキー4種も同様に記載が無い。**「タイマーアプリが何を要求するか」を先に知りたい読者に、一覧が無い** | REQ-PER-006 / [0016](decisions/0016-standard-settings-and-hotkeys.md) | E | agent | major | open | — |
+| **POL-125** | **Mac の名前が LAN に広告され、無認証で誰でも取得できる。** Bonjour のサービス名も `/info` の `serverName` も `Host.current().localizedName` —— **個人名を含むことが多い文字列**が同じ LAN の全端末に見える。加えて **`/info` は無認証で `isPairingMode` まで返す** ので、**ペアリング中かどうかが外から観測できる**（6桁コードを試す側にとって、いつ試すべきかの手がかり）。README の Privacy 節は「device names are never written to **the diagnostic log**」とは言うが、**電波に乗ることに触れていない。** `ServerInfo.swift:6-7` のコメントは "carries no state and no settings at all" と言うが、**サーバー名は載っている** | REQ-SEC-004 / REQ-COM-002 | E | **human** | major | open | — |
+| **POL-126** | **README の「once, and nowhere else」（支援リンク）が事実に反する。** 実体は Mac と iPhone の設定画面に**2箇所**。**コードは [0021](decisions/0021-published-as-oss-named-mdoro.md) のとおりで正しい**（アプリごとに1つ）。誤っているのは README が「the app」と単数で書き、**「リポジトリ全体で1箇所」と読める**こと。**支援リンクの多寡は敏感に読まれる** | REQ-NFR-008 / [0021](decisions/0021-published-as-oss-named-mdoro.md) | E | agent | minor | open | — |
+| **POL-127** | **Mac はデバイストークンを平文の UserDefaults に置いている。iPhone 側は同じことを危険として避けている。** `TokenKeychain` のコメントは「UserDefaults に置くとバックアップや設定の書き出しで持ち出せてしまう」と書き Keychain を選んでいるのに、**Mac の `DeviceTokenStore` は平文 plist**（実測3件）。**`SECURITY.md` の「What is stored」表は iPhone の Keychain だけを挙げ、Mac 側にトークンがあることを書いていない** | REQ-SEC-002 / `SECURITY.md` | E | **human** | minor | open | — |
+| **POL-128** | **iPhone が保存する「last state snapshot」の中身が、`SECURITY.md` の説明より広い。** 保存されるのは `StateSnapshot` 全体 —— **`taskFilePath` と `logFolderPath`（Mac の絶対パス）、`task.items`（最大1000件のタスク文言）、`selectedTaskSnapshot`**。置き場所は iOS の UserDefaults で既定でバックアップに含まれる。**同じファイルの `TokenKeychain` が「UserDefaults はバックアップで持ち出される」を理由に Keychain を選んでいるのに、タスク名と絶対パスは UserDefaults に置いている。理由づけが一貫していない** | `SECURITY.md` / [0018](decisions/0018-diagnostic-log-policy.md) | E | **human** | minor | open | — |
+| **POL-129** | **診断ログのローテーションは旧世代を削除しているが、決定とコメントは「消さない」と言っている。** `DiagnosticLogFile.swift:80-85` が `removeItem(at: previousURL)`。主張側は同ファイル `:4`「Nothing here deletes old lines.」、[0018](decisions/0018-diagnostic-log-policy.md) §2「古い行を削除する処理は持たない」。**0018 の趣旨（部分削除を持たない）は守られているが、字面は「削除しない」で、実際には2世代目が丸ごと消える。****README は正しい**（"capped at 2MB × 2 generations"）。**誤解を招くのはコメントと決定の文言のほう** —— **新しい README を書く人が 0018 を引き写すと README のほうが壊れる** | [0018](decisions/0018-diagnostic-log-policy.md) | E | **human** | minor | open | — |
+| **POL-130** | **macOS の通知本文にタスク名が載り、通知履歴としてアプリの外に残る。** `content.body = "\(taskName)\n…"`。通知センターに残り、画面共有や画面録画に写り、ロック画面のプレビュー設定によっては施錠中でも見える。**診断ログにタスク名を書かないと決めたのと同じ配慮が、通知には効いていない。** 機能としては妥当だが、**README の Privacy 節が診断ログの話しかしていないため、読者は「タスク名はどこにも出ない」と受け取りうる** | REQ-NTF-001 / [0018](decisions/0018-diagnostic-log-policy.md) | E | **human** | minor | open | — |
+| **POL-131** | **Keychain の項目に `kSecAttrAccessible` を指定しておらず、コメントが挙げた理由の半分しか満たしていない。** 既定は `WhenUnlocked` で**バックアップに含まれ、別端末へ復元できる**。`...ThisDeviceOnly` なら復元されない。「設定のエクスポートで持ち出される」は防げているが「バックアップで持ち出される」は防げていない。**失効経路が無い（POL-123）ことと合わさると、復元された端末が無期限に接続できる。****確度は「疑い」** —— 既定値は静的に読めるが、復元の実挙動は動かさないと分からない | REQ-SEC-002 | E | **human** | minor | open | — |
+| **POL-132** | **README のビルド手順が、`DEVELOPMENT.md` と `AGENTS.md` が禁じている操作を指示している。** README は「Select your team under Signing & Capabilities」と書くが、`DEVELOPMENT.md:97` は「**Xcode の Signing & Capabilities で Team を選ばないこと**」。従うと `DEVELOPMENT_TEAM` がターゲット側に書き戻され、**`project.pbxproj` に差分が出る**（[0013](decisions/0013-pbxproj-is-owned-by-xcode.md) が記録した問題の再発）。**README しか読まない貢献者は最初の PR で無関係な差分を持ってくる。****仕組みは既に整っていて、README だけが古い** | [0013](decisions/0013-pbxproj-is-owned-by-xcode.md) | E / H | agent | minor | open | — |
+| **POL-133** | **ログの一時ファイルが利用者のフォルダに現れ、異常終了時は残る。** 書き込みのたびに `<ログフォルダ>/.MdoroLog.md.<UUID>.tmp` が作られる。正常系では rename で消え、失敗時も `try?` で削除するが、**その削除自体が失敗した場合とプロセスが落ちた場合は残留する。** ドット始まりなので Obsidian の一覧には出ないが、**利用者の Vault の中に見慣れないファイルが増える。****README は「a log file next to it」としか書いておらず、一時ファイルに触れていない。** 起動時に孤児を掃除する処理は無い | REQ-LOG-004 / REQ-PLT-004 | E | **human** | minor | open | — |
 | **POL-015** | REQ-ERR-014 が OS 設定画面のパスを日本語で規定。英語化すると日本語ロケールの利用者の画面と一致しない。REQ-SEC-005 とも粒度が食い違う | REQ-ERR-014 / REQ-SEC-005 / 0.12節 | C | human | minor | done | `docs/spec-v2.10` |
 | **POL-021** | 非スコープの「複数ユーザー対応」が、人の話か端末の話か読めない。第14章「1対1接続」は端末の話 | [0021](decisions/0021-published-as-oss-named-mdoro.md) / 第14章 | D | agent | minor | done | `docs/spec-v2.10` |
 | **POL-022** | 「ユーザー」約30件 / 「利用者」約11件が混在。**一括置換は禁止**（macOS のユーザーアカウント等3件は対象外） | [0021](decisions/0021-published-as-oss-named-mdoro.md) / REQ-UIX-042 | D | agent | minor | done | `fix/final-audit-items` |
@@ -371,6 +387,86 @@ Widget 2本・テスト5本）、`AGENTS.md`、`docs/DEVELOPMENT.md` を通読�
   （**`MdoroCore` と Mac / iOS のコメントの大半は日本語のまま。工程14a の対象**）
 - `Info.plist` / `.xcconfig` / `.xcstrings` — Swift ではないため対象外と判断
 - `docs/platform/0001`〜`0003` の**本文** — `PLATFORM.md` の要約と SPEC 改訂履歴で突き合わせた
+
+---
+
+## 付録: Mdoro がアプリの外に対して行うこと（軸 E の出力・2026-08-30）
+
+**工程15（README の作り直し）の入力である。** `repo-auditor` がコードを読んで確かめた22経路。
+**コメントや条文の主張ではなく、コードと実測にもとづく。**
+
+**サンドボックスは有効**（`ENABLE_APP_SANDBOX = YES`）。したがって Mac の「Library」はすべて**コンテナ内**に解決される。
+
+### 利用者が選んだ場所
+
+| 何に触れるか | 読/書 | いつ | 何が保証されているか | 同意 |
+| :---- | :---- | :---- | :---- | :---- |
+| **`Task.md`**（任意のパス） | **読み取りのみ** | 起動時 / 親ディレクトリの変更検知（300ms デバウンス）/ iPhone からの `reloadTasks` / パス変更 | ブックマークを `securityScopeAllowOnlyReadAccess` で生成。**この経路経由の書き込みは OS が拒否する**（ただし POL-119） | ファイル選択ダイアログ |
+| **`<フォルダ>/MdoroLog.md`** | **作成 / 挿入**（全文置換で実現） | セッション確定時（正味60秒以上）、キューのフラッシュ時 | `preservesAllLines` が挿入以外の変化を配列比較で拒否（ただし POL-120）。`LogWriter.validate` が毎回 `Task.md` と同一パスでないことを確認 | **フォルダ**選択ダイアログ（**読み書き**） |
+| `<フォルダ>/.MdoroLog.md.<UUID>.tmp` | 作成 → rename で消滅 | 上と同時 | 失敗時は `try?` で削除。**プロセスが落ちれば残留する**（POL-133） | 利用者は選んでいない |
+| 診断ログの書き出し先 | 作成 / 上書き | 設定 → Files → Export | — | 保存ダイアログ |
+
+**`Task.md` への書き込み経路はコード上に存在しない。** 書き込み API を持つ型は
+`LogWriter` / `FileStateStore` / `DiagnosticLogFile` の3つだけで、`TaskFileReader` は読み取り専用。
+
+### アプリ自身の場所（利用者は選んでいない）
+
+| 何に触れるか | 読/書 | 中身 |
+| :---- | :---- | :---- |
+| `~/Library/Containers/com.sohta.MdoroMac/Data/Library/Application Support/Mdoro/state.json` | 作成 / 上書き | **平文 JSON。`taskFilePath` と `logFolderPath` の絶対パス、タスク名のスナップショット、未書き込みのログ行** |
+| 同 `state.json.unreadable-YYYYMMDD-HHmmss` | 作成（退避） | 壊れた状態ファイル。**消さない** |
+| `~/Library/Containers/.../Library/Logs/Mdoro/mdoro.log` | 作成 / 追記 | 伏字済み。**実測で確認**（下記） |
+| 同 `mdoro.1.log` | **上書き / 旧世代を削除** | 2MB 超で回転（POL-129） |
+| `~/Library/Containers/.../Library/Preferences/com.sohta.MdoroMac.plist` | 作成 / 上書き | **平文のデバイストークンの配列**（実測3件・POL-127）、ブックマーク、ウィンドウ位置 |
+
+### OS に対して要求すること（**README に記載が無い** — POL-124）
+
+| 何 | いつ | 効果の範囲 |
+| :---- | :---- | :---- |
+| **アイドルスリープ抑止** | `runState == .running` の間ずっと | **プロセスではなく機械全体。** `pmset -g assertions` に出る。**設定で切れない** |
+| ログイン項目への登録 | 設定で入にしたとき | System Settings に項目が現れる |
+| グローバルホットキー4種 | 設定で割り当てたとき | **システム全域** |
+| 通知の許可要求と投函 | 起動時 / セッション終了 / 事前通知 / 失敗 | **本文にタスク名が載る**（POL-130） |
+| TCP リスナー2本（全インターフェース） | 起動時 | WebSocket と HTTP `/info`。ローカルネットワーク許可の対象 |
+| **Bonjour への広告** | リスナー起動後 | **サービス名は Mac の名前**（POL-125）。TXT は `ws` と `v` のみ |
+| **無認証の `GET /info`** | LAN 上の誰からでも | **Mac の名前** / プロトコル版 / **ペアリング中かどうか** / ポート |
+
+### iPhone
+
+| 何に触れるか | 中身 |
+| :---- | :---- |
+| **Keychain**（account = **Bonjour のサービス名**） | 64文字のデバイストークン。**`kSecAttrAccessible` 未指定**（POL-131） |
+| **iOS の UserDefaults** | **`StateSnapshot` 全体** —— Mac の絶対パス2本と**タスク一覧そのもの**（最大1000件・POL-128） |
+| 通知 / Live Activity | 本文とロック画面に**タスク名**（60文字に切る） |
+
+### 通信路の性質（**どの文書にも書かれていない** — POL-122）
+
+**WebSocket は平文である。** TLS は設定していない。LAN 上を流れるのは:
+
+- **デバイストークンそのもの**
+- **`Task.md` とログフォルダの絶対パス**
+- **Markdown のタスク見出しと本文すべて**
+
+**LAN の外へ出るものは1つも無い。** `URLSession` / `Process` / サブプロセスはコードベースに存在しない（全走査済み）。
+`Activity.request` に `pushType` を渡していないので **APNs トークンも発行されない。**
+
+### 約束が守られていると確認できたもの
+
+- **`Task.md` の読み取り専用ブックマークは実際に使われている** —— `AppModel.setTaskFile` が `readOnlyBookmark` を呼ぶ。
+  ログフォルダだけが `readWriteBookmark`
+- **診断ログの伏字は実測で成立している** —— 稼働中の `mdoro.log`（142,844バイト / 1,600行）に対し、
+  `taskFilePath`・`logFolderPath`・タスク名・ファイル名・ユーザー名・ホスト名を照合し、**いずれも1件も出現しなかった**
+- **`docs/PRIVATE-LINKS.md` は `.gitignore` にあり、`git ls-files` にも履歴にも無い**
+- **`docs/images/` の7枚すべてを開いて確認** —— タスク名は架空、パス・ホスト名・端末名・キャリア名・
+  他アプリの通知の写り込みは**無い**
+
+### 監査が見なかったもの
+
+- `docs/SPEC.md` は全文ではなく該当条文のみ / `docs/CONTEXT.md` は §1・§2・§5・§6 のみ
+- `MdoroServer.swift:140-341`（認証後のメッセージ処理。外部への副作用は `broadcast` のみと確認済み）
+- `Views/` のレイアウト系 / テストコード全般 / `docs/platform/`
+- **`logDailySummary`** —— `state.json` に永続化されるが**読む場所がコードに1つも無い。**
+  REQ-LOG-014 / 015（見送り）に対応するフィールドと判断して除外した
 
 ---
 
