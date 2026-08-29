@@ -2,7 +2,7 @@
 
 このファイルは**今の状態だけ**を書く。経緯は書かない。経緯が必要なら `docs/decisions/` を参照する。
 
-- 要件の正本: `SPEC.md`（v2.8、242要件）
+- 要件の正本: `SPEC.md`（v2.18、243要件）
 - 運用の正本: `CLAUDE.md`
 - 判断と意図の正本: `docs/decisions/`
 - ビルド手順・環境: `docs/DEVELOPMENT.md`
@@ -264,8 +264,9 @@ iPhone 側に `.preferredColorScheme` が無く（Mac 側にはあった）、
 （[0038](decisions/0038-platform-facts-are-not-the-specs-job.md)）。
 Apple がどう振る舞うかは `PLATFORM.md`、Mdoro が何をするかは `SPEC.md`。
 
-§2 にもプラットフォームの事実が混ざっている（`isStale` の遅延、`.center`、
-`MainActor.assumeIsolated`、SF Symbol の実在検証など）。**軸 K で仕分ける。**
+§2 と §6 にもプラットフォームの事実が混ざっている（§2 は `isStale` の遅延・
+`MainActor.assumeIsolated`・SF Symbol の実在検証、§6 は展開ダイナミックアイランドの `.center` など）。
+**軸 K で仕分ける。洗い出しは `PUNCHLIST.md` の付録にある。**
 
 ---
 
@@ -309,7 +310,7 @@ Git に入っていないため、失われると復元できない。
 | `SPEC.md` | **v2.18 / 243要件** |
 | `decisions/` | **0001〜0038** |
 | `platform/` | **0001**（ロック画面の Live Activity の背景） |
-| `PUNCHLIST.md` | **done 49 / open 6 / deferred 1 / rejected 1** |
+| `PUNCHLIST.md` | **done 50 / doing 2 / open 15 / deferred 1 / rejected 1** |
 | テスト | `swift test` **275件 / 49スイート**。Mac 側 5件、iOS 側 3件（**`xcodebuild test` が要る。CI は `swift test` のみ**） |
 
 **役は5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / **platform-researcher**。
@@ -318,11 +319,16 @@ Git に入っていないため、失われると復元できない。
 
 - **[PR #15](https://github.com/soh-arch/mdoro/pull/15)** — 工程14c の残り（POL-047 / 049 / 050 / 052）と、
   プラットフォームの事実を仕様書から追い出す構造変更（[0038](decisions/0038-platform-facts-are-not-the-specs-job.md) / `PLATFORM.md` / `platform/`）。**未 merge**
-- **軸 K の洗い出し**（POL-058）— `platform-researcher` が実行中。**列挙のみ。確認はこれから**
+- **軸 K の確認**（POL-060 / POL-061）— `platform-researcher` 2体が並行で実行中。**読み取りのみ**
+  - **POL-060**: `SPEC.md` 8.3 冒頭の「Apple 公式で確認済み」に出典がない
+  - **POL-061**: REQ-COL-022「メニューバーの地は可変」に出典がない
 
-**残っている open**: POL-053（テストが IOPM アサーションを取る）/ 054（接続拒否が診断ログに残らない）/
-055（`##` がコード体裁にならない）/ 056（文言の出所が2種類）/ 058（軸 K）/ 059（Widget のコメント）。
-**blocker は無い。**
+**軸 K の洗い出し（POL-058）は完了した。** 81件のうち **出典があったのは1件**（REQ-UIX-027・
+POL-057 で直した結果）。**根拠なし 46件、うち MUST が依拠しているものが複数ある。**
+一覧は `PUNCHLIST.md` の付録。**これは列挙であって、真偽の判定ではない。**
+
+**残っている open**: POL-053〜056（工程14c の残り・いずれも minor）/ 059（Widget のコメント）/
+**軸 K の POL-062〜071**。**blocker は無い。**
 
 **次にやること**: 工程14a（コメントの英語化。**行数を実測し直す**）→ 工程14b の軸 E / F / H / I / J →
 **工程15（README の作り直し）** → 工程16（軸 G）→ 公開。
