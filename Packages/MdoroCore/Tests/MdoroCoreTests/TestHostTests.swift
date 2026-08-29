@@ -50,6 +50,22 @@ struct TestHostTests {
         }
     }
 
+    // The Mac's model is built while the App value is, which is earlier than any view and so
+    // earlier than the guard above. `AppModel.init` restores the saved state and runs the
+    // effects that come with it (REQ-PER-003(d) / 004): an append to the reader's session log
+    // and a cancellation of their pending notifications, from a suite that had not started
+    // the app at all. So the store it is handed under test has to hold nothing.
+    @Test func theMacsModelIsBuiltWithNothingToRestore() throws {
+        let app = withoutComments(try source("PomodoroMac/PomodoroMac/MdoroMacApp.swift"))
+        let construction = try #require(app.range(of: "var model ="))
+        let statement = app[construction.upperBound...].prefix(200)
+        #expect(statement.contains("TestHost.isRunning"), "POL-047: the model is built the same way under test")
+        #expect(
+            statement.contains("InMemoryStateStore"),
+            "POL-047: a test run restores the reader's saved session and acts on it"
+        )
+    }
+
     // XCTest sets the variable in the host process. Nothing else does, and an app run by a
     // person never has it — which is the whole reason the check is safe to leave in.
     @Test func theVariableXCTestSetsIsWhatDecides() {

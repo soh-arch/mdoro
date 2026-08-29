@@ -6,7 +6,14 @@ import MdoroCore
 struct MdoroMacApp: App {
     static let mainWindowId = "main"
 
-    @State private var model = AppModel()
+    // REQ-PER-003(d) / 004: `AppModel.init` restores what was saved and runs the effects that
+    // come with it, which can append to the reader's session log and cancel the notifications
+    // they have pending. That happens while the App value is being built — before any view
+    // exists, so before the guard in `.task` below could stop it. A store holding nothing has
+    // nothing to restore, and empty bookmarks reach no folder of theirs. See `TestHost`.
+    @State private var model = TestHost.isRunning
+        ? AppModel(store: InMemoryStateStore(), bookmarks: VaultBookmarks())
+        : AppModel()
     @State private var notificationDelegate = NotificationDelegate()
     @Environment(\.openWindow) private var openWindow
 
