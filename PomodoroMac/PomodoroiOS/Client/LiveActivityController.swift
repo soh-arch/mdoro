@@ -5,8 +5,10 @@ import MdoroCore
 
 // REQ-UIX-020 / 022 / 028 / Decision 0009: Live Activity の開始・更新・終了。
 //
-// 開始できるのは**フォアグラウンドにある間だけ**、更新できるのは**running である間だけ**。
-// これはプラットフォームの制約であり、MUST に戻す実装を書かないこと。
+// Starting is for the foreground as a rule (REQ-UIX-020); updating, for while the app is
+// running (REQ-UIX-022). Both stay SHOULD on the running gate and suspension, not on the
+// start path — do not write an implementation that puts them back to MUST.
+// Facts: docs/PLATFORM.md.
 //
 // `@Observable` を外すとコンパイルは通るが、状態が変わってもビューが読み直さず、
 // **Live Activity を出せない理由が画面から消える。**
@@ -78,7 +80,8 @@ final class LiveActivityController {
             isHealthy = true
             push(state, extendingStaleDate: isConnected)
         } else {
-            // REQ-UIX-020: フォアグラウンドでないと開始できない。背面で始まったものは復帰時にここへ来る。
+            // REQ-UIX-020: starting is for the foreground as a rule; what began in the
+            // background arrives here on return.
             start(state: state, serverName: serverName, isForeground: isForeground, isConnected: isConnected)
         }
     }
@@ -149,7 +152,7 @@ final class LiveActivityController {
             isHealthy = true
             return
         }
-        // REQ-UIX-020: フォアグラウンドでないと開始できない（プラットフォーム制約）。
+        // REQ-UIX-020: starting is for the foreground as a rule. Facts: docs/PLATFORM.md.
         guard isForeground else {
             // REQ-UIX-020 の制約であって不具合ではない。騒がない。
             diagnostic = String(localized: "Can only start while the app is in the foreground")

@@ -36,11 +36,11 @@ private let systemTextColours = ["primary", "secondary"]
 
 // Everything that draws on a ground the app paints. **`PomodoroWidget` is not here.**
 //
-// REQ-UIX-027 (MUST) says the Live Activity must not take 8.5's tokens as they stand: it is
-// drawn over the reader's wallpaper, where the "対 --bg" guarantees of 8.5.3 do not hold —
-// the same exclusion REQ-COL-022 makes for the menu bar. `.primary` / `.secondary` there are
-// the system's own vibrancy over that ground. A palette colour would be fixed and guaranteed
-// against nothing, which is worse than a system colour that adapts. The extension also has no
+// REQ-UIX-027 (MUST) says the Live Activity must not take 8.5's tokens as they stand: 8.5.3
+// guarantees them against `--bg`, and the lock screen's container is a different ground —
+// the same exclusion REQ-COL-022 makes for the menu bar. On that container the clause leaves
+// the foreground to the system, and a palette colour there would be fixed and guaranteed
+// against nothing (facts: docs/PLATFORM.md). The extension also has no
 // `Theme` to ask: the appearance preference is per device (Decision 0027) and lives in the
 // app, so a role there would mean putting the preference on the wire.
 private let paletteOnlySources = [
@@ -156,9 +156,10 @@ struct ColorLiteralTests {
     }
 
     // The exclusion above has to stay a decision and not a path that quietly holds nothing.
-    // REQ-UIX-027 leaves the Live Activity to the system because it draws on the reader's
-    // wallpaper, and the extension has no `Theme` to name a role with. If a theme ever
-    // reaches it, that reasoning has changed and this test is where it gets read again.
+    // REQ-UIX-027 leaves the Live Activity's foreground to the system because 8.5.3's
+    // guarantees are against `--bg` and not the lock screen's container (facts:
+    // docs/PLATFORM.md), and the extension has no `Theme` to name a role with. If a theme
+    // ever reaches it, that reasoning has changed and this test is where it gets read again.
     @Test func theLiveActivityIsLeftToTheSystemOnPurpose() throws {
         let widget = try swiftFiles(under: "PomodoroMac/PomodoroWidget", recursive: true)
         #expect(!widget.isEmpty, "the widget は読めていない")

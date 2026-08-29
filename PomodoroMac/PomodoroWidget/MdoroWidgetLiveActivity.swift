@@ -10,7 +10,9 @@ struct MdoroWidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: MdoroActivityAttributes.self) { context in
             LockScreenView(context: context)
-                // REQ-UIX-027: 背景は壁紙なので「対 --bg」のコントラスト保証が成立しない。
+                // REQ-UIX-027: 8.5's tokens are guaranteed against `--bg`, not the lock screen's
+                // container; on the container's own background the clause leaves the foreground
+                // to the system. Facts: docs/PLATFORM.md.
                 .activityBackgroundTint(nil)
                 .activitySystemActionForegroundColor(.primary)
         } dynamicIsland: { context in

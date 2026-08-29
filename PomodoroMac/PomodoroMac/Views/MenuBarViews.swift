@@ -2,7 +2,8 @@ import SwiftUI
 import MdoroCore
 
 // REQ-UIX-030 / 032 / 035 / REQ-COL-022: メニューバーのラベル。
-// **アクセント色を使わない。** 地の明るさが変わりコントラストを保証できない。
+// **No accent colour** (REQ-COL-022) — not because colour is unusable, but so the state does
+// not ride on colour alone. Facts: docs/PLATFORM.md.
 // 状態は形（テンプレート画像）とテキストで示す。
 struct MenuBarLabelView: View {
     let model: AppModel
