@@ -213,9 +213,17 @@ public final class LogWriteQueue: @unchecked Sendable {
         }
 
         // Decision 0039: one outcome per flush, only the last `recentWindow` of them kept.
-        recentOutcomes.append(lastError == nil ? .succeeded : .failed)
-        if recentOutcomes.count > Self.recentWindow {
-            recentOutcomes.removeFirst(recentOutcomes.count - Self.recentWindow)
+        // A flush with nothing queued tried to write nothing, so it is evidence of neither success
+        // nor failure and stays out of the window. Letting it in would let idle flushes wash real
+        // failures out — ten of them now, where the old counter only ever lost two.
+        // `consecutiveFailures` is deliberately left alone: resetting on such a flush is how it
+        // behaved before this window existed, and only the window is being corrected here.
+        let attemptedAWrite = written > 0 || lastError != nil
+        if attemptedAWrite {
+            recentOutcomes.append(lastError == nil ? .succeeded : .failed)
+            if recentOutcomes.count > Self.recentWindow {
+                recentOutcomes.removeFirst(recentOutcomes.count - Self.recentWindow)
+            }
         }
         consecutiveFailures = lastError == nil ? 0 : consecutiveFailures + 1
         let recentFailures = recentOutcomes.count(where: { $0 == .failed })
