@@ -2,8 +2,8 @@
 
 import PackageDescription
 
-// REQ-PRT-001: Mac 版と iPhone 版で状態機械・通信プロトコル・データモデルを二重に実装しない。
-// 共有できるコードはすべてこのパッケージに置く。
+// REQ-PRT-001: the state machine, the wire protocol and the data models must not exist twice,
+// once for the Mac and once for the iPhone. Anything that can be shared lives in this package.
 let package = Package(
     name: "MdoroCore",
     platforms: [

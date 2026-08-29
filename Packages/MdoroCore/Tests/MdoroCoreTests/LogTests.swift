@@ -338,7 +338,8 @@ struct LogWriterTests {
         }
     }
 
-    // REQ-LOG-021 / the first principle: the same path as Task.md can never be chosen.
+    // REQ-LOG-021 / the first of the three inviolable rules: the same path as Task.md can never
+    // be chosen.
     @Test func theTaskFileCanNeverBeTheLogFile() {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

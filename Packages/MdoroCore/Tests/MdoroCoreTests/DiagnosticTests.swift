@@ -175,7 +175,7 @@ struct DiagnosticRotationTests {
 
     @Test func writingWhenTheDirectoryIsUnavailableIsReportedNotSwallowed() {
         // Point at a place that cannot be written. Confirms it **is not dropped in silence**
-        // (CONTEXT, "never silence a failure").
+        // (CONTEXT, 「失敗を黙らせない」 — the heading is Japanese, and so is the document).
         let file = DiagnosticLogFile(directory: URL(fileURLWithPath: "/dev/null/nope"), header: header)
         file.write(DiagnosticEvent(code: "tick"))
         #expect(file.lastFailure != nil)

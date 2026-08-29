@@ -16,7 +16,7 @@ let svg = try String(contentsOfFile: "\(repo)/Tools/mdoro-icon.svg", encoding: .
 // disappears in the dark. The centre of the fruit sits on the red and reads in either mode, so it
 // is left alone.
 let dark = ["#F7F3ED": "#13110D", "#383A3F": "#ABA497"]
-// Tinted conveys the shape by luminance alone. The system lays the user's colour over it.
+// Tinted conveys the shape by lightness alone. The system lays the user's colour over it.
 let tinted = ["#F7F3ED": "#000000", "#383A3F": "#FFFFFF", "#3B3A3F": "#1C1C1C",
               "#8FA08D": "#C9C9C9", "#F2F9E7": "#FFFFFF",
               "#D8563C": "#9A9A9A", "#BC422D": "#767676"]

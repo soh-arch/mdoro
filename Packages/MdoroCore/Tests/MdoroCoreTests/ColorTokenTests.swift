@@ -11,7 +11,7 @@ import Foundation
 
 private let allModes = ColorMode.allCases
 
-// The guarantees of 8.5.3 go to two decimal places. Judged at any other precision, 1.10 falls
+// The guarantees of 8.5.3 go to two decimal places. Judged without that precision, 1.10 falls
 // under the boundary as 1.09967.
 // The accessibility floors (3.0 / 4.5) are compared as they are, with no rounding.
 private func atSpecPrecision(_ value: Double) -> Double {
