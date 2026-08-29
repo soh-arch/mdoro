@@ -300,7 +300,32 @@ Git に入っていないため、失われると復元できない。
 
 ## 6. 現在の作業状態
 
-**最終更新: 2026-08-27**
+**最終更新: 2026-08-29**
+
+### いま何が起きているか
+
+| 正本 | 状態 |
+| :---- | :---- |
+| `SPEC.md` | **v2.18 / 243要件** |
+| `decisions/` | **0001〜0038** |
+| `platform/` | **0001**（ロック画面の Live Activity の背景） |
+| `PUNCHLIST.md` | **done 49 / open 6 / deferred 1 / rejected 1** |
+| テスト | `swift test` **275件 / 49スイート**。Mac 側 5件、iOS 側 3件（**`xcodebuild test` が要る。CI は `swift test` のみ**） |
+
+**役は5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / **platform-researcher**。
+
+**進行中**
+
+- **[PR #15](https://github.com/soh-arch/mdoro/pull/15)** — 工程14c の残り（POL-047 / 049 / 050 / 052）と、
+  プラットフォームの事実を仕様書から追い出す構造変更（[0038](decisions/0038-platform-facts-are-not-the-specs-job.md) / `PLATFORM.md` / `platform/`）。**未 merge**
+- **軸 K の洗い出し**（POL-058）— `platform-researcher` が実行中。**列挙のみ。確認はこれから**
+
+**残っている open**: POL-053（テストが IOPM アサーションを取る）/ 054（接続拒否が診断ログに残らない）/
+055（`##` がコード体裁にならない）/ 056（文言の出所が2種類）/ 058（軸 K）/ 059（Widget のコメント）。
+**blocker は無い。**
+
+**次にやること**: 工程14a（コメントの英語化。**行数を実測し直す**）→ 工程14b の軸 E / F / H / I / J →
+**工程15（README の作り直し）** → 工程16（軸 G）→ 公開。
 
 ### 完了
 
@@ -425,6 +450,7 @@ Live Activity の余白、集中表示ビューのボタン位置は「使いな
 | **13c** | 人間の採否 → 仕様書を編集 | — | **完了**（v2.10〜v2.17） |
 | **14a** | **コメントの英語化**（1339行 / 87ファイル。[0032](decisions/0032-code-comments-are-english.md)） | ファイル群ごと | 3〜5 PR |
 | **14b** | **コードとリポジトリの監査**: 軸 A / C / E / F / H / I / J（`repo-auditor`）。**軸 A・C は 2026-08-28 に実施済み**（POL-024〜032） | 5並列 | 軸 E / F / H / I / J が残り |
+| **14d** | **軸 K**（条文が依拠しているプラットフォームの事実。`platform-researcher`） | — | **洗い出し中**（POL-058） |
 | **14c** | **是正**: 1件ずつ implementer → reviewer → PR | **直列** | n PR |
 | **15** | **README の作り直し** | — | 1 PR |
 | **16** | **軸 G**（決定の反映漏れ）で締める → 公開 | — | 1 PR |
