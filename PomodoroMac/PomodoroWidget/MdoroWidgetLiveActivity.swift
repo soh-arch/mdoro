@@ -14,6 +14,7 @@ struct MdoroWidgetLiveActivity: Widget {
                 // container; on the container's own background the clause leaves the foreground
                 // to the system. Facts: docs/PLATFORM.md.
                 .activityBackgroundTint(nil)
+                // Reaches the system's dismiss button, not the view above (docs/PLATFORM.md).
                 .activitySystemActionForegroundColor(.primary)
         } dynamicIsland: { context in
             DynamicIsland {

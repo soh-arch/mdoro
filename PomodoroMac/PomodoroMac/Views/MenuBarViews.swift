@@ -2,8 +2,9 @@ import SwiftUI
 import MdoroCore
 
 // REQ-UIX-030 / 032 / 035 / REQ-COL-022: メニューバーのラベル。
-// **No accent colour** (REQ-COL-022) — not because colour is unusable, but so the state does
-// not ride on colour alone. Facts: docs/PLATFORM.md.
+// **No accent colour** (REQ-COL-022) — not because colour is unusable. The clause rests on
+// two things: a template image holds on a ground that varies, and the state must not ride on
+// colour alone. Facts: docs/PLATFORM.md.
 // 状態は形（テンプレート画像）とテキストで示す。
 struct MenuBarLabelView: View {
     let model: AppModel

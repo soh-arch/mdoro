@@ -37,10 +37,11 @@ private let systemTextColours = ["primary", "secondary"]
 // Everything that draws on a ground the app paints. **`PomodoroWidget` is not here.**
 //
 // REQ-UIX-027 (MUST) says the Live Activity must not take 8.5's tokens as they stand: 8.5.3
-// guarantees them against `--bg`, and the lock screen's container is a different ground —
-// the same exclusion REQ-COL-022 makes for the menu bar. On that container the clause leaves
-// the foreground to the system, and a palette colour there would be fixed and guaranteed
-// against nothing (facts: docs/PLATFORM.md). The extension also has no
+// guarantees them against `--bg`, and the lock screen's container is a different ground.
+// REQ-COL-022 excludes the menu bar for the half of that reason they share — a ground the
+// app does not paint; its other half, no information on colour alone, is its own. On that
+// container the clause leaves the foreground to the system, and a palette colour there would
+// be fixed and guaranteed against nothing (facts: docs/PLATFORM.md). The extension also has no
 // `Theme` to ask: the appearance preference is per device (Decision 0027) and lives in the
 // app, so a role there would mean putting the preference on the wire.
 private let paletteOnlySources = [

@@ -39,7 +39,7 @@ final class ClientModel {
     private let client = MdoroClient()
     private let notifications = NotificationScheduler()
     private let liveActivity = LiveActivityController()
-    // REQ-UIX-020: starting is for the foreground as a rule.
+    // REQ-UIX-020 gates the Live Activity's start on this; facts: docs/PLATFORM.md.
     private var isForeground = true
     // **復元したスナップショット（REQ-PER-010）は、何時間前のものか分からない。**
     // Live Activity へ流してよいのは、接続中に受け取ったものだけ。
