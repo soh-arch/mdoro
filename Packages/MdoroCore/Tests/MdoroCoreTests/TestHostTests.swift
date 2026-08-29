@@ -104,6 +104,27 @@ struct TestHostTests {
         }
     }
 
+    // POL-047 / REQ-UIX-030: a scene is placed before any view of it appears, so `.task`
+    // cannot reach one. The window opens itself at launch and the menu bar mark is inserted
+    // with it — Mdoro taking the screen, and the menu bar, of whoever runs the suite.
+    @Test func neitherSceneShowsItselfDuringATestRun() throws {
+        let app = withoutComments(try source("PomodoroMac/PomodoroMac/MdoroMacApp.swift"))
+        #expect(
+            app.contains("defaultLaunchBehavior(TestHost.isRunning ? .suppressed : .presented)"),
+            "POL-047: the main window opens itself during the suite"
+        )
+        // `MenuBarExtra(` の丸括弧まで見る。`showsMenuBarExtra` が前に出てくる。
+        let extra = try #require(app.range(of: "MenuBarExtra("), "REQ-UIX-030: the menu bar mark is gone")
+        #expect(
+            app[extra.upperBound...].prefix(20).contains("isInserted:"),
+            "POL-047: the menu bar mark is inserted during the suite"
+        )
+        #expect(
+            app.contains("showsMenuBarExtra = !TestHost.isRunning"),
+            "POL-047: whether the mark is inserted no longer depends on the test run"
+        )
+    }
+
     // XCTest sets the variable in the host process. Nothing else does, and an app run by a
     // person never has it — which is the whole reason the check is safe to leave in.
     @Test func theVariableXCTestSetsIsWhatDecides() {

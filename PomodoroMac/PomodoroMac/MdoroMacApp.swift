@@ -23,6 +23,10 @@ struct MdoroMacApp: App {
         )
         : AppModel()
     @State private var notificationDelegate = NotificationDelegate()
+    // POL-047 / REQ-UIX-030: **メニューバーの印は Scene であって、`.task` の後ろにいない。**
+    // A scene is placed before any view of it appears, so the guard below cannot reach it. The
+    // suite would put Mdoro's mark in a contributor's menu bar for the length of the run.
+    @State private var showsMenuBarExtra = !TestHost.isRunning
     @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
@@ -44,9 +48,13 @@ struct MdoroMacApp: App {
                 }
         }
         .defaultSize(width: 480, height: 620)
+        // POL-047: the window opens itself at launch, which under test means Mdoro taking the
+        // screen from whoever is running the suite. The scene has to stay — the test bundle is
+        // loaded into this app — so what is suppressed is its appearing.
+        .defaultLaunchBehavior(TestHost.isRunning ? .suppressed : .presented)
 
         // REQ-UIX-030: メニューバーに常駐し、既定では残り時間とセッション種別を常時表示する。
-        MenuBarExtra {
+        MenuBarExtra(isInserted: $showsMenuBarExtra) {
             MenuBarMenuContent(model: model)
         } label: {
             MenuBarLabelView(model: model)
