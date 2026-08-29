@@ -41,6 +41,7 @@
 | **H** | 他人の環境でビルドできるか | repo-auditor |
 | **I** | 私生活の写り込み（画像・履歴・パス） | repo-auditor |
 | **J** | ライセンスと第三者素材の出所 | repo-auditor |
+| **K** | **条文が依拠しているプラットフォームの事実。** 仕様書と `CONTEXT.md` が主張している Apple / Xcode の仕様を洗い出し、**一次情報で確認されたもの・実測されたもの・確認されていないもの**に分ける | `platform-researcher` |
 | **—** | 軸に紐づかないが根拠のある指摘（監査の途中で見つかったもの） | 両方 |
 
 ---
@@ -106,7 +107,9 @@
 | **POL-054** | **接続拒否が診断ログに残らない。** `MdoroServer` は `DiagnosticLog` を持たない。「ペアリングできない」という issue で、**5回間違えたのか、トークンが失効したのか、別端末が繋がっていたのかが読めない** | REQ-ERR-010 / [0018](decisions/0018-diagnostic-log-policy.md) | — | agent | minor | open | — |
 | **POL-055** | 空状態の注記の `##` だけコード体裁にならない（バッククォートで囲めば揃うが、カタログのキーが変わる） | REQ-TSK-016 | — | agent | minor | open | — |
 | **POL-056** | 受け取る側が引く文言の出所が2種類（`ProtocolErrorCode.displayMessage` は `MdoroCore`、`AuthFailureCode` は `ConnectionViews` の `LocalizedStringKey`）。同じ 10.2 の役割なのに揃っていない | [0022](decisions/0022-english-only-ui.md) / 10.2 | — | agent | minor | open | — |
-| **POL-057** | **REQ-UIX-027 が、確認されていないプラットフォームの事実を前提にしている。** 「背景が利用者の壁紙である」が事実か未確認のまま、固定値と半透明素材で組むことを MUST で要求している。**この条文は改訂履歴に一度も現れず、Live Activity の実装が2回書き直された後も突き合わされていない。** 同じ理由から引かれた REQ-COL-022（メニューバー）は「色を使わない」という別の答えに落ち着いている。**意匠の問題ではなく、条文が実態に則していない問題として扱う** | REQ-UIX-027 / REQ-COL-022 / `CONTEXT.md` §3 | — | **human** | major | open | — |
+| **POL-057** | **REQ-UIX-027 が、確認されていないプラットフォームの事実を前提にしている。** 「背景が利用者の壁紙である」が事実か未確認のまま、固定値と半透明素材で組むことを MUST で要求している。**この条文は改訂履歴に一度も現れず、Live Activity の実装が2回書き直された後も突き合わされていない。** 同じ理由から引かれた REQ-COL-022（メニューバー）は「色を使わない」という別の答えに落ち着いている。**意匠の問題ではなく、条文が実態に則していない問題として扱う** | REQ-UIX-027 / REQ-COL-022 / `CONTEXT.md` §3 | — | **human** | major | done | `fix/final-audit-items` |
+| **POL-058** | **軸 K の洗い出し。** 仕様書と `CONTEXT.md` §2 が主張しているプラットフォームの事実を列挙し、確度で分ける。**`PLATFORM.md` の `未検証` 8項目**（§3 から移送）も対象。条文が事実を抱えている箇所は `PLATFORM.md` への参照に置き換える | [0038](decisions/0038-platform-facts-are-not-the-specs-job.md) | K | — | major | open | — |
+| **POL-059** | `MdoroWidgetLiveActivity.swift` のコメントが**誤った前提を引いている**（`// REQ-UIX-027: 背景は壁紙なので…`）。条文は v2.18 で訂正済み | [platform/0001](platform/0001-live-activity-lock-screen-background.md) | K | agent | minor | open | — |
 | **POL-015** | REQ-ERR-014 が OS 設定画面のパスを日本語で規定。英語化すると日本語ロケールの利用者の画面と一致しない。REQ-SEC-005 とも粒度が食い違う | REQ-ERR-014 / REQ-SEC-005 / 0.12節 | C | human | minor | done | `docs/spec-v2.10` |
 | **POL-021** | 非スコープの「複数ユーザー対応」が、人の話か端末の話か読めない。第14章「1対1接続」は端末の話 | [0021](decisions/0021-published-as-oss-named-mdoro.md) / 第14章 | D | agent | minor | done | `docs/spec-v2.10` |
 | **POL-022** | 「ユーザー」約30件 / 「利用者」約11件が混在。**一括置換は禁止**（macOS のユーザーアカウント等3件は対象外） | [0021](decisions/0021-published-as-oss-named-mdoro.md) / REQ-UIX-042 | D | agent | minor | done | `fix/final-audit-items` |
