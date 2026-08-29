@@ -51,9 +51,16 @@ iOS app on the simulator:
 set -o pipefail && xcodebuild -project ./PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroiOS -destination 'platform=iOS Simulator,name=iPhone 17' build | xcbeautify
 ```
 
-Xcode 26.6 / Swift 6.3. Signing uses a personal team, and **the maintainer's team id is
-committed in `project.pbxproj`** — set your own in Xcode before building the apps, and keep
-that change out of your pull request. Local notifications need no capability, but they do need
+Xcode 26.6 / Swift 6.3. To build the apps, put your signing team in
+`Config/Signing.local.xcconfig`, which git ignores:
+
+```
+DEVELOPMENT_TEAM = ABCDE12345
+```
+
+Nothing else is needed, and nothing you do there shows up in a diff. Without a team the
+apps still build and macOS signs them to run locally; notifications need a real signature,
+so set the team before testing those. Local notifications need no capability, but they do need
 a valid signature — an unsigned build will not deliver them.
 
 ## Where code goes

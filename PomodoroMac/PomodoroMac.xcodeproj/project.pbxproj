@@ -68,6 +68,7 @@
 		4640E044303CAE7A00475D34 /* MdoroWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MdoroWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4640E045303CAE7A00475D34 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		4640E047303CAE7A00475D34 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		46A23BFB30427A5100F70CF7 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Signing.xcconfig; path = ../Config/Signing.xcconfig; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -185,6 +186,7 @@
 				4640E049303CAE7A00475D34 /* PomodoroWidget */,
 				4640E03B303CADFD00475D34 /* Frameworks */,
 				4640DFE6303CA8FF00475D34 /* Products */,
+				46A23BFB30427A5100F70CF7 /* Signing.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -487,6 +489,7 @@
 /* Begin XCBuildConfiguration section */
 		4640E004303CA90000475D34 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 46A23BFB30427A5100F70CF7 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -550,6 +553,7 @@
 		};
 		4640E005303CA90000475D34 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 46A23BFB30427A5100F70CF7 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -611,7 +615,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X95RFBZD5X;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -656,7 +659,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X95RFBZD5X;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
@@ -740,7 +742,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X95RFBZD5X;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroiOS/Info.plist;
@@ -779,7 +780,6 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X95RFBZD5X;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroiOS/Info.plist;
@@ -864,7 +864,6 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X95RFBZD5X;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MdoroWidget;
@@ -896,7 +895,6 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X95RFBZD5X;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = PomodoroWidget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = MdoroWidget;

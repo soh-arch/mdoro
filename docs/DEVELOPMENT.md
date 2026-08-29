@@ -86,6 +86,22 @@ xcrun simctl list devices available
 
 ---
 
+## 署名は xcconfig から入る
+
+`DEVELOPMENT_TEAM` は `project.pbxproj` に**書かれていない**。プロジェクトの Debug / Release が
+`Config/Signing.xcconfig` を base configuration として持ち、そこから
+`Config/Signing.local.xcconfig`（Git 管理外）を `#include?` で読む。
+
+**Xcode の Signing & Capabilities で Team を選ばないこと。** 選ぶとターゲット側に
+`DEVELOPMENT_TEAM` が書き戻され、xcconfig より優先される。チームを変えるときは
+`Config/Signing.local.xcconfig` を書き換える。
+
+**この形にした理由は2つある**（2026-08-29）。
+
+1. 作者のチーム ID がコミットに混ざり、貢献者が毎回書き換えることになっていた
+2. **`xcodebuild` がビルドのたびに `project.pbxproj` を書き換えていた**（`DEVELOPMENT_TEAM` を `""` に）。
+   ターゲット側に行が無くなったことで起きなくなった。ビルド前後で差分が出ないことを確認済み
+
 ## ローカルネットワーク許可の検証
 
 **macOS には、許可状態を未決定へ戻す手段がない**（REQ-PLT-009）。一度許可または拒否すると、
