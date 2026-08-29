@@ -3,7 +3,8 @@ import UserNotifications
 import MdoroCore
 
 // REQ-NTF-002: iPhone 側の通知は **WebSocket に依存してはならない。**
-// ロック中・背面では WebSocket が OS に止められるため、絶対時刻トリガーで事前にスケジュールする。
+// The clause rests on the app being suspended, not on the socket: schedule ahead on an
+// absolute-time trigger. Facts: docs/PLATFORM.md.
 @MainActor
 final class NotificationScheduler {
 

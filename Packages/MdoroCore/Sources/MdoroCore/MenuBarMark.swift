@@ -1,7 +1,9 @@
 import Foundation
 
 // REQ-UIX-030 / 035 / REQ-COL-022 / Decision 0031: メニューバーに出す印。
-// 色が使えないので状態は形だけで示す。実を器に見立て、待機は満ちた実、進行中は水位、一時停止は空の器。
+// REQ-UIX-035 asks for the state in the mark's shape so nothing rides on colour alone —
+// colour is available; that is not the reason. Facts: docs/PLATFORM.md.
+// 実を器に見立て、待機は満ちた実、進行中は水位、一時停止は空の器。
 //
 // **3枚しか持たない。** 水位を経過に連動させると、満水が待機と、空が一時停止と見分けられなくなる。
 // 画像名は `Tools/make_icon.swift` が書き出す imageset 名と一致していること。

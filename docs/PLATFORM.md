@@ -167,6 +167,29 @@ REQ-UIX-026 の「不可能」「サンドボックス上」は Apple の原文�
 
 ---
 
+## SF Symbols — カタログの共通性と、可用性の軸
+
+**調査**: [0006](platform/0006-sf-symbols-catalog-and-availability.md) / **確認日**: 2026-08-29 / **対象**: macOS 26.5.1（25F80）/ iOS 26.5（23F77・シミュレータランタイム）/ SF Symbols 8 beta
+
+| 事実 | 確度 |
+| :---- | :---- |
+| **カタログは macOS 26.5 と iOS 26.5 で同一。** `CoreGlyphs.bundle` のメタデータ10ファイルが SHA-256 で一致（各 **9,184名**）。`Assets.car` はサイズが違うが**グリフ名集合は同一**（各 8,305名）。差は倍率と描画バリアントの数 | **実測** |
+| **可用性はプラットフォーム別ではなくバージョン別である。** `name_availability.plist` はシンボル1件につき「年」を1つだけ持ち、`year_to_release` が年を全 OS のバージョンへ一括で対応づける。**シンボル単位でプラットフォームを分ける欄が存在しない** | **実測** |
+| HIG は可用性を**バージョンの問題**として書く。"Availability of individual symbols … varies based on the version of the system you're targeting" / "Platform considerations — **No additional considerations** for iOS, iPadOS, macOS, tvOS, visionOS, or watchOS" | 文書化 |
+| **`systemSymbolName:` が引くのは「動いている OS のカタログ」であって普遍のカタログではない**（ヘッダ: "A name from **the system's** SF Symbols catalog"）。**macOS 26.5 で非 `nil` でも、26.0 の端末では `nil` になりうる。導入年 2025.1（＝26.1）のシンボルが 29件実在する** | **実測** |
+| **`largecircle.fill.circle` は実体を持たないエイリアス**（→ `inset.filled.circle`）。`Assets.car` にグリフを持たない。エイリアス表は両 OS で一致するので動作は同じ | **実測** |
+| **`iphone.gen3` / `iphone.gen3.slash` は使用制限付きシンボル。** "may not be modified and **may only be used to refer to Apple's iPhone**"。**Mdoro の用法は適合している**（接続先の iPhone を指しているため） | 文書化 |
+| **SF Symbols アプリのカタログは稼働 OS の超集合。** 8 beta は 9,476名で、macOS 26.5 の 9,184名＋**次期 OS（2026 ＝ 27 系）の 292名**。**アプリに載っているだけでは 26 系で使える根拠にならない** | **実測** |
+| 可用性を実行せずに確かめるなら `/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources/name_availability.plist` を読む。iOS 側はマウント済みのシミュレータランタイム内の同じバンドル（**起動は不要**） | **実測** |
+| **「カタログは常に共通である」と明言した Apple の一次情報** | **見つからなかった。** 含意はあるが断定ではない。**共通性は観測された不変条件であって、文書化された保証ではない** |
+
+**条文・コードとの関係**: 「カタログは両プラットフォームで共通」は**真だが、`SymbolNameTests` が必要としている保証ではない。**
+**実在の検査で効く軸はプラットフォームではなく OS バージョン**であり、
+`symbolExists` は**検査ホストのカタログしか見られないため、この軸を構造的に観測できない**
+（[0006](platform/0006-sf-symbols-catalog-and-availability.md)）。
+
+---
+
 ## 未検証（軸 K で確認する）
 
 **`CONTEXT.md` §3 から移した項目である。**
