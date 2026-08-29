@@ -231,7 +231,8 @@ struct RefusalNotice: View {
         .font(.footnote)
         .foregroundStyle(theme.color(.warning, .text))
         .padding(12)
-        // REQ-COL-011: the banner treatment (a -subtle ground inside a -line border) is reserved for warning.
+        // REQ-UIX-046: a banner (a -subtle ground inside a -line border) is for a state that needs
+        // attention, not for warning alone. REQ-COL-011 keeps session states out of it.
         .background(theme.color(.warning, .subtle))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.color(.warning, .line)))
         .clipShape(RoundedRectangle(cornerRadius: 8))

@@ -3,8 +3,8 @@ import MdoroCore
 
 // REQ-UIX-002 / 003 / 013: the session type is shown in both colour and words, and the loop count as
 // n / interval.
-// REQ-COL-011: only -graphic and -text may be used. The banner treatment is reserved for warning, and
-// ColorRole refuses it.
+// REQ-COL-011: only -graphic and -text may be used for a session state, and ColorRole refuses the
+// rest. A banner is for a state that needs attention (REQ-UIX-046), which a session state is not.
 struct SessionHeaderView: View {
     @Environment(\.theme) private var theme
     let sessionType: SessionType

@@ -236,8 +236,8 @@ final class LiveActivityController {
         let timer = snapshot.timer
         let preset = snapshot.presets.activePreset ?? Preset.standard()
 
-        // REQ-COM-009 / REQ-UIX-026: the extension cannot correct for the clocks, so it is corrected
-        // here before being handed over.
+        // REQ-COM-009 / REQ-UIX-026: a Live Activity does not reach the network, so the clocks are
+        // reconciled here before the state is handed over.
         let localStart = serverStart.addingTimeInterval(-clockOffset)
         let localEnd: Date
         var pauseTime: Date?

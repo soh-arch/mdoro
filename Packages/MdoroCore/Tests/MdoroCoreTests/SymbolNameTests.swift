@@ -20,8 +20,10 @@ private func symbolExists(_ name: String) -> Bool {
 struct SymbolNameTests {
 
     // `peerSymbolName` branches on `#if os(macOS)`, so only the name for the side the tests ran on
-    // goes through. **The other name is checked by naming it.** The SF Symbols catalogue is common
-    // to both platforms.
+    // goes through. **The other name is checked by naming it**, which holds because the SF Symbols
+    // catalogue is common to both platforms. **What availability turns on is the OS version, not the
+    // platform** (`docs/PLATFORM.md`), and `symbolExists` sees only the host's catalogue: a name
+    // newer than the deployment target passes here and draws nothing on the device.
     @Test func peerSymbolsOfBothPlatformsExist() {
         for name in ["iphone.gen3", "iphone.gen3.slash",
                      "laptopcomputer", "laptopcomputer.slash",

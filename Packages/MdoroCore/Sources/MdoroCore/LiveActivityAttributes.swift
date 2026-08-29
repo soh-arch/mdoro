@@ -3,7 +3,7 @@ import Foundation
 #if os(iOS)
 import ActivityKit
 
-// REQ-UIX-026: the extension cannot reach the network, so everything the display needs rides here.
+// REQ-UIX-026: a Live Activity does not reach the network, so everything the display needs rides here.
 // REQ-PRT-001: the app and the extension both use it, so it lives in the shared package.
 public struct MdoroActivityAttributes: ActivityAttributes {
 
@@ -35,7 +35,8 @@ public struct MdoroActivityAttributes: ActivityAttributes {
             self.pauseTime = pauseTime
             self.loopDisplay = loopDisplay
             self.longBreakInterval = longBreakInterval
-            // REQ-UIX-025: dynamic data stays within 4KB. The task name is cut to what can be shown.
+            // REQ-UIX-025: the 4KB cap is on the attributes and this state together, not on this
+            // state alone, so the task name is cut to what can be shown.
             self.taskName = taskName.map { String($0.prefix(MdoroActivityAttributes.maxTaskNameLength)) }
             self.isConnected = isConnected
         }

@@ -20,8 +20,8 @@ final class ServerBrowser {
     private(set) var servers: [DiscoveredServer] = []
 
     var onChange: (([DiscoveredServer]) -> Void)?
-    // REQ-PLT-008 / REQ-ERR-014: there is no API to ask about the permission. It is detected from
-    // NWBrowser's -65570.
+    // REQ-PLT-008 / REQ-ERR-014: no public API answers whether the permission was granted
+    // (`docs/PLATFORM.md`). It is detected from NWBrowser's -65570.
     var onLocalNetworkDenied: (() -> Void)?
 
     func start() {
