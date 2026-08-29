@@ -13,6 +13,10 @@ struct MdoroiOSApp: App {
             MainScreen()
                 .environment(model)
                 .task {
+                    // The suite runs inside this app, so starting up here would browse for
+                    // Bonjour services, schedule notifications and open a Live Activity on
+                    // the reader's own phone. See `TestHost`.
+                    guard !TestHost.isRunning else { return }
                     // REQ-NTF-011: 通知から起動したときは、同期が取れるまで断定的に表示しない。
                     delegate.onNotificationOpened = { model.markAwaitingSync() }
                     UNUserNotificationCenter.current().delegate = delegate

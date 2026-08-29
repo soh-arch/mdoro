@@ -15,6 +15,10 @@ struct MdoroMacApp: App {
             MainWindowView()
                 .environment(model)
                 .task {
+                    // The suite runs inside this app, so starting up here would advertise on
+                    // the LAN, watch the reader's Task.md, take the notification delegate and
+                    // pull this window in front of them. See `TestHost`.
+                    guard !TestHost.isRunning else { return }
                     // ウィンドウを開く手段は Scene 側にしかない。
                     model.onShowWindowRequested = {
                         NSApplication.shared.activate(ignoringOtherApps: true)
