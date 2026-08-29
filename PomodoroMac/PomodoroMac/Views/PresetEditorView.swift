@@ -44,7 +44,7 @@ struct PresetEditorView: View {
             }
             Divider()
             HStack(spacing: 4) {
-                // REQ-PRS-003: at most 10.
+                // REQ-PRS-003: at most 10 presets.
                 Button { create() } label: { Image(systemName: "plus") }
                     .disabled(model.presets.presets.count >= 10)
                     .help(model.presets.presets.count >= 10 ? "Up to 10 presets" : "Add")

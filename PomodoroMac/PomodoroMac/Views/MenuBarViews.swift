@@ -119,7 +119,7 @@ struct MenuBarMenuContent: View {
 
         Divider()
 
-        // REQ-UIX-004 / Decision 0031: on the Mac the connection state is here and in the bottom bar,
+        // REQ-UIX-004 / Decision 0031: on the Mac the connection state is here and in the status line,
         // nowhere else. **One line, to read only.**
         Text("iPhone: \(Format.connectionLabel(model.connection))")
         SettingsLink { Text("Settings…") }

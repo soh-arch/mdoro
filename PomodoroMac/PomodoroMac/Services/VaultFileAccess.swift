@@ -5,7 +5,7 @@ import MdoroCore
 // the sandbox across a restart.
 //
 // The one for `Task.md` is created with `securityScopeAllowOnlyReadAccess`.
-// Rest "we do not write" on the discipline of the code alone and one day someone breaks it, so
+// If "we do not write" rests on the discipline of the code alone, one day someone breaks it, so
 // **a state the OS itself refuses** is made instead (the first principle / Decision 0002).
 enum VaultFileAccess {
 

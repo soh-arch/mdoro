@@ -21,7 +21,8 @@ final class AppModel {
         didSet { onSettingsChanged(from: oldValue) }
     }
 
-    // The current time, for display. **No Timer is held on the view side** (it does not fire, and the display freezes).
+    // The current time, for display. **Do not put a Timer on the view side**: it does not fire
+    // there, and the display freezes.
     private(set) var displayNow = Date()
 
     // REQ-UIX-004: the connection state.
@@ -146,7 +147,7 @@ final class AppModel {
             selectedTaskId: saved?.selectedTaskId,
             selectedTaskSnapshot: saved?.selectedTaskSnapshot
         )
-        // REQ-LOG-005: carry over the log entries that were never written. **Drop them and they are never written.**
+        // REQ-LOG-005: carry over the log entries that have not been written. **Drop them and they never will be.**
         self.logQueue = LogWriteQueue(entries: saved?.pendingLogEntries ?? [])
         self.pendingLogCount = self.logQueue.pendingCount
         self.restoreFailure = startup.readFailure
@@ -358,7 +359,7 @@ final class AppModel {
             ])
             return nil
         case let .failure(failure):
-            // REQ-LOG-018: even when the action is refused, the log the tick just before it committed is not lost.
+            // REQ-LOG-018: even when the action is refused, the log committed by the preceding tick is not lost.
             apply(effects: failure.effects)
             persist()
             // A refused action is exactly what gets recorded.

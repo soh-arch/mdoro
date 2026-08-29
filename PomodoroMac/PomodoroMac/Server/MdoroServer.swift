@@ -165,11 +165,11 @@ final class MdoroServer {
             lastHeartbeatAt = Date()
             send(.welcome(WelcomePayload(deviceToken: token.value, serverName: Host.current().localizedName ?? "Mac")), to: source)
             // **Mark it connected, then take the snapshot.** The other way round and the first state
-            // says "not connected".
+            // reads as not connected.
             callbacks?.connectionChanged(
                 ConnectionState(isConnected: true, lastHeartbeatAt: lastHeartbeatAt, peerDeviceName: payload.deviceName)
             )
-            // REQ-COM-004: right after connecting, the whole state goes out, not a difference.
+            // REQ-COM-004: right after connecting, the whole state goes out, not a delta.
             if let snapshot = callbacks?.provideSnapshot() { send(.stateSnapshot(snapshot), to: source) }
             if let tasks = callbacks?.provideTaskList() { send(.taskList(tasks), to: source) }
 
