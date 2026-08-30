@@ -52,6 +52,7 @@ public extension ErrorCode {
     static let logInvalidFilePath = ErrorCode(own: 1)
     static let logWouldModifyExistingLines = ErrorCode(own: 2)
     static let logFolderNotSet = ErrorCode(own: 3)
+    static let logFileChangedWhileWriting = ErrorCode(own: 4)
     // 10–19: persisting state.
     static let stateCorrupted = ErrorCode(own: 10)
     static let stateUnsupportedSchemaVersion = ErrorCode(own: 11)
