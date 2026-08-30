@@ -41,14 +41,35 @@ public struct ServerIdentityFile: Sendable {
     // What is on file, or a new one — and, separately, whether the next launch will see the same
     // answer. **An identity that could not be kept is not an identity**, so the caller is given
     // the failure rather than left to assume it worked (REQ-ERR-010 / Decision 0035).
-    public struct Outcome: Equatable, Sendable {
-        public let id: ServerID
-        // nil when this id is on disk and will be read back next time.
-        public let couldNotKeep: ErrorCode?
+    public enum Outcome: Equatable, Sendable {
+        // The id to go on the air with. `couldNotKeep` is non-nil when it will not be read back
+        // next launch — it is still this launch's id, and the caller is told.
+        case identified(ServerID, couldNotKeep: ErrorCode?)
+        // REQ-COM-003 (v2.26): **the file was not handed over.** An id may be sitting in it,
+        // intact and unread, so there is no id here — and none is made in its place.
+        case unreadable(ErrorCode)
 
-        public init(id: ServerID, couldNotKeep: ErrorCode? = nil) {
-            self.id = id
-            self.couldNotKeep = couldNotKeep
+        // This launch's id, or nil when there is none to go on the air with.
+        public var id: ServerID? {
+            if case let .identified(id, _) = self { id } else { nil }
+        }
+
+        // What went wrong, or nil when nothing did.
+        public var problem: ErrorCode? {
+            switch self {
+            case let .identified(_, couldNotKeep): couldNotKeep
+            case let .unreadable(code): code
+            }
+        }
+
+        // REQ-ERR-010 / Decision 0034: `case(domain:code)`, the one shape every failure is
+        // written in. The two cases are named apart because the app does different things with
+        // them — one goes on the air and one does not.
+        public var diagnosticSummary: String? {
+            switch self {
+            case let .identified(_, couldNotKeep): couldNotKeep?.summary("notKept")
+            case let .unreadable(code): code.summary("unreadable")
+            }
         }
     }
 
@@ -58,39 +79,46 @@ public struct ServerIdentityFile: Sendable {
 
     public func loadOrCreate() -> Outcome {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            return create()
+            let made = create()
+            return .identified(made.id, couldNotKeep: made.couldNotKeep)
         }
 
         let data: Data
         do {
             data = try Data(contentsOf: fileURL)
         } catch {
-            // **The file is left exactly as it is.** A read that failed once may well succeed
-            // next launch, and overwriting here would turn a passing fault into a permanent
-            // one — every paired iPhone unpaired because a read was refused for a moment.
-            return Outcome(id: ServerID.generate(), couldNotKeep: ErrorCode(error))
+            // **The file is left exactly as it is, and no id is made to stand in for it.**
+            // REQ-COM-003 (v2.26): a read that failed once may well succeed next launch, so
+            // writing over it here would turn a passing fault into every pairing lost — and
+            // going on the air under an invented id does the same damage from the other side.
+            // The Mac would be one nobody has heard of: every paired iPhone asked for a six-digit
+            // code, and the token issued in reply filed under an id that is gone at the next
+            // launch. Orphans on both ends. **Not being able to read it is not the same as
+            // there being nothing to read** (the discipline REQ-ERR-017 already applies to
+            // `state.json`), so the caller is told which of the two this is.
+            return .unreadable(ErrorCode(error))
         }
 
         guard let stored = try? JSONDecoder().decode(Stored.self, from: data) else {
             // Nothing readable is in there to lose, and leaving it would regenerate on every
             // launch. This is the one case that writes over what is already on disk.
-            let replacement = create()
-            return Outcome(id: replacement.id, couldNotKeep: replacement.couldNotKeep ?? .identityUnreadable)
+            let made = create()
+            return .identified(made.id, couldNotKeep: made.couldNotKeep ?? .identityUnreadable)
         }
-        return Outcome(id: stored.id)
+        return .identified(stored.id, couldNotKeep: nil)
     }
 
-    private func create() -> Outcome {
+    private func create() -> (id: ServerID, couldNotKeep: ErrorCode?) {
         let id = ServerID.generate()
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try encoder.encode(Stored(id: id)).write(to: fileURL, options: .atomic)
-            return Outcome(id: id)
+            return (id, nil)
         } catch {
             // The Mac still advertises, and pairing still works for as long as this process
             // lives. It is next launch that will look like a different Mac.
-            return Outcome(id: id, couldNotKeep: ErrorCode(error))
+            return (id, ErrorCode(error))
         }
     }
 }

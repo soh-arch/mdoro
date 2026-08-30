@@ -331,6 +331,9 @@
     "Mdoro is no longer allowed into that folder. Choose it again in Settings." : {
 
     },
+    "Mdoro is not listening for iPhone connections. It could not read the records that pair this Mac with your iPhone, and going on the air without them would ask every paired iPhone to pair again." : {
+
+    },
     "Mdoro was not given access to that folder. Choose it again in Settings." : {
 
     },
@@ -377,6 +380,9 @@
 
     },
     "Not set" : {
+
+    },
+    "Nothing was deleted — the records are still there, unread. Quitting Mdoro and opening it again usually clears this." : {
 
     },
     "Notification test" : {

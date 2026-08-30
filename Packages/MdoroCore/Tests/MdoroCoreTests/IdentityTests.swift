@@ -57,12 +57,13 @@ struct ServerIdentityTests {
         let file = ServerIdentityFile(fileURL: directory.appendingPathComponent("identity.json"))
 
         let first = file.loadOrCreate()
-        #expect(first.couldNotKeep == nil)
+        #expect(first.problem == nil)
+        #expect(first.id != nil)
 
         for _ in 0..<3 {
             let again = file.loadOrCreate()
             #expect(again.id == first.id, "Decision 0040: the id changed between launches")
-            #expect(again.couldNotKeep == nil)
+            #expect(again.problem == nil)
         }
 
         // A second reader of the same file — a new process, in effect — sees the same answer.
@@ -96,10 +97,13 @@ struct ServerIdentityTests {
         try Data("{\"id\":\"Mdoro (2)\"}".utf8).write(to: file.fileURL)
 
         let outcome = file.loadOrCreate()
-        #expect(outcome.couldNotKeep == .identityUnreadable)
+        #expect(outcome.problem == .identityUnreadable)
+        // **Broken is not unreadable.** This one was handed over, and nothing usable was in it,
+        // so there is an id to go on the air with (REQ-COM-003 v2.26).
+        #expect(outcome.id != nil)
         // Replaced, so the next launch is steady again rather than making a third id.
         #expect(file.loadOrCreate().id == outcome.id)
-        #expect(file.loadOrCreate().couldNotKeep == nil)
+        #expect(file.loadOrCreate().problem == nil)
     }
 
     // A read that failed once may well succeed next launch. Writing over it here would turn a
@@ -118,11 +122,44 @@ struct ServerIdentityTests {
         )
 
         let outcome = file.loadOrCreate()
-        #expect(outcome.couldNotKeep != nil, "a failure to read must not pass for success")
-        #expect(outcome.couldNotKeep != .identityUnreadable, "this is not a file we could read")
+        #expect(outcome.problem != nil, "a failure to read must not pass for success")
+        #expect(outcome.problem != .identityUnreadable, "this is not a file we could read")
 
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.fileURL.path)
         #expect(try Data(contentsOf: file.fileURL) == before, "the file was written over")
+        #expect(file.loadOrCreate().id == kept, "the identity did not survive a refused read")
+    }
+
+    // REQ-COM-003 (v2.26): **a read that was refused hands back no id at all.**
+    //
+    // Standing in a new one and going on the air with it does the same damage from the other
+    // side as writing over the file would: the Mac is one nobody has heard of, every paired
+    // iPhone is asked for a six-digit code, and the token issued in reply is filed under an id
+    // that is gone at the next launch. Orphans on both ends. **The Mac stays off the air until
+    // it can read who it is** — which is what an empty answer here makes the caller do.
+    @Test func aReadThatWasRefusedHandsBackNoIdentityToGoOnTheAirWith() throws {
+        let directory = try scratchDirectory()
+        defer { discard(directory) }
+        let file = ServerIdentityFile(fileURL: directory.appendingPathComponent("identity.json"))
+        let kept = try #require(file.loadOrCreate().id)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: file.fileURL.path)
+        try #require(
+            (try? Data(contentsOf: file.fileURL)) == nil,
+            "the file system must actually refuse, or this proves nothing"
+        )
+
+        let outcome = file.loadOrCreate()
+        #expect(outcome.id == nil, "REQ-COM-003: an id was invented for a Mac that already has one")
+        #expect(outcome.id != kept)
+        guard case .unreadable = outcome else {
+            Issue.record("a refused read is `unreadable`, not an identity: \(outcome)")
+            return
+        }
+        // REQ-ERR-010 / Decision 0034: and the reason is written in the one shape.
+        #expect(outcome.diagnosticSummary?.hasPrefix("unreadable(") == true)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.fileURL.path)
         #expect(file.loadOrCreate().id == kept, "the identity did not survive a refused read")
     }
 
@@ -139,7 +176,10 @@ struct ServerIdentityTests {
             !FileManager.default.fileExists(atPath: file.fileURL.path),
             "the file system must actually refuse, or this proves nothing"
         )
-        #expect(outcome.couldNotKeep != nil, "REQ-ERR-010: the failure was swallowed")
+        #expect(outcome.problem != nil, "REQ-ERR-010: the failure was swallowed")
+        // REQ-COM-003 (v2.26): **being unable to write is not being unable to read.** There was
+        // nothing on file to be a stranger to, so this launch still goes on the air and still pairs.
+        #expect(outcome.id != nil)
     }
 }
 

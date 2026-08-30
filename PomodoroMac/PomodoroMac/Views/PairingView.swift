@@ -41,9 +41,14 @@ struct PairingSection: View {
                 Text(error)
                     .font(.footnote)
                     .foregroundStyle(theme.color(.danger, .text))
-                Text("Check that this app is allowed in System Settings > Privacy & Security > Local Network.")
-                    .font(.footnote)
-                    .foregroundStyle(theme.textSecondary)
+                // REQ-COM-003 (v2.26): what to do about it is the model's to say. The local
+                // network permission is the answer to one of the two failures that reach this
+                // line and not to the other, and only the model knows which one this is.
+                if let hint = model.serverStartHint {
+                    Text(hint)
+                        .font(.footnote)
+                        .foregroundStyle(theme.textSecondary)
+                }
             }
         }
     }
