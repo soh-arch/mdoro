@@ -408,14 +408,14 @@ struct LogWriteQueueTests {
     // fail at all: with nothing to write, there is nothing to refuse.
     @discardableResult
     private func flushOne(_ queue: LogWriteQueue, failing: Bool) -> LogWriteQueue.FlushResult {
-        queue.enqueue(entry())
+        queue.enqueue(entry(), to: .configured)
         return queue.flush { _ in if failing { throw writeRefused } }
     }
 
     @Test func failuresKeepEntriesQueuedAndNotifyOnTheThirdAttempt() {
         let queue = LogWriteQueue()
-        queue.enqueue(entry())
-        queue.enqueue(entry(start: at(10, 0), end: at(10, 25)))
+        queue.enqueue(entry(), to: .configured)
+        queue.enqueue(entry(start: at(10, 0), end: at(10, 25)), to: .configured)
 
         var result = queue.flush { _ in throw writeRefused }
         #expect(result.written == 0)
@@ -436,8 +436,8 @@ struct LogWriteQueueTests {
 
     @Test func successDrainsTheQueueInOrderAndResetsTheCounter() {
         let queue = LogWriteQueue()
-        queue.enqueue(entry(start: at(9, 0), end: at(9, 25)))
-        queue.enqueue(entry(start: at(10, 0), end: at(10, 25)))
+        queue.enqueue(entry(start: at(9, 0), end: at(9, 25)), to: .configured)
+        queue.enqueue(entry(start: at(10, 0), end: at(10, 25)), to: .configured)
         _ = queue.flush { _ in throw writeRefused }
 
         var written: [Date] = []
@@ -450,8 +450,8 @@ struct LogWriteQueueTests {
 
     @Test func aFailureMidwayStopsAndKeepsTheRest() {
         let queue = LogWriteQueue()
-        queue.enqueue(entry(start: at(9, 0), end: at(9, 25)))
-        queue.enqueue(entry(start: at(10, 0), end: at(10, 25)))
+        queue.enqueue(entry(start: at(9, 0), end: at(9, 25)), to: .configured)
+        queue.enqueue(entry(start: at(10, 0), end: at(10, 25)), to: .configured)
 
         var attempts = 0
         let result = queue.flush { _ in
@@ -563,6 +563,74 @@ struct LogWriteQueueTests {
         flushOne(queue, failing: true)
         let again = flushOne(queue, failing: true)
         #expect(again.shouldNotify, "REQ-ERR-004: trouble that starts again after it cleared is reported again")
+    }
+}
+
+// REQ-LOG-002 / Decision 0033. **Every user starts with no folder set**, so this is the state the
+// app is in on its first run, not an edge case. The rule is that nothing is written, nothing is
+// queued, and none of it is a failure.
+@Suite("An unset destination records nothing and fails at nothing (REQ-LOG-002 / Decision 0033)")
+struct UnsetLogDestinationTests {
+
+    @Test func anEntryIsRefusedWhileNowhereIsSet() {
+        let queue = LogWriteQueue()
+        #expect(queue.enqueue(entry(), to: .notSet) == false)
+        #expect(queue.pendingCount == 0, "REQ-LOG-002: it may not be queued either")
+        #expect(queue.pendingEntries.isEmpty)
+    }
+
+    // The other half of the pair. Without it, a guard that refused everything would pass above.
+    @Test func anEntryIsTakenOnceSomewhereIsSet() {
+        let queue = LogWriteQueue()
+        #expect(queue.enqueue(entry(), to: .configured) == true)
+        #expect(queue.pendingCount == 1)
+    }
+
+    // REQ-ERR-004 / Decision 0033: **the reason the distinction matters.** Read the old way, a new
+    // user was notified that writing had failed on their third session — with nothing broken and
+    // nothing attempted.
+    @Test func sessionsThatWereNeverRecordedNeverReachTheFailureThreshold() {
+        let queue = LogWriteQueue()
+        var refused = 0
+
+        // More sessions than REQ-ERR-004's threshold, and more flushes than its window.
+        for hour in 0 ..< (LogWriteQueue.recentWindow + 2) {
+            if !queue.enqueue(entry(start: at(hour, 0), end: at(hour, 25)), to: .notSet) { refused += 1 }
+            let result = queue.flush { _ in
+                Issue.record("REQ-LOG-002: a write was attempted with nowhere to write to")
+            }
+            #expect(!result.shouldNotify, "REQ-ERR-004: an unset folder is not a failed write")
+            #expect(result.consecutiveFailures == 0)
+            #expect(result.recentFailures == 0)
+            #expect(result.lastError == nil)
+            #expect(result.pending == 0)
+        }
+        #expect(refused == LogWriteQueue.recentWindow + 2, "the sessions did happen; they were not recorded")
+    }
+
+    // Decision 0033: the queue an earlier version left behind. Kept, every one of them would land
+    // in the file the moment a folder was chosen — days of sessions the user never asked to write.
+    @Test func aQueueLeftOverFromWhenNowhereWasSetIsDropped() {
+        let saved = [entry(start: at(9, 0), end: at(9, 25)), entry(start: at(10, 0), end: at(10, 25))]
+        let carried = LogDestination.notSet.carryOver(saved)
+        #expect(carried.kept.isEmpty)
+        #expect(carried.dropped == saved.count, "the count is what the diagnostic log is given")
+    }
+
+    // REQ-LOG-005, unchanged: a queue left over from when a folder *was* set holds real write
+    // failures, and `committedAt` is already on those sessions. Dropping them loses the record.
+    @Test func aQueueLeftOverFromARealFailureIsKept() {
+        let saved = [entry(start: at(9, 0), end: at(9, 25)), entry(start: at(10, 0), end: at(10, 25))]
+        let carried = LogDestination.configured.carryOver(saved)
+        #expect(carried.kept == saved)
+        #expect(carried.dropped == 0)
+    }
+
+    @Test func theDestinationIsReadFromWhetherAFolderIsSet() {
+        #expect(LogDestination(isConfigured: true) == .configured)
+        #expect(LogDestination(isConfigured: false) == .notSet)
+        #expect(LogDestination.configured.recordsEntries)
+        #expect(!LogDestination.notSet.recordsEntries)
     }
 }
 

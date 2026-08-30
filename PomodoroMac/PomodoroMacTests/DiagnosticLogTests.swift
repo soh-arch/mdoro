@@ -76,7 +76,8 @@ private func record(
     let model = AppModel(
         store: InMemoryStateStore(initial: saved),
         diagnostics: DiagnosticLog(directory: directory),
-        // Empty bookmarks. A log write stops at `log.blocked` and never reaches the user's folder.
+        // Empty bookmarks. With no destination set, nothing is even queued (REQ-LOG-002 /
+        // Decision 0033): the entry stops at `log.notRecorded` and never reaches the user's folder.
         bookmarks: VaultBookmarks(),
         notifications: notifications,
         // POL-053: every case below runs a session to its end, and RUNNING is where REQ-PER-006
@@ -186,8 +187,11 @@ struct DiagnosticLogTests {
 
         let rejected = try #require(recording.events("action.rejected").first)
         #expect(rejected.fields["why"] == TimerError.invalidStateForAction.diagnosticSummary)
-        let blocked = try #require(recording.events("log.blocked").first)
-        #expect(blocked.fields["why"] == ErrorCode.logFolderNotSet.summary("noFolder"))
+        // REQ-LOG-002 / Decision 0033: the line for a session with nowhere to be written. It reads
+        // `log.notRecorded` rather than `log.blocked` because nothing was blocked and nothing
+        // failed — `UnsetLogDestinationTests` is where that distinction is held.
+        let notRecorded = try #require(recording.events("log.notRecorded").first)
+        #expect(notRecorded.fields["why"] == ErrorCode.logFolderNotSet.summary("noFolder"))
     }
 
     // REQ-ERR-010 / Decision 0018: **it is never put in, rather than masked on the way out.**

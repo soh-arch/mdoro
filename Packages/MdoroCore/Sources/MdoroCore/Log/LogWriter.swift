@@ -185,9 +185,17 @@ public final class LogWriteQueue: @unchecked Sendable {
         return queue.count
     }
 
-    public func enqueue(_ entry: LogEntry) {
+    // REQ-LOG-002 / Decision 0033: **an entry is taken only when there is somewhere to write it.**
+    // The refusal lives at the queue's door because the queue is what REQ-LOG-002 names — "nor
+    // queued" — and because a rule kept here cannot be forgotten by a call site. Returns whether
+    // the entry was taken; a refusal is not a failure and never reaches `flush`, so it counts
+    // towards neither REQ-LOG-005's retries nor REQ-ERR-004's threshold.
+    @discardableResult
+    public func enqueue(_ entry: LogEntry, to destination: LogDestination) -> Bool {
+        guard destination.recordsEntries else { return false }
         lock.lock(); defer { lock.unlock() }
         queue.append(entry)
+        return true
     }
 
     // Written from the front, in order. On a failure it stops there and the rest stays queued.

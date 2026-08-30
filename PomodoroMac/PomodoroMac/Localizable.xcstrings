@@ -139,6 +139,9 @@
     "Choose a folder for the session log" : {
 
     },
+    "Choose a folder under Settings > Files. Sessions still run and still count; they are just not written down." : {
+
+    },
     "Choose a preset" : {
 
     },
@@ -355,10 +358,10 @@
     "Next: %@" : {
 
     },
-    "No folder is set for the session log. Choose one in Settings; entries stay queued until then." : {
+    "No folder set" : {
 
     },
-    "No folder set" : {
+    "No folder set for the session log — nothing is being recorded" : {
 
     },
     "No task file selected" : {
@@ -593,6 +596,9 @@
 
     },
     "Time only" : {
+
+    },
+    "Until a folder is chosen, sessions are not recorded. The timer runs and loops count as usual; nothing is written down, and nothing is held back to write later." : {
 
     },
     "Up to 10 presets" : {
