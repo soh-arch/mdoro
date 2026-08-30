@@ -45,19 +45,27 @@ final class MdoroClient {
         var receivedTaskList: (TaskListPayload) -> Void
         var receivedEvent: (SessionEventPayload) -> Void
         var receivedError: (ProtocolErrorPayload) -> Void
-        var issuedToken: (String, String) -> Void
+        // Decision 0040: the token, and the id it belongs to. **Never a name** — the Mac's name
+        // is the user's to change and the OS's to rewrite, and this is what the token is filed
+        // under.
+        var issuedToken: (String, ServerID) -> Void
     }
 
     private(set) var status: Status = .idle {
         didSet { if status != oldValue { callbacks?.statusChanged(status) } }
     }
     private(set) var timeSync = TimeSyncEstimator()
+    // What the Mac calls itself (`welcome.serverName`, 9.3 `displayName`). **For showing, and
+    // for nothing else** — it is not looked up by, compared on, or saved under.
     private(set) var serverName: String?
 
     private var connection: NWConnection?
     private var callbacks: Callbacks?
     private var backoff = ReconnectPolicy()
-    private var target: DiscoveredServer?
+    // The Mac being dialled. Readable so the model does not have to guess which of the
+    // discovered rows a pairing code belongs to — it used to match on names from two different
+    // name spaces and fall through to `servers.first`.
+    private(set) var target: DiscoveredServer?
     private var pairingCode: String?
     private var keepaliveTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
@@ -65,6 +73,13 @@ final class MdoroClient {
     private var brokenMessages = BrokenMessageCounter()
 
     private let deviceName = "iPhone"
+    // POL-047 / Decision 0040: the Keychain is outside this process, and the suite runs inside
+    // this app. **The default is the same as production.**
+    private let tokens: any TokenStoring
+
+    init(tokens: any TokenStoring = TokenKeychain()) {
+        self.tokens = tokens
+    }
 
     // MARK: - Connection
 
@@ -135,7 +150,9 @@ final class MdoroClient {
     }
 
     private func sendHello() {
-        let token = target.map { TokenKeychain.load(serverName: $0.name) } ?? nil
+        // Decision 0040: **the id, not the name.** A Mac advertising without one is a version
+        // that cannot be paired with; it gets as far as the version check and is refused there.
+        let token = target?.serverId.flatMap { tokens.load(serverId: $0) }
         // With neither a token nor a code, ask for one to be entered.
         if token == nil, pairingCode == nil {
             status = .needsPairing
@@ -191,14 +208,14 @@ final class MdoroClient {
             serverName = payload.serverName
             pairingCode = nil
             status = .connected
-            if let target { callbacks?.issuedToken(payload.deviceToken, target.name) }
+            if let serverId = target?.serverId { callbacks?.issuedToken(payload.deviceToken, serverId) }
             startKeepalive()
 
         case let .authFailed(payload):
             status = .failed(payload.code)
             // A token that cannot be used is thrown away.
-            if payload.code == .unknownDeviceToken, let target {
-                TokenKeychain.delete(serverName: target.name)
+            if payload.code == .unknownDeviceToken, let serverId = target?.serverId {
+                tokens.delete(serverId: serverId)
             }
 
         case let .timeSyncPong(payload):

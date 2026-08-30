@@ -38,7 +38,10 @@ final class ClientModel {
     // REQ-COL-003 / Decision 0027: **the appearance is a setting for this device alone.** It is not sent to the Mac.
     private(set) var appearance: AppearancePreference = .system
 
-    private let client = MdoroClient()
+    // POL-047 / Decision 0040: the Keychain is outside this process. **The default is the same
+    // as production**, and only when it is replaced does a test write into the reader's own.
+    private let tokens: any TokenStoring
+    private let client: MdoroClient
     private let notifications = NotificationScheduler()
     private let liveActivity = LiveActivityController()
     // REQ-UIX-020 gates the Live Activity's start on this; facts: docs/PLATFORM.md.
@@ -48,6 +51,11 @@ final class ClientModel {
     private var hasLiveSnapshot = false
     private let browser = ServerBrowser()
     private var ticker: Task<Void, Never>?
+
+    init(tokens: any TokenStoring = TokenKeychain()) {
+        self.tokens = tokens
+        self.client = MdoroClient(tokens: tokens)
+    }
 
     // MARK: - Launch
 
@@ -139,19 +147,23 @@ final class ClientModel {
             receivedTaskList: { [weak self] in self?.taskList = $0 },
             receivedEvent: { _ in },
             receivedError: { [weak self] in self?.lastRefusal = $0.code },
-            issuedToken: { token, serverName in
-                TokenKeychain.save(token, serverName: serverName)
+            issuedToken: { [weak self] token, serverId in
+                self?.tokens.save(token, serverId: serverId)
             }
         ))
     }
 
+    // Decision 0040: **the code goes back to the Mac that asked for it.** This used to look the
+    // target up by matching `$0.name` (the Bonjour instance name) against `client.serverName`
+    // (what the Mac called itself in `welcome`) — two different name spaces sharing a variable
+    // name — and fell through to `servers.first` whenever they did not match, which is every time
+    // the two differ and any time two Macs are listed. The client already knows which one it is
+    // dialling; nothing has to be matched at all.
     func submitPairingCode(_ code: String) {
-        guard let server = servers.first(where: { $0.name == connectedServerName }) ?? servers.first else { return }
+        guard let server = client.target ?? servers.first else { return }
         lastRefusal = nil
         connect(to: server, pairingCode: code)
     }
-
-    private var connectedServerName: String? { client.serverName }
 
     var isConnected: Bool { status == .connected }
 
@@ -212,15 +224,31 @@ final class ClientModel {
 
     // MARK: - Unpairing
 
-    // The name of the Mac that is remembered.
-    var pairedServerName: String? {
-        guard let name = client.serverName ?? servers.first?.name else { return nil }
-        return TokenKeychain.load(serverName: name) == nil ? nil : name
+    // REQ-SEC-002 / Decision 0040: the Mac this iPhone holds a token for — **found by id, shown
+    // by name.**
+    //
+    // The id comes from the TXT record of a Mac that is on the air; the name is whatever that Mac
+    // is calling itself. Neither is used to find the other. When no Mac is answering there is
+    // nothing to show and nothing to forget, which is the state this was already in.
+    private var pairedMac: (serverId: ServerID, name: String)? {
+        if let target = client.target, let serverId = target.serverId,
+           tokens.load(serverId: serverId) != nil {
+            // `welcome.serverName` once it has arrived; until then, the name it is advertising under.
+            return (serverId, client.serverName ?? target.name)
+        }
+        for server in servers {
+            guard let serverId = server.serverId, tokens.load(serverId: serverId) != nil else { continue }
+            return (serverId, server.name)
+        }
+        return nil
     }
+
+    // The name of the Mac that is remembered.
+    var pairedServerName: String? { pairedMac?.name }
 
     // **Throws this device's registration away.** All that is lost is the token; the timer's state is on the Mac.
     func forgetPairedMac() {
-        if let name = pairedServerName { TokenKeychain.delete(serverName: name) }
+        if let paired = pairedMac { tokens.delete(serverId: paired.serverId) }
         client.disconnect()
         hasLiveSnapshot = false
         liveActivity.end()

@@ -5,11 +5,18 @@ import MdoroCore
 // REQ-COM-003 / REQ-ERR-005: the Mac is found over Bonjour. More than one can be found and chosen
 // between, so they are held in an array.
 struct DiscoveredServer: Identifiable, Equatable, Sendable {
+    // The Bonjour instance name. **It identifies a registration, not a Mac** — mDNSResponder
+    // rewrites it on a collision — so it is what tells two rows of the list apart and nothing more.
     let id: String
     let name: String
     let endpoint: NWEndpoint
     // The sync port carried in the TXT record (REQ-COM-002).
     let websocketPort: UInt16?
+    // REQ-COM-003 / Decision 0040: **what identifies the Mac.** nil when the advertisement carries
+    // no `id`, which means a version that predates this one — such a Mac is still listed, and
+    // refuses the connection itself on the version check (REQ-PRT-004), rather than vanishing
+    // from the list with nothing said.
+    let serverId: ServerID?
 
     static func == (lhs: DiscoveredServer, rhs: DiscoveredServer) -> Bool { lhs.id == rhs.id }
 }
@@ -28,7 +35,7 @@ final class ServerBrowser {
         stop()
         let parameters = NWParameters()
         parameters.includePeerToPeer = false
-        let browser = NWBrowser(for: .bonjourWithTXTRecord(type: "_mdoro._tcp", domain: nil), using: parameters)
+        let browser = NWBrowser(for: .bonjourWithTXTRecord(type: BonjourService.type, domain: nil), using: parameters)
 
         browser.stateUpdateHandler = { [weak self] state in
             guard case let .failed(error) = state else { return }
@@ -68,8 +75,10 @@ final class ServerBrowser {
     // **A Mac that answers and is not offered is worse than a ghost that lingers.** An
     // abandoned registration is withdrawn about 1.7 seconds after its process is killed; how
     // long a stale one survives across the LAN has never been measured (`docs/PLATFORM.md`).
-    // The number stays on screen because it is the only thing that tells two of them apart —
-    // the advertisement carries no identifier of its own.
+    // The number stays on screen because it is what tells two rows apart to the eye. **What tells
+    // them apart to the app is the TXT `id`** (Decision 0040), which is why a rename by
+    // mDNSResponder no longer costs a pairing — but nobody can read an id off a list, so the
+    // name, number and all, is still what is shown.
     //
     // The order is settled here because the browser hands back a Set. Without it the same
     // entries change places between callbacks, and a list that reorders itself under the
@@ -87,10 +96,27 @@ final class ServerBrowser {
 
     nonisolated private static func server(from result: NWBrowser.Result) -> DiscoveredServer? {
         guard case let .service(name, _, _, _) = result.endpoint else { return nil }
-        var websocketPort: UInt16?
-        if case let .bonjour(txt) = result.metadata, let raw = txt.getEntry(for: "ws") {
-            if case let .string(value) = raw { websocketPort = UInt16(value) }
-        }
-        return DiscoveredServer(id: name, name: name, endpoint: result.endpoint, websocketPort: websocketPort)
+        var details: (websocketPort: UInt16?, serverId: ServerID?) = (nil, nil)
+        if case let .bonjour(record) = result.metadata { details = read(record) }
+        return DiscoveredServer(
+            id: name, name: name, endpoint: result.endpoint,
+            websocketPort: details.websocketPort, serverId: details.serverId
+        )
+    }
+
+    // Apart from `server(from:)` because an `NWBrowser.Result` cannot be built by hand and an
+    // `NWTXTRecord` can. What a Mac put on the air is the half worth checking.
+    nonisolated static func read(_ record: NWTXTRecord) -> (websocketPort: UInt16?, serverId: ServerID?) {
+        (
+            text(record, BonjourService.websocketPortKey).flatMap(UInt16.init),
+            // Decision 0040: anything that is not a UUID is not an id. What arrives here was
+            // written by whoever is on the LAN, and it ends up as a Keychain account name.
+            text(record, BonjourService.identityKey).flatMap(ServerID.init)
+        )
+    }
+
+    nonisolated private static func text(_ record: NWTXTRecord, _ key: String) -> String? {
+        guard let entry = record.getEntry(for: key), case let .string(value) = entry else { return nil }
+        return value
     }
 }
