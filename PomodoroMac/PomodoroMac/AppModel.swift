@@ -97,6 +97,10 @@ final class AppModel {
     // REQ-SEC-002 / POL-047: the Keychain is outside this process, so it is a seam like the
     // notification centre and the hold on idle sleep. **The default is the same as production.**
     private let deviceTokens: any DeviceTokenStoring
+    // REQ-SEC-002 / Decision 0040: why what is on file must not be written over. **A read that
+    // failed is not an empty Keychain** — the records may be sitting there intact, and saving the
+    // authenticator's over them is how every pairing disappears at once.
+    private var deviceRecordsUnreadable: ErrorCode?
     private var authenticator = Authenticator()
     // REQ-COM-003 / Decision 0040: read on the way to advertising and kept for the life of the
     // process. **Resolved there and not in `init`** — creating it writes a file into Application
@@ -231,10 +235,7 @@ final class AppModel {
         hasStarted = true
         diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
         diagnostics.write("app.start")
-        // REQ-SEC-002 / Decision 0040: the tokens live in the Keychain now, and the plist they
-        // used to sit in is emptied rather than read. See `LeftoverPlaintextTokens`.
-        LeftoverPlaintextTokens.erase()
-        authenticator = Authenticator(issuedTokens: deviceTokens.load())
+        adoptStoredDeviceTokens()
         writeStartupDiagnostics()
         Task {
             // REQ-ERR-010 / Decision 0034: the screen gets a sentence, the log gets a code.
@@ -305,6 +306,44 @@ final class AppModel {
         if let lastSaveFailure {
             diagnostics.write("state.save", level: .error, [
                 DiagnosticField("why", lastSaveFailure.diagnosticSummary),
+            ])
+        }
+    }
+
+    // REQ-SEC-002 / Decision 0040: take the records on file into the authenticator.
+    //
+    // **Kept out of `start()` so that it can be exercised on its own** — the same reason
+    // `writeStartupDiagnostics()` is, and `start()` is its only other caller.
+    func adoptStoredDeviceTokens() {
+        // The tokens live in the Keychain now, and the plist they used to sit in is emptied rather
+        // than read. See `LeftoverPlaintextTokens`.
+        deviceTokens.eraseLeftoverPlaintext()
+        let records = deviceTokens.load()
+        // REQ-ERR-010 / Decision 0034: the log gets a code. Losing every pairing on the machine
+        // used to leave no trace anywhere.
+        if let summary = records.diagnosticSummary {
+            diagnostics.write("tokens.load", level: .error, [DiagnosticField("why", summary)])
+        }
+        deviceRecordsUnreadable = records.unreadableBecause
+        authenticator = Authenticator(issuedTokens: records.tokens)
+    }
+
+    // REQ-SEC-002 / Decision 0040: **the records go back only when what was there was read.**
+    //
+    // Both halves of the old route were silent. The save threw its `OSStatus` away after emptying
+    // the item, and the load answered `[]` for a Keychain that merely refused to answer — so one
+    // pairing made after a bad read replaced every record on file, and the next launch turned
+    // every paired iPhone into an unknown one.
+    func saveIssuedDeviceTokens() {
+        if let unreadable = deviceRecordsUnreadable {
+            diagnostics.write("tokens.save", level: .error, [
+                DiagnosticField("why", unreadable.summary("notWritten")),
+            ])
+            return
+        }
+        if let problem = deviceTokens.save(authenticator.issuedTokens) {
+            diagnostics.write("tokens.save", level: .error, [
+                DiagnosticField("why", problem.summary("saveFailed")),
             ])
         }
     }
@@ -688,7 +727,7 @@ final class AppModel {
                 if case .accept = decision {
                     // REQ-SEC-002 / Decision 0040: the whole record — value, device name and the
                     // date it was issued.
-                    deviceTokens.save(authenticator.issuedTokens)
+                    saveIssuedDeviceTokens()
                     pairingCode = nil
                     refreshServerInfo()
                 } else if case let .needsUserApproval(name) = decision {

@@ -359,3 +359,85 @@ struct NameSpaceTests {
         }
     }
 }
+
+// REQ-SEC-002 / Decision 0040: **the records were emptied on the way to being written.**
+//
+// `save` was `SecItemDelete` and then `SecItemAdd` with its `OSStatus` discarded, and `load`
+// folded every status other than `errSecSuccess` into `[]`. An add that failed left the reader
+// with nothing on file and no trace of it anywhere; a read that failed answered "nothing paired",
+// so the next pairing wrote one record over all of them. The old plist store made neither of
+// these reachable in practice — **both arrived with the move to the Keychain.**
+//
+// The Keychain itself cannot be exercised here: under `xcodebuild` the suite runs inside
+// MdoroMac.app and writes into the reader's own login keychain (POL-047). What this holds is the
+// shape of the calls; the policy built on them is `DeviceTokenRecordTests` in the Mac target.
+@Suite("Records are not destroyed on the way to being written (REQ-SEC-002 / Decision 0040)")
+struct DeviceTokenStorageTests {
+
+    private var store: String {
+        get throws { try source("PomodoroMac/PomodoroMac/Server/DeviceTokenStore.swift") }
+    }
+
+    @Test func nothingIsRemovedBeforeTheWriteThatReplacesIt() throws {
+        let text = withoutComments(try store)
+        #expect(
+            !text.contains("SecItemDelete"),
+            "REQ-SEC-002: the records are emptied before the write that replaces them, and a failed write leaves none"
+        )
+        #expect(
+            text.contains("SecItemUpdate"),
+            "REQ-SEC-002: an item that is already there is no longer updated in place"
+        )
+    }
+
+    // REQ-ERR-010: **a discarded `OSStatus` is a failure nobody hears about.** Every call has to
+    // put its answer somewhere a decision can read it.
+    @Test func everyKeychainCallHasItsStatusRead() throws {
+        // The call, not the word: `errSecItemNotFound` also carries `SecItem` in it.
+        let names = ["SecItemCopyMatching(", "SecItemAdd(", "SecItemUpdate(", "SecItemDelete("]
+        let calls = withoutComments(try store)
+            .split(separator: "\n")
+            .filter { line in names.contains { line.contains($0) } }
+        #expect(!calls.isEmpty, "the Keychain calls moved; this scan is swinging at nothing")
+        for call in calls {
+            #expect(
+                call.contains(" = SecItem"),
+                "REQ-ERR-010: `\(call.trimmingCharacters(in: .whitespaces))` throws its OSStatus away"
+            )
+        }
+    }
+
+    // Decision 0040: **"nothing on record" and "could not be read" are different answers.** Fold
+    // them together and one refusal from the Keychain reads as an unpaired Mac.
+    @Test func anEmptyKeychainIsToldApartFromOneThatWouldNotAnswer() throws {
+        let text = withoutComments(try store)
+        #expect(
+            text.contains("errSecItemNotFound"),
+            "Decision 0040: every failed read answers `nothing paired` again"
+        )
+        #expect(
+            text.contains("case unreadable("),
+            "Decision 0040: a read that failed no longer says so, and the next save writes over what it could not read"
+        )
+    }
+
+    // POL-047 / POL-053 / Decision 0040: `UserDefaults.standard` under this bundle identifier is
+    // the reader's own settings, and the suite runs inside the app. Erasing the leftover plist is
+    // part of the seam for exactly the reason the rest of it exists — a static call outside the
+    // seam is a call a test makes for real, which is the shape of both POL-047 and POL-053.
+    @Test func theLeftoverPlistIsErasedThroughTheSeamAndNowhereElse() throws {
+        #expect(
+            withoutComments(try store).contains("func eraseLeftoverPlaintext()"),
+            "POL-047: the seam no longer covers the plist the tokens used to sit in"
+        )
+        for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
+            for (name, text) in try swiftFiles(under: directory, recursive: true)
+            where name != "DeviceTokenStore.swift" {
+                #expect(
+                    !text.contains("LeftoverPlaintextTokens"),
+                    "POL-047: \(name) empties the reader's own UserDefaults from outside the seam"
+                )
+            }
+        }
+    }
+}

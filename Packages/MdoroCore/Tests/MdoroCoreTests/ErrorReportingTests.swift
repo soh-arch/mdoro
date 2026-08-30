@@ -259,6 +259,7 @@ struct ErrorReportingTests {
             .logInvalidFilePath, .logWouldModifyExistingLines, .logFolderNotSet,
             .logFileChangedWhileWriting,
             .stateCorrupted, .stateUnsupportedSchemaVersion, .identityUnreadable,
+            .deviceTokensUnreadable,
             .notificationsNotAllowed,
             .bookmarkCreationFailed, .bookmarkResolutionFailed, .accessDenied,
         ] + TimerError.allCases.map(\.errorCode)
