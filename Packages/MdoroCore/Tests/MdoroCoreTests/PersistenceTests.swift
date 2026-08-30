@@ -328,8 +328,8 @@ struct PendingLogPersistenceTests {
     // written again.
     @Test func pendingEntriesSurviveARestart() throws {
         let queue = LogWriteQueue()
-        queue.enqueue(entry(reference))
-        queue.enqueue(entry(reference.addingTimeInterval(1800)))
+        queue.enqueue(entry(reference), to: .configured)
+        queue.enqueue(entry(reference.addingTimeInterval(1800)), to: .configured)
         _ = queue.flush { _ in throw writeRefused }
         #expect(queue.pendingCount == 2)
 

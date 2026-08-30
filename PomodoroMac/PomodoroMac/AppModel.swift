@@ -44,11 +44,16 @@ final class AppModel {
     private(set) var notificationAuthorizationError: String?
 
     // REQ-ERR-004 / REQ-LOG-005: put on the UI that writing keeps failing.
+    // **Only a write that was attempted and failed reaches here.** REQ-LOG-002 / Decision 0033:
+    // a destination nobody has chosen is not a failure, and has `logFolderNotSet` of its own.
     private(set) var logWriteFailed = false
     // REQ-ERR-004: put the reason for the failure on the UI.
     private(set) var lastLogError: String?
     // How many entries have not been written.
     private(set) var pendingLogCount = 0
+    // REQ-LOG-002 / Decision 0033: how many carried-over entries were dropped at launch because
+    // there was nowhere to write them. Written to the diagnostic log once `start()` opens it.
+    private let droppedLogEntryCount: Int
     // When the last successful write happened.
     private(set) var lastLogWriteAt: Date?
     // REQ-TSK-032: say quietly that the selection followed on its own.
@@ -163,8 +168,16 @@ final class AppModel {
             selectedTaskSnapshot: saved?.selectedTaskSnapshot
         )
         // REQ-LOG-005: carry over the log entries that have not been written. **Drop them and they never will be.**
-        self.logQueue = LogWriteQueue(entries: saved?.pendingLogEntries ?? [])
+        // REQ-LOG-002 / Decision 0033: unless there is nowhere to write them. Entries an earlier
+        // version queued while no folder was set were never meant to exist, and keeping them would
+        // pour days of sessions into the file the moment a folder is chosen. The destination is read
+        // from the bookmark rather than `settings.logFolderPath`, because the bookmark is what a
+        // write actually needs — the path is only what the settings screen shows.
+        let carryOver = LogDestination(isConfigured: bookmarks.logFolder != nil)
+            .carryOver(saved?.pendingLogEntries ?? [])
+        self.logQueue = LogWriteQueue(entries: carryOver.kept)
         self.pendingLogCount = self.logQueue.pendingCount
+        self.droppedLogEntryCount = carryOver.dropped
         self.restoreFailure = startup.readFailure
         self.setAsideFailure = startup.setAsideFailure
         self.persistBlockedBy = startup.persistBlockedBy
@@ -209,28 +222,7 @@ final class AppModel {
         hasStarted = true
         diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
         diagnostics.write("app.start")
-        // REQ-ERR-017 / Decision 0035: a failure from before the launch is written the moment the log opens.
-        if let restoreFailure {
-            diagnostics.write("state.restore", level: .error, [
-                DiagnosticField("why", restoreFailure.diagnosticSummary),
-            ])
-        }
-        if let setAsideFailure {
-            diagnostics.write("state.setAside", level: .error, [
-                DiagnosticField("why", setAsideFailure.diagnosticSummary),
-            ])
-        }
-        if let storeUnavailable {
-            diagnostics.write("state.store", level: .error, [
-                DiagnosticField("why", storeUnavailable.diagnosticSummary),
-            ])
-        }
-        // The `persist()` in init runs before the log opens. **That one failure was the only one with no record.**
-        if let lastSaveFailure {
-            diagnostics.write("state.save", level: .error, [
-                DiagnosticField("why", lastSaveFailure.diagnosticSummary),
-            ])
-        }
+        writeStartupDiagnostics()
         Task {
             // REQ-ERR-010 / Decision 0034: the screen gets a sentence, the log gets a code.
             switch await notifications.requestAuthorization() {
@@ -261,6 +253,47 @@ final class AppModel {
         syncSideEffectsToState()
         updateHotKey()
         Task { await startServer() }
+    }
+
+    // REQ-ERR-010 / Decision 0018: what happened before the log could be opened.
+    //
+    // `init` runs before `open()`, and a write before that is a no-op, so each of these is held
+    // until here. **Kept out of `start()` so that it can be read back on its own** — `start()`
+    // raises a listener, a Bonjour registration and a request for notification permission, and
+    // none of those belong in a test of what the log says. `start()` is its only other caller.
+    func writeStartupDiagnostics() {
+        // REQ-ERR-017 / Decision 0035: a failure from before the launch is written the moment the log opens.
+        if let restoreFailure {
+            diagnostics.write("state.restore", level: .error, [
+                DiagnosticField("why", restoreFailure.diagnosticSummary),
+            ])
+        }
+        if let setAsideFailure {
+            diagnostics.write("state.setAside", level: .error, [
+                DiagnosticField("why", setAsideFailure.diagnosticSummary),
+            ])
+        }
+        if let storeUnavailable {
+            diagnostics.write("state.store", level: .error, [
+                DiagnosticField("why", storeUnavailable.diagnosticSummary),
+            ])
+        }
+        // REQ-LOG-002 / Decision 0033: entries carried over from a version that queued them with
+        // nowhere to write them are dropped, and **dropping records is not done quietly.** Only the
+        // count goes in (Decision 0018). It is a warning because something was thrown away, which is
+        // not what an unset destination does from here on — that is `log.notRecorded`, at info.
+        if droppedLogEntryCount > 0 {
+            diagnostics.write("log.dropped", level: .warn, [
+                DiagnosticField("count", droppedLogEntryCount),
+                DiagnosticField("why", ErrorCode.logFolderNotSet.summary("noFolder")),
+            ])
+        }
+        // The `persist()` in init runs before the log opens. **That one failure was the only one with no record.**
+        if let lastSaveFailure {
+            diagnostics.write("state.save", level: .error, [
+                DiagnosticField("why", lastSaveFailure.diagnosticSummary),
+            ])
+        }
     }
 
     // REQ-NTF-006 / Decision 0019: send one notification with the chosen settings exactly as they are.
@@ -738,29 +771,43 @@ final class AppModel {
 
     // MARK: - Log
 
+    // REQ-LOG-002 / Decision 0033: where the session log goes, or that nowhere has been chosen.
+    // The bookmark is what a write actually needs; `settings.logFolderPath` is only what is shown.
+    private var logDestination: LogDestination {
+        LogDestination(isConfigured: bookmarks.logFolder != nil)
+    }
+
+    // REQ-LOG-002 / Decision 0033: nothing is being recorded, because nowhere has been chosen.
+    // **This is not a failure and is shown apart from one** — `logWriteFailed` is for a write that
+    // was attempted and refused. The screen has to say this, or the app records nothing in silence.
+    var logFolderNotSet: Bool { !logDestination.recordsEntries }
+
     private func enqueueLog(_ entry: LogEntry) {
-        logQueue.enqueue(entry)
+        // REQ-LOG-002 / Decision 0033: with nowhere to write it, the entry is neither written nor
+        // kept. **Unset is not a failed write**: it never enters the retry queue (REQ-LOG-005) and
+        // never counts towards the notification for repeated failures (REQ-ERR-004). The session
+        // itself is unaffected — it finished, it counted, and `committedAt` is set (REQ-LOG-019).
+        guard logQueue.enqueue(entry, to: logDestination) else {
+            // REQ-ERR-010 / Decision 0034: `why` is always `case(domain:code)`. At info, because
+            // nothing went wrong: the reader on an issue has to be able to tell this apart from
+            // `log.write` failing, and a warning would say exactly the thing Decision 0033 denies.
+            diagnostics.write("log.notRecorded", [
+                DiagnosticField("why", ErrorCode.logFolderNotSet.summary("noFolder")),
+            ])
+            return
+        }
         pendingLogCount = logQueue.pendingCount
         flushLogQueue()
     }
 
     func flushLogQueue() {
+        // REQ-LOG-002 / Decision 0033: **with no folder chosen there is nothing here to write.**
+        // Nothing was queued while it was unset, and nothing was carried over from before, so this
+        // returns quietly rather than reporting — an unset destination is not a failed write. It
+        // used to raise `logWriteFailed`, keep the entry and count towards REQ-ERR-004's threshold.
+        guard let bookmark = bookmarks.logFolder else { return }
         guard logQueue.pendingCount > 0 else { return }
         let options = LogFormatter.Options(taskAsLink: settings.logTaskAsLink)
-
-        guard let bookmark = bookmarks.logFolder else {
-            // Even with no destination set, nothing recorded is thrown away; it stays in the queue.
-            logWriteFailed = true
-            lastLogError = String(
-                localized: "No folder is set for the session log. Choose one in Settings; entries stay queued until then."
-            )
-            // REQ-ERR-010 / Decision 0034: `why` is always `case(domain:code)`.
-            diagnostics.write("log.blocked", level: .warn, [
-                DiagnosticField("why", ErrorCode.logFolderNotSet.summary("noFolder")),
-                DiagnosticField("pending", logQueue.pendingCount),
-            ])
-            return
-        }
 
         do {
             let fileName = settings.logFileName
@@ -905,7 +952,10 @@ final class AppModel {
         bookmarks.logFolder = data
         bookmarks.save()
         settings.logFolderPath = url.path
-        // REQ-LOG-005: what has piled up is written out here.
+        // REQ-LOG-005: a write that failed while a folder *was* set is still queued, and choosing
+        // the folder again is how the user is told to fix it. So the retry belongs here.
+        // REQ-LOG-002 / Decision 0033: **and nothing accumulates while no folder is set**, so this
+        // can no longer pour days of unasked-for sessions into the file at the moment one is chosen.
         flushLogQueue()
     }
 

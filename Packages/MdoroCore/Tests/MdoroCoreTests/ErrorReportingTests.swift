@@ -349,7 +349,7 @@ struct ErrorReportingTests {
     // REQ-LOG-005: even a type nobody planned for lands as a domain and a code.
     @Test func anUnforeseenFailureStillArrivesAsADomainAndCode() {
         let queue = LogWriteQueue()
-        queue.enqueue(sampleEntry())
+        queue.enqueue(sampleEntry(), to: .configured)
         let result = queue.flush { _ in
             throw NSError(domain: NSPOSIXErrorDomain, code: 28, userInfo: [NSFilePathErrorKey: "/Users/someone/Vault"])
         }

@@ -178,6 +178,20 @@ struct MainWindowView: View {
                 Divider().frame(height: 12)
                 Text("Last written \(at.formatted(date: .omitted, time: .standard))")
             }
+            // REQ-LOG-002 / Decision 0033: **nowhere has been chosen, which is not a failure.**
+            // No warning colour and no warning triangle: those belong to the row below, where a
+            // write was attempted and refused. What this one needs is the way to choose a folder.
+            if model.logFolderNotSet {
+                Divider().frame(height: 12)
+                SettingsLink {
+                    Label("No folder set for the session log — nothing is being recorded",
+                          systemImage: "folder.badge.questionmark")
+                        .foregroundStyle(theme.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .simultaneousGesture(TapGesture().onEnded { model.settingsTab = .files })
+                .help("Choose a folder under Settings > Files. Sessions still run and still count; they are just not written down.")
+            }
             if model.logWriteFailed {
                 Divider().frame(height: 12)
                 Label(model.lastLogError ?? String(localized: "The session log is not being written"),

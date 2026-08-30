@@ -30,6 +30,9 @@ struct SymbolNameTests {
                      "arrow.trianglehead.2.clockwise",
                      // The names used by the settings tabs and the task list are checked here too.
                      "timer", "gearshape", "folder", "paintpalette",
+                     // REQ-LOG-002 / Decision 0033: the status line's mark for a log folder
+                     // nobody has chosen. **Not the warning triangle** — nothing has failed.
+                     "folder.badge.questionmark",
                      "largecircle.fill.circle", "circle",
                      // The session symbols of the Live Activity.
                      "cup.and.saucer", "moon.zzz"] {

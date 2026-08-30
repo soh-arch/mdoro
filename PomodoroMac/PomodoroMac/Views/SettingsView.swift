@@ -90,6 +90,13 @@ struct SettingsView: View {
                         .frame(width: 200)
                         .multilineTextAlignment(.trailing)
                 }
+                // REQ-LOG-002 / Decision 0033: **what is not being recorded is said where the
+                // setting is.** Not a failure, so it is worded as a state and not as an error.
+                if self.model.logFolderNotSet {
+                    Text("Until a folder is chosen, sessions are not recorded. The timer runs and loops count as usual; nothing is written down, and nothing is held back to write later.")
+                        .font(.footnote)
+                        .foregroundStyle(theme.textSecondary)
+                }
                 if let path = self.model.settings.logFilePath {
                     Text("Written to: \(path)")
                         .font(.footnote)
