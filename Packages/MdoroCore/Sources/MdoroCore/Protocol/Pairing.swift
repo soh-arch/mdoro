@@ -51,7 +51,13 @@ public struct PairingSession: Equatable, Sendable {
     }
 }
 
-// REQ-SEC-002: from the second time on, a device token authenticates on its own, with nothing for the user to do.
+// REQ-SEC-002 / Decision 0040: from the second time on, a device token authenticates on its own,
+// with nothing for the user to do.
+//
+// **All three fields are kept, and the Mac keeps them.** It used to hold a `Set<String>` of
+// values, so the name and the date were thrown away at the moment of saving — which is why there
+// was no revocation screen to build: nothing was left to put on it. "There is no way to revoke"
+// was really "the thing to revoke cannot be identified, because we discarded what identified it".
 public struct DeviceToken: Equatable, Sendable, Codable, Hashable {
     public let value: String
     public let deviceName: String
@@ -71,12 +77,14 @@ public struct DeviceToken: Equatable, Sendable, Codable, Hashable {
 
 // Whether a connection is accepted is decided here alone; the transport layer only follows the answer.
 public struct Authenticator: Equatable, Sendable {
-    public private(set) var issuedTokens: Set<String> = []
+    // Decision 0040: records, not values. **A token cannot be held here without saying whose it
+    // is and when it was handed out** — the revocation screen (9.x) reads exactly this.
+    public private(set) var issuedTokens: [DeviceToken] = []
     public private(set) var pairing: PairingSession?
     // REQ-SEC-004: whether another client is already connected.
     public var connectedClientName: String?
 
-    public init(issuedTokens: Set<String> = [], pairing: PairingSession? = nil) {
+    public init(issuedTokens: [DeviceToken] = [], pairing: PairingSession? = nil) {
         self.issuedTokens = issuedTokens
         self.pairing = pairing
     }
@@ -106,11 +114,17 @@ public struct Authenticator: Equatable, Sendable {
 
         // REQ-SEC-002: a token we issued goes straight through.
         if let token = hello.deviceToken {
-            guard issuedTokens.contains(token) else { return .reject(.unknownDeviceToken) }
+            // **The record on file is handed back, not a fresh one built from this hello.**
+            // `issuedAt` means when it was issued; rebuilding it here would move that date
+            // forward on every reconnect and leave the revocation screen showing today for a
+            // pairing made in March.
+            guard let issued = issuedTokens.first(where: { $0.value == token }) else {
+                return .reject(.unknownDeviceToken)
+            }
             if connectedClientName != nil {
                 return .needsUserApproval(requestingDeviceName: hello.deviceName)
             }
-            return .accept(DeviceToken(value: token, deviceName: hello.deviceName, issuedAt: now))
+            return .accept(issued)
         }
 
         // REQ-SEC-001 / 003: without a token, a pairing code is required.
@@ -127,7 +141,7 @@ public struct Authenticator: Equatable, Sendable {
         switch outcome {
         case .accepted:
             let token = DeviceToken(deviceName: hello.deviceName, issuedAt: now)
-            issuedTokens.insert(token.value)
+            issuedTokens.append(token)
             pairing = nil
             if connectedClientName != nil {
                 return .needsUserApproval(requestingDeviceName: hello.deviceName)

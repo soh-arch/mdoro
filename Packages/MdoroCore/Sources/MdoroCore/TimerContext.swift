@@ -138,6 +138,12 @@ public enum MenuBarDisplayMode: String, Equatable, Sendable, Codable, CaseIterab
 public struct AppSettings: Equatable, Sendable, Codable {
     public var appearance: AppearancePreference
     public var focusViewDimmed: Bool
+    // 9.3 / REQ-COM-003 / Decision 0040: **the name the iPhone sees, and the only name this Mac
+    // puts on the LAN.** The Bonjour service name, `welcome.serverName` and the name on the
+    // iPhone's lock screen are all this value. It carries no identity — that is the TXT `id`
+    // (`ServerID`) — so two Macs sharing a name is untidy rather than broken. The default is
+    // `Mdoro` and not the Mac's own name, which usually contains a person's.
+    public var displayName: String
     public var logicalDayStartHour: Int
     public var idleResetHours: Int
     // REQ-PLT-003: what actually grants access is a security-scoped bookmark. Only the path to show is kept here.
@@ -164,6 +170,7 @@ public struct AppSettings: Equatable, Sendable, Codable {
     public init(
         appearance: AppearancePreference = .system,
         focusViewDimmed: Bool = false,
+        displayName: String = AppSettings.defaultDisplayName,
         logicalDayStartHour: Int = 4,
         idleResetHours: Int = 12,
         taskFilePath: String? = nil,
@@ -182,6 +189,7 @@ public struct AppSettings: Equatable, Sendable, Codable {
     ) {
         self.appearance = appearance
         self.focusViewDimmed = focusViewDimmed
+        self.displayName = displayName
         self.logicalDayStartHour = logicalDayStartHour
         self.idleResetHours = idleResetHours
         self.taskFilePath = taskFilePath
@@ -202,11 +210,20 @@ public struct AppSettings: Equatable, Sendable, Codable {
     public static let `default` = AppSettings()
     // REQ-LOG-001: the default name.
     public static let defaultLogFileName = "MdoroLog.md"
+    // 9.3 / Decision 0040: the app's own name, so nothing of the reader's goes out until they
+    // put it there themselves.
+    public static let defaultDisplayName = AppInfo.name
 
     // The value 9.3 calls `logFilePath`, assembled from the folder and the file name.
     public var logFilePath: String? {
         guard let logFolderPath else { return nil }
         return (logFolderPath as NSString).appendingPathComponent(logFileName)
+    }
+
+    // 9.3: one character or more. Whitespace alone is not a name — it would advertise a Mac
+    // nothing on the iPhone's screen could tell from an empty row.
+    public static func isValidDisplayName(_ name: String) -> Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // Whether it holds up as a file name. A value containing a path separator is refused.
@@ -221,6 +238,7 @@ public struct AppSettings: Equatable, Sendable, Codable {
         let d = AppSettings.default
         appearance = try c.decodeIfPresent(AppearancePreference.self, forKey: .appearance) ?? d.appearance
         focusViewDimmed = try c.decodeIfPresent(Bool.self, forKey: .focusViewDimmed) ?? d.focusViewDimmed
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? d.displayName
         logicalDayStartHour = try c.decodeIfPresent(Int.self, forKey: .logicalDayStartHour) ?? d.logicalDayStartHour
         idleResetHours = try c.decodeIfPresent(Int.self, forKey: .idleResetHours) ?? d.idleResetHours
         taskFilePath = try c.decodeIfPresent(String.self, forKey: .taskFilePath)
@@ -243,6 +261,7 @@ public struct AppSettings: Equatable, Sendable, Codable {
         (0...12).contains(logicalDayStartHour)
             && (1...48).contains(idleResetHours)
             && AppSettings.isValidLogFileName(logFileName)
+            && AppSettings.isValidDisplayName(displayName)
     }
 }
 

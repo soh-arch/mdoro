@@ -56,6 +56,8 @@ public extension ErrorCode {
     // 10–19: persisting state.
     static let stateCorrupted = ErrorCode(own: 10)
     static let stateUnsupportedSchemaVersion = ErrorCode(own: 11)
+    // Decision 0040: the file holding the `id` was read and held nothing this version knows.
+    static let identityUnreadable = ErrorCode(own: 12)
     // 20–29: notifications.
     static let notificationsNotAllowed = ErrorCode(own: 20)
     // 30–39: reaching a folder the user picked (security-scoped bookmarks).
