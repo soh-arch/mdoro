@@ -26,9 +26,10 @@ people's devices on the same Wi-Fi - somebody able to watch the traffic can read
 - **the full path of your task file and of your log folder**;
 - **every task in the file**, headings and text, as it is sent to the phone.
 
-The Mac also advertises itself over Bonjour under **the name of the Mac**, which for most
-people contains their own name, and answers an unauthenticated `GET /info` with that name
-and with whether pairing is currently open.
+The Mac advertises itself over Bonjour under **a name you choose**, which is `Mdoro` until you
+change it in Settings. Your Mac's own name is not sent - it used to be, and for most people that
+is their own name. It also answers an unauthenticated `GET /info` with the name you chose and
+with whether pairing is currently open.
 
 None of this leaves the local network. All of it is visible on it. **Encrypting the link is
 planned, and it is not done** - so if you use Mdoro on a network you do not trust, know what
@@ -40,7 +41,9 @@ is on the wire.
 | :---- | :---- |
 | Mac, app container | Timer state, settings, presets, and security-scoped bookmarks for the folders you picked |
 | Mac, `~/Library/Logs/Mdoro` | The diagnostic log, which contains no task names, file paths or device names |
-| iPhone, Keychain | The device token issued at pairing |
+| Mac, app container | A file holding this Mac's id, which is what a paired iPhone recognises it by |
+| Mac, Keychain | The tokens this Mac has issued, each with the name of the device and the date |
+| iPhone, Keychain | The device token issued at pairing, filed under the Mac's id |
 | iPhone, app storage | The last state snapshot received, so the app can show something while offline |
 
 Your task file is opened read-only, and the bookmark for it is created with
