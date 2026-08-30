@@ -39,6 +39,7 @@ private func callbacksNothingReaches() -> MdoroServer.Callbacks {
             )
         },
         provideTaskList: { nil },
+        provideDisplayName: { AppSettings.defaultDisplayName },
         connectionChanged: { _ in }
     )
 }

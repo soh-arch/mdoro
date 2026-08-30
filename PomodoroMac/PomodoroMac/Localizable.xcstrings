@@ -562,6 +562,9 @@
     "The menu bar uses shape and text instead of color, because its background brightness changes." : {
 
     },
+    "The name your iPhone sees. It is also the name this Mac shows on your network." : {
+
+    },
     "The preset in use cannot be deleted." : {
 
     },
@@ -587,6 +590,9 @@
 
     },
     "This is what you get at each boundary." : {
+
+    },
+    "This Mac" : {
 
     },
     "Time and task" : {
@@ -629,6 +635,9 @@
 
     },
     "You can extend from 5 minutes before the end until 1 minute after. Extending is meant for the moment you are actually aware of the boundary." : {
+
+    },
+    "Your Mac's own name is never sent. Pairing survives a rename." : {
 
     }
   },

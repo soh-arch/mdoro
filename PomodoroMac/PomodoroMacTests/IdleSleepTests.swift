@@ -35,7 +35,9 @@ private func modelHolding(_ idleSleep: RecordedSleepGuard) -> AppModel {
         ),
         bookmarks: VaultBookmarks(),
         notifications: RecordedNotifications(),
-        idleSleep: idleSleep
+        idleSleep: idleSleep,
+        // Decision 0040: the Keychain is the reader's too. Nothing here pairs anything.
+        deviceTokens: TokensKeptNowhere()
     )
 }
 

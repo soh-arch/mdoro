@@ -70,13 +70,19 @@ final class InfoHTTPServer: @unchecked Sendable {
         port = nil
     }
 
-    // Advertised over Bonjour. The service type is `_mdoro._tcp` (REQ-COM-003).
-    func advertise(serviceName: String, websocketPort: UInt16) {
+    // Advertised over Bonjour (REQ-COM-003). The type and the TXT keys are `BonjourService`'s,
+    // so the browsing side reads what this side wrote.
+    //
+    // Decision 0040: **the name and the identity are two arguments now.** The name is whatever
+    // the user typed (`displayName`) and mDNSResponder may append ` (2)` to it; the `id` is what
+    // the iPhone files its token under, and nothing rewrites that.
+    func advertise(displayName: String, websocketPort: UInt16, serverId: ServerID) {
         listener?.service = NWListener.Service(
-            name: serviceName,
-            type: "_mdoro._tcp",
-            txtRecord: NWTXTRecord(["ws": String(websocketPort),
-                                    "v": String(PomodoroProtocol.version)])
+            name: displayName,
+            type: BonjourService.type,
+            txtRecord: NWTXTRecord(
+                BonjourService.txtEntries(websocketPort: websocketPort, serverId: serverId)
+            )
         )
     }
 

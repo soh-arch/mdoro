@@ -82,7 +82,9 @@ private func record(
         notifications: notifications,
         // POL-053: every case below runs a session to its end, and RUNNING is where REQ-PER-006
         // tells the OS to keep the machine awake. `IdleSleepTests` is where that rule is checked.
-        idleSleep: RecordedSleepGuard()
+        idleSleep: RecordedSleepGuard(),
+        // Decision 0040: the Keychain is the reader's too. Nothing here pairs anything.
+        deviceTokens: TokensKeptNowhere()
     )
     model.diagnostics.open(preset: preset, settings: settings)
     body(model)

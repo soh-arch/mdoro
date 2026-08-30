@@ -94,7 +94,14 @@ final class AppModel {
     // Which tab the settings window opens on.
     var settingsTab: SettingsTab = .presets
     private var infoServer: InfoHTTPServer?
-    private var authenticator = Authenticator(issuedTokens: DeviceTokenStore.load())
+    // REQ-SEC-002 / POL-047: the Keychain is outside this process, so it is a seam like the
+    // notification centre and the hold on idle sleep. **The default is the same as production.**
+    private let deviceTokens: any DeviceTokenStoring
+    private var authenticator = Authenticator()
+    // REQ-COM-003 / Decision 0040: read on the way to advertising and kept for the life of the
+    // process. **Resolved there and not in `init`** — creating it writes a file into Application
+    // Support, and this type is built by every test in the Mac target.
+    private var serverId: ServerID?
     private let logQueue: LogWriteQueue
     private var bookmarks: VaultBookmarks
 
@@ -139,10 +146,12 @@ final class AppModel {
         diagnostics: DiagnosticLog? = nil,
         bookmarks: VaultBookmarks = VaultBookmarks.load(),
         notifications: (any SessionNotifying)? = nil,
-        idleSleep: (any IdleSleepGuarding)? = nil
+        idleSleep: (any IdleSleepGuarding)? = nil,
+        deviceTokens: (any DeviceTokenStoring)? = nil
     ) {
         self.store = store
         self.storeUnavailable = storeUnavailable
+        self.deviceTokens = deviceTokens ?? KeychainDeviceTokenStore()
         // They cannot be built at the default-value position (DiagnosticLog and NotificationScheduler
         // both live on the MainActor).
         let diagnosticLog = diagnostics ?? DiagnosticLog()
@@ -222,6 +231,10 @@ final class AppModel {
         hasStarted = true
         diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
         diagnostics.write("app.start")
+        // REQ-SEC-002 / Decision 0040: the tokens live in the Keychain now, and the plist they
+        // used to sit in is emptied rather than read. See `LeftoverPlaintextTokens`.
+        LeftoverPlaintextTokens.erase()
+        authenticator = Authenticator(issuedTokens: deviceTokens.load())
         writeStartupDiagnostics()
         Task {
             // REQ-ERR-010 / Decision 0034: the screen gets a sentence, the log gets a code.
@@ -499,6 +512,11 @@ final class AppModel {
             reloadTasksFromDisk()
             startWatchingTaskFile()
         }
+        // 9.5 group C / Decision 0040: the name applies immediately, and the LAN is where it shows.
+        if settings.displayName != previous.displayName {
+            refreshServerInfo()
+            readvertise()
+        }
         if settings.pauseResumeHotKey != previous.pauseResumeHotKey
             || settings.showWindowHotKey != previous.showWindowHotKey
             || settings.startNextHotKey != previous.startNextHotKey
@@ -559,20 +577,10 @@ final class AppModel {
     // MARK: - Communication (chapter 3 / chapter 10)
 
     private func startServer() async {
-        // POL-114: the one standing here is a different object from the one about to be built, so its
-        // own `start()` cannot fold it. **Letting go of an InfoHTTPServer does not take its Bonjour name
-        // off the network** — the listener is held by Network.framework for its queue, and only
-        // `cancel()` withdraws it. It comes down before anything goes up, so that a start that fails
-        // leaves nothing advertised rather than a registration pointing at a port that is gone.
-        infoServer?.stop()
         do {
             let websocketPort = try await server.start(callbacks: serverCallbacks())
-            // REQ-COM-002 / 003: advertise over Bonjour, and answer `GET /info` with the server information.
-            let info = InfoHTTPServer(info: serverInfo(websocketPort: websocketPort))
-            try await info.start()
-            info.advertise(serviceName: Host.current().localizedName ?? "Mdoro", websocketPort: websocketPort)
-            infoServer = info
             websocketPortForInfo = websocketPort
+            try await advertise(websocketPort: websocketPort)
             serverStartError = nil
         } catch {
             // REQ-SEC-005 / REQ-ERR-008: the fact that it cannot listen is not hidden.
@@ -585,11 +593,81 @@ final class AppModel {
         }
     }
 
+    // REQ-COM-002 / 003: advertise over Bonjour, and answer `GET /info` with the server information.
+    //
+    // POL-114: the one standing here is a different object from the one about to be built, so its
+    // own `start()` cannot fold it. **Letting go of an InfoHTTPServer does not take its Bonjour name
+    // off the network** — the listener is held by Network.framework for its queue, and only
+    // `cancel()` withdraws it. It comes down before anything goes up, so that a start that fails
+    // leaves nothing advertised rather than a registration pointing at a port that is gone.
+    //
+    // **Both callers pass through here**, so a rename cannot leave the old name standing beside
+    // the new one, which is the shape of the bug POL-114 was.
+    private func advertise(websocketPort: UInt16) async throws {
+        infoServer?.stop()
+        infoServer = nil
+        let info = InfoHTTPServer(info: serverInfo(websocketPort: websocketPort))
+        try await info.start()
+        info.advertise(displayName: settings.displayName,
+                       websocketPort: websocketPort,
+                       serverId: serverIdentity())
+        infoServer = info
+    }
+
+    // Decision 0040: **a rename has to reach the network, or the setting is only half true.**
+    // The registration is a property of the `/info` listener, and whether reassigning `.service`
+    // on a live one updates the advertisement is not documented anywhere (`docs/PLATFORM.md`), so
+    // the listener is raised again instead — the one path measured to withdraw the old name.
+    // **One at a time.** `advertise` suspends while the new listener comes up, and two of these
+    // overlapping would each fold what stood before *they* started: the loser's registration is
+    // never cancelled and stays on the network beside the winner's — POL-114 again, from the other
+    // direction. The settings screen commits a name once rather than per keystroke, so this is the
+    // second guard and not the first.
+    private var advertising: Task<Void, Never>?
+
+    private func readvertise() {
+        guard infoServer != nil, websocketPortForInfo != 0 else { return }
+        let previous = advertising
+        advertising = Task {
+            await previous?.value
+            do {
+                try await advertise(websocketPort: websocketPortForInfo)
+                serverStartError = nil
+            } catch {
+                serverStartError = String(localized: "Mdoro cannot listen for iPhone connections.")
+                diagnostics.write("server.advertise", level: .error, [
+                    DiagnosticField("why", ErrorCode(error).summary("startFailed")),
+                ])
+            }
+        }
+    }
+
+    // REQ-COM-003 / Decision 0040: made once, kept in a file of its own beside `state.json`, and
+    // read back on every launch. A Mac that cannot keep it still advertises and still pairs — it
+    // is the next launch that will look like a different Mac, and the log says so.
+    private func serverIdentity() -> ServerID {
+        if let serverId { return serverId }
+        let outcome: ServerIdentityFile.Outcome
+        do {
+            outcome = try ServerIdentityFile.inApplicationSupport().loadOrCreate()
+        } catch {
+            outcome = ServerIdentityFile.Outcome(id: .generate(), couldNotKeep: ErrorCode(error))
+        }
+        if let problem = outcome.couldNotKeep {
+            diagnostics.write("identity.keep", level: .error, [
+                DiagnosticField("why", problem.summary("notKept")),
+            ])
+        }
+        serverId = outcome.id
+        return outcome.id
+    }
+
     private var websocketPortForInfo: UInt16 = 0
 
     private func serverInfo(websocketPort: UInt16) -> ServerInfo {
         ServerInfo(
-            serverName: Host.current().localizedName ?? "Mac",
+            // Decision 0040: one name, and it is the one the user chose.
+            serverName: settings.displayName,
             protocolVersion: PomodoroProtocol.version,
             isPairingMode: pairingCode != nil,
             websocketPort: websocketPort
@@ -607,9 +685,10 @@ final class AppModel {
             authenticate: { [weak self] hello in
                 guard let self else { return .reject(.connectionRejectedByUser) }
                 let decision = authenticator.authenticate(hello, now: Date())
-                if case let .accept(token) = decision {
-                    DeviceTokenStore.save(authenticator.issuedTokens)
-                    _ = token
+                if case .accept = decision {
+                    // REQ-SEC-002 / Decision 0040: the whole record — value, device name and the
+                    // date it was issued.
+                    deviceTokens.save(authenticator.issuedTokens)
                     pairingCode = nil
                     refreshServerInfo()
                 } else if case let .needsUserApproval(name) = decision {
@@ -627,6 +706,7 @@ final class AppModel {
                 )
             },
             provideTaskList: { [weak self] in self?.taskListPayload() },
+            provideDisplayName: { [weak self] in self?.settings.displayName ?? AppSettings.defaultDisplayName },
             connectionChanged: { [weak self] state in
                 guard let self else { return }
                 connection = state.isConnected ? .connected : .disconnected

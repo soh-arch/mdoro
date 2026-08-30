@@ -16,6 +16,13 @@ struct SettingsView: View {
     private var theme: Theme { Theme(appearance: model.settings.appearance, systemScheme: systemScheme) }
     @State private var logFileError: String?
     @State private var diagnosticsError: String?
+    // 9.3 / Decision 0040: **the name is committed once, not once per keystroke.** Every change to
+    // it takes the Bonjour registration down and puts a new one up, and a name typed straight into
+    // the setting would do that eleven times for "Kitchen Mac". Bound straight through, it would
+    // also refuse the moment the field went empty (`isValidDisplayName`) and put the old name back
+    // under the cursor.
+    @State private var displayNameDraft = ""
+    @FocusState private var displayNameFocused: Bool
 
     var body: some View {
         @Bindable var bindable = model
@@ -53,7 +60,52 @@ struct SettingsView: View {
 
     // REQ-UIX-004: the connection is not a behaviour setting, so it gets a tab of its own.
     private var connectionTab: some View {
-        Form { PairingSection() }.formStyle(.grouped)
+        Form {
+            // 9.3 / Decision 0040: the one name this Mac shows anyone. It is not what identifies
+            // it — that is an identifier the iPhone files its pairing under and nobody sees.
+            Section("This Mac") {
+                HStack {
+                    Text("Name")
+                    Spacer()
+                    TextField("", text: $displayNameDraft)
+                        .labelsHidden()
+                        .frame(width: 200)
+                        .multilineTextAlignment(.trailing)
+                        .focused($displayNameFocused)
+                        .onSubmit { commitDisplayName() }
+                        .onChange(of: displayNameFocused) { _, focused in
+                            if !focused { commitDisplayName() }
+                        }
+                        // Follows the setting while the field is not being typed in — the iPhone
+                        // can change it too (REQ-CFG-002).
+                        .onChange(of: model.settings.displayName, initial: true) { _, name in
+                            if !displayNameFocused { displayNameDraft = name }
+                        }
+                }
+                Text("The name your iPhone sees. It is also the name this Mac shows on your network.")
+                    .font(.footnote)
+                    .foregroundStyle(theme.textSecondary)
+                Text("Your Mac's own name is never sent. Pairing survives a rename.")
+                    .font(.footnote)
+                    .foregroundStyle(theme.textSecondary)
+            }
+            PairingSection()
+        }
+        .formStyle(.grouped)
+    }
+
+    // 9.3: one character or more. A name that is not one puts the old one back rather than being
+    // stored — the same answer `isWithinValidRanges` gives a value arriving from the iPhone
+    // (REQ-CFG-018), reached before the setting is written rather than after.
+    private func commitDisplayName() {
+        let trimmed = displayNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard AppSettings.isValidDisplayName(trimmed) else {
+            displayNameDraft = model.settings.displayName
+            return
+        }
+        displayNameDraft = trimmed
+        guard trimmed != model.settings.displayName else { return }
+        model.settings.displayName = trimmed
     }
 
     // MARK: - Files
