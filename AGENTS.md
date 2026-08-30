@@ -19,8 +19,11 @@ No cloud, no account, no telemetry.
 
 1. **Never write to the task file.** Sessions go into the log file by insertion only —
    existing lines are never rewritten or deleted, and the insertion point is not always
-   the end of the file, because entries belong under the heading for their logical day. The security-scoped bookmark for the task file is
-   created with `securityScopeAllowOnlyReadAccess`, so the OS enforces it too.
+   the end of the file, because entries belong under the heading for their logical day. The bookmark for the task file is created with
+   `securityScopeAllowOnlyReadAccess`, which stops writes **through that bookmark** - but the log
+   folder is bookmarked read-write, and it is often the same folder. What actually holds is that
+   no code path writes to the task file, and `LogWriter.validate` refuses a destination equal to
+   it. Treat it as a rule to keep, not a wall that will catch you.
 2. **The Mac owns the state.** The iPhone may interpolate the countdown for display, but it
    must never decide that a session has ended. Loop counting and log writing happen on the Mac.
 3. **Time is absolute.** Remaining seconds are never synced. The Mac broadcasts `sessionEndAt`

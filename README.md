@@ -23,6 +23,8 @@ actually did to a log file next to it. It never edits your tasks.
 - **Times are absolute.** Remaining seconds are never synchronised; the end time is,
   and each device counts down to it on its own.
 - **Your task file is read-only.** Mdoro has no code path that writes to it.
+- **The link between the two devices is not encrypted.** It never leaves your local network,
+  but on that network it is readable - see [SECURITY.md](SECURITY.md).
 - **Sessions are appended to a log**, one line each, under a heading for the day.
 
 ```markdown

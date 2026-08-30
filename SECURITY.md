@@ -16,6 +16,24 @@ server, no account and no telemetry.
 - Nothing is exposed beyond the local network, and the apps make no other outbound
   connections.
 
+## What the local network can see
+
+**The connection between the Mac and the iPhone is not encrypted.** There is no TLS on it
+today. On a network where you are not alone - a shared office, a cafe, a flat with other
+people's devices on the same Wi-Fi - somebody able to watch the traffic can read:
+
+- **your device token**, which is what proves a paired iPhone is yours;
+- **the full path of your task file and of your log folder**;
+- **every task in the file**, headings and text, as it is sent to the phone.
+
+The Mac also advertises itself over Bonjour under **the name of the Mac**, which for most
+people contains their own name, and answers an unauthenticated `GET /info` with that name
+and with whether pairing is currently open.
+
+None of this leaves the local network. All of it is visible on it. **Encrypting the link is
+planned, and it is not done** - so if you use Mdoro on a network you do not trust, know what
+is on the wire.
+
 ## What is stored
 
 | Where | What |
@@ -26,7 +44,14 @@ server, no account and no telemetry.
 | iPhone, app storage | The last state snapshot received, so the app can show something while offline |
 
 Your task file is opened read-only, and the bookmark for it is created with
-`securityScopeAllowOnlyReadAccess` - the sandbox enforces it, not just the code.
+`securityScopeAllowOnlyReadAccess`, so nothing can be written **through that bookmark**.
+
+That is not the whole of it, and it would be dishonest to leave it there. If you keep the log
+in the same folder as the task file - which is what this README suggests - then Mdoro also holds
+a read-write bookmark for that folder, and the read-only one is no longer the only way in. What
+keeps the task file untouched is that **no code path writes to it**, and that every write checks
+first that its destination is not the task file. That is a rule the code follows, not a wall the
+system puts up.
 
 ## Reporting a vulnerability
 

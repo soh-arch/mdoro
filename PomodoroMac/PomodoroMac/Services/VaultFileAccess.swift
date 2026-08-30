@@ -5,8 +5,10 @@ import MdoroCore
 // the sandbox across a restart.
 //
 // The one for `Task.md` is created with `securityScopeAllowOnlyReadAccess`.
-// If "we do not write" rests on the discipline of the code alone, one day someone breaks it, so
-// **a state the OS itself refuses** is made instead (the first principle / Decision 0002).
+// It stops writes **through that bookmark** (the first principle / Decision 0002). It is not a
+// wall around the file: the log folder is bookmarked read-write and is often the same folder.
+// **What keeps the task file untouched is that nothing writes to it**, and that `LogWriter.validate`
+// refuses a destination equal to it.
 enum VaultFileAccess {
 
     enum AccessError: Error, Equatable {
