@@ -665,7 +665,12 @@ final class AppModel {
     private var advertising: Task<Void, Never>?
 
     private func readvertise() {
-        guard infoServer != nil, websocketPortForInfo != 0 else { return }
+        // **A port, not a listener.** `advertise` folds the standing listener before it raises the
+        // next one, so a start that throws leaves `infoServer` nil — and this guard read it, which
+        // meant one failed rename closed the door on every later one. `startServer()` runs once per
+        // process (POL-114), so nothing reopened it short of a relaunch. What a re-advertisement
+        // needs is somewhere to point; the listener is the thing it is about to raise.
+        guard websocketPortForInfo != 0 else { return }
         let previous = advertising
         advertising = Task {
             await previous?.value
