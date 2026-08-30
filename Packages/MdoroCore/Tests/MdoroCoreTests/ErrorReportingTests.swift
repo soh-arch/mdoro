@@ -55,6 +55,7 @@ private func hasDiagnosticShape(_ summary: String) -> Bool {
 private let everyFailure: [any ReportableError] = [
     LogWriteError.invalidFilePath,
     LogWriteError.wouldModifyExistingLines,
+    LogWriteError.fileChangedWhileWriting,
     LogWriteError.readFailed(ErrorCode(domain: NSCocoaErrorDomain, code: NSFileReadNoSuchFileError)),
     LogWriteError.writeFailed(ErrorCode(domain: NSPOSIXErrorDomain, code: 28)),
     StateStoreError.corrupted,
@@ -256,6 +257,7 @@ struct ErrorReportingTests {
     @Test func everyCodeInOurOwnDomainMeansOneThing() {
         let table: [ErrorCode] = [
             .logInvalidFilePath, .logWouldModifyExistingLines, .logFolderNotSet,
+            .logFileChangedWhileWriting,
             .stateCorrupted, .stateUnsupportedSchemaVersion,
             .notificationsNotAllowed,
             .bookmarkCreationFailed, .bookmarkResolutionFailed, .accessDenied,

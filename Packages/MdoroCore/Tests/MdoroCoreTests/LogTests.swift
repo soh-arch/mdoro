@@ -673,3 +673,168 @@ struct LogTaskSnapshotTests {
         #expect(LogFormatter.line(for: entry).hasSuffix("— 開始時に選んでいたタスク"))
     }
 }
+
+// POL-120: `LogWriter` reads the file, builds an insertion from what it read, and then replaces
+// **the whole file**. Anything saved to it in between was inside what got overwritten — the user's
+// save disappeared, silently, and so did everything the app had never read. `preservesAllLines`
+// could not see it: it compares two arrays the app is holding, and neither of them is the disk.
+//
+// Every test here puts a save in exactly that gap. The hook fires after the read and before the
+// swap, which is where the window is.
+@Suite("A save that lands between the read and the swap (POL-120 / REQ-LOG-004)")
+struct LogWriterConcurrentEditTests {
+
+    private func temporaryDirectory() -> URL {
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("MdoroLogConflictTests-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    // Someone else's editor saving the file: read what is there, add a line of their own, save.
+    // The text differs on every call because writing the same bytes back is not a change.
+    private func saveALine(_ nth: Int, into url: URL) {
+        let current = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        try? (current + "- a line the user typed (\(nth))\n")
+            .write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    // **The bug, stated as a test.** Nothing of the user's may be replaced, and the entry may not
+    // be written on top of a file it was not built from.
+    @Test func aSaveThatLandsInTheWindowIsNeverOverwritten() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("MdoroLog.md")
+        let writer = LogWriter(fileURL: url)
+        try writer.append(entry(), calendar: calendar)
+
+        var saves = 0
+        #expect(throws: LogWriteError.fileChangedWhileWriting) {
+            try writer.append(
+                entry(start: at(10, 0), end: at(10, 25), loopAfter: 2),
+                calendar: calendar,
+                betweenReadAndReplace: {
+                    saves += 1
+                    saveALine(saves, into: url)
+                }
+            )
+        }
+
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        for nth in 1...saves {
+            #expect(contents.contains("- a line the user typed (\(nth))"), "a save made outside the app was lost")
+        }
+        #expect(!contents.contains("Loop 2/4"), "the entry was written over a file it was not built from")
+        // REQ-LOG-001: the first write is still there too — the whole file is at stake, not one line.
+        #expect(contents.contains("Loop 1/4"))
+    }
+
+    // POL-120: rereading is the answer, so it has to stop somewhere.
+    @Test func rereadingStopsAtTheAttemptLimit() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("MdoroLog.md")
+        let writer = LogWriter(fileURL: url)
+        try writer.append(entry(), calendar: calendar)
+
+        var attempts = 0
+        #expect(throws: LogWriteError.fileChangedWhileWriting) {
+            try writer.append(entry(start: at(10, 0), end: at(10, 25), loopAfter: 2), calendar: calendar) {
+                attempts += 1
+                saveALine(attempts, into: url)
+            }
+        }
+        #expect(attempts == LogWriter.maximumWriteAttempts)
+    }
+
+    // REQ-LOG-004 / REQ-LOG-005: a collision that clears is not a failure. The entry is written on
+    // the next attempt, into what the other save left behind — which is what "reread before
+    // writing, take in the external changes" asks for.
+    @Test func aCollisionThatClearsIsWrittenOnTheNextAttempt() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("MdoroLog.md")
+        let writer = LogWriter(fileURL: url)
+        try writer.append(entry(), calendar: calendar)
+
+        var attempts = 0
+        try writer.append(entry(start: at(10, 0), end: at(10, 25), loopAfter: 2), calendar: calendar) {
+            attempts += 1
+            if attempts == 1 { saveALine(1, into: url) }
+        }
+
+        #expect(attempts == 2, "the first attempt must have been abandoned and read again")
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        #expect(contents.contains("- a line the user typed (1)"))
+        #expect(contents.contains("Loop 2/4"))
+        #expect(contents.contains("Loop 1/4"))
+    }
+
+    // REQ-LOG-002: the file is created when it is not there — but "not there" is also a snapshot,
+    // and a file that appears in the window is entirely someone else's.
+    @Test func aFileThatAppearsInTheWindowIsNotReplaced() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("MdoroLog.md")
+        let writer = LogWriter(fileURL: url)
+
+        var attempts = 0
+        try writer.append(entry(), calendar: calendar) {
+            attempts += 1
+            if attempts == 1 {
+                try? "- notes the user had already written\n".write(to: url, atomically: true, encoding: .utf8)
+            }
+        }
+
+        #expect(attempts == 2)
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        #expect(contents.contains("- notes the user had already written"), "a file created in the window was replaced")
+        #expect(contents.contains("Loop 1/4"))
+    }
+
+    // **Why the contents are compared and not the metadata.** This save keeps the size (one byte
+    // replaced by one byte), keeps the inode (written in place through an open descriptor) and
+    // keeps the modification date (pinned to a whole second, set again afterwards). No comparison
+    // of size, inode or date, in any combination, can see it. It is an ordinary thing for an
+    // editor to do: correcting a character in a line.
+    @Test func anEditThatKeepsTheSizeTheInodeAndTheDateIsStillCaught() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("MdoroLog.md")
+        let manager = FileManager.default
+        let writer = LogWriter(fileURL: url)
+        try writer.append(entry(), calendar: calendar)
+
+        // A line of the user's whose last letters can be changed one for one.
+        let started = try String(contentsOf: url, encoding: .utf8) + "- aaaa\n"
+        try started.write(to: url, atomically: true, encoding: .utf8)
+        let pinned = Date(timeIntervalSince1970: 1_756_000_000)
+        try manager.setAttributes([.modificationDate: pinned], ofItemAtPath: url.path)
+        let before = try manager.attributesOfItem(atPath: url.path)
+
+        var attempts = 0
+        var afterTheEdit: [FileAttributeKey: Any] = [:]
+        try writer.append(entry(start: at(10, 0), end: at(10, 25), loopAfter: 2), calendar: calendar) {
+            attempts += 1
+            guard attempts == 1 else { return }
+            if let handle = try? FileHandle(forWritingTo: url) {
+                try? handle.seek(toOffset: UInt64(started.utf8.count - 3))
+                try? handle.write(contentsOf: Data("b".utf8))
+                try? handle.close()
+            }
+            try? manager.setAttributes([.modificationDate: pinned], ofItemAtPath: url.path)
+            afterTheEdit = (try? manager.attributesOfItem(atPath: url.path)) ?? [:]
+        }
+
+        // What the guard could not have gone by.
+        #expect(afterTheEdit[.size] as? Int == before[.size] as? Int, "the size changed; the test proves less than it claims")
+        #expect(afterTheEdit[.systemFileNumber] as? Int == before[.systemFileNumber] as? Int, "the inode changed")
+        #expect(afterTheEdit[.modificationDate] as? Date == before[.modificationDate] as? Date, "the date changed")
+
+        #expect(attempts == 2, "an edit invisible to the metadata went through")
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        #expect(contents.contains("- aaba"), "the user's correction was lost")
+        #expect(!contents.contains("- aaaa"))
+        #expect(contents.contains("Loop 2/4"))
+    }
+}

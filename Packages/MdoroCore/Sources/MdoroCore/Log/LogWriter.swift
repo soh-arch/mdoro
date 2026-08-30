@@ -9,6 +9,9 @@ public enum LogWriteError: Error, Equatable, Sendable {
     case writeFailed(ErrorCode)
     // A change other than an insertion was about to happen.
     case wouldModifyExistingLines
+    // POL-120: the file on disk stopped being the one the insertion was built on, every time it
+    // was tried. Nothing was written.
+    case fileChangedWhileWriting
 }
 
 extension LogWriteError: ReportableError {
@@ -18,6 +21,7 @@ extension LogWriteError: ReportableError {
         case .invalidFilePath: .logInvalidFilePath
         case let .readFailed(code), let .writeFailed(code): code
         case .wouldModifyExistingLines: .logWouldModifyExistingLines
+        case .fileChangedWhileWriting: .logFileChangedWhileWriting
         }
     }
 
@@ -29,6 +33,7 @@ extension LogWriteError: ReportableError {
         case .readFailed: "readFailed"
         case .writeFailed: "writeFailed"
         case .wouldModifyExistingLines: "wouldModifyExistingLines"
+        case .fileChangedWhileWriting: "fileChangedWhileWriting"
         }
     }
 
@@ -44,6 +49,8 @@ extension LogWriteError: ReportableError {
             "The session log could not be written. Check that the folder still exists and has free space; unwritten entries stay queued."
         case .wouldModifyExistingLines:
             "Writing would have changed lines that are already in the session log, so nothing was written. Check the file around today's heading."
+        case .fileChangedWhileWriting:
+            "The session log kept changing while it was being written, so nothing was written and nothing of yours was replaced. Close the file in your editor; unwritten entries stay queued."
         }
     }
 }
@@ -56,6 +63,15 @@ public struct LogWriter: Sendable {
     // Relying on the settings screen alone lets a missed call, a corrupted value, or a symlink through.
     public let taskFileURL: URL?
     public let options: LogFormatter.Options
+
+    // POL-120: how many times a write is rebuilt when the file turned out to have changed since it
+    // was read. A conflict means someone else saved within the same few milliseconds, and reading
+    // again and inserting into what they wrote is the answer REQ-LOG-004 already gives. The second
+    // attempt clears an ordinary collision and the third leaves room for one more coincidence.
+    // Beyond that the file is being written continuously by something else, and the queue
+    // (REQ-LOG-005) trying again on the next flush is better than a loop holding the caller here.
+    // There is no wait between attempts: this runs on the caller's thread.
+    public static let maximumWriteAttempts = 3
 
     public init(fileURL: URL, taskFileURL: URL? = nil, options: LogFormatter.Options = .default) {
         self.fileURL = fileURL
@@ -82,55 +98,110 @@ public struct LogWriter: Sendable {
     }
 
     public func append(_ entry: LogEntry, calendar: Calendar = .current) throws {
+        try append(entry, calendar: calendar, betweenReadAndReplace: nil)
+    }
+
+    // The hook is how a test puts someone else's save into the very gap the guard below is about.
+    // **Nothing in the app passes one**, and it is not part of the public surface.
+    func append(
+        _ entry: LogEntry,
+        calendar: Calendar,
+        betweenReadAndReplace: (() -> Void)?
+    ) throws {
         // REQ-LOG-021 / first principle: immediately before writing, confirm the destination is not Task.md.
         try Self.validate(logFileURL: fileURL, taskFileURL: taskFileURL)
-
-        // REQ-LOG-004: reread the file before writing, so changes made elsewhere are carried over.
-        let existing: String
-        if fileManager.fileExists(atPath: fileURL.path) {
-            do {
-                existing = try String(contentsOf: fileURL, encoding: .utf8)
-            } catch {
-                throw LogWriteError.readFailed(ErrorCode(error))
-            }
-        } else {
-            // REQ-LOG-002: create the file when it does not exist.
-            existing = ""
-        }
 
         let line = LogFormatter.line(for: entry, options: options, calendar: calendar)
         let heading = LogFormatter.dayHeading(for: entry.logicalDate, calendar: calendar)
 
-        let insertion: LogFileEditor.Insertion
-        do {
-            insertion = try LogFileEditor.inserting(
-                line: line, underHeading: heading, logicalDate: entry.logicalDate,
-                into: existing, calendar: calendar
-            )
-        } catch {
-            throw LogWriteError.wouldModifyExistingLines
+        for _ in 0..<Self.maximumWriteAttempts {
+            // REQ-LOG-004: reread the file before writing, so changes made elsewhere are carried over.
+            let snapshot = try currentContents()
+
+            let insertion: LogFileEditor.Insertion
+            do {
+                insertion = try LogFileEditor.inserting(
+                    line: line, underHeading: heading, logicalDate: entry.logicalDate,
+                    // REQ-LOG-002: a file that is not there yet is written as if it were empty.
+                    into: snapshot ?? "", calendar: calendar
+                )
+            } catch {
+                throw LogWriteError.wouldModifyExistingLines
+            }
+
+            betweenReadAndReplace?()
+
+            if try writeAtomically(insertion.contents, replacing: snapshot) { return }
         }
 
-        try writeAtomically(insertion.contents)
+        // POL-120: every attempt found the file different from the one it had read, so the entry
+        // was never written. REQ-LOG-005 keeps it queued and the next flush reads the file again.
+        throw LogWriteError.fileChangedWhileWriting
+    }
+
+    // What the insertion is built on, or nil when there is no file yet. **The distinction is kept**:
+    // a file that appeared in the meantime belongs to someone else, and writing over it would lose
+    // all of it rather than one line.
+    private func currentContents() throws -> String? {
+        guard fileManager.fileExists(atPath: fileURL.path) else { return nil }
+        do {
+            return try String(contentsOf: fileURL, encoding: .utf8)
+        } catch {
+            throw LogWriteError.readFailed(ErrorCode(error))
+        }
     }
 
     // REQ-LOG-004 / REQ-PLT-004: write to a temporary file, then swap it in.
     // It goes **in the same directory**, which is one way to satisfy the real constraint: the two
     // paths must be on the same volume (`docs/PLATFORM.md`). Directories do not enter into it.
-    private func writeAtomically(_ contents: String) throws {
+    //
+    // POL-120 / first principle: the swap replaces the **whole file**, so anything saved to it
+    // since `snapshot` was read is inside what is about to be overwritten. `replaceItemAt` is
+    // atomic in itself, and that says nothing about the interval before it. So the bytes are read
+    // once more here, with the replacement already staged, and compared against the ones the
+    // insertion was built on. Returns false when they differ; nothing is written in that case.
+    //
+    // **Why the contents and not the metadata.** A modification date cannot see a save that lands
+    // in the same tick it was taken, and how fine a tick is belongs to the file system, not to us.
+    // A size cannot see an edit of equal length. An inode cannot see an editor that writes in
+    // place. All three together still miss a same-length, in-place save inside one tick — which is
+    // what correcting a typo in a line looks like. The contents have no such blind spot, and their
+    // one false negative is harmless: if the bytes match, the insertion was built on exactly what
+    // is there, so nothing of the user's is lost by writing it, however many times the file was
+    // rewritten to reach that state. The price is one extra read of a file we already read.
+    //
+    // **This narrows the window; it does not close it.** Between the read below and the swap
+    // returning there is still an interval, and a save landing inside it is still lost. What has
+    // been taken out of that interval is everything slow — formatting, the insertion, and writing
+    // the temporary file all happen before the check. **It cannot be closed:** POSIX offers no
+    // compare-and-swap on a file, and an advisory lock binds only processes that ask for one,
+    // which the user's editor does not.
+    private func writeAtomically(_ contents: String, replacing snapshot: String?) throws -> Bool {
         let directory = fileURL.deletingLastPathComponent()
         let temporaryURL = directory.appendingPathComponent(".\(fileURL.lastPathComponent).\(UUID().uuidString).tmp")
         do {
             try Data(contents.utf8).write(to: temporaryURL, options: .atomic)
-            if fileManager.fileExists(atPath: fileURL.path) {
-                _ = try fileManager.replaceItemAt(fileURL, withItemAt: temporaryURL)
-            } else {
-                try fileManager.moveItem(at: temporaryURL, to: fileURL)
+
+            guard try currentContents() == snapshot else {
+                try? fileManager.removeItem(at: temporaryURL)
+                return false
             }
+
+            if snapshot == nil {
+                // REQ-LOG-002: create the file when it does not exist — and it still does not.
+                try fileManager.moveItem(at: temporaryURL, to: fileURL)
+            } else {
+                _ = try fileManager.replaceItemAt(fileURL, withItemAt: temporaryURL)
+            }
+        } catch let error as LogWriteError {
+            // The reread above refused; it already says what went wrong.
+            try? fileManager.removeItem(at: temporaryURL)
+            throw error
         } catch {
             try? fileManager.removeItem(at: temporaryURL)
             throw LogWriteError.writeFailed(ErrorCode(error))
         }
+        return true
     }
 }
 
