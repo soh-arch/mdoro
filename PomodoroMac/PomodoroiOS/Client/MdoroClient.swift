@@ -99,26 +99,30 @@ final class MdoroClient {
         status = .idle
     }
 
+    // REQ-COM-003 / POL-143: dial the discovered service itself. Network.framework resolves a
+    // `.service` endpoint by instance name at connect time, so the address and port are whatever
+    // the Mac is advertising right now — and since the advertisement rides on the ws listener,
+    // the service resolves to the ws port. What stood here dialled "\(instanceName).local": an
+    // mDNS host name and an instance name are unrelated, and the two matched only while the
+    // instance name happened to be the computer's name. Once the default became "Mdoro", the
+    // guess pointed at a host that does not exist.
+    nonisolated static func dialEndpoint(for server: DiscoveredServer) -> NWEndpoint? {
+        guard case .service = server.endpoint else { return nil }
+        return server.endpoint
+    }
+
     private func openConnection() {
-        guard let target, let port = target.websocketPort,
-              case let .service(name, type, domain, interface) = target.endpoint else { return }
+        guard let target, let endpoint = Self.dialEndpoint(for: target) else { return }
         status = (status == .connected) ? .reconnecting : .connecting
         // REQ-ERR-009: every connection counts its own broken messages from zero.
         brokenMessages.reset()
-
-        // Connect to the host Bonjour points at, on the port taken from the TXT record.
-        _ = (name, type, domain, interface)
-        let host = NWEndpoint.hostPort(
-            host: NWEndpoint.Host("\(name).local"),
-            port: NWEndpoint.Port(rawValue: port) ?? .any
-        )
 
         let parameters = NWParameters.tcp
         let websocket = NWProtocolWebSocket.Options()
         websocket.autoReplyPing = true
         parameters.defaultProtocolStack.applicationProtocols.insert(websocket, at: 0)
 
-        let connection = NWConnection(to: host, using: parameters)
+        let connection = NWConnection(to: endpoint, using: parameters)
         connection.stateUpdateHandler = { [weak self] state in
             Task { @MainActor in
                 switch state {
