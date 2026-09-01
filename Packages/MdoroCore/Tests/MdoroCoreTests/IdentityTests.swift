@@ -504,8 +504,8 @@ struct DisplayNameTravelTests {
         get throws { withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift")) }
     }
 
-    // The three places 9.3 `displayName` has to reach: `welcome.serverName`, the Bonjour instance
-    // name, and `ServerInfo`.
+    // The two places 9.3 `displayName` has to reach: `welcome.serverName` and the Bonjour
+    // instance name. (`ServerInfo` was the third until REQ-COM-002 v2.25 removed `GET /info`.)
     @Test func theChosenNameIsWhatGoesOutInWelcomeAndOnTheAir() throws {
         let text = try appModel
         #expect(
@@ -513,32 +513,27 @@ struct DisplayNameTravelTests {
             "Decision 0040: `welcome.serverName` is not the name the user chose"
         )
         #expect(
-            text.contains("info.advertise(displayName: settings.displayName"),
+            text.contains("server.advertise(displayName: settings.displayName"),
             "Decision 0040: the Bonjour instance name is not the name the user chose"
-        )
-        #expect(
-            text.contains("serverName: settings.displayName"),
-            "Decision 0040: `ServerInfo.serverName` is not the name the user chose"
         )
     }
 
     // 9.5 group C: the name applies at once, and the LAN is where it shows. A name that only
     // reaches the settings file is half a setting.
-    @Test func changingTheNameReachesBothTheAnswerAndTheAir() throws {
+    @Test func changingTheNameReachesTheAir() throws {
         let text = try appModel
         let branch = try #require(
             text.range(of: "settings.displayName != previous.displayName"),
             "Decision 0040: nothing at all happens when the name changes"
         )
         let body = text[branch.upperBound...].prefix(120)
-        #expect(body.contains("refreshServerInfo()"), "Decision 0040: `/info` keeps answering with the old name")
         #expect(body.contains("readvertise()"), "Decision 0040: the old name stays on the air")
     }
 
-    // POL-114 / Decision 0040: `advertise` folds the standing listener before it raises the next,
-    // so a start that throws leaves `infoServer` nil. This guard read it — **one failed rename
-    // closed the door on every later one**, and `startServer()` runs once per process, so nothing
-    // reopened it short of a relaunch. What a re-advertisement needs is a port.
+    // POL-114 / Decision 0040: a failed rename used to be read off the listener object, and
+    // **one failed rename closed the door on every later one**. What a re-advertisement needs to
+    // know is whether the Mac is on the air, which is the port — never the listener it is about
+    // to fold and raise again.
     @Test func aRenameThatFailedDoesNotShutTheDoorOnTheNext() throws {
         let text = try appModel
         let function = try #require(

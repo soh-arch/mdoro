@@ -195,7 +195,7 @@ struct StayingOffTheAirTests {
                 model.serverStartError != nil,
                 "REQ-COM-003: the listener went up for a Mac that could not read what it has issued"
             )
-            #expect(model.websocketPortForInfo == 0, "REQ-COM-003: a port was bound anyway")
+            #expect(model.advertisedWebsocketPort == 0, "REQ-COM-003: a port was bound anyway")
         }
     }
 

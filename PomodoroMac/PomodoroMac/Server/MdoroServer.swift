@@ -84,6 +84,29 @@ final class MdoroServer {
         return port
     }
 
+    // REQ-COM-002 / 003: the Bonjour registration rides this listener now. `GET /info` is gone
+    // (v2.25), and with it the listener that used to carry the name — so TXT `ws` names this
+    // listener's own port rather than a second one's. The browsing side reads the port from the
+    // TXT record either way (`ServerBrowser.read`), so nothing changes for the iPhone.
+    //
+    // POL-140: the fold-before-bind at the top of `start()` is also what keeps a failed start
+    // from leaving a stale advertisement — with one listener, whatever was advertised comes down
+    // before anything new is bound, so a `start()` that throws leaves nothing on the air.
+    //
+    // Decision 0040: the name and the identity are two arguments. The name is whatever the user
+    // typed (`displayName`) and mDNSResponder may append ` (2)` to it; the `id` is what the
+    // iPhone files its token under, and nothing rewrites that.
+    func advertise(displayName: String, serverId: ServerID) {
+        guard let listener, let port = listenPort else { return }
+        listener.service = NWListener.Service(
+            name: displayName,
+            type: BonjourService.type,
+            txtRecord: NWTXTRecord(
+                BonjourService.txtEntries(websocketPort: port, serverId: serverId)
+            )
+        )
+    }
+
     func stop() {
         heartbeatTimer?.cancel()
         heartbeatTimer = nil
@@ -339,6 +362,13 @@ enum ListenerReadiness {
                 case let .failed(error):
                     guard once.claim() else { return }
                     continuation.resume(throwing: error)
+                case .cancelled:
+                    // REQ-COM-003 (v2.25): `stop()` is reachable from production now (the pairing
+                    // screen closing takes the server down), so a listener can be cancelled while
+                    // this is still waiting on it. A cancelled listener never becomes ready, and a
+                    // continuation that is never resumed hangs its caller forever.
+                    guard once.claim() else { return }
+                    continuation.resume(throwing: NWError.posix(.ECANCELED))
                 default:
                     break
                 }
