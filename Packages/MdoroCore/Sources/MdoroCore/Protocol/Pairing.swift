@@ -140,12 +140,19 @@ public struct Authenticator: Equatable, Sendable {
 
         switch outcome {
         case .accepted:
-            let token = DeviceToken(deviceName: hello.deviceName, issuedAt: now)
-            issuedTokens.append(token)
-            pairing = nil
+            // POL-139 / REQ-SEC-004: **nothing is issued and nothing is closed while the answer
+            // is "ask the user".** This used to append the token and end pairing before returning,
+            // so the re-authentication that follows an approval found pairing over and refused the
+            // very hello it was approving — and every refused attempt left one orphaned token
+            // behind. Pairing stays open instead: the approval re-runs this verification with the
+            // same code, and only that second, accepted pass issues anything. A denial (or the
+            // 60-second timeout) issues nothing, because nothing was issued yet.
             if connectedClientName != nil {
                 return .needsUserApproval(requestingDeviceName: hello.deviceName)
             }
+            let token = DeviceToken(deviceName: hello.deviceName, issuedAt: now)
+            issuedTokens.append(token)
+            pairing = nil
             return .accept(token)
         case let .rejected(code):
             return .reject(code)

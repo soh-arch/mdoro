@@ -134,6 +134,46 @@ struct AuthenticatorTests {
         #expect(decision == .needsUserApproval(requestingDeviceName: "iPhone (2台目)"))
     }
 
+    // POL-139 / REQ-SEC-004: **a first pairing made while another client is connected.** The
+    // approval re-authenticates the same hello, so pairing has to still be open when it does —
+    // this used to close pairing (and issue a token) before answering "ask the user", and the
+    // re-authentication then refused the very hello being approved, leaving one orphaned token
+    // per attempt.
+    @Test func aCodeThatNeedsApprovalIssuesNothingUntilTheUserApproves() {
+        var auth = Authenticator()
+        auth.beginPairing(code: "123456", now: t0)
+        auth.connectedClientName = "iPhone (1)"
+        let request = hello(code: "123456", name: "iPhone (2)")
+
+        let first = auth.authenticate(request, now: t0)
+        #expect(first == .needsUserApproval(requestingDeviceName: "iPhone (2)"))
+        #expect(auth.issuedTokens.isEmpty, "POL-139: a token was issued before the user answered")
+        #expect(auth.isPairingActive, "POL-139: pairing closed, so the approval has nothing to re-verify")
+
+        // The approval: the standing connection is dropped, and the same hello runs again.
+        auth.connectedClientName = nil
+        guard case let .accept(token) = auth.authenticate(request, now: t0.addingTimeInterval(30)) else {
+            Issue.record("POL-139: the approved pairing was refused — the user's report, exactly")
+            return
+        }
+        #expect(auth.issuedTokens == [token], "exactly one token, issued by the accepted pass alone")
+        #expect(!auth.isPairingActive)
+    }
+
+    // POL-139 / REQ-SEC-004: a denial — or the 60-second timeout, which arrives as the same
+    // refusal — leaves no token on record. The hello is simply never re-authenticated.
+    @Test func aDeniedApprovalLeavesNoTokenBehind() {
+        var auth = Authenticator()
+        auth.beginPairing(code: "123456", now: t0)
+        auth.connectedClientName = "iPhone (1)"
+
+        for attempt in 1...3 {
+            let decision = auth.authenticate(hello(code: "123456", name: "iPhone (2)"), now: t0)
+            #expect(decision == .needsUserApproval(requestingDeviceName: "iPhone (2)"), "attempt \(attempt)")
+        }
+        #expect(auth.issuedTokens.isEmpty, "POL-139: refused attempts piled up tokens — three tries, three orphans")
+    }
+
     // REQ-PRT-004: an incompatible version has its connection rejected.
     @Test func incompatibleProtocolVersionIsRejected() {
         var auth = Authenticator(issuedTokens: [issued("tok")])
