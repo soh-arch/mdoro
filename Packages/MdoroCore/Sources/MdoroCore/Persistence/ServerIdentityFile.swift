@@ -38,37 +38,57 @@ public struct ServerIdentityFile: Sendable {
         }
     }
 
-    // What is on file, or a new one — and, separately, whether the next launch will see the same
-    // answer. **An identity that could not be kept is not an identity**, so the caller is given
-    // the failure rather than left to assume it worked (REQ-ERR-010 / Decision 0035).
+    // What is on file, or a new one — and whether the next launch will see the same answer.
+    //
+    // REQ-COM-003 (v2.27): **an id that could not be written down is not handed out at all.**
+    // v2.26 handed it out with a warning attached, and a warning is a thing a call site can
+    // ignore: the Mac advertised, paired, and the id was gone at the next launch — every pairing
+    // made under it orphaned. Only the two cases that carry an id can reach the air now, so
+    // forgetting to check is no longer a way to advertise one.
     public enum Outcome: Equatable, Sendable {
-        // The id to go on the air with. `couldNotKeep` is non-nil when it will not be read back
-        // next launch — it is still this launch's id, and the caller is told.
-        case identified(ServerID, couldNotKeep: ErrorCode?)
+        // On file, and it will be there next launch too.
+        case identified(ServerID)
+        // The file was handed over and nothing usable was in it, so a fresh id was written over
+        // it (the one case that writes over what is on disk). This launch advertises — broken is
+        // not unreadable — but the caller is told, because the pairings filed under whatever the
+        // file used to say are not coming back.
+        case replaced(ServerID)
         // REQ-COM-003 (v2.26): **the file was not handed over.** An id may be sitting in it,
         // intact and unread, so there is no id here — and none is made in its place.
         case unreadable(ErrorCode)
+        // REQ-COM-003 (v2.27): **made, and then not kept — the write failed.** The id is not in
+        // here on purpose: it would be gone at the next launch, so every pairing made under it
+        // would be an orphan, and the only safe thing to do with it is nothing.
+        case notKept(ErrorCode)
 
-        // This launch's id, or nil when there is none to go on the air with.
+        // This launch's id, or nil because this Mac must stay off the air.
         public var id: ServerID? {
-            if case let .identified(id, _) = self { id } else { nil }
+            switch self {
+            case let .identified(id): id
+            case let .replaced(id): id
+            case .unreadable, .notKept: nil
+            }
         }
 
         // What went wrong, or nil when nothing did.
         public var problem: ErrorCode? {
             switch self {
-            case let .identified(_, couldNotKeep): couldNotKeep
+            case .identified: nil
+            case .replaced: .identityUnreadable
             case let .unreadable(code): code
+            case let .notKept(code): code
             }
         }
 
         // REQ-ERR-010 / Decision 0034: `case(domain:code)`, the one shape every failure is
-        // written in. The two cases are named apart because the app does different things with
-        // them — one goes on the air and one does not.
+        // written in. The cases are named apart because the app does different things with
+        // them — two go on the air and two do not.
         public var diagnosticSummary: String? {
             switch self {
-            case let .identified(_, couldNotKeep): couldNotKeep?.summary("notKept")
+            case .identified: nil
+            case .replaced: ErrorCode.identityUnreadable.summary("replaced")
             case let .unreadable(code): code.summary("unreadable")
+            case let .notKept(code): code.summary("notKept")
             }
         }
     }
@@ -79,8 +99,7 @@ public struct ServerIdentityFile: Sendable {
 
     public func loadOrCreate() -> Outcome {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            let made = create()
-            return .identified(made.id, couldNotKeep: made.couldNotKeep)
+            return create(replacing: false)
         }
 
         let data: Data
@@ -102,23 +121,22 @@ public struct ServerIdentityFile: Sendable {
         guard let stored = try? JSONDecoder().decode(Stored.self, from: data) else {
             // Nothing readable is in there to lose, and leaving it would regenerate on every
             // launch. This is the one case that writes over what is already on disk.
-            let made = create()
-            return .identified(made.id, couldNotKeep: made.couldNotKeep ?? .identityUnreadable)
+            return create(replacing: true)
         }
-        return .identified(stored.id, couldNotKeep: nil)
+        return .identified(stored.id)
     }
 
-    private func create() -> (id: ServerID, couldNotKeep: ErrorCode?) {
+    private func create(replacing: Bool) -> Outcome {
         let id = ServerID.generate()
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try encoder.encode(Stored(id: id)).write(to: fileURL, options: .atomic)
-            return (id, nil)
+            return replacing ? .replaced(id) : .identified(id)
         } catch {
-            // The Mac still advertises, and pairing still works for as long as this process
-            // lives. It is next launch that will look like a different Mac.
-            return (id, ErrorCode(error))
+            // REQ-COM-003 (v2.27): the id made here is dropped, not returned. It would not be
+            // read back next launch, so anything paired under it would be orphaned then.
+            return .notKept(ErrorCode(error))
         }
     }
 }

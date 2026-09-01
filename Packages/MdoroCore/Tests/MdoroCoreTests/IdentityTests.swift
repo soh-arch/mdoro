@@ -163,9 +163,10 @@ struct ServerIdentityTests {
         #expect(file.loadOrCreate().id == kept, "the identity did not survive a refused read")
     }
 
-    // REQ-ERR-010 / Decision 0035: a Mac that cannot keep its id still advertises and still
-    // pairs — for this launch. What must not happen is that nobody is told.
-    @Test func anIdentityThatCannotBeWrittenIsStillAnIdentityAndStillAFailure() throws {
+    // REQ-COM-003 (v2.27): **an id that could not be written down is handed to nobody.** It is
+    // gone at the next launch, so a pairing made under it is an orphan by design — v2.26 handed
+    // it out with a warning attached, and the warning was ignorable.
+    @Test func anIdentityThatCannotBeWrittenIsNoIdentityAtAll() throws {
         let directory = try scratchDirectory()
         defer { discard(directory) }
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
@@ -177,9 +178,20 @@ struct ServerIdentityTests {
             "the file system must actually refuse, or this proves nothing"
         )
         #expect(outcome.problem != nil, "REQ-ERR-010: the failure was swallowed")
-        // REQ-COM-003 (v2.26): **being unable to write is not being unable to read.** There was
-        // nothing on file to be a stranger to, so this launch still goes on the air and still pairs.
-        #expect(outcome.id != nil)
+        #expect(outcome.id == nil, "REQ-COM-003 v2.27: an id nobody will see again was handed out")
+        guard case .notKept = outcome else {
+            Issue.record("a write that was refused is `notKept`, not \(outcome)")
+            return
+        }
+        // **Being unable to write is not being unable to read** — the two keep the Mac off the
+        // air for different reasons, and the log has to say which happened.
+        #expect(outcome.diagnosticSummary?.hasPrefix("notKept(") == true)
+
+        // And it is not permanent: a launch that can write again is identified as usual.
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+        let recovered = file.loadOrCreate()
+        #expect(recovered.id != nil, "a write that succeeded left the Mac off the air")
+        #expect(recovered.problem == nil)
     }
 }
 

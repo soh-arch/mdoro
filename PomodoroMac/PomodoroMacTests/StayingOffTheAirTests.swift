@@ -218,8 +218,45 @@ struct StayingOffTheAirTests {
         #expect(advertised != nil, "a file with nothing readable in it left the Mac unable to pair at all")
         // REQ-ERR-010: replaced is still a failure, and it is still written down.
         let read = try #require(line(lines, code: "identity.load"))
-        #expect(read.contains("why=notKept(Mdoro:12)"))
+        #expect(read.contains("why=replaced(Mdoro:12)"))
         #expect(line(lines, code: "server.offTheAir") == nil, "a broken file was treated as an unreadable one")
+    }
+
+    // REQ-COM-003 (v2.27): **an id that could not be saved keeps the Mac off the air too.** It
+    // is gone at the next launch, so every pairing made under it would be an orphan — the same
+    // symptom as an unreadable file, through the other door. The screen says which door: nothing
+    // was deleted here, because nothing is on file at all yet.
+    @Test func anIdentityThatCouldNotBeSavedKeepsTheMacOffTheAir() async throws {
+        let directory = try scratchDirectory()
+        defer { discard(directory) }
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
+        let file = ServerIdentityFile(fileURL: directory.appendingPathComponent("identity.json"))
+
+        var advertised: ServerID?
+        var message: String?
+        var hint: String?
+        let lines = try await recording(tokens: .onRecord([]), identityFile: { file }) { model in
+            model.adoptStoredDeviceTokens()
+            advertised = model.identityToAdvertise()
+            message = model.serverStartError
+            hint = model.serverStartHint
+        }
+
+        #expect(advertised == nil, "REQ-COM-003 v2.27: the Mac went on the air under an id the next launch forgets")
+        #expect(message != nil, "nothing on the screen said why the iPhone cannot find this Mac")
+        let said = ((message ?? "") + " " + (hint ?? "")).lowercased()
+        // The reader's two questions: this is not the unreadable-records sentence (nothing exists
+        // yet to be deleted or kept), and there is something to try.
+        #expect(said.contains("save"), "the sentence does not say the identity could not be saved")
+        #expect(!said.contains("nothing was deleted"), "there is nothing on file yet for that sentence to be about")
+        #expect(said.contains("again"), "the reader is left with nothing to try")
+        // REQ-ERR-010 / Decision 0034: the write that failed is logged as a write —
+        // `identity.save`, the counterpart of `identity.load`.
+        let saved = try #require(line(lines, code: "identity.save"), "a refused write left no trace")
+        #expect(saved.contains("ERROR"))
+        #expect(saved.contains("why=notKept("))
+        let refused = try #require(line(lines, code: "server.offTheAir"), "staying off the air left no trace")
+        #expect(refused.contains("why=notKept("))
     }
 
     // Application Support could not be reached at all, so what is in the file is unknown — and

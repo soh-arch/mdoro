@@ -674,6 +674,22 @@ final class AppModel {
         diagnostics.write("server.offTheAir", level: .error, [DiagnosticField("why", why)])
     }
 
+    // REQ-COM-003 (v2.27) / REQ-ERR-010: the other way to have no identity — one was made, and
+    // the write failed. A different sentence from `stayOffTheAir`, because "nothing was deleted"
+    // is not true here in the way that mattered there: nothing is on file at all yet, and no
+    // pairing exists to be worried about. What the reader needs is why pairing is refused (a
+    // pairing made under an unsaved identity is lost at the next launch) and that relaunching
+    // usually clears it — a write that was refused once is rarely refused twice.
+    private func stayOffTheAirUnkept(why: String) {
+        serverStartError = String(
+            localized: "Mdoro is not listening for iPhone connections. It could not save the identity this Mac would be paired under, and a pairing made under an unsaved identity would be lost the next time Mdoro opens."
+        )
+        serverStartHint = String(
+            localized: "Quitting Mdoro and opening it again usually clears this."
+        )
+        diagnostics.write("server.offTheAir", level: .error, [DiagnosticField("why", why)])
+    }
+
     // REQ-COM-002 / 003: advertise over Bonjour, and answer `GET /info` with the server information.
     //
     // POL-114: the one standing here is a different object from the one about to be built, so its
@@ -764,8 +780,9 @@ final class AppModel {
             return nil
         }
         // Made once, kept in a file of its own beside `state.json`, and read back on every launch
-        // (Decision 0040). A Mac that read it and could not *keep* it still advertises and still
-        // pairs — it is the next launch that will look like a different Mac, and the log says so.
+        // (Decision 0040). REQ-COM-003 (v2.27): a Mac that made an id and could not *keep* it
+        // does not advertise it — the id is gone at the next launch, so every pairing made under
+        // it would be an orphan. The type keeps that honest: `.notKept` carries no id at all.
         if let serverId { return serverId }
         let outcome: ServerIdentityFile.Outcome
         do {
@@ -775,15 +792,31 @@ final class AppModel {
             // unknown is not empty. Inventing an id here is the same failure from one step back.
             outcome = .unreadable(ErrorCode(error))
         }
-        if let summary = outcome.diagnosticSummary {
-            diagnostics.write("identity.load", level: .error, [DiagnosticField("why", summary)])
-        }
-        guard let id = outcome.id else {
-            stayOffTheAir(why: outcome.diagnosticSummary ?? ErrorCode.identityUnreadable.summary("unreadable"))
+        switch outcome {
+        case let .identified(id):
+            serverId = id
+            return id
+        case let .replaced(id):
+            // REQ-ERR-010: replaced is still a failure — whatever was paired under what the file
+            // used to say is not coming back — and it is still written down. But broken is not
+            // unreadable, so this launch goes on the air (REQ-COM-003 v2.26).
+            let why = outcome.diagnosticSummary ?? ErrorCode.identityUnreadable.summary("replaced")
+            diagnostics.write("identity.load", level: .error, [DiagnosticField("why", why)])
+            serverId = id
+            return id
+        case let .unreadable(code):
+            let why = code.summary("unreadable")
+            diagnostics.write("identity.load", level: .error, [DiagnosticField("why", why)])
+            stayOffTheAir(why: why)
+            return nil
+        case let .notKept(code):
+            // REQ-COM-003 (v2.27): a failure of the write, so the line is named for the write —
+            // `identity.save`, the counterpart of `identity.load` above.
+            let why = code.summary("notKept")
+            diagnostics.write("identity.save", level: .error, [DiagnosticField("why", why)])
+            stayOffTheAirUnkept(why: why)
             return nil
         }
-        serverId = id
-        return id
     }
 
     // POL-047 / REQ-COM-003: **whether a port was ever bound.** Readable from the test target so

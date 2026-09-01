@@ -334,6 +334,9 @@
     "Mdoro is not listening for iPhone connections. It could not read the records that pair this Mac with your iPhone, and going on the air without them would ask every paired iPhone to pair again." : {
 
     },
+    "Mdoro is not listening for iPhone connections. It could not save the identity this Mac would be paired under, and a pairing made under an unsaved identity would be lost the next time Mdoro opens." : {
+
+    },
     "Mdoro was not given access to that folder. Choose it again in Settings." : {
 
     },
@@ -431,6 +434,9 @@
 
     },
     "Quit" : {
+
+    },
+    "Quitting Mdoro and opening it again usually clears this." : {
 
     },
     "Reads lines written as `- [ ] task`. Headings (##) group them." : {
