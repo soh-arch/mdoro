@@ -718,11 +718,14 @@ final class AppModel {
         // is read before the listener is raised, so the listener is refused too, not only the
         // Bonjour name — a Mac listening on a port nobody can find it at is no better.
         guard let identity = identityToAdvertise() else { return }
+        // The fold at the top of `server.start` drops whatever was connected, without a callback —
+        // and it runs whether or not the bind that follows succeeds. Noted before the call, so a
+        // start that throws (a rename's restart, say) does not leave "Connected" standing over a
+        // listener that no longer exists.
+        connection = .disconnected
+        authenticator.connectedClientName = nil
         do {
             let websocketPort = try await server.start(callbacks: serverCallbacks())
-            // The fold inside `server.start` dropped whatever was connected, without a callback.
-            connection = .disconnected
-            authenticator.connectedClientName = nil
             // The pairing screen may have closed while the bind was in flight; a server nothing
             // needs does not stay up because it won the race.
             guard serverShouldRun else {
