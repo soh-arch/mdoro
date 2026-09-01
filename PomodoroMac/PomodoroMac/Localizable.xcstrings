@@ -55,6 +55,9 @@
     "+%lld min" : {
 
     },
+    "A file name cannot be empty, start with a dot, or contain a slash. The previous name was kept." : {
+
+    },
     "A combination another app already uses cannot be registered. Include a modifier key." : {
 
     },
@@ -65,6 +68,9 @@
 
     },
     "A long pause was detected" : {
+
+    },
+    "A name needs at least one character. The previous name was kept." : {
 
     },
     "A record to attach to a bug report. **Task names, note contents, file paths and device names are never written.** You can paste it in public as it is." : {

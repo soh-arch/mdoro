@@ -23,6 +23,11 @@ struct SettingsView: View {
     // under the cursor.
     @State private var displayNameDraft = ""
     @FocusState private var displayNameFocused: Bool
+    // REQ-CFG-013 (v2.27): a refused commit is said, not silent. Cleared by the next valid one.
+    @State private var displayNameError: String?
+    @State private var logFileNameDraft = ""
+    @FocusState private var logFileNameFocused: Bool
+    @State private var logFileNameError: String?
 
     var body: some View {
         @Bindable var bindable = model
@@ -88,24 +93,53 @@ struct SettingsView: View {
                 Text("Your Mac's own name is never sent. Pairing survives a rename.")
                     .font(.footnote)
                     .foregroundStyle(theme.textSecondary)
+                // REQ-CFG-013 (v2.27) / REQ-COL-001: the refusal, in the role every other
+                // cannot-do-that line on this screen wears.
+                if let displayNameError {
+                    Text(displayNameError)
+                        .font(.footnote)
+                        .foregroundStyle(theme.color(.danger, .text))
+                }
             }
             PairingSection()
         }
         .formStyle(.grouped)
     }
 
-    // 9.3: one character or more. A name that is not one puts the old one back rather than being
-    // stored — the same answer `isWithinValidRanges` gives a value arriving from the iPhone
-    // (REQ-CFG-018), reached before the setting is written rather than after.
+    // 9.3 / REQ-CFG-013 (v2.27): one character or more. An empty name has no range to round
+    // into, so the commit is refused, the old name is put back — and the refusal is shown,
+    // because a value must not change or come back silently. A valid commit clears the line.
     private func commitDisplayName() {
         let trimmed = displayNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard AppSettings.isValidDisplayName(trimmed) else {
             displayNameDraft = model.settings.displayName
+            displayNameError = String(
+                localized: "A name needs at least one character. The previous name was kept."
+            )
             return
         }
         displayNameDraft = trimmed
+        displayNameError = nil
         guard trimmed != model.settings.displayName else { return }
         model.settings.displayName = trimmed
+    }
+
+    // REQ-CFG-013 (v2.27): same shape for the log file name. Committed once rather than per
+    // keystroke — bound straight through, `onSettingsChanged` rejected every invalid
+    // intermediate value silently, which put the old name back under the cursor mid-edit.
+    private func commitLogFileName() {
+        let trimmed = logFileNameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard AppSettings.isValidLogFileName(trimmed) else {
+            logFileNameDraft = model.settings.logFileName
+            logFileNameError = String(
+                localized: "A file name cannot be empty, start with a dot, or contain a slash. The previous name was kept."
+            )
+            return
+        }
+        logFileNameDraft = trimmed
+        logFileNameError = nil
+        guard trimmed != model.settings.logFileName else { return }
+        model.settings.logFileName = trimmed
     }
 
     // MARK: - Files
@@ -137,10 +171,27 @@ struct SettingsView: View {
                 HStack {
                     Text("File name")
                     Spacer()
-                    TextField("", text: model.settings.logFileName)
+                    TextField("", text: $logFileNameDraft)
                         .labelsHidden()
                         .frame(width: 200)
                         .multilineTextAlignment(.trailing)
+                        .focused($logFileNameFocused)
+                        .onSubmit { commitLogFileName() }
+                        .onChange(of: logFileNameFocused) { _, focused in
+                            if !focused { commitLogFileName() }
+                        }
+                        // Follows the setting while the field is not being typed in — the iPhone
+                        // can change it too (REQ-CFG-002).
+                        .onChange(of: self.model.settings.logFileName, initial: true) { _, name in
+                            if !logFileNameFocused { logFileNameDraft = name }
+                        }
+                }
+                // REQ-CFG-013 (v2.27) / REQ-COL-001: a refused name is said, in the same role
+                // `logFileError` below already wears.
+                if let logFileNameError {
+                    Text(logFileNameError)
+                        .font(.footnote)
+                        .foregroundStyle(theme.color(.danger, .text))
                 }
                 // REQ-LOG-002 / Decision 0033: **what is not being recorded is said where the
                 // setting is.** Not a failure, so it is worded as a state and not as an error.
