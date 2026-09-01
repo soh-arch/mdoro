@@ -23,7 +23,12 @@ struct PairingSection: View {
                 }
             } else {
                 HStack {
-                    Text(Format.connectionLabel(model.connection))
+                    // REQ-UIX-004 (v2.25): with nothing paired there is no connection state to
+                    // speak of, here included — "Not connected" is not the name of a Mac that
+                    // has never had anything to connect to.
+                    if model.showsConnectionState {
+                        Text(Format.connectionLabel(model.connection))
+                    }
                     Spacer()
                     Button("Start pairing") { model.beginPairing() }
                 }

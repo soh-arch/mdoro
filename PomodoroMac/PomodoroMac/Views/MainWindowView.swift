@@ -158,31 +158,37 @@ struct MainWindowView: View {
         }
     }
 
-    // REQ-UIX-004: the connection state must be visible at all times.
+    // REQ-UIX-004: the connection state, while a pairing exists for it to be the state of.
     private var statusBar: some View {
-        HStack(spacing: 8) {
-            let status = model.connection
-            // **This is a way through to the settings.**
-            SettingsLink {
-                Label(Format.connectionLabel(status), systemImage: status.peerSymbolName)
-                    .foregroundStyle(theme.color(status.colorRole, .text))
+        // The dividers separate; each shows only when something stands before it. With the
+        // connection state gone (nothing paired, v2.25) the first log item leads the line.
+        let showsConnection = model.showsConnectionState
+        return HStack(spacing: 8) {
+            if showsConnection {
+                let status = model.connection
+                // **This is a way through to the settings.**
+                SettingsLink {
+                    Label(Format.connectionLabel(status), systemImage: status.peerSymbolName)
+                        .foregroundStyle(theme.color(status.colorRole, .text))
+                }
+                .buttonStyle(.plain)
+                .simultaneousGesture(TapGesture().onEnded { model.settingsTab = .connection })
             }
-            .buttonStyle(.plain)
-            .simultaneousGesture(TapGesture().onEnded { model.settingsTab = .connection })
             if model.pendingLogCount > 0 {
-                Divider().frame(height: 12)
+                if showsConnection { Divider().frame(height: 12) }
                 Text("\(model.pendingLogCount) not yet written")
                     .foregroundStyle(theme.color(.warning, .text))
             }
             if let at = model.lastLogWriteAt {
-                Divider().frame(height: 12)
+                if showsConnection || model.pendingLogCount > 0 { Divider().frame(height: 12) }
                 Text("Last written \(at.formatted(date: .omitted, time: .standard))")
             }
             // REQ-LOG-002 / Decision 0033: **nowhere has been chosen, which is not a failure.**
             // No warning colour and no warning triangle: those belong to the row below, where a
             // write was attempted and refused. What this one needs is the way to choose a folder.
+            let anyLogLineBefore = showsConnection || model.pendingLogCount > 0 || model.lastLogWriteAt != nil
             if model.logFolderNotSet {
-                Divider().frame(height: 12)
+                if anyLogLineBefore { Divider().frame(height: 12) }
                 SettingsLink {
                     Label("No folder set for the session log — nothing is being recorded",
                           systemImage: "folder.badge.questionmark")
@@ -193,7 +199,7 @@ struct MainWindowView: View {
                 .help("Choose a folder under Settings > Files. Sessions still run and still count; they are just not written down.")
             }
             if model.logWriteFailed {
-                Divider().frame(height: 12)
+                if anyLogLineBefore || model.logFolderNotSet { Divider().frame(height: 12) }
                 Label(model.lastLogError ?? String(localized: "The session log is not being written"),
                       systemImage: "exclamationmark.triangle")
                     .foregroundStyle(theme.color(.warning, .text))
@@ -203,7 +209,9 @@ struct MainWindowView: View {
             // REQ-ERR-017 / Decision 0035: a failed save is treated the same as a failed log write.
             // **It is shown until it goes away.**
             if let problem = model.stateSaveProblem {
-                Divider().frame(height: 12)
+                if anyLogLineBefore || model.logFolderNotSet || model.logWriteFailed {
+                    Divider().frame(height: 12)
+                }
                 Label(problem, systemImage: "externaldrive.badge.exclamationmark")
                     .foregroundStyle(theme.color(.warning, .text))
                     .textSelection(.enabled)

@@ -43,10 +43,14 @@ struct MenuBarLabelView: View {
     // REQ-UIX-038: English only. What is read out says as much about the run state as the mark's shape does.
     private var accessibilityLabel: String {
         let remaining = Format.spokenRemaining(model.remainingSeconds(at: now))
-        return [Format.sessionLabel(model.timer.sessionType),
-                Format.runStateLabel(model.timer.runState),
-                remaining,
-                Format.connectionLabel(model.connection)].joined(separator: ", ")
+        var parts = [Format.sessionLabel(model.timer.sessionType),
+                     Format.runStateLabel(model.timer.runState),
+                     remaining]
+        // REQ-UIX-004 (v2.25): spoken as well as shown — nothing paired, no connection state.
+        if model.showsConnectionState {
+            parts.append(Format.connectionLabel(model.connection))
+        }
+        return parts.joined(separator: ", ")
     }
 }
 
@@ -120,8 +124,10 @@ struct MenuBarMenuContent: View {
         Divider()
 
         // REQ-UIX-004 / Decision 0031: on the Mac the connection state is here and in the status line,
-        // nowhere else. **One line, to read only.**
-        Text("iPhone: \(Format.connectionLabel(model.connection))")
+        // nowhere else. **One line, to read only** — and only while a pairing exists (v2.25).
+        if model.showsConnectionState {
+            Text("iPhone: \(Format.connectionLabel(model.connection))")
+        }
         SettingsLink { Text("Settings…") }
         Button("Open Main Window") { openMain() }
         Divider()
