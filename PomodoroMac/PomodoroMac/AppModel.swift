@@ -898,6 +898,16 @@ final class AppModel {
                 }
                 return decision
             },
+            resolveApproval: { [weak self] approved in
+                guard let self else { return nil }
+                let decision = authenticator.resolveApproval(approved: approved, now: Date())
+                if case .accept = decision {
+                    // The same bookkeeping as an accept out of `authenticate` above.
+                    saveIssuedDeviceTokens()
+                    pairingCode = nil
+                }
+                return decision
+            },
             handleCommand: { [weak self] command in
                 self?.apply(command)
             },
@@ -1046,9 +1056,8 @@ final class AppModel {
     // server side times it out.
     func respondToConnectionRequest(approved: Bool) {
         pendingConnectionRequest = nil
-        // **Clear it first.** Without that, reauthenticating returns needsUserApproval again and it goes
-        // round in circles.
-        if approved { authenticator.connectedClientName = nil }
+        // The Authenticator settles the answer against the hello it held (`resolveApproval`),
+        // reached through the server so the connection kept waiting is the one answered.
         server.resolvePendingApproval(approved: approved)
     }
 

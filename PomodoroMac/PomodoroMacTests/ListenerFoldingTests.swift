@@ -28,6 +28,7 @@ import MdoroCore
 private func callbacksNothingReaches() -> MdoroServer.Callbacks {
     MdoroServer.Callbacks(
         authenticate: { _ in .reject(.connectionRejectedByUser) },
+        resolveApproval: { _ in nil },
         handleCommand: { _ in },
         provideSnapshot: {
             StateSnapshot(

@@ -11,6 +11,10 @@ final class MdoroServer {
     struct Callbacks {
         // The judgement about authentication is made above (Authenticator).
         var authenticate: (HelloPayload) -> Authenticator.Decision
+        // REQ-SEC-004: the user's answer to `.needsUserApproval`. The judgement — issue, hand
+        // back the record on file, or refuse — is the Authenticator's; nil means nothing was
+        // waiting up there.
+        var resolveApproval: (Bool) -> Authenticator.Decision?
         var handleCommand: (CommandPayload) -> Void
         var provideSnapshot: () -> StateSnapshot
         var provideTaskList: () -> TaskListPayload?
@@ -203,6 +207,12 @@ final class MdoroServer {
 
     private func handleHello(_ payload: HelloPayload, from source: NWConnection) {
         guard let decision = callbacks?.authenticate(payload) else { return }
+        settle(decision, of: payload, from: source)
+    }
+
+    // What a decision does to the wire — shared by the hello just received and the one an
+    // approval kept waiting (REQ-SEC-004).
+    private func settle(_ decision: Authenticator.Decision, of payload: HelloPayload, from source: NWConnection) {
         switch decision {
         case let .accept(token):
             connection?.cancel()
@@ -272,14 +282,22 @@ final class MdoroServer {
 
         guard approved else {
             // The 60-second timeout arrives here too, and reads as the same refusal in the log.
+            // The Authenticator's held hello is dropped with it, so a refused request cannot be
+            // issued for later.
+            _ = callbacks?.resolveApproval(false)
             refuse(.connectionRejectedByUser, of: pending.hello, to: pending.connection)
             return
         }
-        // Drop the existing connection, then have it authenticate afresh.
+        // REQ-SEC-004 / POL-139: settled against the hello held when the question was asked, not
+        // by authenticating it afresh — the pairing window may have expired or been closed while
+        // the user was deciding, and a re-authentication then refused the very hello being
+        // approved.
+        guard let decision = callbacks?.resolveApproval(true) else { return }
+        // Only on approval is the existing connection dropped.
         connection?.cancel()
         connection = nil
         connectedDeviceName = nil
-        handleHello(pending.hello, from: pending.connection)
+        settle(decision, of: pending.hello, from: pending.connection)
     }
 
     var hasPendingApproval: Bool { pendingApproval != nil }
