@@ -11,16 +11,19 @@ struct MdoroMacApp: App {
     // they have pending. That happens while the App value is being built — before any view
     // exists, so before the guard in `.task` below could stop it.
     //
-    // **All four are replaced.** A store holding nothing has nothing to restore, empty bookmarks
+    // **All five are replaced.** A store holding nothing has nothing to restore, empty bookmarks
     // reach no folder of theirs, the notification centre is keyed by bundle identifier —
-    // `cancelAll` on the real one would discard what the real Mdoro had scheduled — and holding
-    // off idle sleep (POL-053) reaches past this process to the machine itself. See `TestHost`.
+    // `cancelAll` on the real one would discard what the real Mdoro had scheduled — holding
+    // off idle sleep (POL-053) reaches past this process to the machine itself, and an item put
+    // in the Keychain (Decision 0040) is written into the reader's own login keychain and stays
+    // there after the run. See `TestHost`.
     @State private var model = TestHost.isRunning
         ? AppModel(
             store: InMemoryStateStore(),
             bookmarks: VaultBookmarks(),
             notifications: SilentNotifications(),
-            idleSleep: SleepLeftAlone()
+            idleSleep: SleepLeftAlone(),
+            deviceTokens: TokensKeptNowhere()
         )
         : AppModel()
     @State private var notificationDelegate = NotificationDelegate()

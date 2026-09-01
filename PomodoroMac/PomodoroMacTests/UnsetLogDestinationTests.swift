@@ -66,7 +66,9 @@ private final class Harness {
             diagnostics: diagnostics,
             bookmarks: VaultBookmarks(taskFile: nil, logFolder: logFolder),
             notifications: notifications,
-            idleSleep: RecordedSleepGuard()
+            idleSleep: RecordedSleepGuard(),
+            // Decision 0040: the Keychain is the reader's too. Nothing here pairs anything.
+            deviceTokens: TokensKeptNowhere()
         )
         // What `start()` does before anything else. The rest of `start()` is deliberately skipped.
         diagnostics.open(preset: preset, settings: settings)

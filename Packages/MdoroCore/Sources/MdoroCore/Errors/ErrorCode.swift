@@ -56,6 +56,13 @@ public extension ErrorCode {
     // 10–19: persisting state.
     static let stateCorrupted = ErrorCode(own: 10)
     static let stateUnsupportedSchemaVersion = ErrorCode(own: 11)
+    // Decision 0040: the file holding the `id` was read and held nothing this version knows.
+    static let identityUnreadable = ErrorCode(own: 12)
+    // REQ-SEC-002 / Decision 0040: the device token records could not be read. The Keychain
+    // reported success and handed back something that is not the records, so there is no
+    // `OSStatus` to carry — but the consequence is the one that matters: **what is on file may
+    // still be intact, so it must not be written over.**
+    static let deviceTokensUnreadable = ErrorCode(own: 13)
     // 20–29: notifications.
     static let notificationsNotAllowed = ErrorCode(own: 20)
     // 30–39: reaching a folder the user picked (security-scoped bookmarks).

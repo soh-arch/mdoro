@@ -55,6 +55,9 @@
     "+%lld min" : {
 
     },
+    "A file name cannot be empty, start with a dot, or contain a slash. The previous name was kept." : {
+
+    },
     "A combination another app already uses cannot be registered. Include a modifier key." : {
 
     },
@@ -65,6 +68,9 @@
 
     },
     "A long pause was detected" : {
+
+    },
+    "A name needs at least one character. The previous name was kept." : {
 
     },
     "A record to attach to a bug report. **Task names, note contents, file paths and device names are never written.** You can paste it in public as it is." : {
@@ -331,6 +337,12 @@
     "Mdoro is no longer allowed into that folder. Choose it again in Settings." : {
 
     },
+    "Mdoro is not listening for iPhone connections. It could not read the records that pair this Mac with your iPhone, and going on the air without them would ask every paired iPhone to pair again." : {
+
+    },
+    "Mdoro is not listening for iPhone connections. It could not save the identity this Mac would be paired under, and a pairing made under an unsaved identity would be lost the next time Mdoro opens." : {
+
+    },
     "Mdoro was not given access to that folder. Choose it again in Settings." : {
 
     },
@@ -379,6 +391,9 @@
     "Not set" : {
 
     },
+    "Nothing was deleted — the records are still there, unread. Quitting Mdoro and opening it again usually clears this." : {
+
+    },
     "Notification test" : {
 
     },
@@ -425,6 +440,9 @@
 
     },
     "Quit" : {
+
+    },
+    "Quitting Mdoro and opening it again usually clears this." : {
 
     },
     "Reads lines written as `- [ ] task`. Headings (##) group them." : {
@@ -562,6 +580,9 @@
     "The menu bar uses shape and text instead of color, because its background brightness changes." : {
 
     },
+    "The name your iPhone sees. It is also the name this Mac shows on your network." : {
+
+    },
     "The preset in use cannot be deleted." : {
 
     },
@@ -587,6 +608,9 @@
 
     },
     "This is what you get at each boundary." : {
+
+    },
+    "This Mac" : {
 
     },
     "Time and task" : {
@@ -629,6 +653,9 @@
 
     },
     "You can extend from 5 minutes before the end until 1 minute after. Extending is meant for the moment you are actually aware of the boundary." : {
+
+    },
+    "Your Mac's own name is never sent. Pairing survives a rename." : {
 
     }
   },

@@ -111,7 +111,7 @@ struct StartingTwiceTests {
     @Test func theInfoServerIsFoldedBeforeItIsReplaced() throws {
         let body = try text(of: appModel)
         let opening = try #require(
-            body.range(of: "private func startServer() async {"),
+            body.range(of: "func startServer() async {"),
             "\(appModel) no longer has startServer()"
         )
         let rest = body[opening.upperBound...]

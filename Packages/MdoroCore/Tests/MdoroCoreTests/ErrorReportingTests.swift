@@ -258,7 +258,8 @@ struct ErrorReportingTests {
         let table: [ErrorCode] = [
             .logInvalidFilePath, .logWouldModifyExistingLines, .logFolderNotSet,
             .logFileChangedWhileWriting,
-            .stateCorrupted, .stateUnsupportedSchemaVersion,
+            .stateCorrupted, .stateUnsupportedSchemaVersion, .identityUnreadable,
+            .deviceTokensUnreadable,
             .notificationsNotAllowed,
             .bookmarkCreationFailed, .bookmarkResolutionFailed, .accessDenied,
         ] + TimerError.allCases.map(\.errorCode)

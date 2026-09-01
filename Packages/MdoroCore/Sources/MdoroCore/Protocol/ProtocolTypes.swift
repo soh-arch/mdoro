@@ -1,8 +1,14 @@
 import Foundation
 
 // REQ-PRT-004: the protocol version is exchanged in hello / welcome, and an incompatible one is refused.
+//
+// **2 since Decision 0040.** Nothing in 10.2 changed shape, so a version 1 iPhone would decode
+// every message and go on failing quietly: the TXT record it reads carries an `id` it knows
+// nothing about, and the token it holds is filed under a Bonjour name this Mac no longer keys
+// anything by. What is left of a half-working pair is a Mac that answers and a phone that never
+// authenticates, with nothing on either screen. The version says so instead.
 public enum PomodoroProtocol {
-    public static let version = 1
+    public static let version = 2
 
     public static func isCompatible(_ other: Int) -> Bool { other == version }
 }

@@ -38,6 +38,11 @@ final class AppModel {
     // REQ-SEC-004: a connection request from another client. It waits for the user to approve.
     private(set) var pendingConnectionRequest: String?
     private(set) var serverStartError: String?
+    // What to do about it. **It belongs with the sentence above and not with the view**, because
+    // the two failures that set `serverStartError` need different answers: a listener that would
+    // not come up is usually the local network permission, and records that could not be read are
+    // not the user's to fix at all (REQ-COM-003 v2.26).
+    private(set) var serverStartHint: String?
     // REQ-NTF-001: if notifications have been turned off on the OS side, put that on the screen.
     private(set) var notificationPermission: NotificationPermission?
     // Why asking for permission failed. An unsigned build stops here.
@@ -94,7 +99,25 @@ final class AppModel {
     // Which tab the settings window opens on.
     var settingsTab: SettingsTab = .presets
     private var infoServer: InfoHTTPServer?
-    private var authenticator = Authenticator(issuedTokens: DeviceTokenStore.load())
+    // REQ-SEC-002 / POL-047: the Keychain is outside this process, so it is a seam like the
+    // notification centre and the hold on idle sleep. **The default is the same as production.**
+    private let deviceTokens: any DeviceTokenStoring
+    // REQ-SEC-002 / Decision 0040: why what is on file must not be written over. **A read that
+    // failed is not an empty Keychain** — the records may be sitting there intact, and saving the
+    // authenticator's over them is how every pairing disappears at once.
+    private var deviceRecordsUnreadable: ErrorCode?
+    private var authenticator = Authenticator()
+    // REQ-COM-003 / Decision 0040: read on the way to advertising and kept for the life of the
+    // process. **Resolved there and not in `init`** — creating it writes a file into Application
+    // Support, and this type is built by every test in the Mac target.
+    private var serverId: ServerID?
+    // POL-047 / REQ-COM-003: where the `id` is kept. **The default is the same as production.**
+    // A seam for the same reason the Keychain, the notification centre and the hold on idle sleep
+    // are: the suite runs inside MdoroMac.app under its bundle identifier, so `inApplicationSupport()`
+    // resolves inside the reader's own container. **It is a closure and not a file** because
+    // reaching that folder can fail, and the failure has to arrive where it is decided what to do
+    // about it, not at the moment the model is built.
+    private let identityFile: () throws -> ServerIdentityFile
     private let logQueue: LogWriteQueue
     private var bookmarks: VaultBookmarks
 
@@ -139,10 +162,14 @@ final class AppModel {
         diagnostics: DiagnosticLog? = nil,
         bookmarks: VaultBookmarks = VaultBookmarks.load(),
         notifications: (any SessionNotifying)? = nil,
-        idleSleep: (any IdleSleepGuarding)? = nil
+        idleSleep: (any IdleSleepGuarding)? = nil,
+        deviceTokens: (any DeviceTokenStoring)? = nil,
+        identityFile: (() throws -> ServerIdentityFile)? = nil
     ) {
         self.store = store
         self.storeUnavailable = storeUnavailable
+        self.deviceTokens = deviceTokens ?? KeychainDeviceTokenStore()
+        self.identityFile = identityFile ?? { try ServerIdentityFile.inApplicationSupport() }
         // They cannot be built at the default-value position (DiagnosticLog and NotificationScheduler
         // both live on the MainActor).
         let diagnosticLog = diagnostics ?? DiagnosticLog()
@@ -222,6 +249,7 @@ final class AppModel {
         hasStarted = true
         diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
         diagnostics.write("app.start")
+        adoptStoredDeviceTokens()
         writeStartupDiagnostics()
         Task {
             // REQ-ERR-010 / Decision 0034: the screen gets a sentence, the log gets a code.
@@ -292,6 +320,44 @@ final class AppModel {
         if let lastSaveFailure {
             diagnostics.write("state.save", level: .error, [
                 DiagnosticField("why", lastSaveFailure.diagnosticSummary),
+            ])
+        }
+    }
+
+    // REQ-SEC-002 / Decision 0040: take the records on file into the authenticator.
+    //
+    // **Kept out of `start()` so that it can be exercised on its own** — the same reason
+    // `writeStartupDiagnostics()` is, and `start()` is its only other caller.
+    func adoptStoredDeviceTokens() {
+        // The tokens live in the Keychain now, and the plist they used to sit in is emptied rather
+        // than read. See `LeftoverPlaintextTokens`.
+        deviceTokens.eraseLeftoverPlaintext()
+        let records = deviceTokens.load()
+        // REQ-ERR-010 / Decision 0034: the log gets a code. Losing every pairing on the machine
+        // used to leave no trace anywhere.
+        if let summary = records.diagnosticSummary {
+            diagnostics.write("tokens.load", level: .error, [DiagnosticField("why", summary)])
+        }
+        deviceRecordsUnreadable = records.unreadableBecause
+        authenticator = Authenticator(issuedTokens: records.tokens)
+    }
+
+    // REQ-SEC-002 / Decision 0040: **the records go back only when what was there was read.**
+    //
+    // Both halves of the old route were silent. The save threw its `OSStatus` away after emptying
+    // the item, and the load answered `[]` for a Keychain that merely refused to answer — so one
+    // pairing made after a bad read replaced every record on file, and the next launch turned
+    // every paired iPhone into an unknown one.
+    func saveIssuedDeviceTokens() {
+        if let unreadable = deviceRecordsUnreadable {
+            diagnostics.write("tokens.save", level: .error, [
+                DiagnosticField("why", unreadable.summary("notWritten")),
+            ])
+            return
+        }
+        if let problem = deviceTokens.save(authenticator.issuedTokens) {
+            diagnostics.write("tokens.save", level: .error, [
+                DiagnosticField("why", problem.summary("saveFailed")),
             ])
         }
     }
@@ -499,6 +565,11 @@ final class AppModel {
             reloadTasksFromDisk()
             startWatchingTaskFile()
         }
+        // 9.5 group C / Decision 0040: the name applies immediately, and the LAN is where it shows.
+        if settings.displayName != previous.displayName {
+            refreshServerInfo()
+            readvertise()
+        }
         if settings.pauseResumeHotKey != previous.pauseResumeHotKey
             || settings.showWindowHotKey != previous.showWindowHotKey
             || settings.startNextHotKey != previous.startNextHotKey
@@ -558,38 +629,205 @@ final class AppModel {
 
     // MARK: - Communication (chapter 3 / chapter 10)
 
-    private func startServer() async {
-        // POL-114: the one standing here is a different object from the one about to be built, so its
-        // own `start()` cannot fold it. **Letting go of an InfoHTTPServer does not take its Bonjour name
-        // off the network** — the listener is held by Network.framework for its queue, and only
-        // `cancel()` withdraws it. It comes down before anything goes up, so that a start that fails
-        // leaves nothing advertised rather than a registration pointing at a port that is gone.
-        infoServer?.stop()
+    // **Internal so that the one decision below can be exercised without raising a listener**, the
+    // same reason `adoptStoredDeviceTokens()` and `writeStartupDiagnostics()` are. `start()` is its
+    // only other caller.
+    func startServer() async {
+        // REQ-COM-003 (v2.26): **nothing goes up until this launch knows who it is.** The identity
+        // is read here rather than inside `advertise` so that the listener is refused too, not
+        // only the Bonjour name — a Mac listening on a port nobody can find it at is no better.
+        guard let identity = identityToAdvertise() else { return }
         do {
             let websocketPort = try await server.start(callbacks: serverCallbacks())
-            // REQ-COM-002 / 003: advertise over Bonjour, and answer `GET /info` with the server information.
-            let info = InfoHTTPServer(info: serverInfo(websocketPort: websocketPort))
-            try await info.start()
-            info.advertise(serviceName: Host.current().localizedName ?? "Mdoro", websocketPort: websocketPort)
-            infoServer = info
             websocketPortForInfo = websocketPort
+            try await advertise(websocketPort: websocketPort, serverId: identity)
             serverStartError = nil
+            serverStartHint = nil
         } catch {
             // REQ-SEC-005 / REQ-ERR-008: the fact that it cannot listen is not hidden.
             // REQ-ERR-010 / Decision 0034: the screen keeps the fact and gives up the reason.
             // The reason is a code now, and `server.start` below is where it goes instead.
             serverStartError = String(localized: "Mdoro cannot listen for iPhone connections.")
+            serverStartHint = String(
+                localized: "Check that this app is allowed in System Settings > Privacy & Security > Local Network."
+            )
             diagnostics.write("server.start", level: .error, [
                 DiagnosticField("why", ErrorCode(error).summary("startFailed")),
             ])
         }
     }
 
-    private var websocketPortForInfo: UInt16 = 0
+    // REQ-COM-003 (v2.26) / REQ-ERR-010: nothing went up, and the reason reaches the screen as
+    // well as the log.
+    //
+    // **The sentence answers the two questions the reader will actually have**: is the pairing
+    // gone, and is there anything to do. Neither answer is bad news — the records were left
+    // exactly where they are (REQ-SEC-002 / Decision 0036), and a read that was refused once
+    // often is not refused next time.
+    private func stayOffTheAir(why: String) {
+        serverStartError = String(
+            localized: "Mdoro is not listening for iPhone connections. It could not read the records that pair this Mac with your iPhone, and going on the air without them would ask every paired iPhone to pair again."
+        )
+        serverStartHint = String(
+            localized: "Nothing was deleted — the records are still there, unread. Quitting Mdoro and opening it again usually clears this."
+        )
+        diagnostics.write("server.offTheAir", level: .error, [DiagnosticField("why", why)])
+    }
+
+    // REQ-COM-003 (v2.27) / REQ-ERR-010: the other way to have no identity — one was made, and
+    // the write failed. A different sentence from `stayOffTheAir`, because "nothing was deleted"
+    // is not true here in the way that mattered there: nothing is on file at all yet, and no
+    // pairing exists to be worried about. What the reader needs is why pairing is refused (a
+    // pairing made under an unsaved identity is lost at the next launch) and that relaunching
+    // usually clears it — a write that was refused once is rarely refused twice.
+    private func stayOffTheAirUnkept(why: String) {
+        serverStartError = String(
+            localized: "Mdoro is not listening for iPhone connections. It could not save the identity this Mac would be paired under, and a pairing made under an unsaved identity would be lost the next time Mdoro opens."
+        )
+        serverStartHint = String(
+            localized: "Quitting Mdoro and opening it again usually clears this."
+        )
+        diagnostics.write("server.offTheAir", level: .error, [DiagnosticField("why", why)])
+    }
+
+    // REQ-COM-002 / 003: advertise over Bonjour, and answer `GET /info` with the server information.
+    //
+    // POL-114: the one standing here is a different object from the one about to be built, so its
+    // own `start()` cannot fold it. **Letting go of an InfoHTTPServer does not take its Bonjour name
+    // off the network** — the listener is held by Network.framework for its queue, and only
+    // `cancel()` withdraws it. It comes down before anything goes up, so that a start that fails
+    // leaves nothing advertised rather than a registration pointing at a port that is gone.
+    //
+    // **Both callers pass through here**, so a rename cannot leave the old name standing beside
+    // the new one, which is the shape of the bug POL-114 was.
+    //
+    // REQ-COM-003 (v2.26): **the id is an argument, not something fetched from in here.** There
+    // is no id to fall back on when the file could not be read, and a route that could reach this
+    // line without one would have to invent it — which is the failure the requirement exists to
+    // stop. Asking for it in the signature means no caller can.
+    private func advertise(websocketPort: UInt16, serverId: ServerID) async throws {
+        infoServer?.stop()
+        infoServer = nil
+        let info = InfoHTTPServer(info: serverInfo(websocketPort: websocketPort))
+        try await info.start()
+        info.advertise(displayName: settings.displayName,
+                       websocketPort: websocketPort,
+                       serverId: serverId)
+        infoServer = info
+    }
+
+    // Decision 0040: **a rename has to reach the network, or the setting is only half true.**
+    // The registration is a property of the `/info` listener, and whether reassigning `.service`
+    // on a live one updates the advertisement is not documented anywhere (`docs/PLATFORM.md`), so
+    // the listener is raised again instead — the one path measured to withdraw the old name.
+    // **One at a time.** `advertise` suspends while the new listener comes up, and two of these
+    // overlapping would each fold what stood before *they* started: the loser's registration is
+    // never cancelled and stays on the network beside the winner's — POL-114 again, from the other
+    // direction. The settings screen commits a name once rather than per keystroke, so this is the
+    // second guard and not the first.
+    private var advertising: Task<Void, Never>?
+
+    private func readvertise() {
+        // **A port, not a listener.** `advertise` folds the standing listener before it raises the
+        // next one, so a start that throws leaves `infoServer` nil — and this guard read it, which
+        // meant one failed rename closed the door on every later one. `startServer()` runs once per
+        // process (POL-114), so nothing reopened it short of a relaunch. What a re-advertisement
+        // needs is somewhere to point; the listener is the thing it is about to raise.
+        // REQ-COM-003 (v2.26): a port means the Mac is already on the air, so the id was read at
+        // `startServer()` and this hands back the same one. The guard is here so that the only way
+        // to reach `advertise` stays the one that has an id to give it.
+        guard websocketPortForInfo != 0, let identity = identityToAdvertise() else { return }
+        let previous = advertising
+        advertising = Task {
+            await previous?.value
+            do {
+                try await advertise(websocketPort: websocketPortForInfo, serverId: identity)
+                serverStartError = nil
+                serverStartHint = nil
+            } catch {
+                serverStartError = String(localized: "Mdoro cannot listen for iPhone connections.")
+                serverStartHint = String(
+                    localized: "Check that this app is allowed in System Settings > Privacy & Security > Local Network."
+                )
+                diagnostics.write("server.advertise", level: .error, [
+                    DiagnosticField("why", ErrorCode(error).summary("startFailed")),
+                ])
+            }
+        }
+    }
+
+    // REQ-COM-003 (v2.26): the id this Mac goes on the air under, or nil because it must not go on
+    // the air at all.
+    //
+    // **Two records have to be readable before this Mac says anything on the LAN**: the `id` every
+    // paired iPhone files its token under, and the tokens this Mac has issued. A launch that could
+    // not read them is not a Mac with nothing paired — it is a Mac that does not know what it has,
+    // and on the air it is a stranger. The paired iPhone is asked for a six-digit code, and the
+    // token issued in reply is filed under an id that will be gone at the next launch: orphans on
+    // both ends. **What could not be read and what is not there are different answers** — the
+    // discipline REQ-ERR-017 already applies to `state.json`, applied to identity.
+    //
+    // The tokens are checked first because that half loses records that are not ours to lose. A
+    // Mac holding no records refuses every iPhone that comes back with `unknownDeviceToken`, and
+    // the iPhone throws its own token away on being refused (`MdoroClient`). Ours survive the
+    // launch; the iPhone's do not.
+    //
+    // **Internal so that it can be read back without raising a listener**, the same reason
+    // `adoptStoredDeviceTokens()` and `writeStartupDiagnostics()` are.
+    func identityToAdvertise() -> ServerID? {
+        if let unreadable = deviceRecordsUnreadable {
+            stayOffTheAir(why: unreadable.summary("tokensUnreadable"))
+            return nil
+        }
+        // Made once, kept in a file of its own beside `state.json`, and read back on every launch
+        // (Decision 0040). REQ-COM-003 (v2.27): a Mac that made an id and could not *keep* it
+        // does not advertise it — the id is gone at the next launch, so every pairing made under
+        // it would be an orphan. The type keeps that honest: `.notKept` carries no id at all.
+        if let serverId { return serverId }
+        let outcome: ServerIdentityFile.Outcome
+        do {
+            outcome = try identityFile().loadOrCreate()
+        } catch {
+            // Application Support could not be reached, so what is in the file is unknown — and
+            // unknown is not empty. Inventing an id here is the same failure from one step back.
+            outcome = .unreadable(ErrorCode(error))
+        }
+        switch outcome {
+        case let .identified(id):
+            serverId = id
+            return id
+        case let .replaced(id):
+            // REQ-ERR-010: replaced is still a failure — whatever was paired under what the file
+            // used to say is not coming back — and it is still written down. But broken is not
+            // unreadable, so this launch goes on the air (REQ-COM-003 v2.26).
+            let why = outcome.diagnosticSummary ?? ErrorCode.identityUnreadable.summary("replaced")
+            diagnostics.write("identity.load", level: .error, [DiagnosticField("why", why)])
+            serverId = id
+            return id
+        case let .unreadable(code):
+            let why = code.summary("unreadable")
+            diagnostics.write("identity.load", level: .error, [DiagnosticField("why", why)])
+            stayOffTheAir(why: why)
+            return nil
+        case let .notKept(code):
+            // REQ-COM-003 (v2.27): a failure of the write, so the line is named for the write —
+            // `identity.save`, the counterpart of `identity.load` above.
+            let why = code.summary("notKept")
+            diagnostics.write("identity.save", level: .error, [DiagnosticField("why", why)])
+            stayOffTheAirUnkept(why: why)
+            return nil
+        }
+    }
+
+    // POL-047 / REQ-COM-003: **whether a port was ever bound.** Readable from the test target so
+    // that the guard at the top of `startServer()` can be shown to stop the listener and not only
+    // the Bonjour name; nothing outside this file writes it.
+    private(set) var websocketPortForInfo: UInt16 = 0
 
     private func serverInfo(websocketPort: UInt16) -> ServerInfo {
         ServerInfo(
-            serverName: Host.current().localizedName ?? "Mac",
+            // Decision 0040: one name, and it is the one the user chose.
+            serverName: settings.displayName,
             protocolVersion: PomodoroProtocol.version,
             isPairingMode: pairingCode != nil,
             websocketPort: websocketPort
@@ -607,9 +845,10 @@ final class AppModel {
             authenticate: { [weak self] hello in
                 guard let self else { return .reject(.connectionRejectedByUser) }
                 let decision = authenticator.authenticate(hello, now: Date())
-                if case let .accept(token) = decision {
-                    DeviceTokenStore.save(authenticator.issuedTokens)
-                    _ = token
+                if case .accept = decision {
+                    // REQ-SEC-002 / Decision 0040: the whole record — value, device name and the
+                    // date it was issued.
+                    saveIssuedDeviceTokens()
                     pairingCode = nil
                     refreshServerInfo()
                 } else if case let .needsUserApproval(name) = decision {
@@ -627,6 +866,7 @@ final class AppModel {
                 )
             },
             provideTaskList: { [weak self] in self?.taskListPayload() },
+            provideDisplayName: { [weak self] in self?.settings.displayName ?? AppSettings.defaultDisplayName },
             connectionChanged: { [weak self] state in
                 guard let self else { return }
                 connection = state.isConnected ? .connected : .disconnected

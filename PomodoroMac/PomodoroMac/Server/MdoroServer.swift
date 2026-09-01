@@ -14,6 +14,10 @@ final class MdoroServer {
         var handleCommand: (CommandPayload) -> Void
         var provideSnapshot: () -> StateSnapshot
         var provideTaskList: () -> TaskListPayload?
+        // Decision 0040: the name the user gave this Mac (9.3 `displayName`). Asked for at the
+        // moment of the welcome rather than held, so a rename between two connections is not a
+        // stale copy kept here.
+        var provideDisplayName: () -> String
         var connectionChanged: (ConnectionState) -> Void
     }
 
@@ -182,7 +186,11 @@ final class MdoroServer {
             connection = source
             connectedDeviceName = payload.deviceName
             lastHeartbeatAt = Date()
-            send(.welcome(WelcomePayload(deviceToken: token.value, serverName: Host.current().localizedName ?? "Mac")), to: source)
+            // Decision 0040: **the Mac's own name does not go out.** `Host.current().localizedName`
+            // stood here, so a name with a person in it reached the iPhone, its Keychain and the
+            // lock screen. What goes out is the display name, which starts as `Mdoro`.
+            send(.welcome(WelcomePayload(deviceToken: token.value,
+                                         serverName: callbacks?.provideDisplayName() ?? AppInfo.name)), to: source)
             // **Mark it connected, then take the snapshot.** The other way round and the first state
             // reads as not connected.
             callbacks?.connectionChanged(

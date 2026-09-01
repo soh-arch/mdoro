@@ -89,6 +89,20 @@ struct MessageCodingTests {
         #expect(PomodoroProtocol.isCompatible(PomodoroProtocol.version))
         #expect(!PomodoroProtocol.isCompatible(PomodoroProtocol.version + 1))
     }
+
+    // REQ-PRT-004 / Decision 0040: **the number itself is what the clause asks for.**
+    //
+    // v2.25 changed what is in the TXT record and what the iPhone's Keychain key means, and
+    // raising this is the whole mechanism that stops an old iPhone and a new Mac from half
+    // working in silence. Every other test in the repository reads `PomodoroProtocol.version`
+    // relatively, so putting it back to 1 left all of them green — the requirement was met by a
+    // literal that nothing was holding down.
+    @Test func theProtocolVersionIsTheOneDecision0040Raised() {
+        #expect(
+            PomodoroProtocol.version == 2,
+            "REQ-PRT-004: v2.25 raised the protocol version; lowering it lets an old pairing half work"
+        )
+    }
 }
 
 @Suite("Time sync (REQ-COM-007 / 008 / 009)")

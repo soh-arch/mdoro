@@ -131,6 +131,31 @@ struct TestHostTests {
         }
     }
 
+    // POL-047 / Decision 0040: the same hole, one dependency further along. The tokens moved from
+    // a plist into the Keychain, and the Keychain is not inside this process either: the suite runs
+    // under the app's own bundle identifier, so an item a test writes lands in the reader's own
+    // login keychain and is still there when the run ends.
+    //
+    // Read exactly as the two checks above: `AppModel()` with no arguments is the app running for
+    // a person; anything built with arguments is built for a test and has to say where this goes.
+    @Test func noModelBuiltForATestCanWriteToTheReadersKeychain() throws {
+        for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
+            let files = try swiftFiles(under: directory, recursive: true)
+            #expect(!files.isEmpty, "\(directory) could not be read; it moved, or its name changed")
+            for (name, text) in files {
+                for construction in text.components(separatedBy: "AppModel(").dropFirst() {
+                    guard !construction.hasPrefix(")") else { continue }
+                    // A wider window than the two above: this argument is the last one, so the
+                    // whole construction has to fit inside it.
+                    #expect(
+                        construction.prefix(700).contains("deviceTokens:"),
+                        "Decision 0040: \(name) builds an AppModel that writes into the reader's Keychain"
+                    )
+                }
+            }
+        }
+    }
+
     // POL-047 / REQ-UIX-030: a scene is placed before any view of it appears, so `.task`
     // cannot reach one. The window opens itself at launch and the menu bar mark is inserted
     // with it — Mdoro taking the screen, and the menu bar, of whoever runs the suite.

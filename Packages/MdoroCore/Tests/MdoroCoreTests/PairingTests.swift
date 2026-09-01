@@ -9,6 +9,12 @@ private func hello(token: String? = nil, code: String? = nil, name: String = "iP
     HelloPayload(protocolVersion: version, deviceToken: token, pairingCode: code, deviceName: name)
 }
 
+// Decision 0040: **a token cannot be held without saying whose it is and when it was issued.**
+// A bare value is not a thing the Mac can keep any more, which is why every one of these says both.
+private func issued(_ value: String, to name: String = "iPhone", at when: Date = t0) -> DeviceToken {
+    DeviceToken(value: value, deviceName: name, issuedAt: when)
+}
+
 @Suite("Pairing (REQ-SEC-001 / 003 / REQ-ERR-006)")
 struct PairingSessionTests {
 
@@ -79,7 +85,7 @@ struct AuthenticatorTests {
             return
         }
         #expect(token.deviceName == "iPhone")
-        #expect(auth.issuedTokens.contains(token.value))
+        #expect(auth.issuedTokens.contains(token))
         #expect(!auth.isPairingActive, "pairing mode closes once a device is paired")
     }
 
@@ -91,7 +97,7 @@ struct AuthenticatorTests {
             Issue.record("the correct pairing code was not accepted")
             return
         }
-        var reconnect = Authenticator(issuedTokens: [token.value])
+        var reconnect = Authenticator(issuedTokens: [token])
         #expect(!reconnect.isPairingActive)
         guard case .accept = reconnect.authenticate(hello(token: token.value), now: t0) else {
             Issue.record("the issued token did not get through")
@@ -101,7 +107,7 @@ struct AuthenticatorTests {
 
     // REQ-SEC-003: a connection without a valid token is rejected.
     @Test func unknownTokenIsRejected() {
-        var auth = Authenticator(issuedTokens: ["good"])
+        var auth = Authenticator(issuedTokens: [issued("good")])
         let decision = auth.authenticate(hello(token: "bad"), now: t0)
         #expect(decision == .reject(.unknownDeviceToken))
     }
@@ -122,7 +128,7 @@ struct AuthenticatorTests {
 
     // REQ-SEC-004: with another client already connected, it waits for the user's approval.
     @Test func secondClientNeedsUserApproval() {
-        var auth = Authenticator(issuedTokens: ["tok"])
+        var auth = Authenticator(issuedTokens: [issued("tok")])
         auth.connectedClientName = "iPhone (1台目)"
         let decision = auth.authenticate(hello(token: "tok", name: "iPhone (2台目)"), now: t0)
         #expect(decision == .needsUserApproval(requestingDeviceName: "iPhone (2台目)"))
@@ -130,7 +136,7 @@ struct AuthenticatorTests {
 
     // REQ-PRT-004: an incompatible version has its connection rejected.
     @Test func incompatibleProtocolVersionIsRejected() {
-        var auth = Authenticator(issuedTokens: ["tok"])
+        var auth = Authenticator(issuedTokens: [issued("tok")])
         guard case .reject = auth.authenticate(hello(token: "tok", version: 99), now: t0) else {
             Issue.record("an incompatible version was not rejected")
             return
