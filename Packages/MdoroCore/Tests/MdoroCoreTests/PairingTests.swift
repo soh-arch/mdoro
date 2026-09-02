@@ -232,6 +232,39 @@ struct AuthenticatorTests {
                 "the denied hello was kept, and a later approval could still issue for it")
     }
 
+    // REQ-SEC-002 / Decision 0040 (judgement 4): revocation removes exactly the named record —
+    // and with it the record's power to authenticate.
+    @Test func revokingRemovesOnlyTheNamedRecord() {
+        var auth = Authenticator(issuedTokens: [issued("tok1", to: "A"), issued("tok2", to: "B")])
+        auth.revoke(tokenValue: "tok2")
+        #expect(auth.issuedTokens == [issued("tok1", to: "A")], "the wrong record was removed, or too many")
+        #expect(auth.authenticate(hello(token: "tok2", name: "B"), now: t0) == .reject(.unknownDeviceToken),
+                "a revoked token still authenticates")
+    }
+
+    // POL-146 / REQ-SEC-004: a token revoked between the question and the answer is refused at
+    // the answer — and the refusal does not forget who is connected. It used to:
+    // `connectedClientName` was cleared before the token was looked up, so after one such
+    // refusal every valid hello was accepted without the approval REQ-SEC-004 requires.
+    @Test func aTokenRevokedWhileTheQuestionWaitedDoesNotForgetTheStandingConnection() {
+        var auth = Authenticator(issuedTokens: [issued("tok1", to: "A"), issued("tok2", to: "B")])
+        auth.connectedClientName = "A"
+
+        let asked = auth.authenticate(hello(token: "tok2", name: "B"), now: t0)
+        #expect(asked == .needsUserApproval(requestingDeviceName: "B"))
+
+        auth.revoke(tokenValue: "tok2")
+        let answer = auth.resolveApproval(approved: true, now: t0)
+        #expect(answer == .reject(.unknownDeviceToken))
+        #expect(auth.connectedClientName == "A",
+                "POL-146: the refusal forgot the standing connection, which nothing closed")
+
+        // The proof it matters: the next valid hello still has to ask.
+        let next = auth.authenticate(hello(token: "tok1", name: "C"), now: t0)
+        #expect(next == .needsUserApproval(requestingDeviceName: "C"),
+                "REQ-SEC-004: a hello after the refusal was accepted without approval")
+    }
+
     // REQ-SEC-004: an answer with no question waiting settles nothing.
     @Test func anAnswerWithNothingWaitingIsNil() {
         var auth = Authenticator()

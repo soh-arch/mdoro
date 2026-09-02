@@ -19,6 +19,14 @@ public enum BonjourService {
     // Decision 0040: the only value on the air that identifies this Mac.
     public static let identityKey = "id"
 
+    // Decision 0040 (judgement 5): mDNSResponder renames a colliding registration rather than
+    // refusing it (`docs/platform/0008` — ` (2)` and so on), so the name that actually went on
+    // the air is the one piece of evidence that another Mdoro shares this LAN. Non-nil is that
+    // evidence; nil says the requested name is the registered one.
+    public static func alternateRegisteredName(registered: String, requested: String) -> String? {
+        registered == requested ? nil : registered
+    }
+
     public static func txtEntries(websocketPort: UInt16, serverId: ServerID) -> [String: String] {
         [
             websocketPortKey: String(websocketPort),

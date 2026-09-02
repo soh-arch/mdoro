@@ -101,6 +101,14 @@ public struct Authenticator: Equatable, Sendable {
         pairing = nil
     }
 
+    // REQ-SEC-002 / Decision 0040 (judgement 4): revocation removes the record, and with it the
+    // only thing that lets the value authenticate again. Nothing else is touched on purpose — a
+    // hello held for approval keeps its copy, and `resolveApproval` re-reads this list, so a
+    // token revoked between the question and the answer is refused at the answer.
+    public mutating func revoke(tokenValue: String) {
+        issuedTokens.removeAll { $0.value == tokenValue }
+    }
+
     public var isPairingActive: Bool { pairing != nil }
 
     public enum Decision: Equatable, Sendable {
@@ -180,20 +188,26 @@ public struct Authenticator: Equatable, Sendable {
         awaitingApproval = nil
         guard approved else { return .reject(.connectionRejectedByUser) }
 
-        // The approval chose the new connection over the standing one (REQ-SEC-004).
-        connectedClientName = nil
-
         // A reconnecting device that already holds a token: the record on file is handed back,
         // for the same reason `authenticate` hands it back — `issuedAt` must not move.
         if let token = hello.deviceToken {
             guard let issued = issuedTokens.first(where: { $0.value == token }) else {
+                // POL-146 / REQ-SEC-004: the token was revoked between the question and the
+                // answer. The standing connection is still standing — nothing here closed it —
+                // so it is not forgotten. Clearing `connectedClientName` before this lookup is
+                // what let the next valid hello be accepted without the approval REQ-SEC-004
+                // requires.
                 return .reject(.unknownDeviceToken)
             }
+            // The approval chose the new connection over the standing one (REQ-SEC-004) —
+            // recorded only once the answer is actually an accept.
+            connectedClientName = nil
             return .accept(issued)
         }
 
         // A first pairing: the code verified before the question was asked, so approval is the
         // last thing between it and a token.
+        connectedClientName = nil
         let token = DeviceToken(deviceName: hello.deviceName, issuedAt: now)
         issuedTokens.append(token)
         pairing = nil

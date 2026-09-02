@@ -223,6 +223,14 @@ struct BonjourAdvertisementTests {
     @Test func theServiceTypeIsMdoros() {
         #expect(BonjourService.type == "_mdoro._tcp")
     }
+
+    // Decision 0040 (judgement 5): a registration that came back renamed (` (2)`) is the one
+    // piece of evidence another Mdoro shares the LAN; one that came back as asked is nothing to
+    // mention.
+    @Test func aRenamedRegistrationIsEvidenceAndAnExactOneIsNot() {
+        #expect(BonjourService.alternateRegisteredName(registered: "Mdoro (2)", requested: "Mdoro") == "Mdoro (2)")
+        #expect(BonjourService.alternateRegisteredName(registered: "Mdoro", requested: "Mdoro") == nil)
+    }
 }
 
 @Suite("The name the iPhone sees (9.3 displayName / Decision 0040)")
