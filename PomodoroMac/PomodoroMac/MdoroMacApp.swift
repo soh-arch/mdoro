@@ -17,21 +17,43 @@ struct MdoroMacApp: App {
     // off idle sleep (POL-053) reaches past this process to the machine itself, and an item put
     // in the Keychain (Decision 0040) is written into the reader's own login keychain and stays
     // there after the run. See `TestHost`.
-    @State private var model = TestHost.isRunning
-        ? AppModel(
-            store: InMemoryStateStore(),
-            bookmarks: VaultBookmarks(),
-            notifications: SilentNotifications(),
-            idleSleep: SleepLeftAlone(),
-            deviceTokens: TokensKeptNowhere()
-        )
-        : AppModel()
-    @State private var notificationDelegate = NotificationDelegate()
+    //
+    // The values are assigned in `init` rather than at the declarations: a default value is
+    // evaluated before an init body runs, and the single-instance check below has to come
+    // before `AppModel.init` touches state.json or the notification centre.
+    @State private var model: AppModel
+    @State private var notificationDelegate: NotificationDelegate
     // POL-047 / REQ-UIX-030: **the mark in the menu bar is a Scene, and does not sit behind `.task`.**
     // A scene is placed before any view of it appears, so the guard below cannot reach it. The
     // suite would put Mdoro's mark in a contributor's menu bar for the length of the run.
-    @State private var showsMenuBarExtra = !TestHost.isRunning
+    @State private var showsMenuBarExtra: Bool
     @Environment(\.openWindow) private var openWindow
+
+    init() {
+        // REQ-COM-003: a second instance would put the same identity on the air
+        // twice, so it brings the existing process forward and exits instead of starting.
+        // The exit happens before `AppModel` is built — the yielding instance must not read
+        // or write state.json, and must not cancel the notifications the running one
+        // scheduled. Under test the check is bypassed entirely: the suite runs inside this
+        // app on a machine where the real Mdoro may well be running (see `TestHost`).
+        if !TestHost.isRunning, let earlier = SingleInstance.existingInstance() {
+            // Whether activation is granted is the other instance's business; either way
+            // this process has no reason to stay.
+            _ = earlier.activate(from: .current, options: [.activateAllWindows])
+            exit(0)
+        }
+        _model = State(initialValue: TestHost.isRunning
+            ? AppModel(
+                store: InMemoryStateStore(),
+                bookmarks: VaultBookmarks(),
+                notifications: SilentNotifications(),
+                idleSleep: SleepLeftAlone(),
+                deviceTokens: TokensKeptNowhere()
+            )
+            : AppModel())
+        _notificationDelegate = State(initialValue: NotificationDelegate())
+        _showsMenuBarExtra = State(initialValue: !TestHost.isRunning)
+    }
 
     var body: some Scene {
         Window("Mdoro", id: Self.mainWindowId) {
