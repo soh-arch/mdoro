@@ -66,6 +66,48 @@ struct PairingSection: View {
     }
 }
 
+// REQ-SEC-002 / Decision 0040 (judgement 4) / POL-123: the pairings this Mac has issued, each with
+// a way to end it. The record — value, device name, issue date — is what makes this screen
+// possible; the value stays off it, because it is the secret. Removing the last one takes the
+// connection display with it (REQ-UIX-004) and, once this screen closes, the server too
+// (REQ-COM-003).
+struct PairedDevicesSection: View {
+    @Environment(\.theme) private var theme
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        // With nothing on record there is no list to show — but a removal that could not be
+        // saved still is, even when it removed the last row.
+        if !model.issuedDeviceTokens.isEmpty || model.revocationProblem != nil {
+            Section("Paired iPhones") {
+                ForEach(model.issuedDeviceTokens, id: \.value) { token in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            // The device's own name, frozen at the moment of pairing — user
+                            // input, so it stays verbatim.
+                            Text(verbatim: token.deviceName)
+                            Text("Paired \(token.issuedAt.formatted(date: .abbreviated, time: .shortened))")
+                                .font(.footnote)
+                                .foregroundStyle(theme.textSecondary)
+                        }
+                        Spacer()
+                        Button("Remove") { model.revokeDeviceToken(token) }
+                    }
+                }
+                if let problem = model.revocationProblem {
+                    // REQ-ERR-010 / Decision 0034: the sentence; the code went to the log.
+                    Text(problem)
+                        .font(.footnote)
+                        .foregroundStyle(theme.color(.danger, .text))
+                }
+                Text("Removing an iPhone disconnects it. To connect again, it has to pair again.")
+                    .font(.footnote)
+                    .foregroundStyle(theme.textSecondary)
+            }
+        }
+    }
+}
+
 // REQ-SEC-004: a new request arriving while connected raises a confirmation, and it is accepted only
 // on approval.
 // **The confirmation times out after 60 seconds, and the default is to refuse.**

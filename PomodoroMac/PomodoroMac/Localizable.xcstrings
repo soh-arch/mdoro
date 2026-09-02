@@ -94,6 +94,9 @@
     "Allow" : {
 
     },
+    "Another device on your network is using this name, so this Mac appears as “%@”. Renaming it here makes the two easier to tell apart." : {
+
+    },
     "Another preset already has that name." : {
 
     },
@@ -418,6 +421,12 @@
     "Open the main window" : {
 
     },
+    "Paired %@" : {
+
+    },
+    "Paired iPhones" : {
+
+    },
     "Pairing stays open for three minutes. Five wrong codes end it." : {
 
     },
@@ -458,6 +467,9 @@
 
     },
     "Remove" : {
+
+    },
+    "Removing an iPhone disconnects it. To connect again, it has to pair again." : {
 
     },
     "Reset loop count…" : {
@@ -572,6 +584,9 @@
 
     },
     "The folder Mdoro was given access to can no longer be found. Choose it again in Settings." : {
+
+    },
+    "The iPhone was removed for now, but the change could not be saved. It may be back the next time Mdoro opens." : {
 
     },
     "The last preset cannot be deleted." : {
