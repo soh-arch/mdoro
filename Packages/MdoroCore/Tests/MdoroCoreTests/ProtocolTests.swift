@@ -76,20 +76,23 @@ struct MessageCodingTests {
         #expect(payload.deviceName == "iPhone")
     }
 
-    // REQ-PRT-005 / REQ-ERR-009: **a value this version does not know is a broken message, not a
-    // forward-compatible one.**
+    // REQ-PRT-005 / REQ-ERR-009: **an unknown value that no clause answers for is a broken
+    // message.**
     //
-    // REQ-PRT-005 ignores an unknown *type* and an unknown *field*, and stops there. That first
-    // half is a trade rather than a theorem: it puts "a later addition must not break an older
-    // device" ahead of the danger it knowingly takes on — quietly throwing away something whose
-    // meaning it cannot see. The clause declines to widen that trade to a value riding on a field
-    // this version already knows.
+    // REQ-PRT-005 exempts an unknown *type* and an unknown *field*, and an unknown value in `type`
+    // is an unknown message type itself — the test above is that first half, and decodes to nil.
+    // The exemption is a trade rather than a theorem: it puts "a later addition must not break an
+    // older device" ahead of the danger it knowingly takes on — quietly throwing away something
+    // whose meaning it cannot see — and the clause declines to widen that trade to values.
     //
-    // So the value is not bent onto the nearest known case: picking whichever refusal
-    // `someFutureRefusal` resembles would put a sentence on the iPhone's screen that the Mac never
-    // said. That leaves nothing to read the message as, and a message that cannot be read is
-    // REQ-ERR-009's broken message — where an unknown type decodes to nil and is ignored, this
-    // raises.
+    // Which clause answers is settled by precedence, not by kind. A value another clause or 10.2
+    // speaks for gets the answer that clause names: a `stableId` outside the current list is
+    // `taskNotFound` (REQ-TSK-036), a setting outside its range is `settingOutOfRange`
+    // (REQ-CFG-018). Nothing names an answer for `authFailed.code` or `command.action`, and that
+    // is what makes these two the broken ones. Bending either onto the case it most resembles
+    // would put a sentence on the iPhone's screen that the Mac never said, so nothing is left to
+    // read the message as — and a message that cannot be read is REQ-ERR-009's broken message.
+    // Where an unknown type decodes to nil and is not counted, this raises.
     //
     // Both ends discard the one message and keep the line; REQ-ERR-009 judges the line itself on
     // a run of ten.
