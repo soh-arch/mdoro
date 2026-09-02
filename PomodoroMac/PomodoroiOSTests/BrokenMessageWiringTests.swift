@@ -277,7 +277,8 @@ struct BrokenMessageWiringTests {
     }
 
     // REQ-PRT-005: forward compatibility is not corruption. A type this version does not know is
-    // ignored, and the run starts over — the peer is speaking this protocol, only a later one.
+    // ignored, and the run starts over — the message arrived whole and was read, and there is
+    // simply no case in this version's list to put it in.
     @Test func aMessageFromALaterVersionIsNotABrokenOne() throws {
         let links = RecordedLinks()
         let client = connectedClient(over: links)
