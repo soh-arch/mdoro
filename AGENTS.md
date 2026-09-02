@@ -54,6 +54,10 @@ iOS app on the simulator:
 set -o pipefail && xcodebuild -project ./PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroiOS -destination 'platform=iOS Simulator,name=iPhone 17' build | xcbeautify
 ```
 
+**Always pass `-destination`.** Without it, `xcodebuild` picks a generic iOS device, builds for
+`Debug-iphoneos`, and installs onto whatever iPhone is plugged in — replacing the app on someone's
+own phone. Nothing in the command says that is what happened.
+
 **The Simulator cannot exercise the connection.** It does not implement local network privacy
 at all, so the permission prompt this app depends on never appears and never denies — Apple's
 own guidance is to test that behaviour on a real device (`docs/PLATFORM.md`). The Simulator
