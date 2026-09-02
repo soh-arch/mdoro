@@ -40,6 +40,17 @@ private func commandJSON(action: String, requestId: String = "r1", params: Strin
     """
 }
 
+// A whole preset, so the value under test is the only thing in it the decoder can trip on: a
+// preset missing a field it cannot do without is a broken message, which is a different case.
+private func presetJSON(sound: String = "chime", preNotifications: String = "[]") -> String {
+    """
+    "preset":{"id":"p1","name":"Standard","workSeconds":1500,"shortBreakSeconds":300,
+     "longBreakSeconds":900,"longBreakInterval":4,"extendSeconds":300,"autoAdvance":false,
+     "notificationSound":"\(sound)","timeSensitiveNotifications":false,
+     "preNotifications":\(preNotifications),"isBuiltInDefault":false}
+    """
+}
+
 private func translate(_ command: CommandPayload) -> Result<TimerAction, CommandTranslation.Failure> {
     CommandTranslation.action(for: command, activePresetId: "p1", selectedTaskSnapshot: nil)
 }
@@ -79,12 +90,7 @@ struct ASettingWeCannotReadTests {
 
     // 9.3 keeps the sound on the preset, so the same value arrives by a different door.
     @Test func aNotificationSoundWithNoCaseHereIsRefusedOnThePresetItRodeIn() throws {
-        let preset = """
-        "preset":{"id":"p1","name":"Standard","workSeconds":1500,"shortBreakSeconds":300,
-         "longBreakSeconds":900,"longBreakInterval":4,"extendSeconds":300,"autoAdvance":false,
-         "notificationSound":"gamelan","timeSensitiveNotifications":false,
-         "preNotifications":[],"isBuiltInDefault":false}
-        """
+        let preset = presetJSON(sound: "gamelan")
         for action in ["updatePreset", "createPreset"] {
             let command = try decodeCommand(commandJSON(action: action, requestId: "r3", params: preset))
             #expect(command.clientRequestId == "r3")
@@ -96,26 +102,62 @@ struct ASettingWeCannotReadTests {
 
     // The same shape one level further down: 10.3 writes a pre-notification's kind as a value too.
     @Test func aPreNotificationKindWithNoCaseHereIsRefusedRatherThanDropped() throws {
-        let preset = """
-        "preset":{"id":"p1","name":"Standard","workSeconds":1500,"shortBreakSeconds":300,
-         "longBreakSeconds":900,"longBreakInterval":4,"extendSeconds":300,"autoAdvance":false,
-         "notificationSound":"chime","timeSensitiveNotifications":false,
-         "preNotifications":[{"type":"atHalfway"}],"isBuiltInDefault":false}
-        """
+        let preset = presetJSON(preNotifications: #"[{"type":"atHalfway"}]"#)
         let command = try decodeCommand(commandJSON(action: "updatePreset", params: preset))
         #expect(command.params?.preset == nil)
         #expect(translate(command) == .failure(.valueOutOfRange(.preset)))
     }
 
-    // REQ-PRT-005 / REQ-ERR-009: **the exemption is for a value, not for a shape.** A field of the
-    // wrong type is not an unknown value — nothing can be made of the message, so it stays a
-    // broken one, discarded and counted rather than answered.
+    // REQ-PRT-005 / REQ-ERR-009: **a number the field's type cannot hold does not reach the answer
+    // above — it is a broken message.** `4.5` for an hour, a figure past `Int`, `-1` for a
+    // `UInt16`: the JSON parser gives up on the number itself before any of our types is asked to
+    // make a value of it, and what it raises is not a `DecodingError` at the point the settings
+    // are read, so it goes past the catch. `JSONDecoder` wraps it as `dataCorrupted` on the way
+    // out, which is what a reader looking only at the top of the stack sees.
+    //
+    // **The distinction the catch actually draws is therefore narrower than the error name
+    // suggests**, and this test is here to say so out loud: whether such a number ought to be
+    // answered for is a question about behaviour, and nothing in this change decided it.
+    @Test func aNumberTheTypeCannotHoldIsStillABrokenMessage() {
+        for params in [
+            #""settings":{"logicalDayStartHour":4.5}"#,
+            #""settings":{"logicalDayStartHour":99999999999999999999999}"#,
+            #""settings":{"pauseResumeHotKey":{"keyCode":-1,"modifierFlags":1048576,"displayName":"X"}}"#,
+        ] {
+            #expect(throws: DecodingError.self) {
+                try MessageCoder.decodeClient(Data(commandJSON(action: "updateSettings", params: params).utf8))
+            }
+        }
+    }
+
+    // REQ-PRT-005 / REQ-ERR-009: **the answer is owed to a value, not to a shape.** A field of the
+    // wrong type does not say a value cannot be applied — it says the message does not hold
+    // together. Nothing can be made of it, so it stays a broken message, discarded and counted
+    // rather than answered.
     @Test func aFieldOfTheWrongShapeIsStillABrokenMessage() {
         for params in [#""settings":{"logicalDayStartHour":"four"}"#, #""settings":42"#] {
             #expect(throws: DecodingError.self) {
                 try MessageCoder.decodeClient(Data(commandJSON(action: "updateSettings", params: params).utf8))
             }
         }
+    }
+
+    // REQ-PRT-005: **a field this action does not use is spare, and a spare field is ignored** —
+    // the same way the clause has an unknown field ignored. Reading `settings` apart from the rest
+    // of the command is what makes that true here: a `pause` used to be thrown away whole because
+    // of a value it was never going to look at. Nothing is applied and nothing is refused.
+    @Test func aValueRidingAnActionThatDoesNotUseItIsSpareRatherThanFatal() throws {
+        let paused = try decodeCommand(
+            commandJSON(action: "pause", params: #""settings":{"appearance":"sepia"}"#)
+        )
+        #expect(paused.params?.unreadableValues == [.settings])
+        #expect(translate(paused) == .success(.pause))
+
+        let started = try decodeCommand(
+            commandJSON(action: "startWork", params: presetJSON(sound: "gamelan"))
+        )
+        #expect(started.params?.unreadableValues == [.preset])
+        #expect(translate(started) == .success(.startWork(presetId: "p1", taskSnapshot: nil)))
     }
 
     // REQ-CFG-018: a number outside its range reads perfectly well — it is the range that refuses
