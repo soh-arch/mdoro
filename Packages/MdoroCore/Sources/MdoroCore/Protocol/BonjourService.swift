@@ -10,7 +10,9 @@ public enum BonjourService {
     // Decision 0024: renamed with everything else.
     public static let type = "_mdoro._tcp"
 
-    // The port the sync WebSocket listens on. The advertised port is the `/info` listener's.
+    // The port the sync WebSocket listens on. REQ-COM-002 (v2.25): `GET /info` is gone, and the
+    // registration rides the WebSocket listener itself now, so this is the advertising listener's
+    // own port — the browsing side keeps reading it from the TXT record either way.
     public static let websocketPortKey = "ws"
     // REQ-PRT-004: so a version that cannot speak to this one is visible before a connection.
     public static let versionKey = "v"

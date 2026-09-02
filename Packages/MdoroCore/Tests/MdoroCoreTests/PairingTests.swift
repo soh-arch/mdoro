@@ -134,6 +134,110 @@ struct AuthenticatorTests {
         #expect(decision == .needsUserApproval(requestingDeviceName: "iPhone (2台目)"))
     }
 
+    // POL-139 / REQ-SEC-004: **a first pairing made while another client is connected.** Nothing
+    // is issued while the answer is "ask the user"; the verified hello is held, and the approval
+    // issues from it directly.
+    @Test func aCodeThatNeedsApprovalIssuesNothingUntilTheUserApproves() {
+        var auth = Authenticator()
+        auth.beginPairing(code: "123456", now: t0)
+        auth.connectedClientName = "iPhone (1)"
+
+        let first = auth.authenticate(hello(code: "123456", name: "iPhone (2)"), now: t0)
+        #expect(first == .needsUserApproval(requestingDeviceName: "iPhone (2)"))
+        #expect(auth.issuedTokens.isEmpty, "POL-139: a token was issued before the user answered")
+
+        guard case let .some(.accept(token)) = auth.resolveApproval(approved: true, now: t0.addingTimeInterval(30)) else {
+            Issue.record("POL-139: the approved pairing was refused — the user's report, exactly")
+            return
+        }
+        #expect(auth.issuedTokens == [token], "exactly one token, issued by the approval alone")
+        #expect(token.deviceName == "iPhone (2)")
+        #expect(auth.connectedClientName == nil, "the approval chose the new connection over the standing one")
+        #expect(!auth.isPairingActive)
+    }
+
+    // REQ-SEC-004: the approval settles against the hello held when the question was asked, so
+    // the 3-minute window (REQ-SEC-003) expiring while the user decides does not refuse the very
+    // hello being approved. The extension this grants is bounded by the 60-second approval
+    // timeout, which arrives as a denial.
+    @Test func anApprovalLandsAfterThePairingWindowExpires() {
+        var auth = Authenticator()
+        auth.beginPairing(code: "123456", now: t0)
+        auth.connectedClientName = "iPhone (1)"
+
+        let asked = auth.authenticate(hello(code: "123456", name: "iPhone (2)"), now: t0)
+        #expect(asked == .needsUserApproval(requestingDeviceName: "iPhone (2)"))
+
+        // Past the 3-minute window: `verify` would refuse this now, and the countdown outside
+        // would have called `endPairing()`. Neither may cancel an approval already verified.
+        auth.endPairing()
+        let late = t0.addingTimeInterval(PairingSession.validity + 45)
+        guard case let .some(.accept(token)) = auth.resolveApproval(approved: true, now: late) else {
+            Issue.record("the window expiring turned a pressed Allow into a refusal")
+            return
+        }
+        #expect(auth.issuedTokens == [token])
+    }
+
+    // REQ-SEC-004: closing the pairing screen while the approval banner waits (`endPairing`)
+    // does not refuse the approval either — same shape as the window expiring.
+    @Test func anApprovalLandsAfterPairingWasClosed() {
+        var auth = Authenticator()
+        auth.beginPairing(code: "123456", now: t0)
+        auth.connectedClientName = "iPhone (1)"
+
+        let asked = auth.authenticate(hello(code: "123456", name: "iPhone (2)"), now: t0)
+        #expect(asked == .needsUserApproval(requestingDeviceName: "iPhone (2)"))
+
+        auth.endPairing()
+        guard case .some(.accept) = auth.resolveApproval(approved: true, now: t0.addingTimeInterval(10)) else {
+            Issue.record("closing the pairing screen turned a pressed Allow into a refusal")
+            return
+        }
+    }
+
+    // REQ-SEC-004: an approval of a reconnecting device that already holds a token hands back
+    // the record on file — `issuedAt` does not move, and nothing new is issued.
+    @Test func anApprovedReconnectionHandsBackTheRecordOnFile() {
+        let record = issued("tok", to: "iPhone (2)", at: t0.addingTimeInterval(-86_400))
+        var auth = Authenticator(issuedTokens: [record])
+        auth.connectedClientName = "iPhone (1)"
+
+        let asked = auth.authenticate(hello(token: "tok", name: "iPhone (2)"), now: t0)
+        #expect(asked == .needsUserApproval(requestingDeviceName: "iPhone (2)"))
+
+        let answer = auth.resolveApproval(approved: true, now: t0)
+        #expect(answer == .accept(record), "the record on file, not a fresh one")
+        #expect(auth.issuedTokens == [record], "nothing new was issued")
+    }
+
+    // POL-139 / REQ-SEC-004: a denial — or the 60-second timeout, which arrives as the same
+    // refusal — leaves no token on record, and drops the held hello with it.
+    @Test func aDeniedApprovalLeavesNoTokenBehind() {
+        var auth = Authenticator()
+        auth.beginPairing(code: "123456", now: t0)
+        auth.connectedClientName = "iPhone (1)"
+
+        for attempt in 1...3 {
+            let decision = auth.authenticate(hello(code: "123456", name: "iPhone (2)"), now: t0)
+            #expect(decision == .needsUserApproval(requestingDeviceName: "iPhone (2)"), "attempt \(attempt)")
+        }
+        #expect(auth.issuedTokens.isEmpty, "POL-139: refused attempts piled up tokens — three tries, three orphans")
+
+        let denied = auth.resolveApproval(approved: false, now: t0)
+        #expect(denied == .reject(.connectionRejectedByUser))
+        #expect(auth.issuedTokens.isEmpty, "a denial issued a token")
+        #expect(auth.connectedClientName == "iPhone (1)", "a denial keeps the standing connection")
+        #expect(auth.resolveApproval(approved: true, now: t0) == nil,
+                "the denied hello was kept, and a later approval could still issue for it")
+    }
+
+    // REQ-SEC-004: an answer with no question waiting settles nothing.
+    @Test func anAnswerWithNothingWaitingIsNil() {
+        var auth = Authenticator()
+        #expect(auth.resolveApproval(approved: true, now: t0) == nil)
+    }
+
     // REQ-PRT-004: an incompatible version has its connection rejected.
     @Test func incompatibleProtocolVersionIsRejected() {
         var auth = Authenticator(issuedTokens: [issued("tok")])

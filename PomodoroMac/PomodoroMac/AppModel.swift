@@ -98,7 +98,9 @@ final class AppModel {
     let diagnostics: DiagnosticLog
     // Which tab the settings window opens on.
     var settingsTab: SettingsTab = .presets
-    private var infoServer: InfoHTTPServer?
+    // REQ-COM-003 (v2.25): whether the pairing screen (Settings > Connection) is on screen. While
+    // it is, the server is up even with nothing paired — it is the one place a pairing can be made.
+    private var pairingScreenIsOpen = false
     // REQ-SEC-002 / POL-047: the Keychain is outside this process, so it is a seam like the
     // notification centre and the hold on idle sleep. **The default is the same as production.**
     private let deviceTokens: any DeviceTokenStoring
@@ -280,7 +282,12 @@ final class AppModel {
         startTicking()
         syncSideEffectsToState()
         updateHotKey()
-        Task { await startServer() }
+        // REQ-COM-003 (v2.25): at launch the server goes up only for a Mac that is paired — or
+        // that cannot read whether it is. A Mac with nothing on record raises nothing here: no
+        // listener, no name on the LAN, and no local network permission dialog for a feature
+        // never used. The dialog arrives when the pairing screen is opened instead, which is the
+        // moment it has its context attached (REQ-PLT-007).
+        Task { await startServerIfNeeded() }
     }
 
     // REQ-ERR-010 / Decision 0018: what happened before the log could be opened.
@@ -403,8 +410,7 @@ final class AppModel {
         stopWatchingTaskFile()
         idleSleep.end()
         hotKeys.unregisterAll()
-        server.stop()
-        infoServer?.stop()
+        stopServer()
     }
 
     // `now` is an argument so that reaching the end can be reproduced without waiting for it (POL-034).
@@ -567,7 +573,6 @@ final class AppModel {
         }
         // 9.5 group C / Decision 0040: the name applies immediately, and the LAN is where it shows.
         if settings.displayName != previous.displayName {
-            refreshServerInfo()
             readvertise()
         }
         if settings.pauseResumeHotKey != previous.pauseResumeHotKey
@@ -629,21 +634,115 @@ final class AppModel {
 
     // MARK: - Communication (chapter 3 / chapter 10)
 
+    // REQ-COM-003 (v2.25): whether this launch, right now, should have the server up — or, when
+    // the records are unreadable, should make the attempt whose refusal reaches the screen.
+    // The rule itself lives in MdoroCore (`ServerPresence`), where CI can hold it still.
+    private var serverShouldRun: Bool {
+        ServerPresence.shouldBeOnTheAir(
+            pairingsMayExist: ServerPresence.pairingsMayExist(
+                hasPairings: !authenticator.issuedTokens.isEmpty,
+                recordsUnreadable: deviceRecordsUnreadable != nil
+            ),
+            pairingScreenIsOpen: pairingScreenIsOpen
+        )
+    }
+
+    // REQ-UIX-004 (v2.25): the connection state is shown only while a pairing exists (or while
+    // the records that would say so could not be read). A Mac that has never paired is not
+    // "Not connected" — it is a Mac in its normal state.
+    var showsConnectionState: Bool {
+        ServerPresence.showsConnectionState(
+            hasPairings: !authenticator.issuedTokens.isEmpty,
+            recordsUnreadable: deviceRecordsUnreadable != nil
+        )
+    }
+
+    // REQ-COM-003 (v2.25): the gate every route to `startServer()` passes, except a rename's
+    // deliberate restart (`readvertise`), which is only reachable while the server is up.
+    // **Internal so that the decision can be exercised without raising a listener.**
+    func startServerIfNeeded() async {
+        guard serverShouldRun else { return }
+        // Already on the air. `server.start` would fold and re-raise it, dropping whatever is
+        // connected — a restart is `readvertise`'s deliberate business, not this gate's.
+        guard server.listenPort == nil else { return }
+        await startServer()
+    }
+
+    // REQ-COM-003 (v2.25): the pairing screen (Settings > Connection) opening is what raises the
+    // server for a Mac with nothing paired. REQ-PLT-007: this is also the moment the local
+    // network permission dialog appears — in the foreground, in the one context that explains it.
+    func pairingScreenOpened() {
+        pairingScreenIsOpen = true
+        Task { await startServerIfNeeded() }
+    }
+
+    // REQ-COM-003 (v2.25): closing the screen takes the server down again — unless a pairing
+    // exists, in which case it stays up exactly as it would have at launch.
+    func pairingScreenClosed() {
+        pairingScreenIsOpen = false
+        // The code has no screen to be read from any more (REQ-SEC-001), and the server it was
+        // waiting on may be about to fold.
+        if authenticator.isPairingActive { endPairing() }
+        stopServerIfNotNeeded()
+    }
+
+    // REQ-COM-003 (v2.25): the fold behind "the last pairing was deleted" as well as "the pairing
+    // screen closed" — the revocation screen (Decision 0040) calls this after removing a record,
+    // and the decision of whether anything still needs the server stays in one place.
+    func stopServerIfNotNeeded() {
+        guard !serverShouldRun else { return }
+        stopServer()
+    }
+
+    // The deliberate way down. Folding the listener withdraws the Bonjour registration with it.
+    private func stopServer() {
+        server.stop()
+        // POL-140: the port is what `readvertise()` reads to know the Mac is on the air. Left
+        // standing, a rename after this fold would re-advertise a listener that no longer exists.
+        advertisedWebsocketPort = 0
+        // `stop()` cancels the connection without a state callback, so the model's view of it is
+        // put right here rather than waited for.
+        connection = .disconnected
+        authenticator.connectedClientName = nil
+        pendingConnectionRequest = nil
+        // A deliberate fold is not a failure to listen; whatever failure line was showing is over.
+        serverStartError = nil
+        serverStartHint = nil
+        diagnostics.write("server.stop")
+    }
+
     // **Internal so that the one decision below can be exercised without raising a listener**, the
-    // same reason `adoptStoredDeviceTokens()` and `writeStartupDiagnostics()` are. `start()` is its
-    // only other caller.
+    // same reason `adoptStoredDeviceTokens()` and `writeStartupDiagnostics()` are.
     func startServer() async {
         // REQ-COM-003 (v2.26): **nothing goes up until this launch knows who it is.** The identity
-        // is read here rather than inside `advertise` so that the listener is refused too, not
-        // only the Bonjour name — a Mac listening on a port nobody can find it at is no better.
+        // is read before the listener is raised, so the listener is refused too, not only the
+        // Bonjour name — a Mac listening on a port nobody can find it at is no better.
         guard let identity = identityToAdvertise() else { return }
+        // The fold at the top of `server.start` drops whatever was connected, without a callback —
+        // and it runs whether or not the bind that follows succeeds. Noted before the call, so a
+        // start that throws (a rename's restart, say) does not leave "Connected" standing over a
+        // listener that no longer exists.
+        connection = .disconnected
+        authenticator.connectedClientName = nil
         do {
             let websocketPort = try await server.start(callbacks: serverCallbacks())
-            websocketPortForInfo = websocketPort
-            try await advertise(websocketPort: websocketPort, serverId: identity)
+            // The pairing screen may have closed while the bind was in flight; a server nothing
+            // needs does not stay up because it won the race.
+            guard serverShouldRun else {
+                stopServer()
+                return
+            }
+            advertisedWebsocketPort = websocketPort
+            // REQ-COM-002 (v2.25): the registration rides the WebSocket listener itself — the
+            // `/info` listener that used to carry it is gone. POL-140: with one listener, the
+            // fold-before-bind above means a start that throws leaves nothing advertised.
+            server.advertise(displayName: settings.displayName, serverId: identity)
             serverStartError = nil
             serverStartHint = nil
         } catch {
+            // A fold that arrived while the bind was in flight cancelled the listener out from
+            // under it. That is the fold doing its work, not a failure to listen.
+            guard serverShouldRun else { return }
             // REQ-SEC-005 / REQ-ERR-008: the fact that it cannot listen is not hidden.
             // REQ-ERR-010 / Decision 0034: the screen keeps the fact and gives up the reason.
             // The reason is a code now, and `server.start` below is where it goes instead.
@@ -690,37 +789,13 @@ final class AppModel {
         diagnostics.write("server.offTheAir", level: .error, [DiagnosticField("why", why)])
     }
 
-    // REQ-COM-002 / 003: advertise over Bonjour, and answer `GET /info` with the server information.
-    //
-    // POL-114: the one standing here is a different object from the one about to be built, so its
-    // own `start()` cannot fold it. **Letting go of an InfoHTTPServer does not take its Bonjour name
-    // off the network** — the listener is held by Network.framework for its queue, and only
-    // `cancel()` withdraws it. It comes down before anything goes up, so that a start that fails
-    // leaves nothing advertised rather than a registration pointing at a port that is gone.
-    //
-    // **Both callers pass through here**, so a rename cannot leave the old name standing beside
-    // the new one, which is the shape of the bug POL-114 was.
-    //
-    // REQ-COM-003 (v2.26): **the id is an argument, not something fetched from in here.** There
-    // is no id to fall back on when the file could not be read, and a route that could reach this
-    // line without one would have to invent it — which is the failure the requirement exists to
-    // stop. Asking for it in the signature means no caller can.
-    private func advertise(websocketPort: UInt16, serverId: ServerID) async throws {
-        infoServer?.stop()
-        infoServer = nil
-        let info = InfoHTTPServer(info: serverInfo(websocketPort: websocketPort))
-        try await info.start()
-        info.advertise(displayName: settings.displayName,
-                       websocketPort: websocketPort,
-                       serverId: serverId)
-        infoServer = info
-    }
-
     // Decision 0040: **a rename has to reach the network, or the setting is only half true.**
-    // The registration is a property of the `/info` listener, and whether reassigning `.service`
-    // on a live one updates the advertisement is not documented anywhere (`docs/PLATFORM.md`), so
-    // the listener is raised again instead — the one path measured to withdraw the old name.
-    // **One at a time.** `advertise` suspends while the new listener comes up, and two of these
+    // The registration rides the WebSocket listener now (REQ-COM-002 v2.25), and whether
+    // reassigning `.service` on a live listener updates the advertisement is not documented
+    // anywhere (`docs/PLATFORM.md`), so the listener is raised again instead — the one path
+    // measured to withdraw the old name. That fold drops a live connection; the iPhone reconnects
+    // on its own (REQ-COM-004), and a rename is a settled act, not something done mid-session.
+    // **One at a time.** `startServer` suspends while the new listener comes up, and two of these
     // overlapping would each fold what stood before *they* started: the loser's registration is
     // never cancelled and stays on the network beside the winner's — POL-114 again, from the other
     // direction. The settings screen commits a name once rather than per keystroke, so this is the
@@ -728,31 +803,18 @@ final class AppModel {
     private var advertising: Task<Void, Never>?
 
     private func readvertise() {
-        // **A port, not a listener.** `advertise` folds the standing listener before it raises the
-        // next one, so a start that throws leaves `infoServer` nil — and this guard read it, which
-        // meant one failed rename closed the door on every later one. `startServer()` runs once per
-        // process (POL-114), so nothing reopened it short of a relaunch. What a re-advertisement
-        // needs is somewhere to point; the listener is the thing it is about to raise.
-        // REQ-COM-003 (v2.26): a port means the Mac is already on the air, so the id was read at
-        // `startServer()` and this hands back the same one. The guard is here so that the only way
-        // to reach `advertise` stays the one that has an id to give it.
-        guard websocketPortForInfo != 0, let identity = identityToAdvertise() else { return }
+        // **A port, not a listener.** What a re-advertisement needs to know is whether the Mac is
+        // on the air at all; the listener is the thing it is about to fold and raise again. A Mac
+        // that is deliberately off the air (REQ-COM-003 v2.25 — nothing paired, or `stopServer`
+        // already ran) keeps its new name to itself until something raises the server again.
+        // REQ-COM-003 (v2.26): a port means the id was read at `startServer()`, and `startServer`
+        // asks for it again itself — the guard here keeps a rename from being the route that
+        // makes a Mac with no readable identity start trying.
+        guard advertisedWebsocketPort != 0, identityToAdvertise() != nil else { return }
         let previous = advertising
         advertising = Task {
             await previous?.value
-            do {
-                try await advertise(websocketPort: websocketPortForInfo, serverId: identity)
-                serverStartError = nil
-                serverStartHint = nil
-            } catch {
-                serverStartError = String(localized: "Mdoro cannot listen for iPhone connections.")
-                serverStartHint = String(
-                    localized: "Check that this app is allowed in System Settings > Privacy & Security > Local Network."
-                )
-                diagnostics.write("server.advertise", level: .error, [
-                    DiagnosticField("why", ErrorCode(error).summary("startFailed")),
-                ])
-            }
+            await startServer()
         }
     }
 
@@ -822,23 +884,7 @@ final class AppModel {
     // POL-047 / REQ-COM-003: **whether a port was ever bound.** Readable from the test target so
     // that the guard at the top of `startServer()` can be shown to stop the listener and not only
     // the Bonjour name; nothing outside this file writes it.
-    private(set) var websocketPortForInfo: UInt16 = 0
-
-    private func serverInfo(websocketPort: UInt16) -> ServerInfo {
-        ServerInfo(
-            // Decision 0040: one name, and it is the one the user chose.
-            serverName: settings.displayName,
-            protocolVersion: PomodoroProtocol.version,
-            isPairingMode: pairingCode != nil,
-            websocketPort: websocketPort
-        )
-    }
-
-    // Starting and ending pairing changes what `/info` says. **Forget to push it through and what the
-    // iPhone shows goes wrong.**
-    private func refreshServerInfo() {
-        infoServer?.update(serverInfo(websocketPort: websocketPortForInfo))
-    }
+    private(set) var advertisedWebsocketPort: UInt16 = 0
 
     private func serverCallbacks() -> MdoroServer.Callbacks {
         MdoroServer.Callbacks(
@@ -850,9 +896,18 @@ final class AppModel {
                     // date it was issued.
                     saveIssuedDeviceTokens()
                     pairingCode = nil
-                    refreshServerInfo()
                 } else if case let .needsUserApproval(name) = decision {
                     pendingConnectionRequest = name
+                }
+                return decision
+            },
+            resolveApproval: { [weak self] approved in
+                guard let self else { return nil }
+                let decision = authenticator.resolveApproval(approved: approved, now: Date())
+                if case .accept = decision {
+                    // The same bookkeeping as an accept out of `authenticate` above.
+                    saveIssuedDeviceTokens()
+                    pairingCode = nil
                 }
                 return decision
             },
@@ -989,23 +1044,23 @@ final class AppModel {
         authenticator.beginPairing(code: code, now: Date())
         pairingCode = code
         pairingRemainingSeconds = Int(PairingSession.validity)
-        refreshServerInfo()
+        // REQ-COM-003 (v2.25): a code with no server behind it can never be entered. Opening the
+        // pairing screen already raised one; this is the retry for a raise that failed there.
+        Task { await startServerIfNeeded() }
     }
 
     func endPairing() {
         authenticator.endPairing()
         pairingCode = nil
         pairingRemainingSeconds = 0
-        refreshServerInfo()
     }
 
     // REQ-SEC-004: only on approval is the existing connection dropped and the new one accepted. The
     // server side times it out.
     func respondToConnectionRequest(approved: Bool) {
         pendingConnectionRequest = nil
-        // **Clear it first.** Without that, reauthenticating returns needsUserApproval again and it goes
-        // round in circles.
-        if approved { authenticator.connectedClientName = nil }
+        // The Authenticator settles the answer against the hello it held (`resolveApproval`),
+        // reached through the server so the connection kept waiting is the one answered.
         server.resolvePendingApproval(approved: approved)
     }
 

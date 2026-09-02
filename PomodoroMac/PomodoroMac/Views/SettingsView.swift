@@ -104,6 +104,12 @@ struct SettingsView: View {
             PairingSection()
         }
         .formStyle(.grouped)
+        // REQ-COM-003 (v2.25): this screen is what raises the server for a Mac with nothing
+        // paired, and closing it is what takes the server down again. REQ-PLT-007: the local
+        // network permission dialog therefore arrives here — in the foreground, in the one
+        // context that explains it — and not at an unexplained first launch.
+        .onAppear { model.pairingScreenOpened() }
+        .onDisappear { model.pairingScreenClosed() }
     }
 
     // 9.3 / REQ-CFG-013 (v2.27): one character or more. An empty name has no range to round

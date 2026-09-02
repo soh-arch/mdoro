@@ -83,6 +83,10 @@ public struct Authenticator: Equatable, Sendable {
     public private(set) var pairing: PairingSession?
     // REQ-SEC-004: whether another client is already connected.
     public var connectedClientName: String?
+    // REQ-SEC-004: the hello that answered `.needsUserApproval`, held verified until the user
+    // decides. `resolveApproval` settles it; a hello left behind by a server teardown is inert,
+    // because nothing but `resolveApproval` reads it and only an approval in flight calls that.
+    public private(set) var awaitingApproval: HelloPayload?
 
     public init(issuedTokens: [DeviceToken] = [], pairing: PairingSession? = nil) {
         self.issuedTokens = issuedTokens
@@ -122,6 +126,7 @@ public struct Authenticator: Equatable, Sendable {
                 return .reject(.unknownDeviceToken)
             }
             if connectedClientName != nil {
+                awaitingApproval = hello
                 return .needsUserApproval(requestingDeviceName: hello.deviceName)
             }
             return .accept(issued)
@@ -140,15 +145,58 @@ public struct Authenticator: Equatable, Sendable {
 
         switch outcome {
         case .accepted:
+            // POL-139 / REQ-SEC-004: **nothing is issued and nothing is closed while the answer
+            // is "ask the user".** This used to append the token and end pairing before returning,
+            // so the re-authentication that follows an approval found pairing over and refused the
+            // very hello it was approving — and every refused attempt left one orphaned token
+            // behind. The verified hello is held instead, and `resolveApproval` issues from it —
+            // a denial (or the 60-second timeout) issues nothing, because nothing was issued yet.
+            if connectedClientName != nil {
+                awaitingApproval = hello
+                return .needsUserApproval(requestingDeviceName: hello.deviceName)
+            }
             let token = DeviceToken(deviceName: hello.deviceName, issuedAt: now)
             issuedTokens.append(token)
             pairing = nil
-            if connectedClientName != nil {
-                return .needsUserApproval(requestingDeviceName: hello.deviceName)
-            }
             return .accept(token)
         case let .rejected(code):
             return .reject(code)
         }
+    }
+
+    // REQ-SEC-004: the user's answer to `.needsUserApproval`, settled against the hello held at
+    // the moment the question was asked — **not by re-running authentication**. The pairing window
+    // may have expired (REQ-SEC-003) or been closed while the user was deciding, and neither
+    // cancels an approval of a code that already verified; re-authenticating here is what used to
+    // turn a pressed "Allow" into "Start pairing on your Mac". Issuing from the held hello also
+    // pins the answer to the request the user actually saw, not to whatever occupies the pending
+    // slot by the time the click lands.
+    //
+    // REQ-SEC-003: holding the verified hello lets an approval land after the 3-minute window —
+    // by at most the 60 seconds the approval itself is allowed to wait (REQ-SEC-004), since a
+    // timeout arrives here as a denial. That bounded extension is accepted.
+    public mutating func resolveApproval(approved: Bool, now: Date) -> Decision? {
+        guard let hello = awaitingApproval else { return nil }
+        awaitingApproval = nil
+        guard approved else { return .reject(.connectionRejectedByUser) }
+
+        // The approval chose the new connection over the standing one (REQ-SEC-004).
+        connectedClientName = nil
+
+        // A reconnecting device that already holds a token: the record on file is handed back,
+        // for the same reason `authenticate` hands it back — `issuedAt` must not move.
+        if let token = hello.deviceToken {
+            guard let issued = issuedTokens.first(where: { $0.value == token }) else {
+                return .reject(.unknownDeviceToken)
+            }
+            return .accept(issued)
+        }
+
+        // A first pairing: the code verified before the question was asked, so approval is the
+        // last thing between it and a token.
+        let token = DeviceToken(deviceName: hello.deviceName, issuedAt: now)
+        issuedTokens.append(token)
+        pairing = nil
+        return .accept(token)
     }
 }

@@ -104,3 +104,52 @@ struct AdvertisementReadingTests {
         }
     }
 }
+
+// REQ-COM-003 / POL-143: what the client dials. It used to build "\(instanceName).local" — an
+// mDNS host name and a Bonjour instance name are unrelated, and the two matched only while the
+// instance name happened to be the computer's name. With the default instance name "Mdoro",
+// that dialled a host that does not exist. The dial goes to the discovered `.service` endpoint,
+// which Network.framework resolves by name at connect time.
+@Suite("The client dials the service it discovered (REQ-COM-003)")
+struct DialEndpointTests {
+
+    private func server(named name: String, websocketPort: UInt16?) -> DiscoveredServer {
+        DiscoveredServer(
+            id: name, name: name,
+            endpoint: .service(name: name, type: BonjourService.type, domain: "local.", interface: nil),
+            websocketPort: websocketPort,
+            serverId: .generate()
+        )
+    }
+
+    // The seat of POL-143: the dial is the discovered service endpoint itself, not a host name
+    // derived from the instance name. "Mdoro.local" is nobody.
+    @Test func theDialIsTheDiscoveredServiceItself() {
+        let discovered = server(named: "Mdoro", websocketPort: 51234)
+        let dialled = MdoroClient.dialEndpoint(for: discovered)
+
+        #expect(dialled == discovered.endpoint)
+        guard case let .service(name, type, _, _)? = dialled else {
+            Issue.record("the dial is not a `.service` endpoint — POL-143 is back")
+            return
+        }
+        #expect(name == "Mdoro")
+        #expect(type == BonjourService.type)
+    }
+
+    // The service resolves to the port the advertisement rides on, so the TXT `ws` value —
+    // kept for protocol compatibility — no longer gates the dial.
+    @Test func aMissingTXTPortDoesNotStopTheDial() {
+        #expect(MdoroClient.dialEndpoint(for: server(named: "Mdoro", websocketPort: nil)) != nil)
+    }
+
+    // Anything that is not a service was not discovered over Bonjour and is not dialled.
+    @Test func anEndpointThatIsNotAServiceIsNotDialled() {
+        let notDiscovered = DiscoveredServer(
+            id: "Mdoro", name: "Mdoro",
+            endpoint: .hostPort(host: "Mdoro.local", port: 51234),
+            websocketPort: 51234, serverId: .generate()
+        )
+        #expect(MdoroClient.dialEndpoint(for: notDiscovered) == nil)
+    }
+}
