@@ -1201,11 +1201,20 @@ final class AppModel {
             lastLogError = failure?.displayMessage ?? String(
                 localized: "The session log could not be written. Check the folder set in Settings; unwritten entries stay queued."
             )
+            // REQ-ERR-004 / Decision 0039: **this attempt counts too.** It failed before reaching
+            // `flush`, and while that went uncounted a log folder that had gone away sat on the
+            // screen forever without the notification ever coming. Same queue, same window, same
+            // say-it-once suppression as the branch above (REQ-LOG-002 / Decision 0033 keeps an
+            // unset folder out of here entirely: the guard at the top returns first).
+            let result = logQueue.recordFailedAttempt()
             diagnostics.write("log.write", level: .error, [
                 DiagnosticField("written", 0),
                 DiagnosticField("pending", logQueue.pendingCount),
                 DiagnosticField("why", failure?.diagnosticSummary ?? ErrorCode(error).summary("unexpected")),
             ])
+            if result.shouldNotify {
+                notifications.notifyLogWriteFailure()
+            }
         }
     }
 
