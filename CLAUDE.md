@@ -150,6 +150,8 @@ Obsidian / Logseq など、md を素のファイルとして扱う道具であ�
 要件IDは `REQ-{COM,SEC,PLT,TIM,NTF,TSK,LOG,UIX,COL,PRS,CFG,PRT,PER,ERR,NFR}-nnn`。
 **コードコメントと commit メッセージには根拠の要件IDを書く**
 （例: `// REQ-TIM-035: the only way out of FINISHED is IDLE`）。
+**コメントの根拠に `POL-nnn` を使わない。** `docs/PUNCHLIST.md` は流動的な運用文書であり、恒久の碇は
+要件IDか `docs/decisions/` である（commit メッセージの POL 参照は歴史の記録なので構わない）。
 
 仕様書を変更するときは、**必ず影響する他章を確認してから**変更する。
 過去に2回、1章だけ編集して矛盾を作っている（v2.1 のプリセット追加、v2.4 の状態遷移マトリクス新設）。
