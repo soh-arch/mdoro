@@ -136,7 +136,7 @@
     "Change…" : {
 
     },
-    "Check that this app is allowed in System Settings > Privacy & Security > Local Network." : {
+    "Another program may be holding the port. Quitting Mdoro and opening it again usually clears this." : {
 
     },
     "Check the destination in Settings. The timer keeps running." : {
@@ -254,6 +254,9 @@
 
     },
     "Identity" : {
+
+    },
+    "If your iPhone cannot see this Mac, check that Mdoro is allowed in System Settings > Privacy & Security > Local Network. macOS does not tell Mdoro when that permission is off, so it cannot warn you itself." : {
 
     },
     "In use" : {
