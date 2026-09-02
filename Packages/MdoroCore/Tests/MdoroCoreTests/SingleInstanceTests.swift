@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import MdoroCore
 
-// POL-116 / REQ-COM-002: one Mac, one process, one identity on the air.
+// REQ-COM-003: one Mac, one process, one identity on the air.
 struct SingleInstanceTests {
 
     // The predicate is three conditions joined by "and"; each case below fails a different

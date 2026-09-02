@@ -30,7 +30,7 @@ struct MdoroMacApp: App {
     @Environment(\.openWindow) private var openWindow
 
     init() {
-        // POL-116 / REQ-COM-002: a second instance would put the same identity on the air
+        // REQ-COM-003: a second instance would put the same identity on the air
         // twice, so it brings the existing process forward and exits instead of starting.
         // The exit happens before `AppModel` is built — the yielding instance must not read
         // or write state.json, and must not cancel the notifications the running one

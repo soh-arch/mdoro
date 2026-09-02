@@ -1,6 +1,6 @@
 import Foundation
 
-// POL-116 / REQ-COM-002: two instances of this app share one identity.json, so they put the
+// REQ-COM-003: two instances of this app share one identity.json, so they put the
 // same `id` on the air twice — to the iPhone that is not two Macs, it is the same Mac twice,
 // and whichever instance answers is "connected". The ruling (2026-09-02): the second launch
 // brings the existing process forward and terminates itself.

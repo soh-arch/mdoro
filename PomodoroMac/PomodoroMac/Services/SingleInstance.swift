@@ -1,7 +1,7 @@
 import AppKit
 import MdoroCore
 
-// POL-116 / REQ-COM-002: the AppKit half of the single-instance rule. The decision of what
+// REQ-COM-003: the AppKit half of the single-instance rule. The decision of what
 // counts as "another live instance" is `MdoroCore.SingleInstance.isAnotherLiveInstance`;
 // this side only feeds it what the process table reports.
 //
