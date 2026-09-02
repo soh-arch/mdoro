@@ -1,5 +1,4 @@
 import Foundation
-import Network
 import MdoroCore
 
 // REQ-ERR-009: a broken message is thrown away on its own, but ten in a row say the line itself
@@ -59,7 +58,7 @@ final class MdoroClient {
     // for nothing else** — it is not looked up by, compared on, or saved under.
     private(set) var serverName: String?
 
-    private var connection: NWConnection?
+    private var link: (any MessageLink)?
     private var callbacks: Callbacks?
     private var backoff = ReconnectPolicy()
     // The Mac being dialled. Readable so the model does not have to guess which of the
@@ -76,9 +75,13 @@ final class MdoroClient {
     // POL-047 / Decision 0040: the Keychain is outside this process, and the suite runs inside
     // this app. **The default is the same as production.**
     private let tokens: any TokenStoring
+    // REQ-ERR-009 / REQ-COM-004: the same seam, for the line itself. **The default is the same as
+    // production**, so only a test ever opens anything other than a WebSocket over the LAN.
+    private let links: any ClientLinkMaking
 
-    init(tokens: any TokenStoring = TokenKeychain()) {
+    init(tokens: any TokenStoring = TokenKeychain(), links: any ClientLinkMaking = WebSocketLinks()) {
         self.tokens = tokens
+        self.links = links
     }
 
     // MARK: - Connection
@@ -95,53 +98,32 @@ final class MdoroClient {
         isStopping = true
         keepaliveTask?.cancel(); keepaliveTask = nil
         reconnectTask?.cancel(); reconnectTask = nil
-        connection?.cancel(); connection = nil
+        link?.cancel(); link = nil
         status = .idle
     }
 
-    // REQ-COM-003 / POL-143: dial the discovered service itself. Network.framework resolves a
-    // `.service` endpoint by instance name at connect time, so the address and port are whatever
-    // the Mac is advertising right now — and since the advertisement rides on the ws listener,
-    // the service resolves to the ws port. What stood here dialled "\(instanceName).local": an
-    // mDNS host name and an instance name are unrelated, and the two matched only while the
-    // instance name happened to be the computer's name. Once the default became "Mdoro", the
-    // guess pointed at a host that does not exist.
-    nonisolated static func dialEndpoint(for server: DiscoveredServer) -> NWEndpoint? {
-        guard case .service = server.endpoint else { return nil }
-        return server.endpoint
-    }
-
     private func openConnection() {
-        guard let target, let endpoint = Self.dialEndpoint(for: target) else { return }
+        guard let target, let link = links.makeLink(to: target) else { return }
         status = (status == .connected) ? .reconnecting : .connecting
         // REQ-ERR-009: every connection counts its own broken messages from zero.
         brokenMessages.reset()
 
-        let parameters = NWParameters.tcp
-        let websocket = NWProtocolWebSocket.Options()
-        websocket.autoReplyPing = true
-        parameters.defaultProtocolStack.applicationProtocols.insert(websocket, at: 0)
-
-        let connection = NWConnection(to: endpoint, using: parameters)
-        connection.stateUpdateHandler = { [weak self] state in
-            Task { @MainActor in
-                switch state {
-                case .ready: self?.sendHello()
-                case .failed, .cancelled: self?.scheduleReconnect()
-                default: break
-                }
+        self.link = link
+        link.start { [weak self] event in
+            guard let self else { return }
+            switch event {
+            case .ready: self.sendHello()
+            case let .message(data): self.handle(data)
+            case .ended: self.scheduleReconnect()
             }
         }
-        connection.start(queue: .main)
-        self.connection = connection
-        receive(on: connection)
     }
 
     // REQ-COM-004: reconnect with exponential backoff (one second the first time, thirty seconds at most).
     private func scheduleReconnect() {
         guard !isStopping else { return }
         keepaliveTask?.cancel(); keepaliveTask = nil
-        connection = nil
+        link = nil
         if status == .connected { status = .reconnecting }
 
         let delay = backoff.nextDelay()
@@ -167,22 +149,6 @@ final class MdoroClient {
 
     // MARK: - Receiving
 
-    private func receive(on connection: NWConnection) {
-        connection.receiveMessage { [weak self] data, context, _, error in
-            Task { @MainActor in
-                guard let self else { return }
-                if error != nil { self.scheduleReconnect(); return }
-                if let data, !data.isEmpty,
-                   let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition)
-                    as? NWProtocolWebSocket.Metadata,
-                   metadata.opcode == .text || metadata.opcode == .binary {
-                    self.handle(data)
-                }
-                self.receive(on: connection)
-            }
-        }
-    }
-
     private func handle(_ data: Data) {
         let decoded: Envelope<ServerMessage>?
         do {
@@ -195,7 +161,7 @@ final class MdoroClient {
                 // `welcome`, which is the only proof the line carries this protocol again. A peer
                 // that emits rubbish goes on emitting it, and a reset would send us knocking every
                 // second. This reconnect says the peer is wrong, not that the network dropped.
-                connection?.cancel()
+                link?.cancel()
                 scheduleReconnect()
             }
             return
@@ -244,10 +210,8 @@ final class MdoroClient {
     // MARK: - Sending
 
     func send(_ message: ClientMessage) {
-        guard let connection, let data = try? MessageCoder.encode(Envelope(body: message)) else { return }
-        let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
-        let context = NWConnection.ContentContext(identifier: "send", metadata: [metadata])
-        connection.send(content: data, contentContext: context, completion: .contentProcessed { _ in })
+        guard let link, let data = try? MessageCoder.encode(Envelope(body: message)) else { return }
+        link.send(data)
     }
 
     // REQ-PRT-003: a command carries a clientRequestId. Resending does not take effect twice.
