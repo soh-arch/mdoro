@@ -70,6 +70,9 @@ final class MdoroClient {
     private var reconnectTask: Task<Void, Never>?
     private var isStopping = false
     private var brokenMessages = BrokenMessageCounter()
+    // REQ-COM-005: when something last arrived. `Heartbeat.isStale` reads it against the clock
+    // below, and nothing else does.
+    private var lastReceivedAt: Date?
 
     private let deviceName = "iPhone"
     // POL-047 / Decision 0040: the Keychain is outside this process, and the suite runs inside
@@ -78,10 +81,25 @@ final class MdoroClient {
     // REQ-ERR-009 / REQ-COM-004: the same seam, for the line itself. **The default is the same as
     // production**, so only a test ever opens anything other than a WebSocket over the LAN.
     private let links: any ClientLinkMaking
+    // REQ-COM-005: the clock the fifteen seconds of silence are measured on, and **only that**.
+    // The time-sync samples keep their own `Date()` on purpose: they measure the wire between the
+    // two devices (REQ-COM-008), and a clock a test can move would rewrite the offset estimate.
+    private let clock: () -> Date
+    // REQ-COM-005: how often a heartbeat goes out and the silence is looked at. The requirement's
+    // five seconds is the default; a test shortens it so the wiring can be driven in milliseconds.
+    // **The fifteen-second threshold is not here** — that is `Heartbeat.timeout`, shared with the Mac.
+    private let heartbeatInterval: TimeInterval
 
-    init(tokens: any TokenStoring = TokenKeychain(), links: any ClientLinkMaking = WebSocketLinks()) {
+    init(
+        tokens: any TokenStoring = TokenKeychain(),
+        links: any ClientLinkMaking = WebSocketLinks(),
+        clock: @escaping () -> Date = { Date() },
+        heartbeatInterval: TimeInterval = Heartbeat.interval
+    ) {
         self.tokens = tokens
         self.links = links
+        self.clock = clock
+        self.heartbeatInterval = heartbeatInterval
     }
 
     // MARK: - Connection
@@ -150,6 +168,12 @@ final class MdoroClient {
     // MARK: - Receiving
 
     private func handle(_ data: Data) {
+        // REQ-COM-005: **anything that arrives is proof the Mac is still there.** 10.2 gives the
+        // server no heartbeat of its own to send back, so what is counted is receipt itself and
+        // not a message of one kind; rubbish counts too, since a peer that emits it is answering
+        // (what to do about ten of those in a row is REQ-ERR-009's, below).
+        lastReceivedAt = clock()
+
         let decoded: Envelope<ServerMessage>?
         do {
             decoded = try MessageCoder.decodeServer(data)
@@ -222,18 +246,35 @@ final class MdoroClient {
         send(.command(CommandPayload(action: action, params: params)))
     }
 
-    // REQ-COM-005 / 007: a heartbeat and a time sync go out every five seconds.
+    // REQ-COM-005 / 007: a heartbeat and a time sync go out every five seconds, and the same
+    // five seconds are when the silence coming the other way is looked at.
     private func startKeepalive() {
         keepaliveTask?.cancel()
+        let interval = heartbeatInterval
+        // REQ-COM-005: **the watch begins on a message, never on an empty line.** This is reached
+        // from the `welcome`, which `handle` has already stamped, so the first look has something
+        // to measure from. `Heartbeat.isStale` reads "nothing has ever arrived" as stale, so a
+        // watch started anywhere else would end the connection it had just accepted.
         keepaliveTask = Task { [weak self] in
             while !Task.isCancelled {
                 await MainActor.run {
                     self?.send(.heartbeat)
                     self?.send(.timeSyncPing(TimeSyncPayload(t1: Date())))
+                    self?.endLineIfSilent()
                 }
-                try? await Task.sleep(for: .seconds(Heartbeat.interval))
+                try? await Task.sleep(for: .seconds(interval))
             }
         }
+    }
+
+    // REQ-COM-005: fifteen seconds without anything arriving counts as disconnected.
+    //
+    // REQ-COM-004: **hanging up is all that happens here.** The line reports its own ending
+    // (`MessageLink.cancel`) and the reconnect hangs off that one event, so silence climbs the
+    // backoff by one step, the same as any other way a line comes to end.
+    private func endLineIfSilent() {
+        guard Heartbeat.isStale(lastReceivedAt: lastReceivedAt, now: clock()) else { return }
+        link?.cancel()
     }
 
     func requestSnapshot() {
