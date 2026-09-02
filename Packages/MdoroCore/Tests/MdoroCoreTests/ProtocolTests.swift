@@ -76,14 +76,20 @@ struct MessageCodingTests {
         #expect(payload.deviceName == "iPhone")
     }
 
-    // REQ-ERR-009: **a value this version does not know is a broken message, not a crash.**
+    // REQ-PRT-005 / REQ-ERR-009: **a value this version does not know is a broken message, not a
+    // newer peer.**
     //
-    // REQ-PRT-005 covers an unknown *type* and an unknown *field*; a known field carrying a
-    // value from a newer peer is neither, so it lands here instead. It has to raise rather
-    // than resolve to some other case — a refusal decoded as the wrong refusal would put a
-    // sentence on the iPhone's screen that the Mac never said. Both ends discard and keep the
-    // line: the iPhone counts ten in a row before it reconnects, the Mac drops what it cannot
-    // read.
+    // REQ-PRT-005 ignores an unknown *type* and an unknown *field*, and puts a known field
+    // carrying an unknown value outside that forward compatibility on purpose. The line only
+    // stands when the protocol versions match exactly (REQ-PRT-004), so a value nobody put in
+    // this version is not the future arriving early — it is a peer that added one without
+    // raising the version, or bytes that came apart on the way. REQ-ERR-009 is where it lands:
+    // discard it and count it.
+    //
+    // It has to raise rather than resolve to some other case — a refusal decoded as the wrong
+    // refusal would put a sentence on the iPhone's screen that the Mac never said. Both ends
+    // discard and keep the line: the iPhone counts ten in a row before it reconnects, the Mac
+    // drops what it cannot read.
     @Test func aValueThisVersionDoesNotKnowRaisesRatherThanDecodingToTheWrongCase() throws {
         let refusal = """
         {"type":"authFailed","messageId":"m1","sentAt":"2023-11-14T22:13:20Z",
