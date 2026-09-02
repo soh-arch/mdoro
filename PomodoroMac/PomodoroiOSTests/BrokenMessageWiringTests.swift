@@ -30,7 +30,9 @@ private final class RecordedLinks: ClientLinkMaking {
     }
 }
 
-// POL-047: the suite runs inside MdoroiOS.app, so a real Keychain read would be the reader's own.
+// REQ-SEC-001: the device token lives in the Keychain, and this suite runs inside MdoroiOS.app
+// under its bundle identifier — so the seam is taken, and nothing here reads or writes the
+// reader's own.
 private struct NoTokenHere: TokenStoring {
     func load(serverId: ServerID) -> String? { nil }
     func save(_ token: String, serverId: ServerID) {}

@@ -17,13 +17,12 @@ protocol ClientLinkMaking: Sendable {
 // readily as on it.
 nonisolated struct WebSocketLinks: ClientLinkMaking {
 
-    // REQ-COM-003 / POL-143: dial the discovered service itself. Network.framework resolves a
-    // `.service` endpoint by instance name at connect time, so the address and port are whatever
-    // the Mac is advertising right now — and since the advertisement rides on the ws listener,
-    // the service resolves to the ws port. What stood here dialled "\(instanceName).local": an
-    // mDNS host name and an instance name are unrelated, and the two matched only while the
-    // instance name happened to be the computer's name. Once the default became "Mdoro", the
-    // guess pointed at a host that does not exist.
+    // REQ-COM-003: **the dial is the discovered `.service` endpoint itself, never a name built
+    // from it.** A Bonjour instance name and an mDNS host name are separate name spaces, so an
+    // instance name with `.local` appended names nobody except where the two happen to coincide.
+    // Network.framework resolves the service by instance name at connect time, which is what makes
+    // the address and port the ones the Mac is advertising at that moment; and since the
+    // advertisement rides on the ws listener, the service resolves to the ws port.
     static func dialEndpoint(for server: DiscoveredServer) -> NWEndpoint? {
         guard case .service = server.endpoint else { return nil }
         return server.endpoint
