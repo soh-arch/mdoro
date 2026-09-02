@@ -84,8 +84,10 @@ struct MenuBarMenuContent: View {
         }
 
         if isLive {
-            Button(nextSessionTitle) { model.startNextSession() }
-            // REQ-TIM-018: skipping does not reduce the loop count. It can be taken back.
+            // REQ-TIM-030 (4.6): `startWork` / `startBreak` are refused while RUNNING / PAUSED,
+            // so `Start Next` does not appear here — a button whose command is always refused is
+            // a dead button. Moving on from a live session is `skip`'s job, and it costs nothing
+            // that cannot be started again (REQ-TIM-020: no loop count is added).
             Button("Skip") { model.send(.skip) }
         }
 
@@ -202,15 +204,6 @@ struct MenuBarMenuContent: View {
 
     private var nextSessionTitle: String {
         String(localized: "Start Next (\(Format.sessionLabel(model.timer.nextSessionType)))")
-    }
-
-    private func startNext() {
-        let next = model.timer.nextSessionType
-        if next == .work {
-            model.send(.startWork(presetId: preset.id, taskSnapshot: model.tasks.selectedTaskSnapshot))
-        } else {
-            model.send(.startBreak(type: next, presetId: preset.id))
-        }
     }
 
     private func openMain() {
