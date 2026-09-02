@@ -161,8 +161,11 @@ final class MdoroClient {
                 // `welcome`, which is the only proof the line carries this protocol again. A peer
                 // that emits rubbish goes on emitting it, and a reset would send us knocking every
                 // second. This reconnect says the peer is wrong, not that the network dropped.
+                //
+                // REQ-COM-004: **hanging up is all that happens here.** The line reports its own
+                // ending (`MessageLink.cancel`) and the reconnect hangs off that one event, so the
+                // backoff moves one step per disconnect however the line came to end.
                 link?.cancel()
-                scheduleReconnect()
             }
             return
         }

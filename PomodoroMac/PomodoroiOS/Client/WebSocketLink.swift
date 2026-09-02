@@ -44,6 +44,7 @@ final class WebSocketLink: MessageLink {
     // The line holds itself while it is open and lets go once it has ended, so a caller that has
     // already moved on to the next line still hears this one finish.
     private var openLine: WebSocketLink?
+    private var hasEnded = false
 
     init(endpoint: NWEndpoint) {
         let parameters = NWParameters.tcp
@@ -96,8 +97,16 @@ final class WebSocketLink: MessageLink {
         }
     }
 
+    // `MessageLinkEvent.ended` is delivered once and is the last thing said. One ending reaches
+    // here by more than one road — a read that fails, `.failed` or `.cancelled` from the state
+    // handler, both at once when the line is cancelled while a read is outstanding — and the
+    // contract is one event per ending.
     private func deliver(_ event: MessageLinkEvent) {
-        if case .ended = event { openLine = nil }
+        guard !hasEnded else { return }
+        if case .ended = event {
+            hasEnded = true
+            openLine = nil
+        }
         onEvent?(event)
     }
 }

@@ -6,17 +6,31 @@ import MdoroCore
 
 // A line the test holds both ends of. It records what went out and hands in what "arrived";
 // nothing is dialled, so the run stays off the LAN entirely.
+//
+// **It keeps `MessageLink`'s contract about endings**, because that is what the client is entitled
+// to expect: a cancelled line reports `.ended`, and `.ended` is delivered once and last. A double
+// that took a cancel in silence would be a line no implementation of this protocol is allowed to
+// be, and the wiring checked here would be somebody else's.
 @MainActor
 private final class RecordedLink: MessageLink {
     private(set) var sent: [Data] = []
     private(set) var cancels = 0
+    private(set) var endings = 0
     private var onEvent: ((MessageLinkEvent) -> Void)?
 
     func start(onEvent: @escaping (MessageLinkEvent) -> Void) { self.onEvent = onEvent }
     func send(_ data: Data) { sent.append(data) }
-    func cancel() { cancels += 1 }
 
-    func deliver(_ event: MessageLinkEvent) { onEvent?(event) }
+    func cancel() {
+        cancels += 1
+        deliver(.ended)
+    }
+
+    func deliver(_ event: MessageLinkEvent) {
+        guard endings == 0 else { return }
+        if case .ended = event { endings += 1 }
+        onEvent?(event)
+    }
 }
 
 @MainActor
@@ -102,6 +116,25 @@ struct BrokenMessageWiringTests {
         return links.opened.count >= count
     }
 
+    // How long the client waited before opening line number `count`, or nil if it never did.
+    //
+    // REQ-COM-004 names the waits — one second, then two — so **the length of the wait is how many
+    // steps the backoff took.** A disconnect counted twice shows up here as a doubled wait.
+    private func waitBeforeLine(_ count: Int, on links: RecordedLinks, upTo seconds: TimeInterval) async -> TimeInterval? {
+        let started = Date()
+        while Date().timeIntervalSince(started) < seconds {
+            if links.opened.count >= count { return Date().timeIntervalSince(started) }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return nil
+    }
+
+    // Sleeping is never exact, and one step of the backoff is a doubling, so half a step either way
+    // separates "one second" from anything else it could have been.
+    private func isAbout(_ measured: TimeInterval, _ expected: TimeInterval) -> Bool {
+        measured >= expected * 0.9 && measured < expected * 1.5
+    }
+
     // MARK: - The wiring
 
     @Test func theNinthBrokenMessageLeavesTheLineAlone() async throws {
@@ -118,7 +151,7 @@ struct BrokenMessageWiringTests {
         #expect(another == false, "nine broken messages asked for a new connection")
     }
 
-    @Test func theTenthBrokenMessageEndsTheLineAndOpensAnother() async throws {
+    @Test func theTenthBrokenMessageEndsTheLineAndOpensAnotherOneSecondLater() async throws {
         let links = RecordedLinks()
         let client = connectedClient(over: links)
         defer { client.disconnect() }
@@ -127,9 +160,63 @@ struct BrokenMessageWiringTests {
 
         for _ in 1...BrokenMessageCounter.limit { line.deliver(.message(brokenMessage)) }
 
-        #expect(line.cancels >= 1, "the tenth broken message left the line open")
-        let another = await opened(links, reaches: 2, within: ReconnectPolicy.initialDelay + 4)
-        #expect(another, "the line was ended and nothing was opened in its place")
+        #expect(line.cancels == 1, "the tenth broken message left the line open")
+        #expect(line.endings == 1, "one line ended once")
+        let waited = try #require(
+            await waitBeforeLine(2, on: links, upTo: ReconnectPolicy.initialDelay + 4),
+            "the line was ended and nothing was opened in its place"
+        )
+        // REQ-COM-004: one second the first time. **Hanging up and the line ending are one
+        // disconnect**, and a disconnect counted twice would have waited two seconds.
+        #expect(isAbout(waited, ReconnectPolicy.initialDelay),
+                "the first retry after a disconnect is one second (waited \(waited))")
+        #expect(links.opened.count == 2, "one disconnect opened more than one new line")
+    }
+
+    // REQ-COM-004: the ladder itself is `ReconnectPolicy`'s (`ReconnectTests` in MdoroCore pins
+    // 1, 2, 4 … 30). What is checked here is how far up it the client climbs: **one step per
+    // disconnect**, so the second wait is two seconds and not four.
+    @Test func eachDisconnectMovesTheBackoffOneStep() async throws {
+        let links = RecordedLinks()
+        let client = connectedClient(over: links)
+        defer { client.disconnect() }
+        let first = try #require(links.opened.first)
+        first.deliver(.ready)
+
+        for _ in 1...BrokenMessageCounter.limit { first.deliver(.message(brokenMessage)) }
+        _ = try #require(await waitBeforeLine(2, on: links, upTo: ReconnectPolicy.initialDelay + 4))
+
+        let second = try #require(links.opened.last)
+        second.deliver(.ready)
+        for _ in 1...BrokenMessageCounter.limit { second.deliver(.message(brokenMessage)) }
+
+        let waited = try #require(
+            await waitBeforeLine(3, on: links, upTo: ReconnectPolicy.initialDelay * 2 + 4),
+            "the second disconnect opened nothing in its place"
+        )
+        #expect(isAbout(waited, ReconnectPolicy.initialDelay * 2),
+                "the second disconnect is one step up the backoff, not two (waited \(waited))")
+    }
+
+    // The other way a line ends: nobody hung up, the network went away. **This is the path the
+    // client no longer touches for itself**, so it is the one that breaks quietly.
+    @Test func aLineThatSimplyDropsIsOpenedAgainAfterOneSecond() async throws {
+        let links = RecordedLinks()
+        let client = connectedClient(over: links)
+        defer { client.disconnect() }
+        let line = try #require(links.opened.first)
+        line.deliver(.ready)
+
+        line.deliver(.ended)
+
+        #expect(line.cancels == 0, "nobody hung up on this line")
+        let waited = try #require(
+            await waitBeforeLine(2, on: links, upTo: ReconnectPolicy.initialDelay + 4),
+            "a dropped line was never opened again"
+        )
+        #expect(isAbout(waited, ReconnectPolicy.initialDelay),
+                "REQ-COM-004: one second the first time (waited \(waited))")
+        #expect(links.opened.count == 2, "one disconnect opened more than one new line")
     }
 
     // REQ-ERR-009 says *in a row*. One message the client can read puts the count back to zero.
