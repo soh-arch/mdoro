@@ -786,8 +786,12 @@ final class AppModel {
             // REQ-ERR-010 / Decision 0034: the screen keeps the fact and gives up the reason.
             // The reason is a code now, and `server.start` below is where it goes instead.
             serverStartError = String(localized: "Mdoro cannot listen for iPhone connections.")
+            // `docs/platform/0010`: binding does not need the Local Network permission, so a
+            // bind that failed was never that permission's doing — pointing there would send the
+            // reader to a setting that cannot be the cause. The standing footnote in Settings
+            // owns the permission guidance.
             serverStartHint = String(
-                localized: "Check that this app is allowed in System Settings > Privacy & Security > Local Network."
+                localized: "Another program may be holding the port. Quitting Mdoro and opening it again usually clears this."
             )
             diagnostics.write("server.start", level: .error, [
                 DiagnosticField("why", ErrorCode(error).summary("startFailed")),

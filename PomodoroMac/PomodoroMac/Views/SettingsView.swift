@@ -93,7 +93,7 @@ struct SettingsView: View {
                 Text("Your Mac's own name is never sent. Pairing survives a rename.")
                     .font(.footnote)
                     .foregroundStyle(theme.textSecondary)
-                // REQ-ERR-008 / `docs/platform/0010`: a Mac refused the local network permission
+                // REQ-ERR-014 / REQ-PLT-008 / `docs/platform/0010`: a Mac refused the local network permission
                 // still binds and listens as if nothing were wrong — only the advertisement goes
                 // invisible, and no API tells the advertiser. What cannot be detected cannot be
                 // shown conditionally, so the one guidance that exists stands here always, in the
