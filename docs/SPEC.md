@@ -1,6 +1,6 @@
 # システム要件定義・仕様書：Mdoro（Mac–iPhone 連携の集中セッションタイマー）
 
-**バージョン:** 2.30
+**バージョン:** 2.31
 **最終更新:** 2026-09-02
 **ステータス:** 実装着手可
 
@@ -437,6 +437,16 @@ v2.19 が直したのは 8.3 冒頭の1箇所だけだった。
 
 **あわせて `SECURITY.md` と `README.md` に、LAN 上の通信が平文であることを書いた**（POL-122。
 人間の決定: **いま書く。TLS は公開後**）。**流れているのはトークンそのもの・絶対パス2本・タスク一覧すべてである。**
+
+### 0.36 v2.30 からの変更点（v2.31）
+
+**到達しない拒否理由を 10.2 のカタログから外した**（2026-09-02・人間の判断）。要件数は変わらない（**243要件**）。
+
+`authFailed.code` の一覧には `anotherClientConnected` が載っていたが、**この値を返す経路は実装にも条文にも無い。** REQ-SEC-004 は「既に別のクライアントが接続中」を**拒否の理由ではなく確認を出す条件**として定めており、拒否に至るのは利用者が拒んだときとタイムアウトのときだけで、どちらも `connectionRejectedByUser` である。
+
+| 分類 | 内容 |
+| :---- | :---- |
+| **削除** | **10.2 の `authFailed.code` 一覧から `anotherClientConnected`** を外し、なぜそれが理由にならないかを1行添えた。**条文の意味は変わらない** —— この値は最初から誰も返しておらず、カタログだけが持っていた。実装側の列挙子・エラーコード・iPhone の文言も同時に削除する（**到達しないエラー処理を公開コードに残さない**） |
 
 ### 0.35 v2.29 からの変更点（v2.30）
 
@@ -1505,7 +1515,9 @@ v1.0 の「StandBy モード」を実現可能な形式に再定義する。
 
 **`authFailed.code` 一覧**
 
-`invalidPairingCode` / `pairingModeNotActive` / `pairingAttemptsExceeded` / `unknownDeviceToken` / `anotherClientConnected` / `connectionRejectedByUser`
+`invalidPairingCode` / `pairingModeNotActive` / `pairingAttemptsExceeded` / `unknownDeviceToken` / `connectionRejectedByUser`
+
+既に別のクライアントが接続中であることは、それ自体では拒否の理由にならない。REQ-SEC-004 はその状況で**利用者に確認を出す**ことを定めており、拒否に至るのは利用者が拒んだときとタイムアウトのときだけである。どちらも `connectionRejectedByUser` を返す。
 
 ### 10.3 データ構造
 
