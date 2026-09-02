@@ -96,7 +96,7 @@ struct MessageCodingTests {
     //
     // Both ends discard the one message and keep the line; REQ-ERR-009 judges the line itself on
     // a run of ten.
-    @Test func aValueThisVersionDoesNotKnowRaisesRatherThanDecodingToTheWrongCase() throws {
+    @Test func aValueNoClauseAnswersForRaisesRatherThanDecodingToTheWrongCase() throws {
         let refusal = """
         {"type":"authFailed","messageId":"m1","sentAt":"2023-11-14T22:13:20Z",
          "code":"someFutureRefusal","message":"someFutureRefusal(Mdoro:99)"}
