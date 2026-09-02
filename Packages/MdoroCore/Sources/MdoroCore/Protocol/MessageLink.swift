@@ -15,6 +15,11 @@ public enum MessageLinkEvent: Sendable {
     // One whole protocol message arrived.
     case message(Data)
     // The line is over — refused, dropped, or cancelled. It does not come back; a new one is opened.
+    //
+    // **It is delivered exactly once, and it is the last event.** A line has several ways of
+    // learning it is finished — a read that fails, a state that goes bad, a cancel from this side —
+    // and they can all be true of the same ending. REQ-COM-004 moves its backoff on this event, so
+    // an ending told twice would have the peer waiting two seconds where the requirement says one.
     case ended
 }
 
@@ -23,5 +28,8 @@ public protocol MessageLink: AnyObject {
     // Events arrive on the main actor until the line ends.
     func start(onEvent: @escaping (MessageLinkEvent) -> Void)
     func send(_ data: Data)
+    // Ends the line. **The ending is reported as `.ended` like any other**, so a peer that hangs up
+    // on a line it no longer trusts (REQ-ERR-009) hears about it where it hears about a line the
+    // network took away, and REQ-COM-004 has one event per ending to count.
     func cancel()
 }
