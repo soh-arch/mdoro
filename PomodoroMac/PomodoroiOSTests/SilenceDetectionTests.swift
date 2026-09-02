@@ -46,9 +46,19 @@ private final class SilentLines: ClientLinkMaking {
 // **Nothing here waits fifteen seconds**; the silence is made to have happened.
 private final class MovableClock {
     private var instant = Date(timeIntervalSince1970: 1_000_000_000)
+    // How many times the client has looked at the clock.
+    //
+    // **This is how a keepalive that is still turning is told from one that has stopped.**
+    // `endLineIfSilent` reads the clock at its head — before `link` is reached for, and whatever
+    // state the line is in — so a round of the loop moves this count even after a disconnect has
+    // cleared the link and left the loop with nothing else it can affect.
+    //
+    // `handle` reads the clock too, on every message that arrives. Every use below either takes a
+    // reading either side of a wait in which nothing is delivered, or delivers nothing at all.
+    private(set) var reads = 0
 
     func advance(by seconds: TimeInterval) { instant += seconds }
-    func read() -> Date { instant }
+    func read() -> Date { reads += 1; return instant }
 }
 
 // REQ-SEC-001: the device token lives in the Keychain, and this suite runs inside MdoroiOS.app
@@ -130,13 +140,13 @@ struct SilenceDetectionTests {
         try? await Task.sleep(for: .milliseconds(200))
     }
 
-    // The same wait, with the beat counted on either side of it. **A watch that never ran would
-    // also cut nothing**, so every "it was not cut" below is measured against a loop that came
-    // round, looked at the silence, and let the line stand.
-    private func letTheBeatRun(of client: MdoroClient) async {
-        let before = client.beats
+    // The same wait, with the clock's readings counted either side of it. **A watch that never ran
+    // would also cut nothing**, so every "it was not cut" below is measured against a loop that came
+    // round, looked at the silence, and let the line stand — and the looking is the reading.
+    private func letTheBeatRun(on clock: MovableClock) async {
+        let before = clock.reads
         await pause()
-        #expect(await waitUntil({ client.beats > before }, upTo: 2),
+        #expect(await waitUntil({ clock.reads > before }, upTo: 2),
                 "the keepalive never came round, so nothing that did not happen proves anything")
     }
 
@@ -177,7 +187,7 @@ struct SilenceDetectionTests {
         let line = try #require(links.opened.first)
 
         clock.advance(by: Heartbeat.timeout - 1)
-        await letTheBeatRun(of: client)
+        await letTheBeatRun(on: clock)
 
         #expect(line.cancels == 0, "a connection was cut a second before the requirement says to")
         #expect(links.opened.count == 1, "a live connection was replaced")
@@ -195,7 +205,7 @@ struct SilenceDetectionTests {
         clock.advance(by: Heartbeat.timeout - 1)
         line.deliver(try wellFormedMessage())
         clock.advance(by: Heartbeat.timeout - 1)
-        await letTheBeatRun(of: client)
+        await letTheBeatRun(on: clock)
 
         #expect(line.cancels == 0, "twenty-eight seconds with a message in the middle were added up as silence")
 
@@ -217,7 +227,7 @@ struct SilenceDetectionTests {
         clock.advance(by: Heartbeat.timeout - 1)
         line.deliver(brokenMessage)
         clock.advance(by: Heartbeat.timeout - 1)
-        await letTheBeatRun(of: client)
+        await letTheBeatRun(on: clock)
 
         #expect(line.cancels == 0, "a message that could not be read was counted as silence")
     }
@@ -234,7 +244,7 @@ struct SilenceDetectionTests {
 
         // The clock is not moved: the watch runs many times over a connection no older than the
         // milliseconds this test takes, and finds nothing to act on every time.
-        await letTheBeatRun(of: client)
+        await letTheBeatRun(on: clock)
 
         #expect(line.cancels == 0, "the connection was ended before a second of it had passed")
         #expect(links.opened.count == 1, "the connection was ended before a second of it had passed")
@@ -242,40 +252,93 @@ struct SilenceDetectionTests {
 
     // The watch has the keepalive's lifetime: no connection, no watch.
     //
-    // **The loop is watched here, not only what it would have done.** Everything the loop reaches
-    // for goes through `link`, which a disconnect clears in the same breath, so a loop left turning
-    // for the life of the app sends nothing and cancels nothing — and is invisible except in the
-    // count of its own rounds.
+    // **The loop is watched here, not only what it would have done.** Sending goes through `link`
+    // and so does hanging up, and a disconnect clears `link` in the same breath — so a loop left
+    // turning for the life of the app sends nothing and cancels nothing. What it cannot stop doing
+    // is reading the clock: `endLineIfSilent` does that first, before it looks at the line at all.
     @Test func nothingIsWatchedAfterDisconnect() async throws {
         let links = SilentLines()
         let clock = MovableClock()
         let client = try connectedClient(over: links, on: clock)
         let line = try #require(links.opened.first)
-        await letTheBeatRun(of: client)
+        await letTheBeatRun(on: clock)
 
         client.disconnect()
-        let beatsAtDisconnect = client.beats
+        let readsAtDisconnect = clock.reads
         let cancelsAtDisconnect = line.cancels
         let sentAtDisconnect = line.sent.count
         clock.advance(by: Heartbeat.timeout * 4)
         await pause()
 
-        #expect(client.beats == beatsAtDisconnect, "the keepalive went on turning after disconnect")
+        #expect(clock.reads == readsAtDisconnect, "the keepalive went on turning after disconnect")
         #expect(line.cancels == cancelsAtDisconnect, "a line nobody is holding was hung up on again")
         #expect(line.sent.count == sentAtDisconnect, "the keepalive went on beating after disconnect")
         #expect(links.opened.count == 1, "disconnect was followed by a reconnect")
     }
 
+    // MARK: - What goes out on every beat
+
+    // REQ-COM-005 / 007: **the beat carries both messages, every time, and each one is the whole of
+    // one end's watch.**
+    //
+    // - `timeSyncPing` is what the Mac answers (REQ-COM-007), and on a line where nothing else is
+    //   happening that answer is the only thing that arrives here — so the watch checked above
+    //   rests on this ping going out unconditionally.
+    // - `heartbeat` is the mirror of it: `MdoroServer` moves `lastHeartbeatAt` on that message and
+    //   on nothing else afterwards, so a beat that skips it is fifteen seconds of silence to the
+    //   Mac, and the Mac hangs up.
+    //
+    // **What went out is decoded, not counted.** Two messages a beat is also what a beat sending
+    // the same message twice looks like, and either half going missing is invisible to a count.
+    @Test func everyBeatCarriesAHeartbeatAndATimeSyncPing() async throws {
+        let links = SilentLines()
+        let clock = MovableClock()
+        let client = try connectedClient(over: links, on: clock)
+        defer { client.disconnect() }
+        let line = try #require(links.opened.first)
+
+        // Two whole beats, so what is read below is a repeating pair and not one lucky pass.
+        #expect(await waitUntil({ line.sent.count >= 5 }, upTo: 2), "the keepalive never came round")
+
+        var messages: [ClientMessage] = []
+        for data in line.sent {
+            messages.append(try #require(try MessageCoder.decodeClient(data)).body)
+        }
+
+        // REQ-SEC-001: the hello is the first thing on a new line. The beats follow it.
+        guard case .hello? = messages.first else {
+            Issue.record("the first thing on a new line is not the hello (REQ-SEC-001)")
+            return
+        }
+        let beaten = Array(messages.dropFirst())
+
+        var beats = 0
+        for pair in stride(from: 0, to: beaten.count - 1, by: 2) {
+            #expect(beaten[pair] == .heartbeat,
+                    "a beat went out without the heartbeat the Mac's watch counts (sent \(beaten[pair]))")
+            guard case .timeSyncPing = beaten[pair + 1] else {
+                Issue.record("a beat went out without the timeSyncPing this phone's watch lives on")
+                return
+            }
+            beats += 1
+        }
+        #expect(beats >= 2, "fewer than two whole beats were read, so nothing repeating was checked")
+    }
+
     // MARK: - The beat nobody sets
 
     // REQ-COM-005: five seconds, wherever the beat is not being driven by a test. Every test above
-    // passes `heartbeatInterval` in, so this is the one place the production default is read.
+    // passes `heartbeatInterval` in, so nothing else here reads what production runs on.
     // **The five seconds themselves are pinned on `Heartbeat.interval`**, which the Mac beats to
     // as well (REQ-PRT-001).
+    //
+    // **The client the app builds is the one asked.** `ClientModel` is the production construction
+    // point, and an interval passed in there would not show up in a client this test made for
+    // itself out of the same initializer.
     @Test func theBeatIsFiveSecondsWhereNobodyHasShortenedIt() {
-        let client = MdoroClient(tokens: NoTokenHere(), links: SilentLines())
+        let model = ClientModel(tokens: NoTokenHere())
 
-        #expect(client.heartbeatInterval == Heartbeat.interval,
+        #expect(model.client.heartbeatInterval == Heartbeat.interval,
                 "the phone beats to something other than the interval the requirement names")
     }
 }

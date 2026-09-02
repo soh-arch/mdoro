@@ -229,15 +229,23 @@ final class MdoroServer {
 
         case let .timeSyncPing(payload):
             // REQ-COM-007: t2 is when it arrived, t3 is when the answer was sent.
+            //
+            // REQ-COM-005: **every ping is answered, with nothing asked of it first.** The phone
+            // judges liveness from receipt itself, and on a line where nothing else is happening
+            // this answer is the only thing that reaches it. **The `guard source === connection`
+            // that `command` and `requestSnapshot` carry does not belong here** — nor does any
+            // other condition. Add one and the phone reads a healthy connection as fifteen seconds
+            // of silence and hangs up a beat later, with every test still green.
             let t2 = Date()
             send(.timeSyncPong(TimeSyncPayload(t1: payload.t1, t2: t2, t3: Date())), to: source)
 
         case .heartbeat:
-            // REQ-COM-005: 10.2 has no Server → Client heartbeat, so nothing is sent back. The
-            // client judges liveness from receipt itself, and what reaches it on a line where
-            // nothing else is happening is the `timeSyncPong` above — **answered to every
-            // `timeSyncPing` that arrives** (REQ-COM-007). Put a condition on that answer and the
-            // phone reads a healthy connection as fifteen seconds of silence.
+            // REQ-COM-005: **this stamp is the whole of the Mac's watch.** `checkHeartbeat` reads
+            // `lastHeartbeatAt` against fifteen seconds, and only this case and the accept in
+            // `settle` ever move it — a `timeSyncPing` arriving does not. It rests on the phone
+            // sending a `heartbeat` on every beat, unconditionally (`MdoroClient.startKeepalive`).
+            //
+            // 10.2 has no Server → Client heartbeat, so nothing is sent back.
             lastHeartbeatAt = Date()
 
         case let .command(payload):

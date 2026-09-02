@@ -73,11 +73,6 @@ final class MdoroClient {
     // REQ-COM-005: when something last arrived. `Heartbeat.isStale` reads it against the clock
     // below, and nothing else does.
     private var lastReceivedAt: Date?
-    // REQ-COM-005: how many times the keepalive has come round. **Every other effect the loop has
-    // goes out through `link`** — the beat is sent on it, the silence is acted on by cancelling it
-    // — and a line let go is a `link` of nil, so without this counter a loop that is still turning
-    // and a loop that has stopped look exactly alike from outside.
-    private(set) var beats = 0
 
     private let deviceName = "iPhone"
     // POL-047 / Decision 0040: the Keychain is outside this process, and the suite runs inside
@@ -254,9 +249,9 @@ final class MdoroClient {
     // REQ-COM-005 / 007: a heartbeat and a time sync go out every five seconds, and the same
     // five seconds are when the silence coming the other way is looked at.
     //
-    // REQ-COM-005: **the `timeSyncPing` goes out on every beat, unconditionally.** It is what the
-    // Mac answers, and its answer is the only thing that arrives on a line where nothing else is
-    // happening — see `endLineIfSilent`, which is what the silence would be read as.
+    // REQ-COM-005: **both messages go out on every beat, unconditionally**, and each one carries
+    // one end's watch. Put a condition on either and that end reads a healthy connection as fifteen
+    // seconds of silence, one beat after the fifteenth second.
     private func startKeepalive() {
         keepaliveTask?.cancel()
         let interval = heartbeatInterval
@@ -267,11 +262,23 @@ final class MdoroClient {
         keepaliveTask = Task { [weak self] in
             while !Task.isCancelled {
                 await MainActor.run {
-                    // Cancellation can land while this hop is queued: a keepalive that has been
-                    // let go does not get to beat once more.
+                    // A keepalive that has been let go does not get to beat once more.
+                    //
+                    // **This closes a hop nothing is known to arrive through.** The loop is entered
+                    // only from `startKeepalive`, every reconnect that reaches one sleeps a second
+                    // or more first (REQ-COM-004), and `disconnect` cancels before anything can be
+                    // queued behind it — so no cancellation reaches this hop by any path there is.
+                    // The guard keeps that true of whatever path is added next.
                     guard !Task.isCancelled, let self else { return }
-                    self.beats += 1
+                    // REQ-COM-005: **the only message the Mac's watch counts.** `MdoroServer` moves
+                    // `lastHeartbeatAt` on this and on accepting the connection, and on nothing
+                    // else — a `timeSyncPing` does not move it. A beat that skips this one is
+                    // silence to the Mac, and the Mac hangs up at fifteen seconds of it.
                     self.send(.heartbeat)
+                    // REQ-COM-005 / 007: **what the Mac answers**, every one it receives. On a line
+                    // where nothing else is happening that answer is the only thing that arrives
+                    // here, so it is the whole of what this end's watch counts — see
+                    // `endLineIfSilent`, which is what the silence would otherwise be read as.
                     self.send(.timeSyncPing(TimeSyncPayload(t1: Date())))
                     self.endLineIfSilent()
                 }
