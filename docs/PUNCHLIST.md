@@ -236,6 +236,7 @@
 | **POL-021** | 非スコープの「複数ユーザー対応」が、人の話か端末の話か読めない。第14章「1対1接続」は端末の話 | [0021](decisions/0021-published-as-oss-named-mdoro.md) / 第14章 | D | agent | minor | done | `docs/spec-v2.10` |
 | **POL-022** | 「ユーザー」約30件 / 「利用者」約11件が混在。**一括置換は禁止**（macOS のユーザーアカウント等3件は対象外） | [0021](decisions/0021-published-as-oss-named-mdoro.md) / REQ-UIX-042 | D | agent | minor | done | `fix/final-audit-items` |
 | **POL-023** | REQ-PLT-009 が製品要件と**検証手順**を1条文に混ぜている。前者は利用者、後者は貢献者に宛てられており宛先が違う | `CLAUDE.md`（手順は DEVELOPMENT.md） | — | agent | minor | done | `docs/spec-v2.10` |
+| **POL-182** | **版が非互換のとき、iPhone に「This device is no longer registered. Pair again」と表示される。** `Pairing.authenticate` は版の不一致を `.reject(.unknownDeviceToken)` で拒否しており（`Pairing.swift:123-125`）、コメントは「REQ-PRT-004: an incompatible version is refused」と書いているのに、**返している値は「未登録の端末」**である。**REQ-PRT-004 は MUST で「非互換の場合は接続を拒否して両端末に更新を促すこと」と定める。促していない。** 利用者は「ペアリングが切れた」と読んでやり直し、同じ理由でまた失敗する —— 永久に。**記録を消して回る可能性もある**（原因は版なのに）。**そして `AuthFailureCode` に版の不一致を伝える値が無い** —— `protocolVersionMismatch` は `ProtocolErrorCode` 側（`error.code`）にあり、`authFailed.code` の一覧には無い。**言うべきことを言う語彙が無い。** POL-109 が「誰も返さない拒否理由」を消したのと逆で、**必ず起こる状況に返す値が無い**。[0040](decisions/0040-identity-is-not-a-name.md) は v2.25 で版を上げた理由を「古い組み合わせが黙って半分動くことを防ぐため」と書いており、**この経路は古いビルドが1台あれば確実に踏まれる**。**条文（`authFailed.code` に値を足す）と実装の両方が要る** | REQ-PRT-004 / 10.2 | `Pairing.swift` / `ProtocolTypes.swift` / `ConnectionViews.swift` | **human** | **major** | open | — |
 
 ## 付録: 実装から回収した語（POL-013 の入力）
 
