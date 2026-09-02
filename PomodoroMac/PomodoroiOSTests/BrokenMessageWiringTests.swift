@@ -97,6 +97,14 @@ struct BrokenMessageWiringTests {
         try MessageCoder.encode(Envelope(body: ServerMessage.timeSyncPong(TimeSyncPayload(t1: Date()))))
     }
 
+    // The Mac's answer to the hello (REQ-SEC-004). **The one message that proves the line carries
+    // this protocol**, which is why REQ-COM-004 winds the backoff back on it and on nothing else.
+    private func welcomeMessage() throws -> Data {
+        try MessageCoder.encode(Envelope(body: ServerMessage.welcome(
+            WelcomePayload(deviceToken: "a token this test throws away", serverName: "Mdoro")
+        )))
+    }
+
     // REQ-PRT-005: a type this version does not know. Well formed, and not corruption.
     private var messageFromALaterVersion: Data {
         Data("""
@@ -170,7 +178,10 @@ struct BrokenMessageWiringTests {
         // disconnect**, and a disconnect counted twice would have waited two seconds.
         #expect(isAbout(waited, ReconnectPolicy.initialDelay),
                 "the first retry after a disconnect is one second (waited \(waited))")
-        #expect(links.opened.count == 2, "one disconnect opened more than one new line")
+        // Read the moment the second line appeared: one reconnect, one line, not two at once.
+        // **That there is no third line waiting a step further up is what the wait above says** —
+        // a second step would have taken two seconds to arrive.
+        #expect(links.opened.count == 2, "the reconnect opened more than one line at once")
     }
 
     // REQ-COM-004: the ladder itself is `ReconnectPolicy`'s (`ReconnectTests` in MdoroCore pins
@@ -198,8 +209,36 @@ struct BrokenMessageWiringTests {
                 "the second disconnect is one step up the backoff, not two (waited \(waited))")
     }
 
-    // The other way a line ends: nobody hung up, the network went away. **This is the path the
-    // client no longer touches for itself**, so it is the one that breaks quietly.
+    // REQ-COM-004's other half: **a `welcome` puts the backoff back to the start.** `ReconnectTests`
+    // in MdoroCore pins what `ReconnectPolicy.reset()` does; what is checked here is that the client
+    // calls it when the Mac answers. Same disconnects as the test above, one `welcome` in between —
+    // and the wait is a second again rather than two.
+    @Test func aWelcomePutsTheBackoffBackToTheStart() async throws {
+        let links = RecordedLinks()
+        let client = connectedClient(over: links)
+        defer { client.disconnect() }
+        let first = try #require(links.opened.first)
+        first.deliver(.ready)
+
+        for _ in 1...BrokenMessageCounter.limit { first.deliver(.message(brokenMessage)) }
+        _ = try #require(await waitBeforeLine(2, on: links, upTo: ReconnectPolicy.initialDelay + 4))
+
+        let second = try #require(links.opened.last)
+        second.deliver(.ready)
+        second.deliver(.message(try welcomeMessage()))
+        for _ in 1...BrokenMessageCounter.limit { second.deliver(.message(brokenMessage)) }
+
+        let waited = try #require(
+            await waitBeforeLine(3, on: links, upTo: ReconnectPolicy.initialDelay * 2 + 4),
+            "the second disconnect opened nothing in its place"
+        )
+        #expect(isAbout(waited, ReconnectPolicy.initialDelay),
+                "a line that got as far as a welcome starts the backoff over (waited \(waited))")
+    }
+
+    // The other way a line ends: nobody hung up, the network went away. **The end of the line is
+    // the whole of what starts a reconnect**, so this path carries the requirement on its own —
+    // there is nothing else in it to fall back on if the event stops being acted upon.
     @Test func aLineThatSimplyDropsIsOpenedAgainAfterOneSecond() async throws {
         let links = RecordedLinks()
         let client = connectedClient(over: links)
@@ -216,7 +255,10 @@ struct BrokenMessageWiringTests {
         )
         #expect(isAbout(waited, ReconnectPolicy.initialDelay),
                 "REQ-COM-004: one second the first time (waited \(waited))")
-        #expect(links.opened.count == 2, "one disconnect opened more than one new line")
+        // Read the moment the second line appeared: one reconnect, one line, not two at once.
+        // **That there is no third line waiting a step further up is what the wait above says** —
+        // a second step would have taken two seconds to arrive.
+        #expect(links.opened.count == 2, "the reconnect opened more than one line at once")
     }
 
     // REQ-ERR-009 says *in a row*. One message the client can read puts the count back to zero.
