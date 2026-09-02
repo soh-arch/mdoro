@@ -318,17 +318,30 @@ struct UnreachableLogFolderTests {
         #expect(harness.savedEntries.count == 2, "and they survive a restart")
     }
 
-    // REQ-LOG-002 / Decision 0033: the counting added here may not reach the unset case. Every user
-    // starts there, and being notified that writing failed before choosing anything is the bug
-    // Decision 0033 was written for.
-    @Test func anUnsetFolderStillReachesNoThresholdHowManyEverAreFlushed() {
+    // REQ-LOG-002 / Decision 0033: with no folder set, flushing repeatedly reports nothing — no
+    // failure on the screen, no notification. Every user starts in this state.
+    //
+    // **What this cannot test, and why nothing can.** It does not show that the counting stays out
+    // of the unset path, because the state that would tell the two apart does not exist: nothing an
+    // unset destination owns ever reaches the queue. `bookmarks.logFolder` only ever goes from unset
+    // to set (`setLogFolder` is its one writer), entries carried over from a state file are dropped
+    // before the queue is built, and `LogWriteQueue.enqueue` refuses the rest. So unset implies an
+    // empty queue, and an empty queue is nothing owed to the file — which `recordFailedAttempt`
+    // already reads as no attempt at all, wherever it is called from. The first assertion below is
+    // that implication, and it is what keeps REQ-ERR-004 away from here; the early return in
+    // `flushLogQueue` is an economy, not the thing that enforces it.
+    @Test func whileNoFolderIsSetNothingIsOwedToTheFileAndNothingIsReported() {
         let harness = Harness(logFolder: nil, saved: savedQueue())
         defer { harness.cleanUp() }
 
         for _ in 0 ..< 5 { harness.model.flushLogQueue() }
 
+        #expect(harness.model.pendingLogCount == 0,
+                "REQ-LOG-002 / Decision 0033: two entries were carried in, and an unset folder took none of them")
+        #expect(!harness.model.logWriteFailed,
+                "Decision 0033: unset is not a failed write, however often writing is tried")
+        #expect(harness.model.lastLogError == nil)
         #expect(!harness.notifications.calls.contains(.logWriteFailure),
                 "REQ-ERR-004 / Decision 0033: nothing was attempted, so nothing failed")
-        #expect(!harness.model.logWriteFailed)
     }
 }
