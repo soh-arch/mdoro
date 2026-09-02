@@ -447,6 +447,7 @@ struct FailuresThatReachSomeoneTests {
             [
                 CommandTranslation.Failure.missingParameter($0).diagnosticSummary,
                 CommandTranslation.Failure.invalidParameter($0).diagnosticSummary,
+                CommandTranslation.Failure.valueOutOfRange($0).diagnosticSummary,
             ]
         }
         for code in ProtocolErrorCode.allCases {
@@ -488,6 +489,11 @@ struct FailuresThatReachSomeoneTests {
                 #expect(failure.protocolErrorCode == .invalidStateForAction)
                 #expect(!failure.protocolErrorCode.displayMessage.contains(failure.diagnosticSummary))
             }
+            // REQ-CFG-018: a value that cannot be read reaches the sentence a value outside its
+            // range reaches, not the one a malformed command reaches.
+            let unreadable = CommandTranslation.Failure.valueOutOfRange(parameter)
+            #expect(unreadable.protocolErrorCode == .settingOutOfRange)
+            #expect(!unreadable.protocolErrorCode.displayMessage.contains(unreadable.diagnosticSummary))
         }
     }
 

@@ -1019,6 +1019,13 @@ final class AppModel {
             return
 
         case .updateSettings:
+            // REQ-CFG-018 / REQ-PRT-005: a value this version has no case for is out of range. It
+            // is refused rather than applied, and the refusal names the request that carried it —
+            // the request the iPhone is waiting on.
+            if command.params?.unreadableValues.contains(.settings) == true {
+                reject(.valueOutOfRange(.settings), command)
+                return
+            }
             guard let updated = command.params?.settings else {
                 reject(.missingParameter(.settings), command)
                 return

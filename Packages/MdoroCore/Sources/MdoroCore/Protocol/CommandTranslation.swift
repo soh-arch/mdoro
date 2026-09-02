@@ -8,7 +8,7 @@ public enum CommandTranslation {
     // call, because Decision 0034 needs somewhere to hang a code: the case name of a failure
     // says what went wrong with a field, and the code says which field, so `case(domain:code)`
     // holds without spending the resolution the decision says not to lose.
-    public enum Parameter: String, Equatable, Sendable, CaseIterable {
+    public enum Parameter: String, Equatable, Hashable, Sendable, CaseIterable {
         case sessionType
         case decision
         case stableId
@@ -36,18 +36,27 @@ public enum CommandTranslation {
     public enum Failure: Error, Equatable, Sendable, DiagnosableError {
         case missingParameter(Parameter)
         case invalidParameter(Parameter)
+        // REQ-CFG-018 / REQ-PRT-005: the field carries a value this version has no case for.
+        // **A value that cannot be read is out of range**: it is not applied, and it is not bent
+        // onto a case it resembles either, because that would put a setting on the Mac that
+        // nobody asked for.
+        case valueOutOfRange(Parameter)
 
         // 10.2: what the iPhone gets in `error.code`, which is where its wording comes from.
         // Named apart from `errorCode` because that one answers the diagnostic log instead.
         public var protocolErrorCode: ProtocolErrorCode {
             switch self {
             case .missingParameter, .invalidParameter: return .invalidStateForAction
+            // REQ-CFG-018: the same answer a number outside its range gets. 10.2 defines the code
+            // as "the setting is outside the allowed range" and draws no line inside that.
+            case .valueOutOfRange: return .settingOutOfRange
             }
         }
 
         public var errorCode: ErrorCode {
             switch self {
-            case let .missingParameter(parameter), let .invalidParameter(parameter):
+            case let .missingParameter(parameter), let .invalidParameter(parameter),
+                 let .valueOutOfRange(parameter):
                 return parameter.errorCode
             }
         }
@@ -58,6 +67,7 @@ public enum CommandTranslation {
             switch self {
             case .missingParameter: return errorCode.summary("missingParameter")
             case .invalidParameter: return errorCode.summary("invalidParameter")
+            case .valueOutOfRange: return errorCode.summary("valueOutOfRange")
             }
         }
     }
@@ -105,6 +115,8 @@ public enum CommandTranslation {
         case .reloadTasks: return .success(.reloadTasks)
 
         case .updateSettings:
+            // REQ-CFG-018: a value this version cannot read is refused before anything is applied.
+            if params.unreadableValues.contains(.settings) { return .failure(.valueOutOfRange(.settings)) }
             guard let settings = params.settings else { return .failure(.missingParameter(.settings)) }
             return .success(.updateSettings(settings))
 
@@ -113,6 +125,8 @@ public enum CommandTranslation {
             return .success(.selectPreset(id: presetId))
 
         case .createPreset:
+            // REQ-CFG-018: a preset carries settings too, and `notificationSound` is one of them.
+            if params.unreadableValues.contains(.preset) { return .failure(.valueOutOfRange(.preset)) }
             guard let preset = params.preset else { return .failure(.missingParameter(.preset)) }
             return .success(.createPreset(preset))
 
@@ -121,6 +135,7 @@ public enum CommandTranslation {
             return .success(.duplicatePreset(id: presetId))
 
         case .updatePreset:
+            if params.unreadableValues.contains(.preset) { return .failure(.valueOutOfRange(.preset)) }
             guard let preset = params.preset else { return .failure(.missingParameter(.preset)) }
             return .success(.updatePreset(preset))
 
