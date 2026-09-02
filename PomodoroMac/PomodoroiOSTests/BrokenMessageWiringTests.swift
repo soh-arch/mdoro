@@ -106,7 +106,7 @@ struct BrokenMessageWiringTests {
     }
 
     // REQ-PRT-005: a type this version does not know. Well formed, and not corruption.
-    private var messageFromALaterVersion: Data {
+    private var messageNamingATypeThisVersionLacks: Data {
         Data("""
         {"type":"somethingThisVersionHasNeverHeardOf",\
         "messageId":"8B0E6C22-1F3A-4D55-9C77-000000000001",\
@@ -277,8 +277,9 @@ struct BrokenMessageWiringTests {
     }
 
     // REQ-PRT-005: forward compatibility is not corruption. A type this version does not know is
-    // ignored, and the run starts over — the peer is speaking this protocol, only a later one.
-    @Test func aMessageFromALaterVersionIsNotABrokenOne() throws {
+    // ignored, and the run starts over — the message arrived whole and was read, and there is
+    // simply no case in this version's list to put it in.
+    @Test func aTypeThisVersionDoesNotKnowIsNotABrokenOne() throws {
         let links = RecordedLinks()
         let client = connectedClient(over: links)
         defer { client.disconnect() }
@@ -286,7 +287,7 @@ struct BrokenMessageWiringTests {
         line.deliver(.ready)
 
         for _ in 1..<BrokenMessageCounter.limit { line.deliver(.message(brokenMessage)) }
-        line.deliver(.message(messageFromALaterVersion))
+        line.deliver(.message(messageNamingATypeThisVersionLacks))
         for _ in 1..<BrokenMessageCounter.limit { line.deliver(.message(brokenMessage)) }
 
         #expect(line.cancels == 0, "a type this version does not know was counted as broken")

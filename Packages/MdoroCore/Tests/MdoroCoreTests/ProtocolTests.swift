@@ -76,15 +76,27 @@ struct MessageCodingTests {
         #expect(payload.deviceName == "iPhone")
     }
 
-    // REQ-ERR-009: **a value this version does not know is a broken message, not a crash.**
+    // REQ-PRT-005 / REQ-ERR-009: **an unknown value that no clause answers for is a broken
+    // message.**
     //
-    // REQ-PRT-005 covers an unknown *type* and an unknown *field*; a known field carrying a
-    // value from a newer peer is neither, so it lands here instead. It has to raise rather
-    // than resolve to some other case — a refusal decoded as the wrong refusal would put a
-    // sentence on the iPhone's screen that the Mac never said. Both ends discard and keep the
-    // line: the iPhone counts ten in a row before it reconnects, the Mac drops what it cannot
-    // read.
-    @Test func aValueThisVersionDoesNotKnowRaisesRatherThanDecodingToTheWrongCase() throws {
+    // REQ-PRT-005 exempts an unknown *type* and an unknown *field*, and an unknown value in `type`
+    // is an unknown message type itself — the test above is that first half, and decodes to nil.
+    // The exemption is a trade rather than a theorem: it puts "a later addition must not break an
+    // older device" ahead of the danger it knowingly takes on — quietly throwing away something
+    // whose meaning it cannot see — and the clause declines to widen that trade to values.
+    //
+    // Which clause answers is settled by precedence, not by kind. A value another clause or 10.2
+    // speaks for gets the answer that clause names: a `stableId` outside the current list is
+    // `taskNotFound` (REQ-TSK-036), a setting outside its range is `settingOutOfRange`
+    // (REQ-CFG-018). Nothing names an answer for `authFailed.code` or `command.action`, and that
+    // is what makes these two the broken ones. Bending either onto the case it most resembles
+    // would put a sentence on the iPhone's screen that the Mac never said, so nothing is left to
+    // read the message as — and a message that cannot be read is REQ-ERR-009's broken message.
+    // Where an unknown type decodes to nil and is not counted, this raises.
+    //
+    // Both ends discard the one message and keep the line; REQ-ERR-009 judges the line itself on
+    // a run of ten.
+    @Test func aValueNoClauseAnswersForRaisesRatherThanDecodingToTheWrongCase() throws {
         let refusal = """
         {"type":"authFailed","messageId":"m1","sentAt":"2023-11-14T22:13:20Z",
          "code":"someFutureRefusal","message":"someFutureRefusal(Mdoro:99)"}
@@ -93,7 +105,7 @@ struct MessageCodingTests {
             try MessageCoder.decodeServer(Data(refusal.utf8))
         }
 
-        // The same shape in the other direction: a command from a newer iPhone.
+        // The same shape in the other direction: an unknown value on a command's `action`.
         let command = """
         {"type":"command","messageId":"m2","sentAt":"2023-11-14T22:13:20Z",
          "clientRequestId":"r1","action":"someFutureAction"}
