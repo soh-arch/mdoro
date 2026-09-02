@@ -216,8 +216,9 @@ public enum AuthFailureCode: String, Error, Equatable, Sendable, Codable, CaseIt
     case pairingAttemptsExceeded
     case unknownDeviceToken
     // REQ-SEC-004: a connection already open is not a reason to refuse — it is the reason to
-    // ask. The answer is a refusal only when the user says no or nobody answers, and both of
-    // those are this.
+    // ask. A refusal resting on that question is the user declining or nobody answering in
+    // time, and both of those are this. Asking settles nothing else about the hello: what is
+    // wrong with the hello is refused as that, before the question or when the answer lands.
     case connectionRejectedByUser
 }
 
