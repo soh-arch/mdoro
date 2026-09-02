@@ -73,6 +73,11 @@ final class MdoroClient {
     // REQ-COM-005: when something last arrived. `Heartbeat.isStale` reads it against the clock
     // below, and nothing else does.
     private var lastReceivedAt: Date?
+    // REQ-COM-005: how many times the keepalive has come round. **Every other effect the loop has
+    // goes out through `link`** — the beat is sent on it, the silence is acted on by cancelling it
+    // — and a line let go is a `link` of nil, so without this counter a loop that is still turning
+    // and a loop that has stopped look exactly alike from outside.
+    private(set) var beats = 0
 
     private let deviceName = "iPhone"
     // POL-047 / Decision 0040: the Keychain is outside this process, and the suite runs inside
@@ -88,7 +93,7 @@ final class MdoroClient {
     // REQ-COM-005: how often a heartbeat goes out and the silence is looked at. The requirement's
     // five seconds is the default; a test shortens it so the wiring can be driven in milliseconds.
     // **The fifteen-second threshold is not here** — that is `Heartbeat.timeout`, shared with the Mac.
-    private let heartbeatInterval: TimeInterval
+    let heartbeatInterval: TimeInterval
 
     init(
         tokens: any TokenStoring = TokenKeychain(),
@@ -248,6 +253,10 @@ final class MdoroClient {
 
     // REQ-COM-005 / 007: a heartbeat and a time sync go out every five seconds, and the same
     // five seconds are when the silence coming the other way is looked at.
+    //
+    // REQ-COM-005: **the `timeSyncPing` goes out on every beat, unconditionally.** It is what the
+    // Mac answers, and its answer is the only thing that arrives on a line where nothing else is
+    // happening — see `endLineIfSilent`, which is what the silence would be read as.
     private func startKeepalive() {
         keepaliveTask?.cancel()
         let interval = heartbeatInterval
@@ -258,9 +267,13 @@ final class MdoroClient {
         keepaliveTask = Task { [weak self] in
             while !Task.isCancelled {
                 await MainActor.run {
-                    self?.send(.heartbeat)
-                    self?.send(.timeSyncPing(TimeSyncPayload(t1: Date())))
-                    self?.endLineIfSilent()
+                    // Cancellation can land while this hop is queued: a keepalive that has been
+                    // let go does not get to beat once more.
+                    guard !Task.isCancelled, let self else { return }
+                    self.beats += 1
+                    self.send(.heartbeat)
+                    self.send(.timeSyncPing(TimeSyncPayload(t1: Date())))
+                    self.endLineIfSilent()
                 }
                 try? await Task.sleep(for: .seconds(interval))
             }
@@ -268,6 +281,18 @@ final class MdoroClient {
     }
 
     // REQ-COM-005: fifteen seconds without anything arriving counts as disconnected.
+    //
+    // **This rests on something arriving on every beat of a line that is live**, and that is what
+    // makes silence mean the Mac is gone rather than that it had nothing to say. What arrives is
+    // the answer to the time sync: `startKeepalive` sends a `timeSyncPing` every beat and the Mac
+    // answers every `timeSyncPing` it receives (REQ-COM-007). **Both halves are load-bearing** —
+    // put a condition on either the ping or the answer and this watch cuts healthy connections
+    // one beat after every fifteen seconds of quiet.
+    //
+    // Nothing else can be counted on. State is sent only when it changes (REQ-COM-006), and 10.2
+    // gives the server no heartbeat of its own to send back. The WebSocket's own pong is not
+    // evidence either: `WebSocketLink` passes text and binary frames alone, so what reaches
+    // `handle` — and stamps `lastReceivedAt` — is always a protocol message.
     //
     // REQ-COM-004: **hanging up is all that happens here.** The line reports its own ending
     // (`MessageLink.cancel`) and the reconnect hangs off that one event, so silence climbs the

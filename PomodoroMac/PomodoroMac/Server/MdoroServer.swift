@@ -233,8 +233,11 @@ final class MdoroServer {
             send(.timeSyncPong(TimeSyncPayload(t1: payload.t1, t2: t2, t3: Date())), to: source)
 
         case .heartbeat:
-            // REQ-COM-005: 10.2 has no Server → Client heartbeat, so nothing is sent back.
-            // The client side judges liveness from the WebSocket ping/pong.
+            // REQ-COM-005: 10.2 has no Server → Client heartbeat, so nothing is sent back. The
+            // client judges liveness from receipt itself, and what reaches it on a line where
+            // nothing else is happening is the `timeSyncPong` above — **answered to every
+            // `timeSyncPing` that arrives** (REQ-COM-007). Put a condition on that answer and the
+            // phone reads a healthy connection as fifteen seconds of silence.
             lastHeartbeatAt = Date()
 
         case let .command(payload):

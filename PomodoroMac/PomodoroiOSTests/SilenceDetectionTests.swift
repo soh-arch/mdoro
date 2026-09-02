@@ -101,8 +101,8 @@ struct SilenceDetectionTests {
         )
         let line = try #require(links.opened.first)
         line.deliver(.ready)
-        // REQ-SEC-004: the Mac's answer to the hello. The connection stands from here, and so
-        // does the watch.
+        // REQ-SEC-001: the Mac's answer to the hello, carrying the device token. The connection
+        // stands from here, and so does the watch.
         line.deliver(try welcomeMessage())
         return client
     }
@@ -126,8 +126,18 @@ struct SilenceDetectionTests {
 
     // Long enough for many beats of `quickBeat` to have passed, which is what makes "it did not
     // happen" mean anything.
-    private func letTheBeatRun() async {
+    private func pause() async {
         try? await Task.sleep(for: .milliseconds(200))
+    }
+
+    // The same wait, with the beat counted on either side of it. **A watch that never ran would
+    // also cut nothing**, so every "it was not cut" below is measured against a loop that came
+    // round, looked at the silence, and let the line stand.
+    private func letTheBeatRun(of client: MdoroClient) async {
+        let before = client.beats
+        await pause()
+        #expect(await waitUntil({ client.beats > before }, upTo: 2),
+                "the keepalive never came round, so nothing that did not happen proves anything")
     }
 
     private func waitUntil(_ condition: () -> Bool, upTo seconds: TimeInterval) async -> Bool {
@@ -167,7 +177,7 @@ struct SilenceDetectionTests {
         let line = try #require(links.opened.first)
 
         clock.advance(by: Heartbeat.timeout - 1)
-        await letTheBeatRun()
+        await letTheBeatRun(of: client)
 
         #expect(line.cancels == 0, "a connection was cut a second before the requirement says to")
         #expect(links.opened.count == 1, "a live connection was replaced")
@@ -185,7 +195,7 @@ struct SilenceDetectionTests {
         clock.advance(by: Heartbeat.timeout - 1)
         line.deliver(try wellFormedMessage())
         clock.advance(by: Heartbeat.timeout - 1)
-        await letTheBeatRun()
+        await letTheBeatRun(of: client)
 
         #expect(line.cancels == 0, "twenty-eight seconds with a message in the middle were added up as silence")
 
@@ -207,7 +217,7 @@ struct SilenceDetectionTests {
         clock.advance(by: Heartbeat.timeout - 1)
         line.deliver(brokenMessage)
         clock.advance(by: Heartbeat.timeout - 1)
-        await letTheBeatRun()
+        await letTheBeatRun(of: client)
 
         #expect(line.cancels == 0, "a message that could not be read was counted as silence")
     }
@@ -222,27 +232,50 @@ struct SilenceDetectionTests {
         defer { client.disconnect() }
         let line = try #require(links.opened.first)
 
-        await letTheBeatRun()
+        // The clock is not moved: the watch runs many times over a connection no older than the
+        // milliseconds this test takes, and finds nothing to act on every time.
+        await letTheBeatRun(of: client)
 
         #expect(line.cancels == 0, "the connection was ended before a second of it had passed")
         #expect(links.opened.count == 1, "the connection was ended before a second of it had passed")
     }
 
     // The watch has the keepalive's lifetime: no connection, no watch.
+    //
+    // **The loop is watched here, not only what it would have done.** Everything the loop reaches
+    // for goes through `link`, which a disconnect clears in the same breath, so a loop left turning
+    // for the life of the app sends nothing and cancels nothing — and is invisible except in the
+    // count of its own rounds.
     @Test func nothingIsWatchedAfterDisconnect() async throws {
         let links = SilentLines()
         let clock = MovableClock()
         let client = try connectedClient(over: links, on: clock)
         let line = try #require(links.opened.first)
+        await letTheBeatRun(of: client)
 
         client.disconnect()
+        let beatsAtDisconnect = client.beats
         let cancelsAtDisconnect = line.cancels
         let sentAtDisconnect = line.sent.count
         clock.advance(by: Heartbeat.timeout * 4)
-        await letTheBeatRun()
+        await pause()
 
+        #expect(client.beats == beatsAtDisconnect, "the keepalive went on turning after disconnect")
         #expect(line.cancels == cancelsAtDisconnect, "a line nobody is holding was hung up on again")
         #expect(line.sent.count == sentAtDisconnect, "the keepalive went on beating after disconnect")
         #expect(links.opened.count == 1, "disconnect was followed by a reconnect")
+    }
+
+    // MARK: - The beat nobody sets
+
+    // REQ-COM-005: five seconds, wherever the beat is not being driven by a test. Every test above
+    // passes `heartbeatInterval` in, so this is the one place the production default is read.
+    // **The five seconds themselves are pinned on `Heartbeat.interval`**, which the Mac beats to
+    // as well (REQ-PRT-001).
+    @Test func theBeatIsFiveSecondsWhereNobodyHasShortenedIt() {
+        let client = MdoroClient(tokens: NoTokenHere(), links: SilentLines())
+
+        #expect(client.heartbeatInterval == Heartbeat.interval,
+                "the phone beats to something other than the interval the requirement names")
     }
 }
