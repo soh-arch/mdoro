@@ -68,7 +68,9 @@ struct TestHostTests {
     // the app at all. So the store it is handed under test has to hold nothing.
     @Test func theMacsModelIsBuiltWithNothingToRestore() throws {
         let app = withoutComments(try source("PomodoroMac/PomodoroMac/MdoroMacApp.swift"))
-        let construction = try #require(app.range(of: "var model ="))
+        // POL-116 moved the construction into `init` — the single-instance check has to run
+        // before the model exists, and a declaration's default value runs before an init body.
+        let construction = try #require(app.range(of: "_model = State(initialValue:"))
         let statement = app[construction.upperBound...].prefix(200)
         #expect(statement.contains("TestHost.isRunning"), "POL-047: the model is built the same way under test")
         #expect(
@@ -172,7 +174,7 @@ struct TestHostTests {
             "POL-047: the menu bar mark is inserted during the suite"
         )
         #expect(
-            app.contains("showsMenuBarExtra = !TestHost.isRunning"),
+            app.contains("_showsMenuBarExtra = State(initialValue: !TestHost.isRunning)"),
             "POL-047: whether the mark is inserted no longer depends on the test run"
         )
     }

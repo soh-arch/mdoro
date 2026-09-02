@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- POL-116: LSMultipleInstancesProhibited must NOT be added here. LaunchServices
+	     enforces it on the test host too — the suite runs inside MdoroMac.app, which shares
+	     this bundle identifier with the installed copy, so `xcodebuild test` dies at launch
+	     on any machine where Mdoro is running (observed 2026-09-02). The single-instance
+	     rule lives in MdoroMacApp.init, which covers every launch path and steps aside
+	     under test. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
