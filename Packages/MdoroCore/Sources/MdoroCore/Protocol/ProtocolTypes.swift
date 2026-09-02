@@ -215,7 +215,10 @@ public enum AuthFailureCode: String, Error, Equatable, Sendable, Codable, CaseIt
     case pairingModeNotActive
     case pairingAttemptsExceeded
     case unknownDeviceToken
-    case anotherClientConnected
+    // REQ-SEC-004: a connection already open is not a reason to refuse — it is the reason to
+    // ask. A refusal resting on that question is the user declining or nobody answering in
+    // time, and both of those are this. Asking settles nothing else about the hello: what is
+    // wrong with the hello is refused as that, before the question or when the answer lands.
     case connectionRejectedByUser
 }
 
@@ -225,6 +228,8 @@ public enum AuthFailureCode: String, Error, Equatable, Sendable, Codable, CaseIt
 // screen at all, in a shape nothing else in the app uses.
 //
 // 60–69 belong to this enum. Read the table in `ErrorCode.swift` before taking a number.
+// Decision 0034: the numbers are allocated, not counted off. A gap in them stays a gap —
+// closing it up would move a meaning onto a number an issue already names.
 extension AuthFailureCode: DiagnosableError {
 
     public var errorCode: ErrorCode {
@@ -233,7 +238,6 @@ extension AuthFailureCode: DiagnosableError {
         case .pairingModeNotActive: ErrorCode(own: 61)
         case .pairingAttemptsExceeded: ErrorCode(own: 62)
         case .unknownDeviceToken: ErrorCode(own: 63)
-        case .anotherClientConnected: ErrorCode(own: 64)
         case .connectionRejectedByUser: ErrorCode(own: 65)
         }
     }

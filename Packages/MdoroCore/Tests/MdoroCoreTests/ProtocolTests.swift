@@ -76,6 +76,33 @@ struct MessageCodingTests {
         #expect(payload.deviceName == "iPhone")
     }
 
+    // REQ-ERR-009: **a value this version does not know is a broken message, not a crash.**
+    //
+    // REQ-PRT-005 covers an unknown *type* and an unknown *field*; a known field carrying a
+    // value from a newer peer is neither, so it lands here instead. It has to raise rather
+    // than resolve to some other case — a refusal decoded as the wrong refusal would put a
+    // sentence on the iPhone's screen that the Mac never said. Both ends discard and keep the
+    // line: the iPhone counts ten in a row before it reconnects, the Mac drops what it cannot
+    // read.
+    @Test func aValueThisVersionDoesNotKnowRaisesRatherThanDecodingToTheWrongCase() throws {
+        let refusal = """
+        {"type":"authFailed","messageId":"m1","sentAt":"2023-11-14T22:13:20Z",
+         "code":"someFutureRefusal","message":"someFutureRefusal(Mdoro:99)"}
+        """
+        #expect(throws: DecodingError.self) {
+            try MessageCoder.decodeServer(Data(refusal.utf8))
+        }
+
+        // The same shape in the other direction: a command from a newer iPhone.
+        let command = """
+        {"type":"command","messageId":"m2","sentAt":"2023-11-14T22:13:20Z",
+         "clientRequestId":"r1","action":"someFutureAction"}
+        """
+        #expect(throws: DecodingError.self) {
+            try MessageCoder.decodeClient(Data(command.utf8))
+        }
+    }
+
     // REQ-PRT-006: a field standing for a duration is a whole number of seconds.
     @Test func durationsAreEncodedAsWholeSeconds() throws {
         let data = try MessageCoder.encoder.encode(Preset.standard(id: "p"))

@@ -302,7 +302,7 @@ final class MdoroServer {
     // **The hello is taken and deliberately not written.** The device name, the token and the
     // pairing code are all in hand at this exact moment; Decision 0018 keeps them out of the file
     // by never putting them in, not by masking them on the way out, and a test hands one of each
-    // in and reads the whole file back. What is left is one of six codes, which is what tells a
+    // in and reads the whole file back. What is left is the code alone, which is what tells a
     // stranger on an issue five wrong codes from a token this Mac no longer knows.
     func record(refusal code: AuthFailureCode, of hello: HelloPayload) {
         diagnostics.write("conn.refused", level: .warn, [DiagnosticField("why", code.diagnosticSummary)])

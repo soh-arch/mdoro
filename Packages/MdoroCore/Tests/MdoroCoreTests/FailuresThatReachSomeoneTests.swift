@@ -557,7 +557,7 @@ struct FailuresThatReachSomeoneTests {
         }
 
         // 10.2 / Decision 0035: the sentence the iPhone shows comes from the code, so none of
-        // this moved what a reader sees. `ConnectionViews` still owns those six.
+        // this moved what a reader sees. `ConnectionViews` still owns the wording.
         #expect(AuthFailedPayload(code: .invalidPairingCode).code == .invalidPairingCode)
         #expect(
             AuthFailedPayload(code: .invalidPairingCode).message
