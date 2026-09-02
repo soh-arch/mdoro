@@ -8,6 +8,15 @@ struct SingleInstanceTests {
     // The predicate is three conditions joined by "and"; each case below fails a different
     // one, so a mutation that drops or flips any single condition is caught.
 
+    @Test func twoProcessesWithNoBundleIdentifierAreStrangers() {
+        // A plain optional == would call two nils a match and step down on a guess.
+        // No identity on either side means no verdict at all.
+        #expect(!SingleInstance.isAnotherLiveInstance(
+            bundleIdentifier: nil, processIdentifier: 1, isTerminated: false,
+            ownBundleIdentifier: nil, ownProcessIdentifier: 2
+        ))
+    }
+
     @Test func aLiveProcessWithTheSameBundleIdIsAnotherInstance() {
         #expect(SingleInstance.isAnotherLiveInstance(
             bundleIdentifier: "com.sohta.MdoroMac",

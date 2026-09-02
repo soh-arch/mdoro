@@ -214,6 +214,18 @@ REQ-UIX-026 の「不可能」「サンドボックス上」は Apple の原文�
 
 ---
 
+## LaunchServices は plist の多重起動禁止をテストホストにも強制する
+
+**調査**: [0011](platform/0011-launchservices-enforces-the-plist-on-the-test-host.md) / **確認日**: 2026-09-02 / **対象**: macOS 26 / Xcode 26
+
+| 事実 | 確度 |
+| :---- | :---- |
+| `LSMultipleInstancesProhibited` は、同じ bundle id のテストホスト起動にも適用される —— 本物のアプリが起動中の機体でスイート全体が死ぬ | 実測 |
+
+**条文・コードとの食い違い**: 無し（POL-116 が plist 層を不採用にした根拠）。
+
+---
+
 ## 広告する側は、拒否を知らされない
 
 **調査**: [0010](platform/0010-the-advertiser-is-not-told-no.md) / **確認日**: 2026-09-02 / **対象**: macOS 26（TN3179 現行版 / 26.5 SDK）
