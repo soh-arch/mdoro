@@ -256,6 +256,9 @@
     "Identity" : {
 
     },
+    "If your iPhone cannot see this Mac, check that Mdoro is allowed in System Settings > Privacy & Security > Local Network. macOS does not tell Mdoro when that permission is off, so it cannot warn you itself." : {
+
+    },
     "In use" : {
 
     },

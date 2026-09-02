@@ -93,6 +93,15 @@ struct SettingsView: View {
                 Text("Your Mac's own name is never sent. Pairing survives a rename.")
                     .font(.footnote)
                     .foregroundStyle(theme.textSecondary)
+                // REQ-ERR-008 / `docs/platform/0010`: a Mac refused the local network permission
+                // still binds and listens as if nothing were wrong — only the advertisement goes
+                // invisible, and no API tells the advertiser. What cannot be detected cannot be
+                // shown conditionally, so the one guidance that exists stands here always, in the
+                // quiet voice of the lines above. The settings path is worded as REQ-ERR-014
+                // words it for macOS.
+                Text(String(localized: "If your iPhone cannot see this Mac, check that Mdoro is allowed in System Settings > Privacy & Security > Local Network. macOS does not tell Mdoro when that permission is off, so it cannot warn you itself."))
+                    .font(.footnote)
+                    .foregroundStyle(theme.textSecondary)
                 // REQ-CFG-013 (v2.27) / REQ-COL-001: the refusal, in the role every other
                 // cannot-do-that line on this screen wears.
                 if let displayNameError {
