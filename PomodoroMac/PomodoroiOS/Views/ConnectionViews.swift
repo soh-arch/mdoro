@@ -138,7 +138,6 @@ struct ConnectionBanner: View {
         case .pairingModeNotActive: return "Start pairing on your Mac"
         case .pairingAttemptsExceeded: return "Five wrong codes. Start pairing again on your Mac"
         case .unknownDeviceToken: return "This device is no longer registered. Pair again"
-        case .anotherClientConnected: return "Another device is connected"
         case .connectionRejectedByUser: return "Your Mac did not approve the connection"
         }
     }

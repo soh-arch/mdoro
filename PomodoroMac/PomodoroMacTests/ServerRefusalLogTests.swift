@@ -7,8 +7,8 @@ import MdoroCore
 //
 // "It will not pair" is the report, and until now nothing in the diagnostic log answered it.
 // Five wrong codes, a pairing window that had closed, a token this Mac no longer knows and a
-// request the user never answered all left the same silence — six refusals the reader cannot
-// see, on a screen that is not theirs.
+// request the user never answered all left the same silence — refusals the reader cannot see,
+// on a screen that is not theirs.
 //
 // The log is what they paste into an issue, so it is also the one place these must never carry
 // the device name, the token or the pairing code that were in hand at the moment of refusal.
@@ -65,9 +65,10 @@ private func hello(deviceName: String = "iPhone") -> HelloPayload {
 @MainActor
 struct ServerRefusalLogTests {
 
-    // All six, because the whole point is telling them apart. Walking `allCases` rather than a
-    // list here means a seventh refusal cannot be added without this saying something about it.
-    @Test func everyRefusalIsWrittenAndTheSixReadDifferently() throws {
+    // Every one of them, because the whole point is telling them apart. Walking `allCases`
+    // rather than a list here means a refusal cannot be added without this saying something
+    // about it.
+    @Test func everyRefusalIsWrittenAndTheyAllReadDifferently() throws {
         let recording = try recordRefusals { server in
             for code in AuthFailureCode.allCases {
                 server.record(refusal: code, of: hello())
