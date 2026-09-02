@@ -564,6 +564,85 @@ struct LogWriteQueueTests {
         let again = flushOne(queue, failing: true)
         #expect(again.shouldNotify, "REQ-ERR-004: trouble that starts again after it cleared is reported again")
     }
+
+    // REQ-ERR-004 / Decision 0039: the attempts that never reached the writing at all. Getting to
+    // the file can fail first — on macOS, resolving the bookmark for the log folder — and nothing
+    // of that path goes through `flush`. Counted nowhere, a folder that had gone away showed on the
+    // screen and never notified, however long it stayed away.
+    @Test func attemptsThatNeverReachedTheWritingStillReachTheThreshold() {
+        let queue = LogWriteQueue()
+        queue.enqueue(entry(), to: .configured)
+
+        #expect(!queue.recordFailedAttempt().shouldNotify)
+        #expect(!queue.recordFailedAttempt().shouldNotify)
+        let third = queue.recordFailedAttempt()
+
+        #expect(third.consecutiveFailures == LogWriteQueue.failureThreshold)
+        #expect(third.recentFailures == LogWriteQueue.failureThreshold)
+        #expect(third.shouldNotify, "REQ-ERR-004: three failed attempts in a row")
+        #expect(!queue.recordFailedAttempt().shouldNotify, "and the same trouble is told once")
+    }
+
+    // REQ-LOG-005: the entries are still owed to the file. Nothing was written, so nothing may be
+    // dropped — this path holds sessions whose `committedAt` is already set (REQ-LOG-019).
+    @Test func anAttemptThatNeverReachedTheWritingKeepsEveryEntry() {
+        let queue = LogWriteQueue()
+        queue.enqueue(entry(start: at(9, 0), end: at(9, 25)), to: .configured)
+        queue.enqueue(entry(start: at(10, 0), end: at(10, 25)), to: .configured)
+
+        let result = queue.recordFailedAttempt()
+        #expect(result.written == 0)
+        #expect(result.pending == 2)
+        #expect(queue.pendingEntries.map(\.startedAt) == [at(9, 0), at(10, 0)])
+        #expect(result.lastError == nil, "the failure did not come from LogWriter; the caller holds it")
+    }
+
+    // Decision 0039: one window, one run counter. The two entrances are the same event seen at
+    // different depths, so a failure counted by one has to be visible to the other — otherwise the
+    // threshold could be approached twice over and reached by neither.
+    @Test func failuresFromBothEntrancesShareTheWindowAndTheRun() {
+        let runOfThree = LogWriteQueue()
+        flushOne(runOfThree, failing: true)
+        runOfThree.recordFailedAttempt()
+        let mixedThird = flushOne(runOfThree, failing: true)
+        #expect(mixedThird.consecutiveFailures == LogWriteQueue.failureThreshold)
+        #expect(mixedThird.shouldNotify, "REQ-ERR-004: three in a row, whichever entrance they came through")
+
+        let comingAndGoing = LogWriteQueue()
+        comingAndGoing.enqueue(entry(), to: .configured)
+        comingAndGoing.recordFailedAttempt()
+        flushOne(comingAndGoing, failing: false)
+        comingAndGoing.enqueue(entry(), to: .configured)
+        comingAndGoing.recordFailedAttempt()
+        flushOne(comingAndGoing, failing: false)
+        comingAndGoing.enqueue(entry(), to: .configured)
+        let third = comingAndGoing.recordFailedAttempt()
+        #expect(third.consecutiveFailures == 1, "no run was ever built up")
+        #expect(third.recentFailures == LogWriteQueue.failureThreshold)
+        #expect(third.shouldNotify, "REQ-ERR-004: three of the last ten attempts, counted as one window")
+    }
+
+    // Decision 0039, the same reading `flush` gives an idle call: with nothing owed to the file,
+    // nothing was attempted. `flush` cannot lean on its callers to never ask, and neither can this.
+    @Test func anAttemptWithNothingQueuedIsNoEvidenceEitherWay() {
+        let queue = LogWriteQueue()
+
+        flushOne(queue, failing: true)
+        flushOne(queue, failing: false)
+        flushOne(queue, failing: true)
+        flushOne(queue, failing: false)
+
+        // The queue is empty here, so these were owed nothing.
+        var idle = queue.recordFailedAttempt()
+        for _ in 0 ..< 9 { idle = queue.recordFailedAttempt() }
+        #expect(idle.recentFailures == 2, "ten empty attempts did not push the two failures out")
+        #expect(idle.consecutiveFailures == 0)
+        #expect(!idle.shouldNotify)
+
+        let real = flushOne(queue, failing: true)
+        #expect(real.recentFailures == LogWriteQueue.failureThreshold)
+        #expect(real.shouldNotify, "REQ-ERR-004: the third real failure is still the third one")
+    }
 }
 
 // REQ-LOG-002 / Decision 0033. **Every user starts with no folder set**, so this is the state the

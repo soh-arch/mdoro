@@ -226,7 +226,7 @@ public final class LogWriteQueue: @unchecked Sendable {
         public var pending: Int
         // Kept for diagnostics: it tells steady failure apart from intermittent failure.
         public var consecutiveFailures: Int
-        // How many of the last `recentWindow` flushes failed, this one included.
+        // How many of the last `recentWindow` attempts failed, this one included.
         public var recentFailures: Int
         // A threshold was reached and the user has not been told about it yet.
         public var shouldNotify: Bool
@@ -292,20 +292,51 @@ public final class LogWriteQueue: @unchecked Sendable {
             }
         }
 
-        // Decision 0039: one outcome per flush, only the last `recentWindow` of them kept.
-        // A flush with nothing queued tried to write nothing, so it is evidence of neither success
-        // nor failure and stays out of the window. Letting it in would let idle flushes wash real
-        // failures out — ten of them now, where the old counter only ever lost two.
-        // `consecutiveFailures` is deliberately left alone: resetting on such a flush is how it
-        // behaved before this window existed, and only the window is being corrected here.
+        // Decision 0039: a flush with nothing queued tried to write nothing, so it is evidence of
+        // neither success nor failure and stays out of the window.
         let attemptedAWrite = written > 0 || lastError != nil
-        if attemptedAWrite {
-            recentOutcomes.append(lastError == nil ? .succeeded : .failed)
+        return settle(
+            outcome: attemptedAWrite ? (lastError == nil ? .succeeded : .failed) : nil,
+            written: written,
+            lastError: lastError
+        )
+    }
+
+    // REQ-ERR-004 / Decision 0039: **an attempt that failed before it could reach the writing.**
+    // Getting to the file can fail before a single entry is handed over — resolving the bookmark
+    // for the log folder, and starting access to it, both happen outside `flush`. Nothing is
+    // written and nothing leaves the queue, so from the user's side this is a failed write like any
+    // other, and REQ-ERR-004 counts **write attempts**, not lines. Left out of the count, a log
+    // folder that had gone away showed on the screen for as long as it stayed away and never once
+    // notified: `flush` was never entered, so no attempt on that path was ever counted.
+    //
+    // The caller keeps the error itself — it did not come from `LogWriter`, and `lastError` on the
+    // result stays nil. Everything else is the same accounting `flush` does, so this shares the
+    // window, the run counter, and the say-it-once suppression rather than keeping a second set.
+    @discardableResult
+    public func recordFailedAttempt() -> FlushResult {
+        lock.lock(); defer { lock.unlock() }
+        // With nothing owed to the file, nothing was attempted — the same reading `flush` gives a
+        // call that found the queue empty. `flush` cannot lean on its callers to never ask, and
+        // neither can this.
+        return settle(outcome: queue.isEmpty ? nil : .failed, written: 0, lastError: nil)
+    }
+
+    // The accounting both entrances share. `outcome` is nil when no write was attempted at all.
+    // The caller holds `lock`.
+    private func settle(outcome: FlushOutcome?, written: Int, lastError: LogWriteError?) -> FlushResult {
+        // Decision 0039: one outcome per attempt, only the last `recentWindow` of them kept.
+        // Letting attempts that wrote nothing in would let idle flushes wash real failures out —
+        // ten of them now, where the old counter only ever lost two.
+        if let outcome {
+            recentOutcomes.append(outcome)
             if recentOutcomes.count > Self.recentWindow {
                 recentOutcomes.removeFirst(recentOutcomes.count - Self.recentWindow)
             }
         }
-        consecutiveFailures = lastError == nil ? 0 : consecutiveFailures + 1
+        // `consecutiveFailures` is deliberately reset by an attempt that wrote nothing: that is how
+        // it behaved before the window existed, and only the window is being corrected here.
+        consecutiveFailures = outcome == .failed ? consecutiveFailures + 1 : 0
         let recentFailures = recentOutcomes.count(where: { $0 == .failed })
 
         // REQ-ERR-004: a run of three is the special case of three within the last ten, so the

@@ -255,3 +255,93 @@ struct UnsetLogDestinationTests {
         #expect(harness.lines("log.notRecorded").isEmpty, "this session was recorded; it just could not be written")
     }
 }
+
+// REQ-ERR-004 / Decision 0039. The other end of the same distinction: a folder **is** set, and
+// reaching it fails. The bookmark no longer resolves — the folder was deleted, renamed, or moved to
+// a volume that is not mounted — so `VaultFileAccess.withAccess` throws and the write never reaches
+// `LogWriteQueue.flush` at all.
+//
+// **That whole path used to go uncounted.** `logWriteFailed` was raised, so the screen said writing
+// had failed, while the threshold it is supposed to be counted against never moved: the
+// notification could not arrive however long the folder stayed gone. Decision 0039 asks that
+// failures which never build a run still be heard; this one never even built an attempt.
+@Suite("A log folder that cannot be reached (REQ-ERR-004 / Decision 0039)")
+@MainActor
+struct UnreachableLogFolderTests {
+
+    // Two sessions already owed to the file, so every flush below has something to attempt.
+    private func savedQueue() -> PersistedState {
+        let settings = AppSettings()
+        let preset = Preset.standard()
+        return PersistedState(
+            timer: .idle(now: Date(), settings: settings),
+            presets: PresetContext(presets: [preset], activePresetId: preset.id),
+            settings: settings,
+            pendingLogEntries: [entry(Date(), task: "task"), entry(Date(), task: "task")],
+            savedAt: Date()
+        )
+    }
+
+    @Test func threeFlushesThatCannotReachTheFolderNotifyExactlyOnce() {
+        let harness = Harness(logFolder: Harness.unreachableFolder, saved: savedQueue())
+        defer { harness.cleanUp() }
+
+        for _ in 0 ..< 3 { harness.model.flushLogQueue() }
+
+        #expect(harness.notifications.calls.count(where: { $0 == .logWriteFailure }) == 1,
+                "REQ-ERR-004: three failed attempts are told about, and told about once")
+        #expect(harness.model.logWriteFailed, "and the screen says so as well")
+        #expect(harness.model.lastLogError != nil)
+    }
+
+    // The threshold is three, so two attempts are not enough. Without this, counting every attempt
+    // as if it had already crossed would pass the test above.
+    @Test func twoFlushesThatCannotReachTheFolderSayNothingYet() {
+        let harness = Harness(logFolder: Harness.unreachableFolder, saved: savedQueue())
+        defer { harness.cleanUp() }
+
+        for _ in 0 ..< 2 { harness.model.flushLogQueue() }
+
+        #expect(!harness.notifications.calls.contains(.logWriteFailure),
+                "REQ-ERR-004: two failures are under the threshold")
+    }
+
+    // REQ-LOG-005: nothing was written, so nothing may be dropped. `committedAt` is already set on
+    // these sessions — lose them here and they are never written at all.
+    @Test func nothingLeavesTheQueueWhenTheFolderCannotBeReached() {
+        let harness = Harness(logFolder: Harness.unreachableFolder, saved: savedQueue())
+        defer { harness.cleanUp() }
+
+        for _ in 0 ..< 3 { harness.model.flushLogQueue() }
+
+        #expect(harness.model.pendingLogCount == 2)
+        #expect(harness.savedEntries.count == 2, "and they survive a restart")
+    }
+
+    // REQ-LOG-002 / Decision 0033: with no folder set, flushing repeatedly reports nothing — no
+    // failure on the screen, no notification. Every user starts in this state.
+    //
+    // **What this cannot test, and why nothing can.** It does not show that the counting stays out
+    // of the unset path, because the state that would tell the two apart does not exist: nothing an
+    // unset destination owns ever reaches the queue. `bookmarks.logFolder` only ever goes from unset
+    // to set (`setLogFolder` is its one writer), entries carried over from a state file are dropped
+    // before the queue is built, and `LogWriteQueue.enqueue` refuses the rest. So unset implies an
+    // empty queue, and an empty queue is nothing owed to the file — which `recordFailedAttempt`
+    // already reads as no attempt at all, wherever it is called from. The first assertion below is
+    // that implication, and it is what keeps REQ-ERR-004 away from here; the early return in
+    // `flushLogQueue` is an economy, not the thing that enforces it.
+    @Test func whileNoFolderIsSetNothingIsOwedToTheFileAndNothingIsReported() {
+        let harness = Harness(logFolder: nil, saved: savedQueue())
+        defer { harness.cleanUp() }
+
+        for _ in 0 ..< 5 { harness.model.flushLogQueue() }
+
+        #expect(harness.model.pendingLogCount == 0,
+                "REQ-LOG-002 / Decision 0033: two entries were carried in, and an unset folder took none of them")
+        #expect(!harness.model.logWriteFailed,
+                "Decision 0033: unset is not a failed write, however often writing is tried")
+        #expect(harness.model.lastLogError == nil)
+        #expect(!harness.notifications.calls.contains(.logWriteFailure),
+                "REQ-ERR-004 / Decision 0033: nothing was attempted, so nothing failed")
+    }
+}
