@@ -73,6 +73,16 @@ final class MdoroClient {
     // REQ-COM-005: when something last arrived. `Heartbeat.isStale` reads it against the clock
     // below, and nothing else does.
     private var lastReceivedAt: Date?
+    // REQ-COM-005: how many times the keepalive has come round. **Every other effect the loop has
+    // goes out through `link`** — the beat is sent on it, the silence is acted on by cancelling it
+    // — and a line let go is a `link` of nil, so a loop that is still turning and a loop that has
+    // stopped look alike from outside unless the rounds themselves are counted.
+    //
+    // The injected clock is read once a round too, and can be counted instead — **but only while
+    // `endLineIfSilent` reads it before it reaches for `link`.** Order those two the other way and
+    // the reading disappears for exactly the loop that must not be turning. **This count rests on
+    // no ordering of statements**: the round happened, or it did not.
+    private(set) var beats = 0
 
     private let deviceName = "iPhone"
     // POL-047 / Decision 0040: the Keychain is outside this process, and the suite runs inside
@@ -270,6 +280,9 @@ final class MdoroClient {
                     // queued behind it — so no cancellation reaches this hop by any path there is.
                     // The guard keeps that true of whatever path is added next.
                     guard !Task.isCancelled, let self else { return }
+                    // REQ-COM-005: the round is counted first, so that it is counted whatever the
+                    // rest of the body comes to do or not do.
+                    self.beats += 1
                     // REQ-COM-005: **the only message the Mac's watch counts.** `MdoroServer` moves
                     // `lastHeartbeatAt` on this and on accepting the connection, and on nothing
                     // else — a `timeSyncPing` does not move it. A beat that skips this one is
@@ -298,8 +311,10 @@ final class MdoroClient {
     //
     // Nothing else can be counted on. State is sent only when it changes (REQ-COM-006), and 10.2
     // gives the server no heartbeat of its own to send back. The WebSocket's own pong is not
-    // evidence either: `WebSocketLink` passes text and binary frames alone, so what reaches
-    // `handle` — and stamps `lastReceivedAt` — is always a protocol message.
+    // evidence either: `WebSocketLink` hands up text and binary frames and nothing else, so a
+    // control frame the transport answered by itself never reaches `handle` and never stamps
+    // `lastReceivedAt`. **What does reach it is whatever the peer put in a data frame, readable or
+    // not** — being unreadable is REQ-ERR-009's business, and it is proof of life all the same.
     //
     // REQ-COM-004: **hanging up is all that happens here.** The line reports its own ending
     // (`MessageLink.cancel`) and the reconnect hangs off that one event, so silence climbs the

@@ -232,10 +232,17 @@ final class MdoroServer {
             //
             // REQ-COM-005: **every ping is answered, with nothing asked of it first.** The phone
             // judges liveness from receipt itself, and on a line where nothing else is happening
-            // this answer is the only thing that reaches it. **The `guard source === connection`
-            // that `command` and `requestSnapshot` carry does not belong here** — nor does any
-            // other condition. Add one and the phone reads a healthy connection as fifteen seconds
-            // of silence and hangs up a beat later, with every test still green.
+            // this answer is the only thing that reaches it. Leave any ping unanswered and the
+            // phone reads a healthy connection as fifteen seconds of silence and hangs up a beat
+            // later, with every test still green.
+            //
+            // **The conditions that would do it are the ones that read as care.** A rate limit:
+            // the pings arrive one every five seconds by design (REQ-COM-005), so a limit any
+            // slower than the beat throws away answers that are owed. A look at the payload:
+            // `payload.t1` is the *phone's* wall clock, and the distance between the two clocks is
+            // the very thing this exchange is here to measure (REQ-COM-007 / 008) — refuse a `t1`
+            // that sits in this Mac's future and a phone whose clock runs ahead is never answered
+            // again. **Neither is a fault the phone can see; both are read as the Mac being gone.**
             let t2 = Date()
             send(.timeSyncPong(TimeSyncPayload(t1: payload.t1, t2: t2, t3: Date())), to: source)
 
