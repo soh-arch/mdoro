@@ -126,7 +126,7 @@ struct DialEndpointTests {
     // derived from the instance name. "Mdoro.local" is nobody.
     @Test func theDialIsTheDiscoveredServiceItself() {
         let discovered = server(named: "Mdoro", websocketPort: 51234)
-        let dialled = MdoroClient.dialEndpoint(for: discovered)
+        let dialled = WebSocketLinks.dialEndpoint(for: discovered)
 
         #expect(dialled == discovered.endpoint)
         guard case let .service(name, type, _, _)? = dialled else {
@@ -140,7 +140,7 @@ struct DialEndpointTests {
     // The service resolves to the port the advertisement rides on, so the TXT `ws` value —
     // kept for protocol compatibility — no longer gates the dial.
     @Test func aMissingTXTPortDoesNotStopTheDial() {
-        #expect(MdoroClient.dialEndpoint(for: server(named: "Mdoro", websocketPort: nil)) != nil)
+        #expect(WebSocketLinks.dialEndpoint(for: server(named: "Mdoro", websocketPort: nil)) != nil)
     }
 
     // Anything that is not a service was not discovered over Bonjour and is not dialled.
@@ -150,6 +150,6 @@ struct DialEndpointTests {
             endpoint: .hostPort(host: "Mdoro.local", port: 51234),
             websocketPort: 51234, serverId: .generate()
         )
-        #expect(MdoroClient.dialEndpoint(for: notDiscovered) == nil)
+        #expect(WebSocketLinks.dialEndpoint(for: notDiscovered) == nil)
     }
 }
