@@ -23,6 +23,12 @@ final class MdoroServer {
         // stale copy kept here.
         var provideDisplayName: () -> String
         var connectionChanged: (ConnectionState) -> Void
+        // Decision 0040 (judgement 5): the name the registration actually came back under, when
+        // it differs from the one asked for — mDNSResponder renamed it, which means another
+        // Mdoro shares this LAN. nil says the requested name stood. **Advisory only**: whether
+        // `serviceRegistrationUpdateHandler` fires is not on record (`docs/PLATFORM.md`), so
+        // nothing may depend on this arriving — a handler that stays silent only means no notice.
+        var advertisedNameChanged: (String?) -> Void = { _ in }
     }
 
     private(set) var listenPort: UInt16?
@@ -32,6 +38,10 @@ final class MdoroServer {
     private(set) var listener: NWListener?
     private(set) var connection: NWConnection?
     private(set) var connectedDeviceName: String?
+    // REQ-SEC-002 / Decision 0040: the token the current connection authenticated with, kept so
+    // a revocation can find it. The device name cannot serve — the record's copy is frozen at
+    // issue, and the hello's copy may since have changed.
+    private(set) var connectedTokenValue: String?
     private(set) var lastHeartbeatAt: Date?
 
     // POL-054 / REQ-ERR-010: a refused connection is the one thing that happens here and nowhere
@@ -80,6 +90,12 @@ final class MdoroServer {
         listener.newConnectionHandler = { [weak self] connection in
             Task { @MainActor in self?.accept(connection) }
         }
+        // Decision 0040 (judgement 5): set before the listener starts, so a registration that
+        // comes back renamed is not missed for arriving early. It reports nothing until
+        // `advertise` has said what name was asked for.
+        listener.serviceRegistrationUpdateHandler = { [weak self] change in
+            Task { @MainActor in self?.noteRegistration(change) }
+        }
         self.listener = listener
 
         let port = try await ListenerReadiness.awaitReady(listener, on: queue)
@@ -102,6 +118,7 @@ final class MdoroServer {
     // iPhone files its token under, and nothing rewrites that.
     func advertise(displayName: String, serverId: ServerID) {
         guard let listener, let port = listenPort else { return }
+        requestedServiceName = displayName
         listener.service = NWListener.Service(
             name: displayName,
             type: BonjourService.type,
@@ -123,7 +140,33 @@ final class MdoroServer {
         listener?.cancel()
         listener = nil
         connectedDeviceName = nil
+        connectedTokenValue = nil
+        requestedServiceName = nil
         listenPort = nil
+    }
+
+    // Decision 0040 (judgement 5): what name the registration actually came back under. The
+    // handler fires on the listener's queue; only an `.add` of this service type, compared
+    // against the name `advertise` asked for, is worth a word upward.
+    private var requestedServiceName: String?
+
+    private func noteRegistration(_ change: NWListener.ServiceRegistrationChange) {
+        guard case let .add(endpoint) = change,
+              case let .service(name, type, _, _) = endpoint,
+              type == BonjourService.type,
+              let requested = requestedServiceName else { return }
+        callbacks?.advertisedNameChanged(
+            BonjourService.alternateRegisteredName(registered: name, requested: requested)
+        )
+    }
+
+    // REQ-SEC-002 / Decision 0040 (judgement 4): a revoked token's connection does not stay up —
+    // the token is no longer valid, and staying connected would say otherwise. A different
+    // token's connection is left exactly alone.
+    func disconnect(tokenValue: String) {
+        guard connectedTokenValue == tokenValue, let connection else { return }
+        connection.cancel()
+        handleDisconnect(connection)
     }
 
     // MARK: - Connections
@@ -169,6 +212,7 @@ final class MdoroServer {
         guard closed === connection else { return }
         connection = nil
         connectedDeviceName = nil
+        connectedTokenValue = nil
         lastHeartbeatAt = nil
         callbacks?.connectionChanged(ConnectionState(isConnected: false))
     }
@@ -218,6 +262,7 @@ final class MdoroServer {
             connection?.cancel()
             connection = source
             connectedDeviceName = payload.deviceName
+            connectedTokenValue = token.value
             lastHeartbeatAt = Date()
             // Decision 0040: **the Mac's own name does not go out.** `Host.current().localizedName`
             // stood here, so a name with a person in it reached the iPhone, its Keychain and the
@@ -293,10 +338,10 @@ final class MdoroServer {
         // the user was deciding, and a re-authentication then refused the very hello being
         // approved.
         guard let decision = callbacks?.resolveApproval(true) else { return }
-        // Only on approval is the existing connection dropped.
-        connection?.cancel()
-        connection = nil
-        connectedDeviceName = nil
+        // Only an approval that ends in an accept drops the existing connection — `settle`'s
+        // accept branch folds it on its way in. POL-146 / REQ-SEC-004: an approval the
+        // Authenticator refused (the token was revoked while the question waited) keeps the
+        // standing connection, exactly as the Authenticator's own record of it is kept.
         settle(decision, of: pending.hello, from: pending.connection)
     }
 

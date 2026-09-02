@@ -100,8 +100,17 @@ struct SettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(theme.color(.danger, .text))
                 }
+                // Decision 0040 (judgement 5): another Mdoro on the LAN is the one moment a
+                // rename actually helps, so it is suggested only then — guidance, not a warning,
+                // in the same quiet voice as the two lines above.
+                if let alternate = model.advertisedAlternateName {
+                    Text("Another device on your network is using this name, so this Mac appears as “\(alternate)”. Renaming it here makes the two easier to tell apart.")
+                        .font(.footnote)
+                        .foregroundStyle(theme.textSecondary)
+                }
             }
             PairingSection()
+            PairedDevicesSection()
         }
         .formStyle(.grouped)
         // REQ-COM-003 (v2.25): this screen is what raises the server for a Mac with nothing

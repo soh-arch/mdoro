@@ -355,18 +355,49 @@ final class AppModel {
     // the item, and the load answered `[]` for a Keychain that merely refused to answer — so one
     // pairing made after a bad read replaced every record on file, and the next launch turned
     // every paired iPhone into an unknown one.
-    func saveIssuedDeviceTokens() {
+    // Returns what kept the records from being written, or nil for a save that landed —
+    // the revocation path puts the answer on the screen (Decision 0040 judgement 4).
+    @discardableResult
+    func saveIssuedDeviceTokens() -> ErrorCode? {
         if let unreadable = deviceRecordsUnreadable {
             diagnostics.write("tokens.save", level: .error, [
                 DiagnosticField("why", unreadable.summary("notWritten")),
             ])
-            return
+            return unreadable
         }
         if let problem = deviceTokens.save(authenticator.issuedTokens) {
             diagnostics.write("tokens.save", level: .error, [
                 DiagnosticField("why", problem.summary("saveFailed")),
             ])
+            return problem
         }
+        return nil
+    }
+
+    // REQ-SEC-002 / Decision 0040 (judgement 4): what the revocation screen lists — the whole
+    // record, because the value alone could never say what was being revoked.
+    var issuedDeviceTokens: [DeviceToken] { authenticator.issuedTokens }
+
+    // Decision 0040 (judgement 4): a removal whose save failed is a removal that may not stick.
+    // REQ-ERR-010: the screen gets the sentence; the code went to the diagnostic log.
+    private(set) var revocationProblem: String?
+
+    // Decision 0040 (judgement 4) / POL-123: the revocation the screen asks for. The record
+    // goes, the Keychain is told, the connection it authenticated does not stay up — and if it
+    // was the last record, the server has nothing left to run for (REQ-COM-003; the fold asks
+    // `stopServerIfNotNeeded`, so while the pairing screen this button lives on stays open, the
+    // server stays up and folds when the screen closes). REQ-UIX-004: with the last record gone,
+    // `showsConnectionState` turns false by itself — the deletion has a visible result.
+    func revokeDeviceToken(_ token: DeviceToken) {
+        authenticator.revoke(tokenValue: token.value)
+        // The token is no longer valid; a connection authenticated with it does not stay up.
+        server.disconnect(tokenValue: token.value)
+        revocationProblem = saveIssuedDeviceTokens() == nil ? nil : String(
+            localized: "The iPhone was removed for now, but the change could not be saved. It may be back the next time Mdoro opens."
+        )
+        // Decision 0018: the count, never the device name.
+        diagnostics.write("tokens.revoke", [DiagnosticField("left", authenticator.issuedTokens.count)])
+        stopServerIfNotNeeded()
     }
 
     // REQ-NTF-006 / Decision 0019: send one notification with the chosen settings exactly as they are.
@@ -705,6 +736,8 @@ final class AppModel {
         connection = .disconnected
         authenticator.connectedClientName = nil
         pendingConnectionRequest = nil
+        // Nothing is on the air, so there is no registered name to speak about.
+        advertisedAlternateName = nil
         // A deliberate fold is not a failure to listen; whatever failure line was showing is over.
         serverStartError = nil
         serverStartHint = nil
@@ -721,9 +754,15 @@ final class AppModel {
         // The fold at the top of `server.start` drops whatever was connected, without a callback —
         // and it runs whether or not the bind that follows succeeds. Noted before the call, so a
         // start that throws (a rename's restart, say) does not leave "Connected" standing over a
-        // listener that no longer exists.
+        // listener that no longer exists. POL-145 (fold variant): the fold also cancels a
+        // connection request kept waiting, so the banner asking about it comes down with it — an
+        // Allow pressed on it would answer nothing.
         connection = .disconnected
         authenticator.connectedClientName = nil
+        pendingConnectionRequest = nil
+        // The fold withdraws whatever was registered; what the next registration is called is
+        // its own news.
+        advertisedAlternateName = nil
         do {
             let websocketPort = try await server.start(callbacks: serverCallbacks())
             // The pairing screen may have closed while the bind was in flight; a server nothing
@@ -886,7 +925,14 @@ final class AppModel {
     // the Bonjour name; nothing outside this file writes it.
     private(set) var advertisedWebsocketPort: UInt16 = 0
 
-    private func serverCallbacks() -> MdoroServer.Callbacks {
+    // Decision 0040 (judgement 5): the name this Mac's registration actually came back under,
+    // when mDNSResponder renamed it — the one sign another Mdoro shares the LAN. Advisory: the
+    // settings screen mentions it, and a handler that never fires only means no mention.
+    private(set) var advertisedAlternateName: String?
+
+    // **Internal so that the wiring through these callbacks can be exercised without raising a
+    // listener** — the same reason `adoptStoredDeviceTokens()` and `startServerIfNeeded()` are.
+    func serverCallbacks() -> MdoroServer.Callbacks {
         MdoroServer.Callbacks(
             authenticate: { [weak self] hello in
                 guard let self else { return .reject(.connectionRejectedByUser) }
@@ -903,6 +949,11 @@ final class AppModel {
             },
             resolveApproval: { [weak self] approved in
                 guard let self else { return nil }
+                // POL-145: however the question was settled — the user's click already cleared
+                // this, the 60-second timeout arrives here as a denial and had nothing else to
+                // clear it — the banner asking it comes down. Left standing, it kept offering an
+                // Allow that answered nothing.
+                pendingConnectionRequest = nil
                 let decision = authenticator.resolveApproval(approved: approved, now: Date())
                 if case .accept = decision {
                     // The same bookkeeping as an accept out of `authenticate` above.
@@ -928,6 +979,9 @@ final class AppModel {
                 authenticator.connectedClientName = state.isConnected ? state.peerDeviceName : nil
                 // Neither the device name nor the IP is written.
                 diagnostics.write("conn", [DiagnosticField("up", state.isConnected)])
+            },
+            advertisedNameChanged: { [weak self] name in
+                self?.advertisedAlternateName = name
             }
         )
     }
