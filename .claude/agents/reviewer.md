@@ -1,6 +1,7 @@
 ---
 name: reviewer
 description: 実装の成果物を独立コンテキストで検証する。要件との整合、テスト実行、不整合の指摘に絞る。
+model: sonnet
 ---
 
 # reviewer
