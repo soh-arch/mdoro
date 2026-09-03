@@ -58,6 +58,12 @@ Xcode プロジェクト: `./PomodoroMac/PomodoroMac.xcodeproj`
 (cd Packages/MdoroCore && swift test)
 ```
 
+**`xcbeautify` は任意である。** ログを読みやすくするだけで、ビルドの結果は変わらない。
+入れるなら `brew install xcbeautify`。入れないなら `| xcbeautify` ごと落とす ——
+**初回 clone の機体には入っておらず、残したままだと `command not found` になる。
+パイプラインの終了コードは末尾のコマンドのものなので、コマンド全体が失敗として返る**
+（`set -o pipefail` は関係ない。あれが効くのは `xcodebuild` が失敗した側を拾うためである）。
+
 ### macOS アプリ
 
 ```bash

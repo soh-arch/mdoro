@@ -42,6 +42,13 @@ needs no Xcode project.
 (cd Packages/MdoroCore && swift test)
 ```
 
+**`xcbeautify` is optional.** It only makes the log readable; the build is the same without
+it. Install it with `brew install xcbeautify`, or drop the `| xcbeautify` from these
+commands — a fresh machine does not have it, and leaving the pipe in gives
+`command not found`, which is the exit status of the whole command because xcbeautify is
+its last stage. (`set -o pipefail` is there for the other direction: a failing
+`xcodebuild` behind a formatter that exits cleanly.)
+
 macOS app:
 
 ```bash
