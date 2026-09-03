@@ -1030,6 +1030,15 @@ final class AppModel {
                 reject(.missingParameter(.settings), command)
                 return
             }
+            // REQ-CFG-018: a number that reads perfectly well but sits outside 9.3's range is
+            // refused the same way, and for the same reason it has to happen here. `didSet` puts
+            // the value back when the range turns it down, and it does so with no request to
+            // answer — so before this guard existed the iPhone got the old settings back in a
+            // snapshot and no reply at all to the one it sent.
+            guard updated.isWithinValidRanges() else {
+                reject(.valueOutOfRange(.settings), command)
+                return
+            }
             // didSet does the validating, the persisting and the passing on to the state machine together
             settings = updated
             broadcastState()

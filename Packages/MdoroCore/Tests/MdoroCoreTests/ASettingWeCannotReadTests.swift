@@ -15,6 +15,14 @@ import Foundation
 // case it resembles, and REQ-CFG-013 forbids a setting changing without the reader being told; a
 // default put in its place would do both at once.
 //
+// **A number no type here can hold is the same kind of thing**, and reaches the same answer:
+// `4.5` for an hour, a figure past `Int`, `-1` for a `UInt16`. It arrives by a different route —
+// the JSON parser gives up on the literal before any of our types is asked for a value, and what
+// it raises is not a `DecodingError` (`docs/platform/0012`) — so the two are caught by different
+// clauses and land in the same place. **A number that is merely malformed does not join them**
+// (`01`, `1e`): those bytes are not a value at all, and REQ-ERR-009 has them discarded and
+// counted.
+//
 // The state file is the other reader of these same types, and it must keep throwing: Decision 0036
 // and REQ-ERR-017 set an unreadable file aside rather than write over it, and a lenient read would
 // call the file understood and save on top of what was in it.
@@ -49,6 +57,27 @@ private func presetJSON(sound: String = "chime", preNotifications: String = "[]"
      "notificationSound":"\(sound)","timeSensitiveNotifications":false,
      "preNotifications":\(preNotifications),"isBuiltInDefault":false}
     """
+}
+
+// The two ways a settings value can be one this version cannot make a value of. On the wire each
+// earns an answer; in the state file each has to keep throwing.
+enum UnreadableSetting: CaseIterable, Sendable {
+    case anEnumCaseThisVersionDoesNotHave
+    case aNumberNoTypeHereCanHold
+
+    var field: String {
+        switch self {
+        case .anEnumCaseThisVersionDoesNotHave: "appearance"
+        case .aNumberNoTypeHereCanHold: "logicalDayStartHour"
+        }
+    }
+
+    var value: Any {
+        switch self {
+        case .anEnumCaseThisVersionDoesNotHave: "sepia"
+        case .aNumberNoTypeHereCanHold: 4.5
+        }
+    }
 }
 
 private func translate(_ command: CommandPayload) -> Result<TimerAction, CommandTranslation.Failure> {
@@ -108,23 +137,59 @@ struct ASettingWeCannotReadTests {
         #expect(translate(command) == .failure(.valueOutOfRange(.preset)))
     }
 
-    // REQ-PRT-005 / REQ-ERR-009: **a number the field's type cannot hold does not reach the answer
-    // above — it is a broken message.** `4.5` for an hour, a figure past `Int`, `-1` for a
-    // `UInt16`: the JSON parser gives up on the number itself before any of our types is asked to
-    // make a value of it, and what it raises is not a `DecodingError` at the point the settings
-    // are read, so it goes past the catch. `JSONDecoder` wraps it as `dataCorrupted` on the way
-    // out, which is what a reader looking only at the top of the stack sees.
-    //
-    // **The distinction the catch actually draws is therefore narrower than the error name
-    // suggests**, and this test is here to say so out loud: whether such a number ought to be
-    // answered for is a question about behaviour, and nothing in this change decided it.
-    @Test func aNumberTheTypeCannotHoldIsStillABrokenMessage() {
+    // REQ-CFG-018 / REQ-PRT-005: **a number no type here can hold is answered for like any other
+    // value this version cannot make sense of.** `4.5` for an hour, a figure past `Int`, `-1` for
+    // a `UInt16`. It used to take the whole command down: the parser gives up on the literal
+    // before any of our types is asked to make a value of it, and what it raises is not a
+    // `DecodingError` (`docs/platform/0012`), so it went straight past the clause that catches an
+    // unknown enum case — and the iPhone waited on an answer REQ-CFG-018 requires.
+    @Test func aNumberNoTypeHereCanHoldIsAnsweredForRatherThanDropped() throws {
         for params in [
             #""settings":{"logicalDayStartHour":4.5}"#,
             #""settings":{"logicalDayStartHour":99999999999999999999999}"#,
             #""settings":{"pauseResumeHotKey":{"keyCode":-1,"modifierFlags":1048576,"displayName":"X"}}"#,
         ] {
-            #expect(throws: DecodingError.self) {
+            let command = try decodeCommand(
+                commandJSON(action: "updateSettings", requestId: "r4", params: params)
+            )
+            // The answer is owed to this id, and the id survives because the value was read apart.
+            #expect(command.clientRequestId == "r4")
+            #expect(command.params?.unreadableValues == [.settings], "\(params)")
+            // REQ-PRT-005 / REQ-CFG-013: nothing was put in its place.
+            #expect(command.params?.settings == nil, "\(params)")
+
+            guard case let .failure(failure) = translate(command) else {
+                Issue.record("REQ-CFG-018: the command was accepted and the settings applied: \(params)")
+                return
+            }
+            #expect(failure == .valueOutOfRange(.settings))
+            #expect(failure.protocolErrorCode == .settingOutOfRange)
+        }
+    }
+
+    // 9.3 keeps the sound and the session lengths on the preset, so the same number arrives by the
+    // other door too.
+    @Test func aNumberNoTypeHereCanHoldIsAnsweredForOnThePresetItRodeIn() throws {
+        let preset = presetJSON().replacingOccurrences(of: #""workSeconds":1500"#, with: #""workSeconds":1500.5"#)
+        let command = try decodeCommand(commandJSON(action: "updatePreset", requestId: "r5", params: preset))
+        #expect(command.clientRequestId == "r5")
+        #expect(command.params?.unreadableValues == [.preset])
+        #expect(command.params?.preset == nil)
+        #expect(translate(command) == .failure(.valueOutOfRange(.preset)))
+    }
+
+    // REQ-PRT-005 / REQ-ERR-009: **a number that is not a number is still a broken message**, and
+    // the parser raises the same kind of error for it as for one that will not fit. The catch that
+    // answers for the second must not be widened to the error type, or bytes nobody could read
+    // would come back as "the setting is outside the allowed range". Reading the field again as
+    // untyped JSON is what keeps the two apart.
+    @Test func aMalformedNumberIsStillABrokenMessage() {
+        for params in [
+            #""settings":{"logicalDayStartHour":01}"#,
+            #""settings":{"logicalDayStartHour":1e}"#,
+            #""settings":{"idleResetHours":--3}"#,
+        ] {
+            #expect(throws: (any Error).self, "\(params)") {
                 try MessageCoder.decodeClient(Data(commandJSON(action: "updateSettings", params: params).utf8))
             }
         }
@@ -161,7 +226,10 @@ struct ASettingWeCannotReadTests {
     }
 
     // REQ-CFG-018: a number outside its range reads perfectly well — it is the range that refuses
-    // it (`isWithinValidRanges`), and that path is untouched by the reading above.
+    // it (`isWithinValidRanges`), and that path is untouched by the reading above. The shared
+    // translator converts shapes and decides nothing about ranges, so it hands the command on;
+    // the Mac never asks it about settings anyway. **Where the range refuses is `AppModel`**, and
+    // the test after this one is what pins it.
     @Test func aNumberOutsideItsRangeStillReadsAndIsStillOutOfRange() throws {
         let command = try decodeCommand(
             commandJSON(action: "updateSettings", params: #""settings":{"logicalDayStartHour":23}"#)
@@ -170,8 +238,26 @@ struct ASettingWeCannotReadTests {
         #expect(settings.logicalDayStartHour == 23, "a value with a case here is read as it arrived")
         #expect(command.params?.unreadableValues.isEmpty == true)
         #expect(!settings.isWithinValidRanges(), "REQ-CFG-018: 9.3 allows 0 to 12")
-        // It is a readable command, so it reaches the state machine; the range is what stops it.
         #expect(translate(command) == .success(.updateSettings(settings)))
+    }
+
+    // REQ-CFG-018: **the range has to answer, not just refuse.** The value was already kept out —
+    // `didSet` puts the old settings back when the range turns the new ones down — but it did that
+    // with no request in hand, so the iPhone got nothing back at all for the command it sent. The
+    // answer is owed to a `clientRequestId`, and only `apply` still has one.
+    @Test func theMacAnswersForANumberOutsideItsRangeBeforeItIsApplied() throws {
+        let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
+        let block = try #require(appModel.components(separatedBy: "case .updateSettings:").last)
+        let range = try #require(
+            block.range(of: "isWithinValidRanges()"),
+            "REQ-CFG-018: an out-of-range number is applied, or refused with no answer sent"
+        )
+        let refusal = try #require(
+            block.range(of: "valueOutOfRange(.settings)", range: range.upperBound..<block.endIndex),
+            "REQ-CFG-018: the range turns the value down without settingOutOfRange going back"
+        )
+        let application = try #require(block.range(of: "settings = updated"))
+        #expect(refusal.upperBound < application.lowerBound, "the answer comes after the value is applied")
     }
 
     // REQ-CFG-018: the refusal has to name the request that carried the value, and on the Mac that
@@ -201,7 +287,8 @@ struct ASettingWeCannotReadTests {
     // REQ-ERR-017 / Decision 0036: **the state file reads the same types and must keep throwing.**
     // Reading it leniently would call an unreadable file understood, and the next save would write
     // over the very bytes the reader is told to go and fetch.
-    @Test func aStateFileCarryingSuchAValueIsStillSetAsideRatherThanRead() throws {
+    @Test(arguments: UnreadableSetting.allCases)
+    func aStateFileCarryingSuchAValueIsStillSetAsideRatherThanRead(_ setting: UnreadableSetting) throws {
         let directory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("MdoroUnreadableSetting-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -214,7 +301,7 @@ struct ASettingWeCannotReadTests {
             try JSONSerialization.jsonObject(with: try Data(contentsOf: url)) as? [String: Any]
         )
         var settings = try #require(object["settings"] as? [String: Any])
-        settings["appearance"] = "sepia"
+        settings[setting.field] = setting.value
         object["settings"] = settings
         try JSONSerialization.data(withJSONObject: object).write(to: url)
 

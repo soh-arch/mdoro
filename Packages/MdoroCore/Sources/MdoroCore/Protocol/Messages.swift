@@ -26,10 +26,10 @@ public struct CommandParams: Equatable, Sendable, Codable {
     public var preset: Preset?
     public var orderedIds: [String]?
     public var settings: AppSettings?
-    // REQ-CFG-018 / REQ-PRT-005: the fields whose value has no case here — an `appearance`, a
-    // `menuBarDisplayMode` or a `notificationSound` a later version added. **The value is left
-    // out rather than stood in for**, and the command is refused with `settingOutOfRange`
-    // (`CommandTranslation`).
+    // REQ-CFG-018 / REQ-PRT-005: the fields this version cannot make a value of — an `appearance`,
+    // a `menuBarDisplayMode` or a `notificationSound` a later version added, or a number no type
+    // here can hold (`"logicalDayStartHour":4.5`). **The value is left out rather than stood in
+    // for**, and the command is refused with `settingOutOfRange` (`CommandTranslation`).
     //
     // It is read apart from the rest of the command because the refusal is owed to a
     // `clientRequestId` that sits in the same object: taking the whole command down leaves the
@@ -73,23 +73,31 @@ public struct CommandParams: Equatable, Sendable, Codable {
         unreadableValues = unreadable
     }
 
-    // REQ-PRT-005: **a value with no case here is answered for; a message that does not hold
-    // together is not.**
+    // REQ-PRT-005: **a value this version cannot make sense of is answered for; a message that
+    // does not hold together is not.** Both arrive here as a throw out of one field's read, and
+    // the whole of the difference is which of them it was.
     //
-    // What is caught is a `DecodingError.dataCorrupted` raised while reading this field — which,
-    // for the types on the other side of it, means one thing: a raw value none of an enum's cases
-    // matches (`"appearance":"sepia"`, `"notificationSound":"gamelan"`, a pre-notification's
-    // `type`). REQ-CFG-018 names the answer that value is owed.
+    // Two kinds of throw are the first sort, and REQ-CFG-018 names the answer both are owed:
+    //
+    // - `DecodingError.dataCorrupted`, which for the types on the other side of this means a raw
+    //   value none of an enum's cases matches (`"appearance":"sepia"`,
+    //   `"notificationSound":"gamelan"`, a pre-notification's `type`).
+    // - **a number no Swift type on the other side can hold** — `4.5` for an hour, `-1` for a
+    //   `UInt16`, a figure past `Int`. The JSON parser gives up on the literal itself before any
+    //   type here is asked to make a value of it, and what it raises is not a `DecodingError`
+    //   (`docs/platform/0012`), so the clause above never sees it. `JSONDecoder` wraps it as
+    //   `dataCorrupted` on the way out, which is all a reader at the top of the stack is shown.
     //
     // Everything else says the message itself does not hold together — a number where an object
-    // belongs, a field the value cannot do without (`typeMismatch`, `keyNotFound`) — and stays
-    // what it was: discarded and counted (REQ-ERR-009).
+    // belongs, a field the value cannot do without (`typeMismatch`, `keyNotFound`), a field whose
+    // bytes are not JSON at all — and stays what it was: discarded and counted (REQ-ERR-009).
     //
-    // **A number the field's type cannot hold falls on that second side, despite how it reads
-    // from the outside.** `4.5` for an hour or `-1` for a `UInt16` fails in the JSON parser
-    // before any type here is asked for a value, and what it throws is not a `DecodingError`, so
-    // it passes this catch untouched; `JSONDecoder` only wraps it as `dataCorrupted` at the top.
-    // The test suite pins that, because the wrapper makes the two look alike from a stack trace.
+    // **The second clause is not "anything that is not a `DecodingError`".** The parser raises the
+    // same kind of error for a number it cannot represent and for a number that is malformed
+    // (`01`, `1e`), and only the first of those is a value; the second is a broken message. What
+    // tells them apart is reading the field a second time as untyped JSON: well-formed bytes whose
+    // number would not fit make it through, malformed bytes do not. Widening the catch to the
+    // error type instead would answer `settingOutOfRange` to bytes nobody could read.
     private static func value<T: Decodable>(
         _ type: T.Type,
         forKey key: CodingKeys,
@@ -103,7 +111,45 @@ public struct CommandParams: Equatable, Sendable, Codable {
             guard case .dataCorrupted = error else { throw error }
             unreadable.insert(parameter)
             return nil
+        } catch let parserError {
+            do {
+                _ = try container.decodeIfPresent(WellFormedJSON.self, forKey: key)
+            } catch {
+                throw parserError
+            }
+            unreadable.insert(parameter)
+            return nil
         }
+    }
+}
+
+// Reads any well-formed JSON and keeps none of it: the only question it answers is whether the
+// field is JSON at all, which is what separates a number that will not fit from bytes that are
+// not a number (`CommandParams.value`). Nothing else decodes through it.
+private struct WellFormedJSON: Decodable {
+    private struct AnyKey: CodingKey {
+        let stringValue: String
+        var intValue: Int? { nil }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { nil }
+    }
+
+    init(from decoder: Decoder) throws {
+        if let object = try? decoder.container(keyedBy: AnyKey.self) {
+            for key in object.allKeys { _ = try object.decode(WellFormedJSON.self, forKey: key) }
+            return
+        }
+        if var array = try? decoder.unkeyedContainer() {
+            while !array.isAtEnd { _ = try array.decode(WellFormedJSON.self) }
+            return
+        }
+        let value = try decoder.singleValueContainer()
+        if value.decodeNil() { return }
+        if (try? value.decode(Bool.self)) != nil { return }
+        if (try? value.decode(String.self)) != nil { return }
+        // A number is the only literal left, and the one the parser can still refuse. `Double`
+        // is asked for so that the refusal is about the bytes rather than about the field's type.
+        _ = try value.decode(Double.self)
     }
 }
 
