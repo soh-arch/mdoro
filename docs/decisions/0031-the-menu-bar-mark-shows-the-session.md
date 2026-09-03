@@ -76,7 +76,7 @@ Mac 側では「常態を警告し続ける」表示になっていた。** こ�
   要件数は変わらない
 - **コード**: `MdoroCore/MenuBarMark.swift`（実行状態 → 印）、
   `ConnectionStatus.menuBarSymbolName` と `menuBarUsesAppMark` を削除、
-  `PomodoroMac/Views/MenuBarViews.swift`（印を常時表示し、ドロップダウンに1行追加）
+  `PomodoroMac/PomodoroMac/Views/MenuBarViews.swift`（印を常時表示し、ドロップダウンに1行追加）
 - **アセット**: `MenuBarIdle` / `MenuBarRunning` / `MenuBarPaused` の3つ。
   正本は `docs/images/icons/mdoro-menubar-{idle,running-60,paused}.svg`
 - **読み上げ**: 印が形で示す実行状態を、メニューバーのアクセシビリティラベルにも載せた
