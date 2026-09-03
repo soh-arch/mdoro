@@ -97,8 +97,9 @@ struct BrokenMessageWiringTests {
         try MessageCoder.encode(Envelope(body: ServerMessage.timeSyncPong(TimeSyncPayload(t1: Date()))))
     }
 
-    // The Mac's answer to the hello (REQ-SEC-004). **The one message that proves the line carries
-    // this protocol**, which is why REQ-COM-004 winds the backoff back on it and on nothing else.
+    // The Mac's answer to the hello, carrying the device token (REQ-SEC-001). **The one message
+    // that proves the line carries this protocol**, which is why REQ-COM-004 winds the backoff
+    // back on it and on nothing else.
     private func welcomeMessage() throws -> Data {
         try MessageCoder.encode(Envelope(body: ServerMessage.welcome(
             WelcomePayload(deviceToken: "a token this test throws away", serverName: "Mdoro")

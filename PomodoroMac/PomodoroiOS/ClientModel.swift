@@ -41,7 +41,10 @@ final class ClientModel {
     // POL-047 / Decision 0040: the Keychain is outside this process. **The default is the same
     // as production**, and only when it is replaced does a test write into the reader's own.
     private let tokens: any TokenStoring
-    private let client: MdoroClient
+    // **Where the client the app runs is made.** REQ-COM-005's five seconds are whatever is — or,
+    // as here, is not — passed to it, so `SilenceDetectionTests` reads the interval back off this
+    // property rather than off a client it built to the same initializer.
+    let client: MdoroClient
     private let notifications = NotificationScheduler()
     private let liveActivity = LiveActivityController()
     // REQ-UIX-020 gates the Live Activity's start on this; facts: docs/PLATFORM.md.
