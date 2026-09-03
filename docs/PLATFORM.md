@@ -214,6 +214,21 @@ REQ-UIX-026 の「不可能」「サンドボックス上」は Apple の原文�
 
 ---
 
+## 型に収まらない数は `DecodingError` ではない
+
+**調査**: [0012](platform/0012-a-number-the-type-cannot-hold-is-not-a-decoding-error.md) / **確認日**: 2026-09-03 / **対象**: Foundation の `JSONDecoder`（Swift 6.3 / macOS 26）
+
+| 事実 | 確度 |
+| :---- | :---- |
+| JSON の数が Swift の型に収まらないとき、**ネストした復号の catch に届くのは `JSONError` であって `DecodingError` ではない**。`catch let error as DecodingError` は素通りする | 実測（最小再現あり） |
+| **外から見ると `dataCorrupted` に見える** —— `JSONDecoder.decode` が最後に包むため。スタックの一番外で型を見て分岐を推定すると読み違える | 実測 |
+| 列挙型に無い raw 値は `DecodingError.dataCorrupted`、型違いは `typeMismatch`。**これらは catch に届く** | 実測 |
+
+**依拠する条文**: REQ-PRT-005。「この版に case が無い列挙値だけを拾う」という線引きを `DecodingError` の型で表現している以上、**何が `DecodingError` で何がそうでないかは条文の射程そのものである。**
+**同じ場所で2回読み違えた**（検証役が外側の型を見て誤り、実装役が実経路で覆した）。
+
+---
+
 ## LaunchServices は plist の多重起動禁止をテストホストにも強制する
 
 **調査**: [0011](platform/0011-launchservices-enforces-the-plist-on-the-test-host.md) / **確認日**: 2026-09-02 / **対象**: macOS 26 / Xcode 26

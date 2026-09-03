@@ -26,11 +26,21 @@ public struct CommandParams: Equatable, Sendable, Codable {
     public var preset: Preset?
     public var orderedIds: [String]?
     public var settings: AppSettings?
+    // REQ-CFG-018 / REQ-PRT-005: the fields whose value has no case here — an `appearance`, a
+    // `menuBarDisplayMode` or a `notificationSound` a later version added. **The value is left
+    // out rather than stood in for**, and the command is refused with `settingOutOfRange`
+    // (`CommandTranslation`).
+    //
+    // It is read apart from the rest of the command because the refusal is owed to a
+    // `clientRequestId` that sits in the same object: taking the whole command down leaves the
+    // iPhone waiting on an answer REQ-CFG-018 requires.
+    public var unreadableValues: Set<CommandTranslation.Parameter>
 
     public init(
         sessionType: SessionType? = nil, decision: ConfirmDecisionWire? = nil,
         stableId: String? = nil, presetId: String? = nil, preset: Preset? = nil,
-        orderedIds: [String]? = nil, settings: AppSettings? = nil
+        orderedIds: [String]? = nil, settings: AppSettings? = nil,
+        unreadableValues: Set<CommandTranslation.Parameter> = []
     ) {
         self.sessionType = sessionType
         self.decision = decision
@@ -39,6 +49,61 @@ public struct CommandParams: Equatable, Sendable, Codable {
         self.preset = preset
         self.orderedIds = orderedIds
         self.settings = settings
+        self.unreadableValues = unreadableValues
+    }
+
+    // 10.2: the fields a `command` carries. `unreadableValues` is not one of them — it is what
+    // this end made of what arrived, so it is neither read from the wire nor written to it.
+    private enum CodingKeys: String, CodingKey {
+        case sessionType, decision, stableId, presetId, preset, orderedIds, settings
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        sessionType = try c.decodeIfPresent(SessionType.self, forKey: .sessionType)
+        decision = try c.decodeIfPresent(ConfirmDecisionWire.self, forKey: .decision)
+        stableId = try c.decodeIfPresent(String.self, forKey: .stableId)
+        presetId = try c.decodeIfPresent(String.self, forKey: .presetId)
+        orderedIds = try c.decodeIfPresent([String].self, forKey: .orderedIds)
+        var unreadable: Set<CommandTranslation.Parameter> = []
+        preset = try Self.value(Preset.self, forKey: .preset, as: .preset,
+                                from: c, unreadable: &unreadable)
+        settings = try Self.value(AppSettings.self, forKey: .settings, as: .settings,
+                                  from: c, unreadable: &unreadable)
+        unreadableValues = unreadable
+    }
+
+    // REQ-PRT-005: **a value with no case here is answered for; a message that does not hold
+    // together is not.**
+    //
+    // What is caught is a `DecodingError.dataCorrupted` raised while reading this field — which,
+    // for the types on the other side of it, means one thing: a raw value none of an enum's cases
+    // matches (`"appearance":"sepia"`, `"notificationSound":"gamelan"`, a pre-notification's
+    // `type`). REQ-CFG-018 names the answer that value is owed.
+    //
+    // Everything else says the message itself does not hold together — a number where an object
+    // belongs, a field the value cannot do without (`typeMismatch`, `keyNotFound`) — and stays
+    // what it was: discarded and counted (REQ-ERR-009).
+    //
+    // **A number the field's type cannot hold falls on that second side, despite how it reads
+    // from the outside.** `4.5` for an hour or `-1` for a `UInt16` fails in the JSON parser
+    // before any type here is asked for a value, and what it throws is not a `DecodingError`, so
+    // it passes this catch untouched; `JSONDecoder` only wraps it as `dataCorrupted` at the top.
+    // The test suite pins that, because the wrapper makes the two look alike from a stack trace.
+    private static func value<T: Decodable>(
+        _ type: T.Type,
+        forKey key: CodingKeys,
+        as parameter: CommandTranslation.Parameter,
+        from container: KeyedDecodingContainer<CodingKeys>,
+        unreadable: inout Set<CommandTranslation.Parameter>
+    ) throws -> T? {
+        do {
+            return try container.decodeIfPresent(type, forKey: key)
+        } catch let error as DecodingError {
+            guard case .dataCorrupted = error else { throw error }
+            unreadable.insert(parameter)
+            return nil
+        }
     }
 }
 

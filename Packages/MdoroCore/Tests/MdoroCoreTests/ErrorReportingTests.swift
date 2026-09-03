@@ -282,6 +282,7 @@ struct ErrorReportingTests {
             for failure in [
                 CommandTranslation.Failure.missingParameter(parameter),
                 CommandTranslation.Failure.invalidParameter(parameter),
+                CommandTranslation.Failure.valueOutOfRange(parameter),
             ] {
                 #expect(failure.errorCode.domain == ErrorCode.ownDomain, "\(failure) has no domain")
                 #expect(
