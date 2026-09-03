@@ -74,7 +74,7 @@ issue に貼られたログを読む初対面の第三者**になる。同時に
 
 - 要件: REQ-ERR-010 に上限・記録内容・ヘッダを追記（要件の新設なし、232要件のまま）
 - コード: `MdoroCore/Diagnostics/`（イベント・整形・伏字・ローテーション・ファイル書き込み）、
-  `PomodoroMac/Services/DiagnosticLog.swift`（環境ヘッダの組み立てと呼び出し口）、
+  `PomodoroMac/PomodoroMac/Services/DiagnosticLog.swift`（環境ヘッダの組み立てと呼び出し口）、
   `Views/SettingsView.swift`（書き出しと「記録しないもの」の明示）。
   **ファイル書き込みまで MdoroCore に置く**のは、`swift test` で実ファイルのローテーションを検証するため
 - **設定画面に「タスク名は記録しません」と明記する。** 記録しないと決めたことは、

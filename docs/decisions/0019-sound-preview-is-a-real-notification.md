@@ -44,7 +44,7 @@
 
 - 要件: REQ-NTF-006 の「試聴」を「実際の通知による確認」に改める
 - コード: `MdoroCore/Preset.swift`（`isPreviewable` 削除）、
-  `PomodoroMac/Services/NotificationScheduler.swift`（`deliverSoundTest`）、
+  `PomodoroMac/PomodoroMac/Services/NotificationScheduler.swift`（`deliverSoundTest`）、
   `Views/PresetEditorView.swift`
 - [0017](0017-system-notification-sounds.md) の該当箇所に本レコードへの参照を追記。
   0017 全体は accepted のまま

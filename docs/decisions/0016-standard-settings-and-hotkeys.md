@@ -47,7 +47,7 @@ REQ-UIX-033（SHOULD）はグローバルショートカットで「一時停止
 
 - 要件: REQ-UIX-033（既定なし・任意設定・権限不要を明記）、
   9.3 に `pauseResumeHotKey`（既定 未設定）と `launchAtLogin` を追加
-- コード: `MdoroCore/HotKeyBinding.swift`、`PomodoroMac/Services/HotKeyCenter.swift`、
+- コード: `MdoroCore/HotKeyBinding.swift`、`PomodoroMac/PomodoroMac/Services/HotKeyCenter.swift`、
   `LoginItem.swift`、`Views/HotKeyRecorderView.swift`
 - 適用範囲: 「一時停止 / 再開」のみをグローバルに割り当てる。
   中断・リセットは誤爆すると取り返しがつかないため、メインウィンドウに留める（REQ-UIX-031 と同じ理由）

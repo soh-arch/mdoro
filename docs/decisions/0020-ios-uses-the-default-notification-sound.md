@@ -43,7 +43,7 @@
 ## 影響
 
 - 要件: REQ-NTF-006 の適用範囲を macOS に限定し、iPhone は OS 既定音、無音は両端末で有効と明記
-- コード: `PomodoroMac/Views/PresetEditorView.swift`（項目名と注記）、
+- コード: `PomodoroMac/PomodoroMac/Views/PresetEditorView.swift`（項目名と注記）、
   `PomodoroiOS/Views/MainScreen.swift`（注記）。
   `PomodoroiOS/Client/NotificationScheduler.swift` は既にこの挙動であり変更なし
 - 旧 OPEN-016 を解決済みとする
