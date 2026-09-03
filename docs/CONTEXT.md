@@ -329,61 +329,35 @@ Git に入っていないため、失われると復元できない。
 
 ### いま何が起きているか
 
-| 正本 | 状態 |
-| :---- | :---- |
-| `SPEC.md` | **版数と要件数は SPEC 自身が持つ**（写しは古くなる。この表の件数の行も古い —— POL-183） |
-| `decisions/` | **番号は `docs/decisions/` 自身が持つ**（写しは古くなる —— POL-183） |
-| `platform/` | **番号と表題は `docs/PLATFORM.md`（索引）と `docs/platform/` 自身が持つ**（写しは古くなる —— POL-183） |
-| `PUNCHLIST.md` | **done 98 / doing 8 / open 23 / 決定済み 4 / 現状維持 1 / deferred 1 / rejected 1 / 不要 1**（計 137。**実測した値であり、目算ではない**） |
-| テスト | `swift test` **301件 / 52スイート**（#33 の6件 ＋ 本ブランチの5件）。**Mac 側 23件 / iOS 側 9件**（`xcodebuild test` が要る。**CI は `swift test` のみ**） |
+**最終更新: 2026-09-03**
 
-**サブエージェントは5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / **platform-researcher**。
+**この節に数を書き写さない。** 写しは必ず腐る（POL-183 は、その腐った写しに対する起票である）。
+**正本と、そこを数えるコマンドだけを置く。**
 
-**進行中**
+| 知りたいこと | 正本 | 数え方 |
+| :---- | :---- | :---- |
+| 仕様の版数・要件数 | `docs/SPEC.md` 自身（0.x 改訂履歴の最新行） | `python3 Tools/check-docs.py` が食い違いを見る |
+| Decision Record の番号 | `docs/decisions/` 自身 | 同上（欠番も見る） |
+| Apple の事実の番号 | `docs/PLATFORM.md`（索引）と `docs/platform/` | 同上 |
+| 作業の一覧と状態 | `docs/PUNCHLIST.md` | `grep -c '^| \*\*POL-' docs/PUNCHLIST.md` |
+| `MdoroCore` のテスト | —— | `cd Packages/MdoroCore && swift test`（2026-09-03: **377件 / 64スイート**） |
+| Mac / iOS のテスト | —— | **`xcodebuild test` が要る。Mac のスイートは `MdoroMac.app` にホストされるので、走らせるとアプリが起動する。** 利用者が実機で使用中のときは実行しない（POL-158） |
 
-- **[PR #15](https://github.com/soh-arch/mdoro/pull/15) / [#16](https://github.com/soh-arch/mdoro/pull/16) は merge 済み**（2026-08-29）。
-  工程14c の残り、事実を仕様書から追い出す構造変更、**SPEC v2.19**（軸 K の最初の2件の訂正）が `main` に入った
-- **`fix/axis-k-round-two`** — 軸 K の3〜5件目（[0004](platform/0004-live-activity-payload-size-and-network.md) /
-  [0005](platform/0005-local-network-privacy-and-platform-settings.md)）とコード側の走査。**事実の記録のみ。条文はまだ直していない**
+**サブエージェントは5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / platform-researcher。
+**「天井」の軸出しには専任の役がまだ無い**（`docs/PUNCHLIST.md` に起票済み。汎用の役へ指示書だけを渡して代用している）。
 
-**軸 K の洗い出し（POL-058）は完了した。** 81件のうち **出典があったのは1件**（REQ-UIX-027・
-POL-057 で直した結果）。**根拠なし 46件。** 一覧は `PUNCHLIST.md` の付録。
+### 冷えた状態から始めるとき
 
-**そのうち MUST が依拠する5件を一次情報で確認した。**
+**新しいセッション（クラウドを含む）は、会話の記憶をまったく持たない。** 順に読む。
 
-| 条文 | 結果 |
-| :---- | :---- |
-| `SPEC.md:818`（8.3 冒頭） | 「例外は **APNs のみ**」が**誤り**。サーバー不要の開始経路が2つある。**v2.19 で訂正済み** |
-| REQ-COL-022 / REQ-UIX-035 | 「地は可変」は正しいが「**色を使えない**」は**誤り**。SDK は逆に "guarantees" と書く。**v2.19 で訂正済み** |
-| REQ-UIX-025（4KB） | **数値は正しい。** ただし上限は**静的と動的の合計**で、条文の限定が緩すぎる |
-| REQ-UIX-026（ネットワーク） | 「不可能」も「サンドボックス上」も**正しい。誤っているのは主語** — 不可能なのは **Live Activity** であってウィジェット拡張ではない |
-| **REQ-PLT-001 / 3.5 の表8行** | **「1つでも欠けると接続が成立しない」は誤り。接続に効くのは4行。** `NSAllowsLocalNetworking` は**不要**（ATS は Network.framework に掛からない） |
-| REQ-PLT-008 | **正しい。** Apple 自身が `-65570` と `.localNetworkDenied` のコード例を載せている |
+1. `CLAUDE.md`（規律）→ **このファイル**（いまの状態）→ `docs/PUNCHLIST.md`（作業）→ `docs/ORCHESTRATION.md`（手順）
+2. `python3 Tools/check-docs.py` —— 文書が壊れていないことを先に確かめる
+3. 作業を始めたら `python3 Tools/axes-for.py <base>` —— 差分から必ず立てる軸が出る
+4. **ビルドとテストはこの Mac の上でしか走らない。** `MdoroCore` は `SwiftUI` / `CryptoKit` / `ActivityKit` を
+   import しているので、**Linux では `swift test` も通らない。** どの工程がどこで走るかは `docs/ORCHESTRATION.md` §8
 
-**条文の訂正は SPEC v2.20 で入れた**（POL-062 / 063 / 064）。**軸 K で確認した5件のうち、条文が完全に正しかったのは REQ-PLT-008 の1件だけだった。**
-
-**コード側の走査も完了した**（POL-071）。**訂正済みの前提をコードが引いている箇所が8件**、
-**コードが独自にプラットフォームの事実を主張している箇所が26件**。一覧は `PUNCHLIST.md` の付録。
-
-**残っている open**: POL-053〜056（工程14c の残り・いずれも minor）/ 059（Widget のコメント）/
-**軸 K の POL-074 / 078 / 079 / 081〜084**。**blocker は無い。**
-
-**工程14a（コメントの英語化）は実測した。全体で 1,316行 / 95ファイル。4回に分ける。**
-
-| 回 | 対象 | 行数 | 状態 |
-| :-- | :---- | --: | :---- |
-| 1 | `MdoroCore` / Sources | 413 | **完了**（38ファイル。`docs/english-comments-core`） |
-| 2 | Mac | 369 | **完了**（21ファイル。`docs/english-comments-mac`）。ビルド・検証役とも通過 |
-| 3 | iOS ＋ Widget | 223 | **完了**（13ファイル。`docs/english-comments-ios`）。ビルド・検証役とも通過 |
-| 4 | Tests 全部 ＋ `Tools` | 311 ＋ メッセージ **23件** | **完了**（22ファイル。`docs/english-comments-tests`）。**「68件」は数え間違いだった** — `#expect` 行の日本語を数えると比較対象45件が混ざる。**メッセージ引数は23件** |
-
-**工程14a は完了した。** コードベースに残る日本語は**テストの入力データ162件と `.gitignore` の見出し8行だけ**
-（POL-100）。**製品コードに日本語は1文字も無い**（[0022](decisions/0022-english-only-ui.md) は満たされている）。
-**テスト内の日本語 200件のうち 131件は入力データであり、翻訳してはならない** — 利用者の
-Markdown に日本語が入っていても素通しできるかを検査している。**残り 68件が失敗メッセージ。**
-
-**次にやること**: 工程14a の第2〜4回 → 工程14b の軸 E / F / H / I / J →
-**工程15（README の作り直し）** → 工程16（軸 G）→ 公開。
+**クラウドから見えるのは GitHub のクローンである。** 切り替える前に push する。
+**push していない変更は、次のセッションにとって存在しない。**
 
 ### 完了
 
