@@ -77,7 +77,7 @@ proposed ──► accepted ──► superseded
 - `superseded` にするときは、旧レコードのフロントマターに `置換先` を、
   新レコードの `## 文脈` に「何を覆すか」を書く。
 - 状態を `accepted` に進められるのは**人間だけ**である（`CLAUDE.md` 「権限」）。
-- レコードの管理責任はこのリポジトリの Claude Code が持つ。**役は正本を更新しない**（どのモデルで動いていても同じ。[0042](0042-a-role-answers-for-its-check.md)）。
+- レコードの管理責任はこのリポジトリの Claude Code が持つ。**サブエージェントは正本を更新しない**（どのモデルで動いていても同じ。[0041](0041-a-role-answers-for-its-check.md)）。
 
 ## 新しい判断が発生したら
 
