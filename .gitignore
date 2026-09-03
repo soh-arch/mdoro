@@ -35,3 +35,7 @@ docs/PRIVATE-LINKS.md
 
 # ---- Signing (settings for this machine only) ----
 Config/Signing.local.xcconfig
+
+# ---- Python: byte-code from the repository tools ----
+__pycache__/
+*.pyc
