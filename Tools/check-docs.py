@@ -9,6 +9,7 @@ again. Run it before asking anyone — human or model — to read a change.
 """
 from __future__ import annotations
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -57,6 +58,18 @@ def check_links() -> None:
 REPO_DIRS = ("docs/", "Tools/", ".claude/", "Packages/", "PomodoroMac/", "Config/")
 
 
+def is_ignored(target: str) -> bool:
+    """A path git deliberately ignores is meant to be absent from a fresh clone.
+
+    `Config/Signing.local.xcconfig` and `docs/PRIVATE-LINKS.md` are created by
+    whoever builds the app, and the documents that name them are telling the
+    reader to create one. Only this working tree ever has them.
+    """
+    return subprocess.run(
+        ["git", "check-ignore", "-q", target], cwd=ROOT
+    ).returncode == 0
+
+
 def check_inline_paths() -> None:
     for md in markdown_files():
         text = read(md)
@@ -66,7 +79,7 @@ def check_inline_paths() -> None:
                 continue
             if "<" in target or "*" in target:  # a placeholder or a glob, not a reference
                 continue
-            if not (ROOT / target).exists():
+            if not (ROOT / target).exists() and not is_ignored(target):
                 line = text[: m.start()].count("\n") + 1
                 note("path", f"{md.relative_to(ROOT)}:{line} names {target}, which is not in the repository")
 
