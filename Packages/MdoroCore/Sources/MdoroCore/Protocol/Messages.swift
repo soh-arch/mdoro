@@ -66,10 +66,13 @@ public struct CommandParams: Equatable, Sendable, Codable {
         presetId = try c.decodeIfPresent(String.self, forKey: .presetId)
         orderedIds = try c.decodeIfPresent([String].self, forKey: .orderedIds)
         var unreadable: Set<CommandTranslation.Parameter> = []
+        // `MessageCoder` leaves the message here as it arrived; without it there is no telling a
+        // value apart from a broken message, and `value` keeps every throw (see below).
+        let message = decoder.userInfo[.messageAsItArrived] as? Data
         preset = try Self.value(Preset.self, forKey: .preset, as: .preset,
-                                from: c, unreadable: &unreadable)
+                                from: c, in: message, unreadable: &unreadable)
         settings = try Self.value(AppSettings.self, forKey: .settings, as: .settings,
-                                  from: c, unreadable: &unreadable)
+                                  from: c, in: message, unreadable: &unreadable)
         unreadableValues = unreadable
     }
 
@@ -89,20 +92,27 @@ public struct CommandParams: Equatable, Sendable, Codable {
     //   `dataCorrupted` on the way out, which is all a reader at the top of the stack is shown.
     //
     // Everything else says the message itself does not hold together — a number where an object
-    // belongs, a field the value cannot do without (`typeMismatch`, `keyNotFound`), a field whose
-    // bytes are not JSON at all — and stays what it was: discarded and counted (REQ-ERR-009).
+    // belongs, a field the value cannot do without (`typeMismatch`, `keyNotFound`) — and stays
+    // what it was: discarded and counted (REQ-ERR-009).
     //
     // **The second clause is not "anything that is not a `DecodingError`".** The parser raises the
-    // same kind of error for a number it cannot represent and for a number that is malformed
-    // (`01`, `1e`), and only the first of those is a value; the second is a broken message. What
-    // tells them apart is reading the field a second time as untyped JSON: well-formed bytes whose
-    // number would not fit make it through, malformed bytes do not. Widening the catch to the
-    // error type instead would answer `settingOutOfRange` to bytes nobody could read.
+    // same error for a number it cannot represent and for one that is malformed (`01`, `1e`,
+    // `--3`), and for a string that is not a string (`"\uD800"`, a byte that is not UTF-8); only
+    // the first of those is a value, and the rest are broken messages. **Nothing Foundation can be
+    // asked separates them** — its scanner accepts a number-shaped run of bytes without reading it
+    // and only judges the digits when a type asks for a value, so every numeric type refuses
+    // `1e309` and `01` alike (`docs/platform/0012`). What tells them apart is the grammar, read
+    // off the message as it arrived: `JSONWellFormedness`. Widening the catch to the error type
+    // instead would answer `settingOutOfRange` to bytes nobody could read.
+    //
+    // With no message in hand there is nothing to ask, and every throw is kept — which is what any
+    // reader other than `MessageCoder` gets, the state file included (REQ-ERR-017 / Decision 0036).
     private static func value<T: Decodable>(
         _ type: T.Type,
         forKey key: CodingKeys,
         as parameter: CommandTranslation.Parameter,
         from container: KeyedDecodingContainer<CodingKeys>,
+        in message: Data?,
         unreadable: inout Set<CommandTranslation.Parameter>
     ) throws -> T? {
         do {
@@ -112,45 +122,18 @@ public struct CommandParams: Equatable, Sendable, Codable {
             unreadable.insert(parameter)
             return nil
         } catch let parserError {
-            do {
-                _ = try container.decodeIfPresent(WellFormedJSON.self, forKey: key)
-            } catch {
-                throw parserError
-            }
+            guard let message, JSONWellFormedness.holds(for: message) else { throw parserError }
             unreadable.insert(parameter)
             return nil
         }
     }
 }
 
-// Reads any well-formed JSON and keeps none of it: the only question it answers is whether the
-// field is JSON at all, which is what separates a number that will not fit from bytes that are
-// not a number (`CommandParams.value`). Nothing else decodes through it.
-private struct WellFormedJSON: Decodable {
-    private struct AnyKey: CodingKey {
-        let stringValue: String
-        var intValue: Int? { nil }
-        init?(stringValue: String) { self.stringValue = stringValue }
-        init?(intValue: Int) { nil }
-    }
-
-    init(from decoder: Decoder) throws {
-        if let object = try? decoder.container(keyedBy: AnyKey.self) {
-            for key in object.allKeys { _ = try object.decode(WellFormedJSON.self, forKey: key) }
-            return
-        }
-        if var array = try? decoder.unkeyedContainer() {
-            while !array.isAtEnd { _ = try array.decode(WellFormedJSON.self) }
-            return
-        }
-        let value = try decoder.singleValueContainer()
-        if value.decodeNil() { return }
-        if (try? value.decode(Bool.self)) != nil { return }
-        if (try? value.decode(String.self)) != nil { return }
-        // A number is the only literal left, and the one the parser can still refuse. `Double`
-        // is asked for so that the refusal is about the bytes rather than about the field's type.
-        _ = try value.decode(Double.self)
-    }
+public extension CodingUserInfoKey {
+    // The bytes a message arrived as, put here by `MessageCoder` so that `CommandParams` can tell
+    // a value this version cannot make from bytes that are not a value at all. Nothing else reads
+    // it, and a decoder that does not carry it decodes strictly.
+    static let messageAsItArrived = CodingUserInfoKey(rawValue: "MdoroCore.messageAsItArrived")!
 }
 
 public struct CommandPayload: Equatable, Sendable, Codable {
@@ -346,8 +329,14 @@ public enum MessageCoder {
     }
 
     // The payload sits flat at the top level: `{"type":..,"messageId":..,"sentAt":..,<payload>}`.
+    //
+    // The message is carried alongside because a settings value that fails to read is answered for
+    // rather than dropped (REQ-CFG-018), and only the bytes say whether it was a value at all
+    // (`CommandParams.value`).
     private static func payload<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
-        try decoder.decode(T.self, from: data)
+        let decoder = self.decoder
+        decoder.userInfo[.messageAsItArrived] = data
+        return try decoder.decode(T.self, from: data)
     }
 
     public static func encode(_ envelope: Envelope<ClientMessage>) throws -> Data {

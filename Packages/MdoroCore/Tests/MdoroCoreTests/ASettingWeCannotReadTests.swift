@@ -143,10 +143,23 @@ struct ASettingWeCannotReadTests {
     // before any of our types is asked to make a value of it, and what it raises is not a
     // `DecodingError` (`docs/platform/0012`), so it went straight past the clause that catches an
     // unknown enum case — and the iPhone waited on an answer REQ-CFG-018 requires.
+    //
+    // **`1e309` is here because the first fix did not reach it.** That fix asked Foundation to read
+    // the field a second time as untyped JSON, and the second read gave up on `1e309` for the same
+    // reason the first one did — nothing here is bounded by what a `Double` can hold, so the answer
+    // stopped at ~1.8e308 and the message went back to being discarded (found in review, 2026-09-03).
     @Test func aNumberNoTypeHereCanHoldIsAnsweredForRatherThanDropped() throws {
         for params in [
             #""settings":{"logicalDayStartHour":4.5}"#,
             #""settings":{"logicalDayStartHour":99999999999999999999999}"#,
+            // Past what a `Double` holds, which is where the answer used to stop.
+            #""settings":{"logicalDayStartHour":1e309}"#,
+            #""settings":{"logicalDayStartHour":1e400}"#,
+            #""settings":{"logicalDayStartHour":-1e400}"#,
+            #""settings":{"logicalDayStartHour":1e309000000000000000000}"#,
+            // The last one a `Double` does hold: an hour is an `Int`, and no boundary of the
+            // parser's is the boundary here.
+            #""settings":{"logicalDayStartHour":1e308}"#,
             #""settings":{"pauseResumeHotKey":{"keyCode":-1,"modifierFlags":1048576,"displayName":"X"}}"#,
         ] {
             let command = try decodeCommand(
@@ -160,7 +173,7 @@ struct ASettingWeCannotReadTests {
 
             guard case let .failure(failure) = translate(command) else {
                 Issue.record("REQ-CFG-018: the command was accepted and the settings applied: \(params)")
-                return
+                continue
             }
             #expect(failure == .valueOutOfRange(.settings))
             #expect(failure.protocolErrorCode == .settingOutOfRange)
@@ -179,20 +192,52 @@ struct ASettingWeCannotReadTests {
     }
 
     // REQ-PRT-005 / REQ-ERR-009: **a number that is not a number is still a broken message**, and
-    // the parser raises the same kind of error for it as for one that will not fit. The catch that
-    // answers for the second must not be widened to the error type, or bytes nobody could read
-    // would come back as "the setting is outside the allowed range". Reading the field again as
-    // untyped JSON is what keeps the two apart.
+    // the parser raises the same error for it as for one that will not fit. The catch that answers
+    // for the second must not be widened to the error type, or bytes nobody could read would come
+    // back as "the setting is outside the allowed range". Reading the grammar off the message is
+    // what keeps the two apart (`JSONWellFormedness`).
+    //
+    // **These reach the same clause the answered-for numbers do.** Measured 2026-09-03: the scanner
+    // accepts a number-shaped run of bytes without reading it, so `01` gets as far inside
+    // `CommandParams.init(from:)` as `1e309` does and raises the same thing there. Neither is
+    // turned away earlier, which is why this test is about a line that is actually drawn.
     @Test func aMalformedNumberIsStillABrokenMessage() {
         for params in [
             #""settings":{"logicalDayStartHour":01}"#,
             #""settings":{"logicalDayStartHour":1e}"#,
+            #""settings":{"logicalDayStartHour":1.2.3}"#,
+            #""settings":{"logicalDayStartHour":.5}"#,
+            #""settings":{"logicalDayStartHour":1.}"#,
+            #""settings":{"logicalDayStartHour":+1}"#,
             #""settings":{"idleResetHours":--3}"#,
         ] {
             #expect(throws: (any Error).self, "\(params)") {
                 try MessageCoder.decodeClient(Data(commandJSON(action: "updateSettings", params: params).utf8))
             }
         }
+    }
+
+    // REQ-PRT-005 / REQ-ERR-009: **a string that is not a string is a broken message too**, and it
+    // arrives by the same door as a number that will not fit. An unpaired `\uD800` and a byte that
+    // is not UTF-8 are refused where the value is made, not where the message is scanned, so the
+    // grammar read off the bytes has to turn them down as well — or REQ-ERR-009's message would
+    // come back as "the setting is outside the allowed range".
+    @Test func aStringThatDoesNotDenoteAStringIsStillABrokenMessage() {
+        for params in [
+            #""settings":{"appearance":"\uD800"}"#,
+            #""settings":{"appearance":"\uZZZZ"}"#,
+            #""settings":{"appearance":"\q"}"#,
+        ] {
+            #expect(throws: (any Error).self, "\(params)") {
+                try MessageCoder.decodeClient(Data(commandJSON(action: "updateSettings", params: params).utf8))
+            }
+        }
+        let around = commandJSON(action: "updateSettings", params: #""settings":{"appearance":"@"}"#)
+            .components(separatedBy: "@")
+        var notUTF8 = Data(around[0].utf8)
+        notUTF8.append(0xFF)
+        notUTF8.append(contentsOf: Data(around[1].utf8))
+        #expect(throws: (any Error).self) { try MessageCoder.decodeClient(notUTF8) }
     }
 
     // REQ-PRT-005 / REQ-ERR-009: **the answer is owed to a value, not to a shape.** A field of the
