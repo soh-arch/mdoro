@@ -112,15 +112,24 @@ session ends, the loop advances and the log is written on the Mac.
 
 Mdoro is not distributed as a signed binary. You build it yourself:
 
-1. Clone the repository and open `PomodoroMac/PomodoroMac.xcodeproj`.
+1. Clone the repository.
 
    ```bash
    git clone https://github.com/soh-arch/mdoro.git
    ```
 
-2. Select your team under Signing & Capabilities for `MdoroMac`, `MdoroiOS` and
-   `MdoroWidget`. A free Apple ID works.
-3. Run `MdoroMac`, then run `MdoroiOS` on your iPhone.
+2. Put your signing team in `Config/Signing.local.xcconfig`. A free Apple ID works,
+   and git ignores the file, so your team id never reaches a diff.
+
+   ```
+   DEVELOPMENT_TEAM = ABCDE12345
+   ```
+
+   **Do not set the team under Signing & Capabilities in Xcode.** Xcode writes it
+   back into `project.pbxproj`, where it overrides this file.
+
+3. Open `PomodoroMac/PomodoroMac.xcodeproj`, run `MdoroMac`, then run `MdoroiOS` on
+   your iPhone.
 4. In the Mac app: Settings → Files, pick your task file and a folder for the log.
 5. Settings → Connection → Start pairing, and enter the six-digit code on the iPhone.
 
