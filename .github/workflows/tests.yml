@@ -16,3 +16,23 @@ jobs:
       - name: swift test
         working-directory: Packages/MdoroCore
         run: swift test
+
+  tools:
+    # The document checks and the axis tool are what a session runs before it
+    # touches anything, and nothing ever started them: POL-200 sat here unable
+    # to parse until someone happened to type the command. Both ends of the
+    # supported range are built, because that fault parsed on one version and
+    # not another -- and either end can move under us.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: the tools parse
+        run: python -m compileall -q Tools
+      - name: check-docs
+        run: python Tools/check-docs.py
