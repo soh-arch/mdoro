@@ -137,6 +137,14 @@ Mdoro is not distributed as a signed binary. You build it yourself:
 install it again from Xcode. This is Apple's limit on free provisioning, not a
 choice Mdoro makes.
 
+**If the app will not launch and a rebuild will not go through either, the phone may
+have stopped trusting your developer account.** Unlike the seven-day case above,
+rebuilding does not clear this one. On the iPhone: Settings → General → VPN & Device
+Management, pick your account, trust it again, then build from Xcode. The message
+that names the trust can take several minutes and a few attempts to appear, so an app
+that simply will not start is usually what you see first. This has turned up right
+after an iOS update, though nothing shows that an update causes it.
+
 Run the tests with:
 
 ```bash
