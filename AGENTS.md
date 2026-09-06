@@ -140,7 +140,8 @@ and ask.** Do not guess. A guess that ships becomes a requirement nobody chose.
   trailer at the end keeps the history greppable. This is the part that matters: it is how a
   maintainer checks a change against `docs/SPEC.md` without reconstructing your reasoning,
   and `docs/` is in Japanese, so the ID may be the only thing you and the maintainer both read.
-- `swift test` must pass. CI runs it on every pull request.
+- `swift test` must pass. CI runs it on every pull request, together with the
+  mechanical checks over the documents.
 - A human merges. Nothing lands on `main` directly.
 
 ## Out of scope

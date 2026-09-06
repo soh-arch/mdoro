@@ -16,3 +16,26 @@ jobs:
       - name: swift test
         working-directory: Packages/MdoroCore
         run: swift test
+
+  tools:
+    # The document checks and the axis tool are what a session runs before it
+    # touches anything, and for a while nothing started them: one of them sat
+    # here unable to parse until somebody happened to type the command. Every
+    # version in the supported range is built, not just the ends -- that fault
+    # parsed on some of them and not others, and the interpreter a session is
+    # handed can move under us. fail-fast is off so a failure on one version
+    # does not hide the others.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: the tools parse
+        run: python -m compileall -q Tools
+      - name: check-docs
+        run: python Tools/check-docs.py
