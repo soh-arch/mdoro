@@ -97,7 +97,8 @@ def main() -> int:
     for label, axes, touched in hits:
         print(f"■ {re.sub(r'[*`]', '', label)}")
         for axis in axes.split("／"):
-            print(f"    - {re.sub(r'\s+', ' ', re.sub(r'[*`]', '', axis)).strip()}")
+            text = re.sub(r"\s+", " ", re.sub(r"[*`]", "", axis)).strip()
+            print(f"    - {text}")
         print(f"      ({', '.join(touched[:6])}{' …' if len(touched) > 6 else ''})\n")
 
     print("── 天井 ──")
