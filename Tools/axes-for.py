@@ -59,6 +59,8 @@ def floor_rows() -> list[tuple[str, str]]:
 
 
 def matches(pattern: str, path: str) -> bool:
+    if pattern.startswith("/"):
+        return path == pattern[1:]
     if pattern.endswith("/"):
         return path.startswith(pattern)
     if "/" in pattern:
@@ -93,8 +95,11 @@ def main() -> int:
         if touched:
             hits.append((label, axes, touched))
 
+    covered = {f for _, _, touched in hits for f in touched}
+    uncovered = [f for f in files if f not in covered]
+
     print(f"{len(files)} file(s) against {base}\n")
-    if not hits:
+    if not hits and not uncovered:
         print("床の表に当たる行は無い。天井だけ判断する。")
     for label, axes, touched in hits:
         print(f"■ {re.sub(r'[*`]', '', label)}")
@@ -103,8 +108,6 @@ def main() -> int:
             print(f"    - {text}")
         print(f"      ({', '.join(touched[:6])}{' …' if len(touched) > 6 else ''})\n")
 
-    covered = {f for _, _, touched in hits for f in touched}
-    uncovered = [f for f in files if f not in covered]
     if uncovered:
         print("■ 表のどの行にも当たらない —— 軸は自分で立てる")
         for f in uncovered:
