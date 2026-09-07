@@ -125,6 +125,7 @@ xcrun simctl list devices available
 - Xcode 26.6 / Swift 6.3。deployment target は macOS 26.0 / iOS 26.0。
 - 署名は無償の Personal Team。**iPhone 実機のアプリは7日で失効する**ので、切れたら再ビルドして入れ直す。
 - **起動もビルドも通らなくなったら、開発者信頼が外れていることがある。** 7日失効と違い、**再ビルドでは直らない。** iPhone の 設定 > 一般 > VPN とデバイス管理 でアカウントを信頼し直してからビルドする。**原因を名指す案内は、数回の試行と数分の後に出る**ので、先に見えるのは起動失敗のほうである。**OS の更新の直後に起きた例があるが、更新が原因だとは分かっていない**（[platform/0013](platform/0013-the-trust-was-gone-after-an-os-update.md)）。
+- **上の2項目（7日失効と再信頼）は、手順として3箇所に書いてある** —— ここと `README.md`（**利用者**が読む）と `AGENTS.md`（**貢献者のエージェント**が読む）。**読む相手が違うので3つに意味がある。1つを変えたら、残り2つを必ず見る。** **数えたのは「手順を書いているもの」である** —— 事実として触れているだけの記録（`docs/PLATFORM.md`・`docs/platform/`・`docs/decisions/`・`docs/PUNCHLIST.md`・`docs/CONTEXT.md`）は写しに数えない。
 - **`Tools/*.py` は文書の道具で、Mdoro のビルドには要らない。** 対応する Python の範囲は `.github/workflows/tests.yml` の `tools` ジョブが持つ（**数字をここに書き写さない**）。
 - Push 通知と iCloud は Personal Team では使えないが、本仕様は使わない（ローカル通知に capability は不要）。
 - **Xcode を開くのは、ターゲット追加・capability 追加・実機デバッグ・Instruments のときだけ。**
