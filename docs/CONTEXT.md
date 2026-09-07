@@ -340,7 +340,7 @@ Git に入っていないため、失われると復元できない。
 | Decision Record の番号 | `docs/decisions/` 自身 | 同上（欠番も見る） |
 | Apple の事実の番号 | `docs/PLATFORM.md`（索引）と `docs/platform/` | 同上 |
 | 作業の一覧と状態 | `docs/PUNCHLIST.md` | `grep -c '^| \*\*POL-' docs/PUNCHLIST.md` |
-| `MdoroCore` のテスト | —— | `cd Packages/MdoroCore && swift test`（2026-09-03: **377件 / 64スイート**） |
+| `MdoroCore` のテスト | —— | `cd Packages/MdoroCore && swift test`（2026-09-03: **377件 / 64スイート**）。**CI が PR ごとに macOS ランナーで走らせる**ので、クラウドからでも結果は返る |
 | Mac / iOS のテスト | —— | **`xcodebuild test` が要る。Mac のスイートは `MdoroMac.app` にホストされるので、走らせるとアプリが起動する。** 利用者が実機で使用中のときは実行しない（POL-158） |
 
 **サブエージェントは5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / platform-researcher。
@@ -359,23 +359,27 @@ Git に入っていないため、失われると復元できない。
 1. `CLAUDE.md`（規律）→ **このファイル**（いまの状態）→ `docs/PUNCHLIST.md`（作業）→ `docs/ORCHESTRATION.md`（手順）
 2. `python3 Tools/check-docs.py` —— 文書が壊れていないことを先に確かめる
 3. 作業を始めたら `python3 Tools/axes-for.py <base>` —— 差分から必ず立てる軸が出る
-4. **ビルドとテストはこの Mac の上でしか走らない。** `MdoroCore` は `SwiftUI` / `CryptoKit` / `ActivityKit` を
-   import しているので、**Linux では `swift test` も通らない。** どの工程がどこで走るかは `docs/ORCHESTRATION.md` §8
+4. **クラウドのセッションでは `swift test` が走らない。** `MdoroCore` は `SwiftUI` / `CryptoKit` /
+   `ActivityKit` を import しており、Linux では通らない（Swift 自体が入っていない）。
+   **ただし CI が macOS のランナーで走らせる** —— **PR を出せばテストの結果は返る。**
+   **この Mac でなければ動かないのは、変異テストと `xcodebuild` と実機である。**
+   どの工程がどこで走るかは `docs/ORCHESTRATION.md` §8
 
 **クラウドから見えるのは GitHub のクローンである。** 切り替える前に push する。
 **push していない変更は、次のセッションにとって存在しない。**
 
-### いま進めている筋（2026-09-03）
+### いま進めている筋（2026-09-07）
 
 **3本が並行している。** 中身は `docs/PUNCHLIST.md` の各行にある（ここに写さない）。
 
-1. **開発体制の整備。** `docs/ORCHESTRATION.md` を実運用に乗せる段階である。
-   軸を床（機械）と天井（読解）の二波に分けて並列に投げる形を試しており、**1回目の実測は済んでいる。**
-   検証役の基盤モデルの比較（POL-197）と、どこで走るかの分担（POL-196）が同じ筋にある
-2. **POL-189。** `settingOutOfRange` を返す実装。**この Mac でしか進まない**（`swift test` が要る）。
-   変異が1件生き残っており、その扱いが未決
-3. **公開前の文書。** README とビルド手順の食い違いほか。`docs/PUNCHLIST.md` の open な major を見る。
-   **クラウドで完結する**
+1. **開発体制の整備。** 二波（床＝機械・天井＝読解）は回っており、**重なりがほぼ無いことを何度か観測した。**
+   道具の側も追いついた —— 軸を出す道具がクラウドで起動しなかったのを直し、**CI がその道具を見張るようになり**、
+   **天井が出した観点を床の表へ降ろしはじめた。** 残っているのは、検証役の基盤モデルの比較（POL-197。
+   **その前に Decision Record 0042 を人間が書く**）と、軸を出す道具の欠陥（POL-203）と、天井に専任の役ファイルが無いこと
+2. **POL-189。** `settingOutOfRange` を返す実装。**下書きの PR が出ており、CI は緑である。**
+   検証役の指摘が2件と、**変異が1件生き残っている。**
+   **この Mac が要るのは変異テストだけである**（上の「冷えた状態から始めるとき」4）
+3. **公開前の文書。** `docs/PUNCHLIST.md` の open な major を見る。**クラウドで完結する**
 
 **この節が古くなったら消す。** 残しておくくらいなら空のほうがよい（POL-183 はその失敗である）。
 
