@@ -619,9 +619,9 @@ muse-spark-1.3  max, xhigh, high, medium, low, minimal         medium  （無効
 （Grok は `xhigh`、他3体は `max`）。**それらが同等の深さである保証は無い** ——
 各水準が何トークンの思考に相当するかは**どのベンダーも公表していない。**
 
-**また、OpenRouter の既定は「対応していないパラメータを黙って捨てる」である。**
-`require_parameters` を `true` にしないと、**努力度の指定が効かなかったことを観測できない。**
-第一段では、DeepSeek の Ionstream 回が**事業者側でモードを決めて思考0で返した**前例がある。
+**⚠ 「`require_parameters: true` を付ければ、努力度を無視する事業者を弾ける」という案も撤回する**
+（2026-09-09 に確認）。**4体・全32エンドポイントのうち、`reasoning` / `reasoning_effort` /
+`include_reasoning` を欠くものは1つも無い。**推論パラメータについては、この指定で誰も除外されない。
 
 ### 出力の上限は引き上げる
 
@@ -653,6 +653,194 @@ muse-spark-1.3  max, xhigh, high, medium, low, minimal         medium  （無効
 4. 使ったトークン数か費用を報告するか（測定に要る）
 5. 失敗が終了コードで分かるか
 6. 並列に走らせてよいか
+
+### 一次資料での再調査（2026-09-09）—— 前回は egress の遮断で失敗していた
+
+**`openrouter.ai` も各社の公式ドキュメントも、この日から届くようになった。**
+以下は**一次資料で確認したもの**である。前回の二次情報による記述を上書きする。
+
+**なお、`WebFetch` は遮断するが `curl` は 200 を返す**という食い違いがあった。
+**4社とも URL に `.md` を付けると素の Markdown を返す**（Meta は `ai.developer.meta.com/docs/muse-code/`、
+Codex は `learn.chatgpt.com/docs/`）。**次に調べるときはここから入る。**
+
+#### (1) 宣言は、挙動の保証ではない
+
+**第一段で思考0トークン・35秒で返した DeepSeek の Ionstream は、
+`reasoning: true` / `reasoning_effort: true` を宣言している。**
+**申告上は推論対応と表示されていたエンドポイントが、実際には思考せずに返した。**
+
+**したがって、効かない事業者を事前に除外する経路は無い。**全32エンドポイントが等しく宣言しており、
+宣言を根拠にした選別が原理的に効かない。
+
+**文書化された例外が1つだけある。**`reasoning.mode` については
+「Bedrock は受け取って黙って無視するので、pro のリクエストは mode を尊重する事業者にしかルーティングしない」
+と公式が明記し、実データでも `openai/gpt-5.6-sol-pro` に Bedrock が無い。
+**しかし `reasoning.effort` に同等の保護は文書化されていない。**
+
+**受け側の防御しかない** —— 走らせたあとに `reasoning_tokens` を見る。
+**ただし Chat Completions ではこのフィールドが必須でなく、「0」と「未報告」を区別できない。**
+**Responses API と Activity API では必須である。**
+
+#### (2) エンドポイントの構成（自分で確認）
+
+```
+moonshotai/kimi-k3     19件 / 16社   出力上限が 16,384 / 65,535 / 262,144 / 943,718 に割れる
+meta/muse-spark-1.3     1件 /  1社   代替が無い
+openai/gpt-5.6-sol      7件 /  3社   全部 128,000
+x-ai/grok-4.6           5件 /  2社   全部 450,000
+```
+
+**Kimi の DeepInfra は 16,384** —— 最上位の 1/58。**ルーティング先次第で出力が 1.7% で切れる。**
+**ベンダー自身への固定を続ける理由がここにある。**
+
+**943,718 は `floor(文脈長 × 0.9)` に一致する。**425モデル中96件が同じ規則に従い、
+943,718 ちょうどを報告するモデルが18件ある。**申告値ではなく機械的な導出値の可能性が高い。**
+**Sol の 128,000 だけがこの規則を外れており、こちらは実申告値と考えられる。**
+
+#### (3) ベンダー側の推論制御（各社の公式ドキュメント）
+
+- **思考予算のトークン指定は、ベンダー直接でも4社とも不可能。**
+  Anthropic の `budget_tokens` に相当するパラメータがスキーマに存在しない。
+  **OpenRouter でできないのは、ベンダー側に機能が無いからである**
+- **各水準が何トークンかは4社とも非公表。**
+  OpenAI は「モデルは水準内でも**適応的に**トークン量を変える」と明記しており、
+  **固定対応は原理的に存在しない**と読むのが正確
+- **思考を切れるのは GPT-5.6 Sol だけ**（`effort: "none"`）。
+  **Muse は `"none"` を送ると HTTP 400。**
+- **Kimi K3 の「無効化できるか」問題は決着した。**OpenRouter の `mandatory: false` が誤りで、
+  **Moonshot は3箇所で「K3 always reasons」と述べ、FAQ は
+  「You can't — K3 always thinks. If the reasoning takes too long, set `reasoning_effort` to `low`.」**と答えている。
+  K2.6 にあった無効化パラメータは **K3 では廃止**されている
+- **GPT-5.6 には努力度と直交する第二の軸 `reasoning.mode`（standard / pro）がある**（Responses API のみ）
+- **Muse Spark 1.3 の既定の努力度は非公表**（「model-determined」とだけ書かれている）
+
+**Kimi K3 のサンプリング設定は固定である。**
+
+```
+temperature 1.0 固定 / top_p 0.95 固定 / n 1 固定 / presence・frequency penalty 0 固定
+```
+
+**既定値と同じ値でも、明示的に送るだけでエラーになる。**
+**共通のコードパスから temperature を一律付与していると、K3 だけが落ちる。**
+
+さらに **「努力度を切り替えると接頭辞キャッシュが無効になる」**と明記されている ——
+**3段階の運用を作るなら、切り替えのたびにキャッシュを失う。**
+
+**Kimi が上限を超えた件は、手がかり2件まで辿れたが確定しない。**
+(a) `max_tokens` は K3 では deprecated で、実効値を持つのは `max_completion_tokens`（既定 131,072）。
+観測値 35,144 / 39,385 はこの既定を下回る。
+(b) **「思考トークンが出力上限に数えられる」と書かれた節は K2 系を対象としており、K3 を挙げていない。**
+他3社が明示している事項が、K3 では欠落している。**超過分は課金対象である。**
+
+#### (4) 料金（一次資料。参照日 2026-09-09）
+
+**⚠ GPT-5.6 Sol の「入力 $2.50」の正体が判明した。**
+OpenRouter の価格欄は **入力 $2.00 / 出力 $10.00 / キャッシュ読み $0.20 / キャッシュ書き $2.50**。
+**第一段の3本は、入力をキャッシュ書きの単価で計算すると記録と一致する。**
+**§3 に記録した「入力 $2」は誤りではなかった。私たちが払っていたのは書き込みの割増である。**
+**キャッシュ読みは $0.20 —— 私たちが払った額の 12.5分の1。3回とも読みを得ていない。**
+
+**キャッシュ割引も裏が取れた。**
+
+```
+x-ai/grok-4.6      キャッシュ読み $0.50/M   教材D の実効単価 $0.502/M と一致
+moonshotai/kimi-k3 キャッシュ読み $0.30/M   教材D は入力の 74.2% がこの単価だったと置くと合う
+                                            （教材A と教材D の共通接頭辞は 73.9%）
+```
+
+**Grok は説明しきれない** —— 逆算すると入力の 99.9% がキャッシュだったことになり、
+**共通接頭辞の 74% を超える。理由は分かっていない。**
+
+**もう1つ説明できないことがある。****Claude Sonnet 5 と GPT-5.6 Sol は価格欄が完全に同じ**
+（$2 / $10 / $0.20 / $2.50）**なのに、Sonnet は素の $2 で、Sol は $2.50 で課金された。**
+
+**その他、一次資料で確定したこと**:
+
+- **Grok 4.6 は Batch API 非対応**（「Models not listed above have no batch discount」）。
+  Priority は割引ではなく **2倍の割増**
+- **Kimi K3 もバッチ対象外**（バッチは 40%引だが、対象は K2.7 Code と K2.6 のみ）
+- **Kimi の API プラットフォームには、そもそも定額プランが存在しない** ——
+  「pay-as-you-go billing with **no subscription plan**」。
+  消費者向けの Kimi Membership は**別製品**である
+- **GPT-5.6 Sol の $4/$20 はプロモ価格**（元値 $5/$30）。**「at least through November 21, 2026」であり、
+  終了日は確定していない。以後の価格の発表は見つからない**
+- **長文脈のしきい値** —— Grok はプロンプト 200K 以上で要求全体が $4/$12、
+  Sol は入力 272K 超で入力2倍・出力1.5倍
+- **OpenAI の ChatGPT 各プランに API クレジットは含まれない。**
+  「Sign in with ChatGPT で Plus $5 / Pro $50」は **2025年5月の30日間限定キャンペーン**であり、
+  現行の制度としては確認できない
+- **Muse Spark 1.3 の contributor tier は別の識別子**（`meta/muse-spark-1.3-contributor`）。
+  **第一段の Muse は standard tier で課金されている**（計算 $0.2704 = 記録 $0.2704。
+  contributor なら $0.0179）。**識別子を固定すれば誤って選ぶ事故は防げる**
+- **Meta の一次資料には到達できなかった。**Muse の価格は OpenRouter のレジストリの値である
+
+#### (5) CLI —— 書き込みを止められるか
+
+| CLI | 止められるか | 強制 | 適用に失敗したとき |
+| :---- | :---- | :---- | :---- |
+| **Codex CLI** | できる（`codex exec` の既定が read-only） | OS（Seatbelt / bwrap+seccomp） | **未文書** |
+| **Grok Build** | できる（**既定は OFF**） | OS（Landlock / Seatbelt） | **fail-open** |
+| **Kimi Code** | 部分的（`deny` ルール・道具の許可リスト。`-p` でも有効） | **アプリ層のみ** | — |
+| **Muse Code** | **できない** | OS（fail-closed）だが**ワークスペースは書込可** | fail-closed |
+
+**⚠ Codex の Issue #15524 は OPEN のままである**（起票 2026-03-23、**コメント無し・リンク PR 無し・担当者無し**）。
+内容は **「外部サンドボックスの下に入れ子で `codex exec -s read-only` を動かすと、
+シェル経由で書き込めてしまう」** —— **Claude Code から子プロセスとして呼ぶ構成そのものである。**
+**`-s read-only` を書き込み禁止の担保として当てにはできない。**
+
+**Grok は2点訂正がある。** サンドボックスは**既定 OFF**。そして**`strict` は `read-only` より書き込みが緩い**
+（`strict` は CWD に書ける）。**さらに `--sandbox read-only` は fail-open** ——
+適用できなければ警告を出して強制なしで続行し、**警告は stderr に流れるだけで終了コードにも JSON にも出ない。**
+**カスタムプロファイルだけが fail-closed である。**
+
+**Muse は公式が明言している** ——
+「It escalates shell execution only. **File reads and in-workspace `write_file` and `edit_file` writes
+still pass in any mode.**」**最も厳しいモードでもワークスペースに書ける。**
+
+**Kimi は OS サンドボックスを持たない**（公式ドキュメント全体で "sandbox" の語が0件）が、
+**`-p` モードでも静的な `deny` ルールは有効**と明記されている。**アプリ層の制御であって、カーネル強制ではない。**
+
+**どの CLI でも「読み取り」は止まらない。** Grok の `read-only` は "FS Read: Everywhere"、
+Codex も同様、Muse も「残りのファイルシステムは read-only（＝読める）」である。
+
+#### (6) CLI —— 自動化に使える機能
+
+- **非対話の1回実行は4つともある**（`grok -p` / `codex exec` / `kimi -p` / `muse exec`）
+- **推論の深さは4つとも指定できる。**（前回「Codex だけ」としたのは誤り）
+  Grok は `--reasoning-effort`（「Works in TUI **and headless**」）、Muse は `--reasoning-effort`、
+  Kimi は CLI フラグが無い代わりに**設定で effort を焼き込んだ別名を作り `-m` で選ぶ**
+- **Kimi Code から K3 は選べる**（`default_model = "kimi-code/k3"` / `-m kimi-code/k3`）
+- **終了コードは4つとも完了判定に使えない。**
+  Muse は公式が「The code reflects **how the run ended, not whether the work is correct**」と明言。
+  Grok は拒否されたツール呼び出しをモデルに差し戻して実行を続け、
+  しかも **`permission_denials` を意図的に出力から省いている。**
+  Codex は**終了コードの規約そのものが未文書。**Kimi は部分的にしか文書化されていない。
+  **判定は出力の本文か、こちらの検査コマンドで行うほかない**
+- **費用の報告は Grok が最も充実している** —— `cache_read_input_tokens` / `reasoning_tokens` /
+  `total_cost_usd` を返し、**費用が不完全なときは cost を一切出さない**（fail-closed）。
+  Codex はトークンのみで費用なし。**Muse と Kimi は記載自体が無い**
+- **MCP サーバーとして公開されているのは Codex だけ**（`codex app-server`。
+  `codex mcp-server` は deprecated）。Grok と Kimi は代わりに **ACP** を公開している
+
+#### (7) 規約 —— サブスクの認証情報を自動化から使えるか
+
+**OpenAI には公式の手順書がある。**「Maintain Codex account auth in CI/CD」。
+
+> **The right way to authenticate automation is with an API key.**
+> Use this guide only if you specifically need to run the workflow as your Codex account.
+> … the runner is **trusted private infrastructure** …
+> **Do not use this workflow for public or open-source repositories.**
+
+**プランでは区切っていない。**条件は「信頼された私的インフラであること」と「公開リポジトリで使わないこと」。
+**ただしこれは製品ドキュメントであって規約本体ではない。**`openai.com/policies/` は依然として遮断されている。
+
+- **xAI・Meta** —— **明記が無い**（規約に到達できず）。
+  ただし xAI の製品ドキュメントは `grok login --device-auth` を「headless CI/CD runners」向けとして提供している
+- **Moonshot** —— **API 側の規約に自動化の禁止条項は無い**（禁じているのは他者への譲渡・貸与・共有）。
+  **サブスクを規律する消費者向け規約には到達できていない**
+- **Meta のサブスク枠は製品として CLI の対話利用に縛られている** ——
+  「Your subscription only works through the Muse Code CLI while signed in」。
+  **CI には API キーが案内されている**
 
 ### 未解決の配管
 
