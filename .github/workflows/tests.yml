@@ -44,3 +44,8 @@ jobs:
         # one is reached for only when work goes to a role, which is not every
         # session, so nothing else would notice it breaking.
         run: python Tools/run-in-a-worktree.py -- true
+      - name: and still notices what a role touched
+        # Starting is not noticing. The step above runs a command that touches
+        # nothing, so every branch worth having -- moved, escaped, refused --
+        # would be exercised by nobody. These build repositories of their own.
+        run: python Tools/test-run-in-a-worktree.py

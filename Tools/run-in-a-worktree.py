@@ -47,7 +47,10 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PREFIX = "mdoro-review-"
+# "role", not "review": this is for any role that is handed a shell, and the
+# checkout it leaves behind when it detects a change should say which tool made
+# it rather than read as a stray review directory.
+PREFIX = "mdoro-role-"
 
 USAGE_ERROR = 2
 TRACKED_FILE_MOVED = 3
