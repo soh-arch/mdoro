@@ -938,6 +938,34 @@ Codex も同様、Muse も「残りのファイルシステムは read-only（�
 | 教材 | 貼る | **リポジトリを見せる** |
 | 対象 | 教材A・D・E | **教材B・C** |
 
+**教材と checkout の作り方（そのまま再現できる）**
+
+```bash
+# 教材（第0章を落とす。教材Bなら b79b76c、教材Cなら 44ee360）
+git show b79b76c:docs/SPEC.md > /tmp/spec-full.md
+python3 - <<'EOF'
+s=open('/tmp/spec-full.md',encoding='utf-8').read()
+a=s.index('\n## 0.'); b=s.index('\n## 1.')
+open('/tmp/material-B.md','w',encoding='utf-8').write(s[:a]+s[b:])
+EOF
+
+# 見せる checkout（コードだけ）
+git worktree add -q --detach /tmp/stage2-B b79b76c
+rm -rf /tmp/stage2-B/docs
+rm -f  /tmp/stage2-B/CLAUDE.md /tmp/stage2-B/AGENTS.md \
+       /tmp/stage2-B/README.md /tmp/stage2-B/SECURITY.md
+
+# 走らせる前に必ず確かめる
+grep -rl "認証前でも" /tmp/stage2-B | wc -l      # 0 でなければ止める
+grep -c "認証前でも" /tmp/material-B.md          # 0 でなければ止める
+```
+
+**教材B は第0章を落として 1,273行**（§7 の他3本と同じ行数）。
+**`CLAUDE.md` も外す** —— §8 が名指しで渡さないと決めているため。**`docs/` を外すだけでは根に残る。**
+
+**実行はこの環境から行える**（遮断は解けている）。**要るのは `OPENROUTER_API_KEY` だけ。**
+**環境変数はコンテナ起動時に注入されるので、設定を保存したあとに始めたセッションでないと見えない。**
+
 **記録する項目は §7 と同じ** —— 応答した事業者・終了理由・トークン数・費用。
 **加えて、リポジトリを実際に読んだかを記録する**（何のファイルを開いたか）——
 **第二段で測る1番目がそれである。**
