@@ -178,7 +178,7 @@ python3 Tools/run-in-a-worktree.py -- <役を起動するコマンド>
 
 - [ ] **検証役を通したか。** 飛ばしたなら**飛ばしたと報告する**
 - [ ] **指摘が解消しているか。** 採らない指摘には**理由を1行**
-- [ ] CI（`swift test`・文書の機械的な検査・`Tools/run-in-a-worktree.py` が起動すること）
+- [ ] CI（`swift test`・文書の機械的な検査・`Tools/run-in-a-worktree.py` が**起動し、検出も落ちないこと**）
 - [ ] **PUNCHLIST の行を更新**（状態・由来・ブランチ名）
 
 ---
