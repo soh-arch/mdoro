@@ -5,9 +5,12 @@ Mac をタイマー状態の正本、iPhone を表示・操作端末とする、
 Obsidian / Logseq など、md を素のファイルとして扱う道具であればよい（特定ツール専用ではない）。
 
 **GitHub で OSS として公開する。** 名称は `Mdoro`。対象は Markdown でタスクを管理する利用者。
-アプリが生成する文字列・コードコメント・commit メッセージは英語。**日本語で書くのは `docs/` と、
+アプリが生成する文字列・コードコメント・commit メッセージ・**PR の本文**は英語。**日本語で書くのは `docs/` と、
 運用規律を書いた文書（このファイル・`.claude/agents/`）だけ**
 （[0022](docs/decisions/0022-english-only-ui.md) / [0032](docs/decisions/0032-code-comments-are-english.md)）。
+**PR の本文を縛るのは、この体制の役に対してである。** `AGENTS.md` は外部の貢献者に
+**「The language you write your commits and pull requests in is your own.」**と書いている。
+**読み手が違うので、この2つは揃えない。**
 
 - **Mac**: SwiftUI / macOS 26+。メニューバー常駐＋メインウィンドウ。WebSocket サーバー。
 - **iPhone**: SwiftUI / iOS 26+。表示と操作。Live Activity。
@@ -90,7 +93,7 @@ Obsidian / Logseq など、md を素のファイルとして扱う道具であ�
 **`main` へ直接書き込まない。PR を通す。**
 
 1. 作業ごとにブランチを切る。**1 PR = 1つの目的**（1件の修正、1本の軸、1つの工程）
-2. commit は Conventional Commits・英語。根拠の要件IDを書く
+2. commit は Conventional Commits・英語。根拠の要件IDを書く。**PR の本文も英語**
 3. CI が通ること（`swift test` と、文書の機械的な検査）
 4. 独立コンテキストの検証役を通し、**指摘が解消していること**（採らない指摘があるなら、理由を1行残す）
 5. **merge は人間が行う**
