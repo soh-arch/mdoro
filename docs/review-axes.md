@@ -25,6 +25,18 @@
 
 > "In an effort to curb its growth, at one point, adding new questions to Google's launch checklist required approval from a vice president."
 
+**増やさない側の理由は、無視されることではない。**Degani & Wiener が実測した失敗形は**勝手な間引き**である:
+
+> "Therefore, a requirement to conduct a long and meticulous checklist for each flight may lead
+> some to deviate from the prescribed procedures, performing only what he/she perceives as the
+> critical items ("killer items" as some call them). … For example, one company's DC-9-50
+> checklist (a short/medium range type aircraft) contained 81 check items for the ENGINE START,
+> TAXI and TAKEOFF task-checklists."
+
+**81項目にした結果、実施者は自分が重要だと思う項目だけを実施するようになった。**
+**表が長くなると、使われなくなるのではなく、黙って間引かれる。**
+**だから今回は、新しい行を1本に抑えた。**
+
 **増やす側にも、増やさない側にも、外に前例がある。**そこで、調査役を2体出した
 （読み取り専用・起票しない）。**採否はオーケストレーターが選び、人間が承認した。**
 
@@ -129,9 +141,14 @@ Parnas & Weiss, *Active Design Reviews*（1985）4.4 節:
 > phrasing would give the designer little assurance that the reviewer read, understood, and
 > thought about the document. Using the passive phrasing makes it too easy to say "yes.""
 
-**Porter, Votta, Basili（1995）は、この差だけを操作した実験である。**
-Scenario は「チェックリストの各項目を、それを実行する手続きに置き換えたもの」で、
-**担当範囲はむしろ狭い。**4つの結論を全文で引く:
+**Porter, Votta, Basili（1995）が測ったのは、これに近いが、同じではない差である。**
+
+> "The Scenarios are derived from the checklist by replacing individual Checklist items with
+> procedures designed to implement them. As a result, Scenario responsibilities are distinct
+> subsets of Checklist and Ad Hoc responsibilities."
+
+**チェックリストの各項目を、それを実行する手続きに置き換えたもので、担当範囲はむしろ狭い。**
+4つの結論を全文で引く:
 
 > "1. The fault detection rate when using Scenarios was superior to that obtained with Ad Hoc or
 > Checklist methods -- an improvement of roughly 35%.
@@ -149,6 +166,16 @@ Scenario は「チェックリストの各項目を、それを実行する手�
 
 **結論2 の括弧は、著者自身の但し書きである。**「軸を手続きにすれば効く」ではない。
 **外れた手続きは、成績を下げうる。**
+
+**⚠ そして、この実験は書き方だけを操作していない。**同じ論文が「方法」をこう定義している:
+
+> "we define a fault detection method to be a set of fault detection techniques coupled with an
+> assignment of responsibilities to individual reviewers."
+
+**手続きにすることと、レビュアごとに担当を分けることが、定義の時点でひとまとめになっている。**
+**したがって 35% が支持するのは、この2つの組である。書き方だけではない。**
+**(4) を単独で採ったわけではない、ということは残しておく。**
+（分けることの側は、下の §5 の材料に続く。）
 
 航空側も独立に同じ結論に達している。Degani & Wiener のガイドライン (4):
 
@@ -186,7 +213,7 @@ Brykczynski が117のチェックリストを集めて分析した結果:
 | チェックリストの項目数に上限を設ける | **調査役2体が探した範囲に、項目数と有効性の定量関係を直接測った研究が無かった。**「5〜9項目」「60〜90秒」はいずれも一次未確認である |
 | GitLab 型の3層キー（パス＋コード内の記号＋意味的条件） | `Tools/axes-for.py` に第2のキー種別を足す実装が要る。**今回は道具を変えない。**有効なら次に回す |
 | ODC の Backward / Lateral Compatibility を2行に分ける | Mdoro は版不一致で接続を拒否するので Backward 側が意図的に狭い。**今の1行で足りる** |
-| 「減らさない」を撤回して定期的に削る（Google SRE の定期通読） | **床の行は事故の記録でもあるので、削ると記録が消える。**代わりに Degani の「追加のたびに並び順を決め直す」だけを採った |
+| 「減らさない」を撤回して定期的に削る（Google SRE の定期通読） | **床の行の多くは事故の記録でもあるので、削ると記録が消える。**⚠ **ただし今回足した4つの形は事故の記録ではないので、この理由はその行には効かない** —— **そこは空振りが続いたときに見直す対象である。**代わりに Degani の「追加のたびに並び順を決め直す」を採った |
 | 二人ルール（two-person rule） | 一次資料に届いていない。かつ**merge は人間が行う**という既存の規律が同じ位置を占めている |
 
 ---
@@ -195,16 +222,18 @@ Brykczynski が117のチェックリストを集めて分析した結果:
 
 **調査役の報告は、成果物で裏を取る**（`CLAUDE.md`）。
 **この文書に逐語で引いた文は、原典の PDF をこの環境に取得し、私が本文で照合した。**
+**表内のセルに置いた引用も含む**（§6 の3件は `> ` ではなく表の中にあるが、同じように照合してある）。
 
 | 引用 | 出典 | 照合 |
 | :---- | :---- | :---- |
 | passive phrasing / "too easy to say "yes."" | Parnas & Weiss 4.4 | **確認した** |
 | "we also ask a few people for overall reviews …" | Parnas & Weiss 3 | **確認した** |
 | 結論1〜4（35% ／ Checklist は Ad Hoc と同等 ほか） | Porter, Votta, Basili 1995 IV | **確認した**（括弧の但し書きも含む） |
-| "no difference between two- and four-person inspections" | Porter, Siy, Mockus, Votta 1997 3.7 | **確認した** |
+| "The Scenarios are derived from the checklist …" ／ "we define a fault detection method …" | Porter, Votta, Basili 1995 II | **確認した** |
+| "no difference between two- and four-person inspections …" ／ 重なりの中央値が0 ／ "Our interpretation of these results …"（§5 の3件） | Porter, Siy, Mockus, Votta 1997 3.7・4 | **確認した** |
 | MWF / MNWF の定義、"often omits …"、"specify when these designations are valid" | NASA-GB-8719.13 F.2 | **確認した** |
 | "reject the command and alert …" ／ "the sequence shall complete before …" | NASA-GB-8719.13 H.3 | **確認した** |
-| ガイドライン (4) (10) (11)、81項目の DC-9-50、"killer items" | Degani & Wiener CR-177549 | **確認した** |
+| ガイドライン (4) (10) (11)（§2）、81項目の DC-9-50 と "killer items"（§1） | Degani & Wiener CR-177549 | **確認した** |
 | "little verification that a reviewer actually performed any analysis" | Brykczynski 1999 2 | **確認した** |
 | "even one more objective is included …" ／ "we eliminated checklists …" | Fagan 2002 | **確認した** |
 | 事故駆動・near-infinite・VP 承認の3文 | Google SRE Book 27 | **確認した** |
@@ -214,11 +243,17 @@ Brykczynski が117のチェックリストを集めて分析した結果:
 | **SHARD の5語 ／ Value の Coarse・Subtle** | Pumfrey 1999 | **⚠ 確認していない。**学位論文 PDF はスキャン画像で抽出不能 |
 | **rust-lang/rust の 124件・96件という数** | `triagebot.toml` | **⚠ 数え直していない。**調査役が実物を読んで数えた |
 | **"I reverted to what I normally do."** | Basili ほか 1996 | **⚠ 確認していない** |
+| **ODC の `Internal Document` トリガーがコメントを名指しで含むこと**（§2 (3)） | IBM ODC v5.2 | **⚠ 確認していない。**調査役の報告による |
 | **Wurzel Gonçalves 2022 の再現失敗** | EMSE 2022 | **⚠ 確認していない** |
 
-**採った4つのうち、(2) だけが一次未確認の資料に乗っている。**
+**⚠ 上の表は2種類の「確かめていない」を混ぜている。**
+**原典に届いていない**（STPA・IEC 61882・MIL-STD・Pumfrey・Basili 1996・Gonçalves 2022）のと、
+**原典には届いたが自分で数え直していない**（rust の `triagebot.toml` の 124件・96件）のは、別である。
+
+**前者に乗っているのは (2) だけである。**
 4つの形そのものは4分野で重なっており、**どれか1つの出典が崩れても形は残る**が、
-**「STPA だけが持続時間を持つ」という主張は、確かめていない情報に依存している。**
+**「STPA だけが持続時間を持つ」という主張は、届いていない資料に依存している。**
+**後者に乗っているのは (3) だが、(3) の主たる根拠は外の実例ではなく、このリポジトリが実際に踏んだ事故である。**
 
 ---
 
@@ -265,7 +300,10 @@ Brykczynski が117のチェックリストを集めて分析した結果:
 | **天井**（軸を渡さず「何を確かめるべきか」だけを聞く） | Parnas & Weiss: "Because our reviews are very tightly focused, we also ask a few people for overall reviews to decrease the chance that we overlook problems because we neglected to pose a question." |
 
 **3つ目は、調査役2体が独立に「足すべきだ」と挙げてきたものである。既にあった。**
-**ただし天井は4つの条件に当たるときだけ立つ。Parnas は鋭い軸を使うときは常に併置している。**
+**ただし天井は4つの条件に当たるときだけ立つ。**
+**引用が言っているのは、Parnas たちが自分たちの体制でそうしていた、ということである**
+（"Because our reviews are very tightly focused, we also ask a few people for overall reviews"）。
+**「鋭い軸を使うときは常にそうせよ」という規則までは、この1文からは出ない。**
 **発動条件を広げるかどうかは、天井の軸出しと一緒に見る。ここでは決めていない。**
 
 ---
