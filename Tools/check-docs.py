@@ -25,10 +25,12 @@ def note(check: str, detail: str) -> None:
     failures.append(f"[{check}] {detail}")
 
 
-# What a role returned, kept exactly as it came back. Its links and paths are the role's,
-# not this repository's -- a research report cites Chromium's docs/ and writes relative links
-# from wherever it was standing. Checking them would force an edit, and an edited report is
-# no longer the thing it was kept for. docs/experiments/README.md says why they are verbatim.
+# What a role returned, kept exactly as it came back, so every check reading this list skips
+# it -- links, inline paths, requirement ids and POL numbers, all four. What they name is the
+# role's, not this repository's: a research report cites Chromium's own tree and writes
+# relative links from wherever it was standing, and a report frozen today goes on citing a
+# POL after the ledger renumbers it. Checking any of that would force an edit, and an edited
+# report is no longer the thing it was kept for. docs/experiments/README.md says why.
 VERBATIM = "experiments"
 
 
