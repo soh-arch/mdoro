@@ -26,10 +26,10 @@ public struct CommandParams: Equatable, Sendable, Codable {
     public var preset: Preset?
     public var orderedIds: [String]?
     public var settings: AppSettings?
-    // REQ-CFG-018 / REQ-PRT-005: the fields whose value has no case here — an `appearance`, a
-    // `menuBarDisplayMode` or a `notificationSound` a later version added. **The value is left
-    // out rather than stood in for**, and the command is refused with `settingOutOfRange`
-    // (`CommandTranslation`).
+    // REQ-CFG-018 / REQ-PRT-005: the fields this version cannot make a value of — an `appearance`,
+    // a `menuBarDisplayMode` or a `notificationSound` a later version added, or a number no type
+    // here can hold (`"logicalDayStartHour":4.5`). **The value is left out rather than stood in
+    // for**, and the command is refused with `settingOutOfRange` (`CommandTranslation`).
     //
     // It is read apart from the rest of the command because the refusal is owed to a
     // `clientRequestId` that sits in the same object: taking the whole command down leaves the
@@ -66,35 +66,53 @@ public struct CommandParams: Equatable, Sendable, Codable {
         presetId = try c.decodeIfPresent(String.self, forKey: .presetId)
         orderedIds = try c.decodeIfPresent([String].self, forKey: .orderedIds)
         var unreadable: Set<CommandTranslation.Parameter> = []
+        // `MessageCoder` leaves the message here as it arrived; without it there is no telling a
+        // value apart from a broken message, and `value` keeps every throw (see below).
+        let message = decoder.userInfo[.messageAsItArrived] as? Data
         preset = try Self.value(Preset.self, forKey: .preset, as: .preset,
-                                from: c, unreadable: &unreadable)
+                                from: c, in: message, unreadable: &unreadable)
         settings = try Self.value(AppSettings.self, forKey: .settings, as: .settings,
-                                  from: c, unreadable: &unreadable)
+                                  from: c, in: message, unreadable: &unreadable)
         unreadableValues = unreadable
     }
 
-    // REQ-PRT-005: **a value with no case here is answered for; a message that does not hold
-    // together is not.**
+    // REQ-PRT-005: **a value this version cannot make sense of is answered for; a message that
+    // does not hold together is not.** Both arrive here as a throw out of one field's read, and
+    // the whole of the difference is which of them it was.
     //
-    // What is caught is a `DecodingError.dataCorrupted` raised while reading this field — which,
-    // for the types on the other side of it, means one thing: a raw value none of an enum's cases
-    // matches (`"appearance":"sepia"`, `"notificationSound":"gamelan"`, a pre-notification's
-    // `type`). REQ-CFG-018 names the answer that value is owed.
+    // Two kinds of throw are the first sort, and REQ-CFG-018 names the answer both are owed:
+    //
+    // - `DecodingError.dataCorrupted`, which for the types on the other side of this means a raw
+    //   value none of an enum's cases matches (`"appearance":"sepia"`,
+    //   `"notificationSound":"gamelan"`, a pre-notification's `type`).
+    // - **a number no Swift type on the other side can hold** — `4.5` for an hour, `-1` for a
+    //   `UInt16`, a figure past `Int`. The JSON parser gives up on the literal itself before any
+    //   type here is asked to make a value of it, and what it raises is not a `DecodingError`
+    //   (`docs/platform/0012`), so the clause above never sees it. `JSONDecoder` wraps it as
+    //   `dataCorrupted` on the way out, which is all a reader at the top of the stack is shown.
     //
     // Everything else says the message itself does not hold together — a number where an object
     // belongs, a field the value cannot do without (`typeMismatch`, `keyNotFound`) — and stays
     // what it was: discarded and counted (REQ-ERR-009).
     //
-    // **A number the field's type cannot hold falls on that second side, despite how it reads
-    // from the outside.** `4.5` for an hour or `-1` for a `UInt16` fails in the JSON parser
-    // before any type here is asked for a value, and what it throws is not a `DecodingError`, so
-    // it passes this catch untouched; `JSONDecoder` only wraps it as `dataCorrupted` at the top.
-    // The test suite pins that, because the wrapper makes the two look alike from a stack trace.
+    // **The second clause is not "anything that is not a `DecodingError`".** The parser raises the
+    // same error for a number it cannot represent and for one that is malformed (`01`, `1e`,
+    // `--3`), and for a string that is not a string (`"\uD800"`, a byte that is not UTF-8); only
+    // the first of those is a value, and the rest are broken messages. **Nothing Foundation can be
+    // asked separates them** — its scanner accepts a number-shaped run of bytes without reading it
+    // and only judges the digits when a type asks for a value, so every numeric type refuses
+    // `1e309` and `01` alike (`docs/platform/0012`). What tells them apart is the grammar, read
+    // off the message as it arrived: `JSONWellFormedness`. Widening the catch to the error type
+    // instead would answer `settingOutOfRange` to bytes nobody could read.
+    //
+    // With no message in hand there is nothing to ask, and every throw is kept — which is what any
+    // reader other than `MessageCoder` gets, the state file included (REQ-ERR-017 / Decision 0036).
     private static func value<T: Decodable>(
         _ type: T.Type,
         forKey key: CodingKeys,
         as parameter: CommandTranslation.Parameter,
         from container: KeyedDecodingContainer<CodingKeys>,
+        in message: Data?,
         unreadable: inout Set<CommandTranslation.Parameter>
     ) throws -> T? {
         do {
@@ -103,8 +121,19 @@ public struct CommandParams: Equatable, Sendable, Codable {
             guard case .dataCorrupted = error else { throw error }
             unreadable.insert(parameter)
             return nil
+        } catch let parserError {
+            guard let message, JSONWellFormedness.holds(for: message) else { throw parserError }
+            unreadable.insert(parameter)
+            return nil
         }
     }
+}
+
+public extension CodingUserInfoKey {
+    // The bytes a message arrived as, put here by `MessageCoder` so that `CommandParams` can tell
+    // a value this version cannot make from bytes that are not a value at all. Nothing else reads
+    // it, and a decoder that does not carry it decodes strictly.
+    static let messageAsItArrived = CodingUserInfoKey(rawValue: "MdoroCore.messageAsItArrived")!
 }
 
 public struct CommandPayload: Equatable, Sendable, Codable {
@@ -300,8 +329,14 @@ public enum MessageCoder {
     }
 
     // The payload sits flat at the top level: `{"type":..,"messageId":..,"sentAt":..,<payload>}`.
+    //
+    // The message is carried alongside because a settings value that fails to read is answered for
+    // rather than dropped (REQ-CFG-018), and only the bytes say whether it was a value at all
+    // (`CommandParams.value`).
     private static func payload<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T {
-        try decoder.decode(T.self, from: data)
+        let decoder = self.decoder
+        decoder.userInfo[.messageAsItArrived] = data
+        return try decoder.decode(T.self, from: data)
     }
 
     public static func encode(_ envelope: Envelope<ClientMessage>) throws -> Data {
