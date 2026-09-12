@@ -80,8 +80,32 @@ import MdoroCore
 // not five seconds. Each turn measured 15.58 ms on the runner, so every bound was half again as
 // long as it read.)
 //
-// **Why the dial did not go ready is still open**, and the machinery below is there to answer it
-// in one more run rather than three.
+// MARK: - What the third run established, and what it got wrong
+//
+// The third run printed this, four times over:
+//
+//     never went ready against the listener at localhost:52076.
+//     WebSocket dial: preparing -> ready.
+//     Plain TCP to the same port: ready — the listener is reachable,
+//     so what failed is the WebSocket upgrade on top of it
+//
+// **The evidence and the conclusion in that line contradict each other.** `preparing -> ready`
+// says the WebSocket line came up; `.ready` on a connection with an application protocol in its
+// stack *is* the upgrade having completed. The conclusion was reached by looking only at whether
+// plain TCP came up, and never at the trail sitting in the same sentence.
+//
+// So three things are now settled, and none of them is a guess:
+//
+//   - **the port is real** (`localhost:52076`). The listener binds, reports a port and is
+//     reachable across the loopback interface from inside the test host.
+//   - **the WebSocket upgrade completes.** It reached `.ready`.
+//   - **what failed was the two-second bound**, and the reading of it.
+//
+// Why two seconds was not enough has two candidates, and the fix below closes both rather than
+// choosing: the line may genuinely have taken longer than two seconds on a cold runner, or it may
+// have been ready sooner while the `Task { @MainActor }` hop that records it sat behind
+// forty-eight other tests on the same actor. `isUpNow` asks the connection instead of the hop,
+// and the bound is ten times what it was.
 
 // MARK: - Saying why, in a form the log keeps
 //
@@ -104,11 +128,43 @@ private func diagnose(_ line: String) -> String {
     return text
 }
 
+// The same channel for a fact worth having when nothing failed. A green run that says how close
+// the bounds came is worth more than a green run that says nothing, and on this project a run
+// costs real money now.
+private func trace(_ line: String) {
+    _ = diagnose(line)
+}
+
 // Thrown rather than expected, so nothing downstream runs on a premise that is already gone.
 private struct Wrong: Error, CustomStringConvertible {
     let description: String
     init(_ description: String) { self.description = description }
 }
+
+private func describe(_ duration: Duration) -> String {
+    let parts = duration.components
+    return String(format: "%.3fs", Double(parts.seconds) + Double(parts.attoseconds) / 1e18)
+}
+
+private struct Waited {
+    let held: Bool
+    let elapsed: Duration
+    var describedElapsed: String { describe(elapsed) }
+}
+
+// **The bounds are here to fail instead of hang. They measure nothing.** Everything waited for in
+// this file happens in milliseconds when it happens at all — a dial across the loopback
+// interface, a frame coming back off it. On the runner these same waits have measured whole
+// seconds, and the suite shares one main actor with forty-eight other tests, so the numbers are
+// generous on purpose. **A healthy run pays none of it**: every wait returns the moment its
+// condition holds.
+//
+// The second version of this file put the dial at two seconds, and that is what the third run
+// broke on. The line came up somewhere past two seconds; by the time anything read the trail it
+// said `ready`, inside a sentence claiming the opposite.
+private let dialBudget = Duration.seconds(20)
+private let arrivalBudget = Duration.seconds(10)
+private let fallbackDialBudget = Duration.seconds(10)
 
 // The message every receipt leans on. One line — see above for why.
 private let noReceipt = "REQ-COM-005: the timeSyncPong that says the message before it was handled never came back. Either answering a timeSyncPing has grown a condition — which the clause forbids, because the phone reads the resulting silence as the Mac being gone — or this line went down. Nothing after this point was observed."
@@ -147,40 +203,58 @@ private final class Probe {
         // nothing on record says which address families it ended up accepting, so a name that
         // resolves to both lets the connection settle on whichever one is there. It is still the
         // loopback interface: nothing goes on the LAN and no name is registered.
+        //
+        // **Whether this was needed is not known.** The first run dialled `.ipv4(.loopback)` and
+        // never reached `.ready` inside 7.79 s; the third dialled this and did reach it. That is
+        // consistent with the family mattering and also with the first run simply having been
+        // slower than it looked, and the two were changed in the same commit as the bound. It is
+        // kept because it is at worst harmless — the `timing:` line each dial prints is what will
+        // eventually say how long this actually takes.
         connection = NWConnection(host: "localhost", port: port, using: parameters)
     }
 
-    // Returns whether the line came up. It does not throw — the caller is the one holding the
-    // context needed to say what failed.
-    func dial(upTo budget: Duration = .seconds(2)) async -> Bool {
+    // **Whether the line is up is asked of the connection, not of the flag.** The flag is set on a
+    // hop through the main actor, and this suite shares that actor with forty-eight other tests;
+    // the connection's own state needs nothing drained to be true. The flag is kept as a second
+    // opinion, never as the only one.
+    var isUpNow: Bool {
+        if case .ready = connection.state { return true }
+        return isReady
+    }
+
+    // Returns whether the line came up, and how long that took. It does not throw — the caller is
+    // the one holding the context needed to say what failed.
+    func dial(upTo budget: Duration) async -> Waited {
         connection.stateUpdateHandler = { [weak self] state in
             // Read out here and carried across as plain strings and flags: the state itself is a
             // framework value with an error inside it, and nothing needs it on the other side.
-            let note: String
+            let stateName: String
             var ended = false
             var ready = false
             switch state {
-            case .setup: note = "setup"
-            case .preparing: note = "preparing"
-            case .ready: note = "ready"; ready = true
-            case let .waiting(error): note = "waiting(\(error))"
-            case let .failed(error): note = "failed(\(error))"; ended = true
-            case .cancelled: note = "cancelled"; ended = true
-            @unknown default: note = "unknown"
+            case .setup: stateName = "setup"
+            case .preparing: stateName = "preparing"
+            case .ready: stateName = "ready"; ready = true
+            case let .waiting(error): stateName = "waiting(\(error))"
+            case let .failed(error): stateName = "failed(\(error))"; ended = true
+            case .cancelled: stateName = "cancelled"; ended = true
+            @unknown default: stateName = "unknown"
             }
             let didEnd = ended
             let didReady = ready
             Task { @MainActor in
                 guard let self else { return }
-                self.trail.append(note)
+                self.trail.append(stateName)
                 if didReady { self.isReady = true }
                 if didEnd { self.dialEnded = true }
             }
         }
         connection.start(queue: queue)
         receive()
-        _ = await waits(upTo: budget, until: { self.isReady || self.dialEnded })
-        return isReady
+        let waited = await waits(upTo: budget, until: { self.isUpNow || self.dialEnded })
+        // `waits` holds when either arm of the condition is true; only one of them is the line
+        // coming up.
+        return Waited(held: isUpNow, elapsed: waited.elapsed)
     }
 
     var trailDescription: String {
@@ -210,10 +284,10 @@ private final class Probe {
     // Anything the server wrote to this line before the pong is already in `received` by the time
     // this returns: the frames arrive in the order they were written, this probe re-arms its own
     // read one message at a time, and each arrival is appended on the main actor in that order.
-    func roundTrip() async throws -> Bool {
+    func roundTrip() async throws -> Waited {
         let before = pongs.count
         try send(.timeSyncPing(TimeSyncPayload(t1: Date())))
-        return await waits(upTo: .seconds(3), until: { self.pongs.count > before })
+        return await waits(upTo: arrivalBudget, until: { self.pongs.count > before })
     }
 
     var pongs: [TimeSyncPayload] {
@@ -278,13 +352,18 @@ private final class Probe {
 // so every bound was really 7.79 s. That is not a rounding error when a failing test walks
 // through six of them. A clock cannot drift like that.
 @MainActor
-private func waits(upTo budget: Duration = .seconds(3), until condition: () -> Bool) async -> Bool {
-    let deadline = ContinuousClock.now + budget
+private func waits(upTo budget: Duration, until condition: () -> Bool) async -> Waited {
+    let started = ContinuousClock.now
+    let deadline = started + budget
     while ContinuousClock.now < deadline {
-        if condition() { return true }
+        if condition() {
+            return Waited(held: true, elapsed: started.duration(to: ContinuousClock.now))
+        }
         try? await Task.sleep(for: .milliseconds(10))
     }
-    return condition()
+    // How long it waited goes back with the answer. A wait that ran out says nothing on its own:
+    // "not yet after 0.2 s" and "not yet after 20 s" are different findings.
+    return Waited(held: condition(), elapsed: started.duration(to: ContinuousClock.now))
 }
 
 // MARK: - The near end
@@ -356,37 +435,64 @@ private func raiseServer() async throws -> Bench {
     return Bench(server: server, upstream: upstream, port: port)
 }
 
-// **A dial that does not come up is the end of the test, and it says what it knows.**
+// **A dial that does not come up ends the test, and what it says is read off the evidence in
+// order.**
 //
-// When the WebSocket dial fails, the same port is dialled once more as plain TCP. That splits the
-// question in two and needs no second run to do it:
+// The third run is the reason this is written the way it is. The version before this one dialled
+// plain TCP first and then looked at the WebSocket trail. The extra seconds that fallback took
+// were enough for the real line to come up, so the trail read `ready` — and the sentence built
+// around it announced that the WebSocket upgrade had failed. **The diagnosis contradicted the
+// evidence it was carrying, in the same line.** Reading a conclusion off one arm of a branch
+// without checking the other is the whole of that mistake.
 //
-//   - plain TCP comes up  -> the listener is there and reachable, and what failed is the
-//     WebSocket upgrade on top of it. The one thing this probe does differently from the phone is
-//     the shape of the endpoint it dials — `WebSocketLinks.dialEndpoint` only ever hands
-//     `WebSocketLink` a Bonjour `.service`, and no test in this project has ever completed a
-//     WebSocket handshake against `MdoroServer` in-process.
-//   - plain TCP does not come up either -> nothing reached the listener at all, and the trail's
-//     own error (`waiting(...)` / `failed(...)`) names the reason.
+// So the order here is fixed:
+//
+//   1. **is the line up now?** Asked before anything that takes time. If it is, the dial works and
+//      the bound was short — that and nothing else.
+//   2. only if it is not: dial the same port as plain TCP, then **ask once more**, because that
+//      dial took time and time was the thing missing at step 1.
+//   3. only if it is still not up: the plain dial splits the question. Plain TCP up means the
+//      listener is reachable and the WebSocket upgrade on top of it is what failed — worth naming,
+//      because `WebSocketLinks.dialEndpoint` only ever hands `WebSocketLink` a Bonjour `.service`
+//      and no test in this project has ever completed a WebSocket handshake against `MdoroServer`
+//      in-process. Plain TCP down means nothing reached the listener, and the trail's own
+//      `waiting(...)` / `failed(...)` names why.
 @MainActor
 private func connectedProbe(to bench: Bench, called label: String) async throws -> Probe {
     let probe = Probe(port: bench.port)
-    if await probe.dial() { return probe }
+    let dialled = await probe.dial(upTo: dialBudget)
+    if dialled.held {
+        trace("timing: \(label) went ready in \(dialled.describedElapsed) on localhost:\(bench.port.rawValue)")
+        return probe
+    }
 
+    // Step 1.
+    if probe.isUpNow {
+        let trail = probe.trailDescription
+        probe.cancel()
+        throw Wrong(diagnose("\(label) came up, but not inside the \(describe(dialBudget)) dial bound. Line: \(trail). **The dial is not broken and the upgrade is not broken — the bound is too short for this runner.** Raise it; do not go looking for a fault."))
+    }
+
+    // Step 2.
     let plain = Probe(port: bench.port, webSocket: false)
-    let plainCameUp = await plain.dial()
+    let plainDial = await plain.dial(upTo: fallbackDialBudget)
     let plainTrail = plain.trailDescription
     plain.cancel()
+
+    if probe.isUpNow {
+        let trail = probe.trailDescription
+        probe.cancel()
+        throw Wrong(diagnose("\(label) came up during the fallback dial — later than \(describe(dialBudget)), inside \(describe(dialBudget)) + \(plainDial.describedElapsed). Line: \(trail). The bound is short by a wide margin on this runner; nothing else is wrong."))
+    }
+
+    // Step 3.
     let webSocketTrail = probe.trailDescription
     probe.cancel()
-
     throw Wrong(diagnose(
-        "\(label) never went ready against the listener at localhost:\(bench.port.rawValue). "
-        + "WebSocket dial: \(webSocketTrail). "
-        + "Plain TCP to the same port: "
-        + (plainCameUp
-           ? "ready — the listener is reachable, so what failed is the WebSocket upgrade on top of it"
-           : "did not come up either (\(plainTrail)) — nothing reached the listener")
+        "\(label) never went ready in \(dialled.describedElapsed) against localhost:\(bench.port.rawValue), and was still not up after a further \(plainDial.describedElapsed). WebSocket line: \(webSocketTrail). "
+        + (plainDial.held
+           ? "Plain TCP to the same port went ready in \(plainDial.describedElapsed) — the listener is reachable, so what failed is the WebSocket upgrade on top of it."
+           : "Plain TCP to the same port did not come up either (\(plainTrail)) — nothing reached the listener at all.")
     ))
 }
 
@@ -398,10 +504,11 @@ private func connectedProbe(to bench: Bench, called label: String) async throws 
 private func authenticatedProbe(named name: String, on bench: Bench) async throws -> Probe {
     let probe = try await connectedProbe(to: bench, called: name)
     try probe.send(.hello(HelloPayload(deviceName: name)))
-    guard await waits(until: { probe.welcomes == 1 }) else {
+    let welcomed = await waits(upTo: arrivalBudget, until: { probe.welcomes == 1 })
+    guard welcomed.held else {
         let trail = probe.trailDescription
         probe.cancel()
-        throw Wrong(diagnose("REQ-SEC-003: \(name) said hello on a line that was ready and no welcome came back. Line: \(trail). Server holds connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil")."))
+        throw Wrong(diagnose("REQ-SEC-003: \(name) said hello on a line that was ready and no welcome came back in \(welcomed.describedElapsed). Line: \(trail). Server holds connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil"), \(probe.received.count) message(s) arrived."))
     }
     guard bench.server.connectedDeviceName == name else {
         probe.cancel()
@@ -430,8 +537,9 @@ private func holds(_ condition: Bool, _ line: @autoclosure () -> String) {
 // A receipt that does not arrive ends the test where it stopped meaning anything.
 @MainActor
 private func receipt(from probe: Probe, called label: String) async throws {
-    guard try await probe.roundTrip() else {
-        throw Wrong(diagnose("\(noReceipt) Waiting on: \(label). Line: \(probe.trailDescription)."))
+    let waited = try await probe.roundTrip()
+    guard waited.held else {
+        throw Wrong(diagnose("\(noReceipt) Waiting on: \(label), for \(waited.describedElapsed). Line: \(probe.trailDescription), still up: \(probe.isUpNow), \(probe.received.count) message(s) arrived in all."))
     }
 }
 
@@ -458,8 +566,9 @@ struct ServerUnderARealConnectionTests {
         let t1 = Date()
         try stranger.send(.timeSyncPing(TimeSyncPayload(t1: t1)))
 
-        guard await waits(until: { stranger.pongs.count == 1 }) else {
-            throw Wrong(diagnose("REQ-COM-005: a timeSyncPing arriving before any hello went unanswered on a line that was ready. Line: \(stranger.trailDescription). Received so far: \(stranger.received.count) message(s)."))
+        let answered = await waits(upTo: arrivalBudget, until: { stranger.pongs.count == 1 })
+        guard answered.held else {
+            throw Wrong(diagnose("REQ-COM-005: a timeSyncPing arriving before any hello went unanswered in \(answered.describedElapsed) on a line that was ready. Line: \(stranger.trailDescription), still up: \(stranger.isUpNow). Received so far: \(stranger.received.count) message(s)."))
         }
         let pong = try #require(stranger.pongs.first)
         // REQ-COM-007: t1 comes back so the asker can pair the answer with its question. It
@@ -556,8 +665,9 @@ struct ServerUnderARealConnectionTests {
         // REQ-COM-004: the accept sends the whole state unasked, after the welcome — so it is
         // waited for rather than read the moment the welcome lands, and what is counted below is
         // what arrives on top of this one.
-        guard await waits(until: { phone.snapshots == 1 }) else {
-            throw Wrong(diagnose("REQ-COM-004: the accept did not send the whole state — the welcome arrived but no stateSnapshot followed it, so what is counted below has no baseline"))
+        let baseline = await waits(upTo: arrivalBudget, until: { phone.snapshots == 1 })
+        guard baseline.held else {
+            throw Wrong(diagnose("REQ-COM-004: the accept did not send the whole state — the welcome arrived but no stateSnapshot followed it in \(baseline.describedElapsed), so what is counted below has no baseline (\(phone.received.count) message(s) arrived in all)"))
         }
         let providedAtAccept = bench.upstream.snapshotsProvided
 
