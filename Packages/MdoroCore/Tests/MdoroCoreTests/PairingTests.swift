@@ -271,13 +271,115 @@ struct AuthenticatorTests {
         #expect(auth.resolveApproval(approved: true, now: t0) == nil)
     }
 
-    // REQ-PRT-004: an incompatible version has its connection rejected.
-    @Test func incompatibleProtocolVersionIsRejected() {
+    // POL-182 / REQ-PRT-004 / 10.2: an incompatible version has its connection rejected — **and
+    // which refusal is sent is the whole of it.** `authFailed.code` has no word for a version, so
+    // 10.2 carries this reason on `error.code`. Sent as `unknownDeviceToken`, it reached the
+    // iPhone as "this device is no longer registered", and the iPhone answers that by deleting
+    // the device token it holds: a Mac updated on its own destroyed the pairing it was refusing,
+    // then sent the user to pair again, which fails the same way for the same reason, for ever.
+    //
+    // The old test asked only `case .reject`, which is what let the wrong code stand.
+    @Test func incompatibleProtocolVersionIsRefusedAsAVersionAndNotAsAnUnknownToken() {
         var auth = Authenticator(issuedTokens: [issued("tok")])
-        guard case .reject = auth.authenticate(hello(token: "tok", version: 99), now: t0) else {
-            Issue.record("an incompatible version was not rejected")
-            return
+        let decision = auth.authenticate(hello(token: "tok", version: 99), now: t0)
+
+        #expect(decision == .rejectWithProtocolError(.protocolVersionMismatch),
+                "REQ-PRT-004: an incompatible version was not refused as one")
+        #expect(decision != .reject(.unknownDeviceToken),
+                "POL-182: the iPhone reads this as a revoked pairing and deletes the token it holds")
+        #expect(auth.issuedTokens == [issued("tok")], "the refusal took the record with it")
+    }
+
+    // REQ-PRT-004: the version is settled before anything the hello carried as credentials, so
+    // the answer cannot come back as a problem with those instead — whichever of them was sent.
+    // Refused as a pairing problem, the user is sent to a pairing screen that cannot help.
+    @Test func theVersionIsTheAnswerWhateverElseTheHelloCarried() {
+        let samples = [
+            hello(version: 99),
+            hello(token: "tok", version: 99),
+            hello(token: "unknown", version: 99),
+            hello(code: "123456", version: 99),
+            hello(code: "000000", version: 99),
+        ]
+        for sample in samples {
+            var auth = Authenticator(issuedTokens: [issued("tok")])
+            auth.beginPairing(code: "123456", now: t0)
+            #expect(auth.authenticate(sample, now: t0) == .rejectWithProtocolError(.protocolVersionMismatch),
+                    "a hello refused for its credentials rather than for its version")
+            // REQ-ERR-006: nor does a version mismatch spend one of the five pairing attempts.
+            #expect(auth.isPairingActive, "the pairing window closed over a version number")
         }
+    }
+
+    // REQ-PRT-004: a version this Mac does speak is not refused here at all — the guard reads
+    // the version, not the presence of one.
+    @Test func theCurrentVersionPassesTheVersionGuard() {
+        var auth = Authenticator(issuedTokens: [issued("tok")])
+        let decision = auth.authenticate(hello(token: "tok", version: PomodoroProtocol.version), now: t0)
+        #expect(decision == .accept(issued("tok")))
+    }
+}
+
+// POL-182 / REQ-PRT-004 / 10.2: the vocabulary the refusal is spoken in.
+//
+// The deviation this fixes came from a silence: REQ-PRT-004 says to refuse and to tell both ends
+// to update, but not which message says so. 10.2 does, and nothing in the implementation held it
+// there. These are that anchor.
+@Suite("A version the Mac cannot speak to (REQ-PRT-004 / 10.2 / POL-182)")
+struct ProtocolRefusalTests {
+
+    // 10.2 lists five `authFailed.code` values and not one of them is about a version. **That
+    // absence is the reason this refusal leaves by `error`** — so it is written down here, where
+    // a sixth `authFailed` code quietly becoming the answer would be caught.
+    @Test func authFailedHasNoWordForAVersion() {
+        #expect(AuthFailureCode.allCases.count == 5)
+        let mentionsAVersion = AuthFailureCode.allCases.contains { $0.rawValue.lowercased().contains("version") }
+        #expect(!mentionsAVersion, "10.2: `authFailed.code` gained a word for a version")
+        #expect(ProtocolErrorCode.allCases.contains(.protocolVersionMismatch),
+                "10.2: `error.code` is where the version mismatch lives")
+    }
+
+    // 10.2: and this is the code it goes out under — the one value every version's catalogue
+    // already holds, so no end has to decode a code its age keeps it from knowing (REQ-PRT-005).
+    @Test func itLeavesUnderTheCode10Point2AssignsIt() {
+        #expect(ProtocolRefusal.protocolVersionMismatch.protocolErrorCode == .protocolVersionMismatch)
+        #expect(ProtocolRefusal.allCases.count == 1, "a second reason needs its own line in 10.2 first")
+    }
+
+    // POL-054 / REQ-ERR-010 / Decision 0034: it is still a refused connection, so it is written
+    // into the diagnostic log like every other failure of ours — `case(domain:code)`, in our own
+    // domain, out of the block of numbers this enum owns.
+    @Test func everyProtocolRefusalIsWrittenLikeAnyOtherFailure() {
+        var seen = Set<String>()
+        for refusal in ProtocolRefusal.allCases {
+            #expect(refusal.errorCode.domain == ErrorCode.ownDomain)
+            #expect((70...79).contains(refusal.errorCode.code), "Decision 0034: 70–79 belong to this enum")
+            #expect(refusal.diagnosticSummary == "\(refusal.rawValue)(\(refusal.errorCode))")
+            // Decision 0018 rewrites whitespace in a field; there must be none to rewrite.
+            #expect(DiagnosticField("why", refusal.diagnosticSummary).value == refusal.diagnosticSummary)
+            #expect(seen.insert(refusal.diagnosticSummary).inserted)
+        }
+    }
+
+    // POL-054: **a refusal is recorded before it leaves, on every path.** The Mac target is not
+    // reachable from here, so the wiring is read: the case added to `settle` must go through a
+    // `refuse` that records, not straight to the wire.
+    @Test func theServerRecordsThisRefusalBeforeSendingIt() throws {
+        let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
+
+        // Two `refuse`s now, one per message 10.2 carries a reason in — and each records first.
+        let refusals = server.components(separatedBy: "private func refuse(").dropFirst()
+        #expect(refusals.count == 2, "POL-054 / 10.2: one refusal for `authFailed`, one for `error`")
+        for refusal in refusals {
+            let body = refusal.prefix(400)
+            let recorded = try #require(body.range(of: "record(refusal:"), "POL-054: a refusal that leaves no line")
+            let sent = try #require(body.range(of: "sendThenClose("), "a refusal that is recorded but never sent")
+            #expect(recorded.upperBound < sent.lowerBound, "POL-054: the line is written after the refusal is sent")
+        }
+        // 10.2 / REQ-PRT-004: and the one on `error` carries the code the refusal itself names,
+        // rather than one written out here — the enum is what keeps it to a value every version knows.
+        #expect(server.contains("ProtocolErrorPayload(code: reason.protocolErrorCode"),
+                "REQ-PRT-004: the version refusal does not go out on `error`")
     }
 }
 

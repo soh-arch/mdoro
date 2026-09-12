@@ -265,6 +265,7 @@ struct ErrorReportingTests {
         ] + TimerError.allCases.map(\.errorCode)
             + CommandTranslation.Parameter.allCases.map(\.errorCode)
             + AuthFailureCode.allCases.map(\.errorCode)
+            + ProtocolRefusal.allCases.map(\.errorCode)
         let allOurs = table.allSatisfy { $0.domain == ErrorCode.ownDomain }
         #expect(allOurs)
         #expect(Set(table.map(\.code)).count == table.count, "Decision 0034: a code means one thing")

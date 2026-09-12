@@ -116,12 +116,23 @@ public struct Authenticator: Equatable, Sendable {
         // REQ-SEC-004: with a connection already open, wait for the user to approve.
         case needsUserApproval(requestingDeviceName: String)
         case reject(AuthFailureCode)
+        // REQ-PRT-004 / 10.2: refused, with the reason travelling on `error` rather than on
+        // `authFailed` — see `ProtocolRefusal`. A case of its own rather than a sixth
+        // `AuthFailureCode`, because 10.2 puts this reason in a different message: adding a word
+        // to `authFailed.code` would be changing the protocol instead of following it, and the
+        // iPhone reads the five it has today as things to do about a pairing.
+        case rejectWithProtocolError(ProtocolRefusal)
     }
 
     public mutating func authenticate(_ hello: HelloPayload, now: Date) -> Decision {
-        // REQ-PRT-004: an incompatible version is refused.
+        // REQ-PRT-004 / 10.2: an incompatible version is refused — and told so. This is looked
+        // at before anything the hello carried as credentials, so the answer does not depend on
+        // them; what the answer must not be is one of those credentials' own refusals.
+        // `unknownDeviceToken` stood here, and the iPhone acts on it by deleting the device
+        // token it holds, so a Mac updated on its own did not just mislead the user into pairing
+        // again — it destroyed the pairing it was refusing, for a reason pairing cannot mend.
         guard PomodoroProtocol.isCompatible(hello.protocolVersion) else {
-            return .reject(.unknownDeviceToken)
+            return .rejectWithProtocolError(.protocolVersionMismatch)
         }
 
         // REQ-SEC-002: a token we issued goes straight through.

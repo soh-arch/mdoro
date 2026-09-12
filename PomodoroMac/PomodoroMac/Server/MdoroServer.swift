@@ -322,14 +322,31 @@ final class MdoroServer {
 
         case let .reject(code):
             refuse(code, of: payload, to: source)
+
+        // REQ-PRT-004 / 10.2: the reason has no word in `authFailed.code`, so it leaves on
+        // `error` instead. Everything else about a refusal is the same, the record included.
+        case let .rejectWithProtocolError(reason):
+            refuse(reason, of: payload, to: source)
         }
     }
 
-    // POL-054: **the only way a refusal leaves this process**, so the record cannot be forgotten on
-    // a path someone adds later.
+    // POL-054: **the only ways a refusal leaves this process**, so the record cannot be forgotten
+    // on a path someone adds later. Two of them, because 10.2 carries the two kinds of reason in
+    // two different messages — and both of them write the line first.
     private func refuse(_ code: AuthFailureCode, of hello: HelloPayload, to connection: NWConnection) {
         record(refusal: code, of: hello)
         sendThenClose(.authFailed(AuthFailedPayload(code: code)), to: connection)
+    }
+
+    // REQ-PRT-004 / 10.2: the refusal `authFailed` cannot express. `relatedRequestId` stays nil —
+    // a `hello` carries no `clientRequestId` to tie an answer to — and `message` is diagnostic,
+    // so the iPhone's wording comes from `code` (Decision 0035).
+    private func refuse(_ reason: ProtocolRefusal, of hello: HelloPayload, to connection: NWConnection) {
+        record(refusal: reason, of: hello)
+        sendThenClose(
+            .error(ProtocolErrorPayload(code: reason.protocolErrorCode, message: reason.diagnosticSummary)),
+            to: connection
+        )
     }
 
     // REQ-ERR-010 / Decision 0018: the code, and nothing beside it.
@@ -340,7 +357,19 @@ final class MdoroServer {
     // in and reads the whole file back. What is left is the code alone, which is what tells a
     // stranger on an issue five wrong codes from a token this Mac no longer knows.
     func record(refusal code: AuthFailureCode, of hello: HelloPayload) {
-        diagnostics.write("conn.refused", level: .warn, [DiagnosticField("why", code.diagnosticSummary)])
+        write(refusal: code, of: hello)
+    }
+
+    // REQ-PRT-004: and the refusal 10.2 sends as `error` is written the same way, on the same
+    // line, so a reader on an issue can tell a version apart from a revoked pairing — which is
+    // exactly what they could not do while both went out as `unknownDeviceToken`.
+    func record(refusal reason: ProtocolRefusal, of hello: HelloPayload) {
+        write(refusal: reason, of: hello)
+    }
+
+    // One write for both, so neither kind of refusal can drift into a shape of its own.
+    private func write(refusal reason: some DiagnosableError, of hello: HelloPayload) {
+        diagnostics.write("conn.refused", level: .warn, [DiagnosticField("why", reason.diagnosticSummary)])
     }
 
     // REQ-SEC-004: refused on its own after 60 seconds.
