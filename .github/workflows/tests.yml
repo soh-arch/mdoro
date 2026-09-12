@@ -39,3 +39,13 @@ jobs:
         run: python -m compileall -q Tools
       - name: check-docs
         run: python Tools/check-docs.py
+      - name: a role runs on a checkout it cannot keep
+        # POL-201 was the tools nobody ran, and parsing is not starting. This
+        # one is reached for only when work goes to a role, which is not every
+        # session, so nothing else would notice it breaking.
+        run: python Tools/run-in-a-worktree.py -- true
+      - name: and still notices what a role touched
+        # Starting is not noticing. The step above runs a command that touches
+        # nothing, so every branch worth having -- moved, escaped, refused --
+        # would be exercised by nobody. These build repositories of their own.
+        run: python Tools/test-run-in-a-worktree.py

@@ -22,6 +22,8 @@ CEILING_HEADING = "### 天井"
 # Rows whose subject is not a path. A row that is neither matched by a pattern
 # nor named here is reported as unresolved rather than dropped -- a lost row
 # would be a silently missing axis, which is the failure this table exists for.
+# The same holds from the other side: a changed file that no row claims is named
+# too, because a file nobody looks at is a missing axis just as much as a row.
 BY_SHAPE = {
     "テスト": lambda p: "Tests" in p,
     "オーケストレーターが一次で書いた文章": lambda p: p.endswith(".md"),
@@ -57,6 +59,8 @@ def floor_rows() -> list[tuple[str, str]]:
 
 
 def matches(pattern: str, path: str) -> bool:
+    if pattern.startswith("/"):
+        return path == pattern[1:]
     if pattern.endswith("/"):
         return path.startswith(pattern)
     if "/" in pattern:
@@ -91,8 +95,11 @@ def main() -> int:
         if touched:
             hits.append((label, axes, touched))
 
+    covered = {f for _, _, touched in hits for f in touched}
+    uncovered = [f for f in files if f not in covered]
+
     print(f"{len(files)} file(s) against {base}\n")
-    if not hits:
+    if not hits and not uncovered:
         print("床の表に当たる行は無い。天井だけ判断する。")
     for label, axes, touched in hits:
         print(f"■ {re.sub(r'[*`]', '', label)}")
@@ -100,6 +107,12 @@ def main() -> int:
             text = re.sub(r"\s+", " ", re.sub(r"[*`]", "", axis)).strip()
             print(f"    - {text}")
         print(f"      ({', '.join(touched[:6])}{' …' if len(touched) > 6 else ''})\n")
+
+    if uncovered:
+        print("■ 表のどの行にも当たらない —— 軸は自分で立てる")
+        for f in uncovered:
+            print(f"    - {f}")
+        print()
 
     print("── 天井 ──")
     reasons = []

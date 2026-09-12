@@ -89,6 +89,17 @@ System Settings, so there is no setting to go and check. If you are staring at a
 run `codesign -dv` on the bundle — `Signature=adhoc` with an `Identifier` that does not match
 the bundle ID is this and nothing else.
 
+**A free Apple ID stops the app on the phone after seven days.** Build and install it again
+from Xcode. That is Apple's limit on free provisioning, not a choice Mdoro makes.
+
+**If the app will not launch and a rebuild will not go through either, the phone may have
+stopped trusting the developer account.** Unlike the seven-day case, rebuilding does not clear
+this one: someone has to open Settings → General → VPN & Device Management on the phone, pick
+the account and trust it again. You cannot do that from here — say so and hand it over. The
+message naming the trust arrives late, after several minutes and a few attempts, so a build
+that fails without saying why is what you see first. This has turned up right after an iOS
+update, though nothing shows that an update causes it.
+
 ## Where code goes
 
 - **Anything shared goes in `MdoroCore`.** The state machine, the wire protocol and the data

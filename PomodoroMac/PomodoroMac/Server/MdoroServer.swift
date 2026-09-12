@@ -247,10 +247,27 @@ final class MdoroServer {
             send(.timeSyncPong(TimeSyncPayload(t1: payload.t1, t2: t2, t3: Date())), to: source)
 
         case .heartbeat:
+            // REQ-COM-005: **only the authenticated connection's heartbeat is counted.** The one
+            // being judged and the one allowed to postpone the judgement must be the same: a
+            // `heartbeat` carries no token and no body, so anyone on this LAN can send one, and
+            // without this gate a stranger's beat would keep the authenticated connection's
+            // liveness clock alive. This is the same gate `.command` and `.requestSnapshot` carry.
+            //
+            // **This is the one condition the four legs of REQ-COM-005 tolerate.** The phone does
+            // not send its first `heartbeat` until the `welcome` has arrived, so by the time one is
+            // sent the sender already *is* `connection`; and before the accept there is no silence
+            // check to fail — `checkHeartbeat` returns early while `connection` is nil. Nothing
+            // healthy is hung up on. **What holds that ordering up is the other end's code, not a
+            // clause**: `MdoroClient.startKeepalive` is reached only from the `welcome`. 10.2 is a
+            // catalogue of message types and says nothing about the order they are sent in, so
+            // moving that call would break this gate with no clause and no test to say so.
+            guard source === connection else { return }
             // REQ-COM-005: **this stamp is the whole of the Mac's watch.** `checkHeartbeat` reads
-            // `lastHeartbeatAt` against fifteen seconds, and only this case and the accept in
-            // `settle` ever move it — a `timeSyncPing` arriving does not. It rests on the phone
-            // sending a `heartbeat` on every beat, unconditionally (`MdoroClient.startKeepalive`).
+            // `lastHeartbeatAt` against fifteen seconds, and the only things that carry it forward
+            // are this case — for the authenticated connection alone, per the guard above — and the
+            // accept in `settle`; a `timeSyncPing` arriving does not, and `handleDisconnect` only
+            // clears it. It rests on the phone sending a `heartbeat` on every beat, unconditionally
+            // (`MdoroClient.startKeepalive`).
             //
             // 10.2 has no Server → Client heartbeat, so nothing is sent back.
             lastHeartbeatAt = Date()
@@ -305,14 +322,31 @@ final class MdoroServer {
 
         case let .reject(code):
             refuse(code, of: payload, to: source)
+
+        // REQ-PRT-004 / 10.2: the reason has no word in `authFailed.code`, so it leaves on
+        // `error` instead. Everything else about a refusal is the same, the record included.
+        case let .rejectWithProtocolError(reason):
+            refuse(reason, of: payload, to: source)
         }
     }
 
-    // POL-054: **the only way a refusal leaves this process**, so the record cannot be forgotten on
-    // a path someone adds later.
+    // POL-054: **the only ways a refusal leaves this process**, so the record cannot be forgotten
+    // on a path someone adds later. Two of them, because 10.2 carries the two kinds of reason in
+    // two different messages — and both of them write the line first.
     private func refuse(_ code: AuthFailureCode, of hello: HelloPayload, to connection: NWConnection) {
         record(refusal: code, of: hello)
         sendThenClose(.authFailed(AuthFailedPayload(code: code)), to: connection)
+    }
+
+    // REQ-PRT-004 / 10.2: the refusal `authFailed` cannot express. `relatedRequestId` stays nil —
+    // a `hello` carries no `clientRequestId` to tie an answer to — and `message` is diagnostic,
+    // so the iPhone's wording comes from `code` (Decision 0035).
+    private func refuse(_ reason: ProtocolRefusal, of hello: HelloPayload, to connection: NWConnection) {
+        record(refusal: reason, of: hello)
+        sendThenClose(
+            .error(ProtocolErrorPayload(code: reason.protocolErrorCode, message: reason.diagnosticSummary)),
+            to: connection
+        )
     }
 
     // REQ-ERR-010 / Decision 0018: the code, and nothing beside it.
@@ -323,7 +357,19 @@ final class MdoroServer {
     // in and reads the whole file back. What is left is the code alone, which is what tells a
     // stranger on an issue five wrong codes from a token this Mac no longer knows.
     func record(refusal code: AuthFailureCode, of hello: HelloPayload) {
-        diagnostics.write("conn.refused", level: .warn, [DiagnosticField("why", code.diagnosticSummary)])
+        write(refusal: code, of: hello)
+    }
+
+    // REQ-PRT-004: and the refusal 10.2 sends as `error` is written the same way, on the same
+    // line, so a reader on an issue can tell a version apart from a revoked pairing — which is
+    // exactly what they could not do while both went out as `unknownDeviceToken`.
+    func record(refusal reason: ProtocolRefusal, of hello: HelloPayload) {
+        write(refusal: reason, of: hello)
+    }
+
+    // One write for both, so neither kind of refusal can drift into a shape of its own.
+    private func write(refusal reason: some DiagnosableError, of hello: HelloPayload) {
+        diagnostics.write("conn.refused", level: .warn, [DiagnosticField("why", reason.diagnosticSummary)])
     }
 
     // REQ-SEC-004: refused on its own after 60 seconds.
