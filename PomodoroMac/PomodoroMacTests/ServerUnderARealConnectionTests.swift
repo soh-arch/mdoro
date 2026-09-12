@@ -99,13 +99,12 @@ import MdoroCore
 //   - **the port is real** (`localhost:52076`). The listener binds, reports a port and is
 //     reachable across the loopback interface from inside the test host.
 //   - **the WebSocket upgrade completes.** It reached `.ready`.
-//   - **what failed was the two-second bound**, and the reading of it.
+//   - **what failed was the waiting**, and the reading of it.
 //
-// Why two seconds was not enough has two candidates, and the fix below closes both rather than
-// choosing: the line may genuinely have taken longer than two seconds on a cold runner, or it may
-// have been ready sooner while the `Task { @MainActor }` hop that records it sat behind
-// forty-eight other tests on the same actor. `isUpNow` asks the connection instead of the hop,
-// and the bound is ten times what it was.
+// The reading was fixed here and stayed fixed. **The waiting was read wrong twice**: this run was
+// answered by raising the bound from two seconds to twenty and asking the connection rather than
+// the flag, on the theory that the line was either slow or recorded late. The next section is what
+// happened to that theory.
 
 // MARK: - Saying why, in a form the log keeps
 //
@@ -161,7 +160,10 @@ private struct Waited {
 //
 // The second version of this file put the dial at two seconds, and that is what the third run
 // broke on. The line came up somewhere past two seconds; by the time anything read the trail it
-// said `ready`, inside a sentence claiming the opposite.
+// said `ready`, inside a sentence claiming the opposite. **The fourth run then showed that raising
+// the number was never the answer** — at twenty seconds the line came up at +0.027 s, four times
+// over. These numbers are a floor under a hang, nothing more; what made the waiting work is that
+// it no longer runs on the actor it waits for.
 private let dialBudget = Duration.seconds(20)
 private let arrivalBudget = Duration.seconds(10)
 private let fallbackDialBudget = Duration.seconds(10)
@@ -169,25 +171,128 @@ private let fallbackDialBudget = Duration.seconds(10)
 // The message every receipt leans on. One line — see above for why.
 private let noReceipt = "REQ-COM-005: the timeSyncPong that says the message before it was handled never came back. Either answering a timeSyncPing has grown a condition — which the clause forbids, because the phone reads the resulting silence as the Mac being gone — or this line went down. Nothing after this point was observed."
 
+// MARK: - What the fourth run established: the waiting was the obstacle
+
+// The fourth run raised the dial bound to twenty seconds and printed, four times:
+//
+//     came up during the fallback dial — later than 20.000s, inside 20.000s + 0.027s
+//
+// +0.027 / +0.031 / +0.032 / +0.032 s. **A handshake does not take 20.03 seconds.** It finished the
+// moment this test stopped waiting for it — four times, to the hundredth. The bound was never the
+// thing in the way; **the way of waiting was.**
+//
+// What it was in the way of, and why plain TCP never showed it:
+//
+//     the probe dials
+//       -> the kernel completes the TCP handshake          (so a plain dial is ready in 27 ms)
+//       -> NWListener.newConnectionHandler fires
+//       -> MdoroServer hops `Task { @MainActor in accept(connection) }`
+//       -> **that hop has to reach the main actor**
+//       -> until it does, `incoming.start(queue:)` is never called
+//       -> so the WebSocket upgrade never completes
+//       -> the probe sits in `preparing`
+//
+// **Only the upgrade needs anything of the server.** That is the asymmetry, and it is why the plain
+// dial came up instantly while the real one did not: the loop that was waiting for the handshake
+// was standing between the handshake and the actor it needed. Polling every 10 ms on the main
+// actor, four tests at once, alongside forty-eight others — reading `isUpNow` off the connection
+// (the third version's fix) removed a symptom and left the cause.
+//
+// So nothing in this file's observation path touches the main actor any more:
+//
+//   - `Probe` is not an actor-isolated type. Its state lives behind a lock and is written on
+//     whichever queue saw the change — the connection's own.
+//   - waiting is a **continuation resumed from that queue**, not a poll. A test that is waiting is
+//     suspended: it holds nothing, wakes for nothing, and the main actor is free for the server's
+//     accept.
+//   - the deadline that races that continuation runs on a **detached** task, off the main actor too.
+//   - `Once` is lifted from `ListenerReadiness` in `MdoroServer.swift`, which solves the same
+//     problem for the listener: two things race to resume one continuation, and resuming it twice
+//     is a crash.
+//
+// **What matters is not which executor these run on, it is what gets queued on the main actor
+// while they wait.** This target builds with approachable concurrency, so a `nonisolated async`
+// function called from a `@MainActor` test may well run on that same actor — and it makes no
+// difference here. A wait now enqueues exactly two pieces of main-actor work, at its two ends:
+// registering, and being resumed. The version before it enqueued one every ten milliseconds for
+// twenty seconds, per probe, per test.
+
 // MARK: - The far end
+
+// Borrowed from `ListenerReadiness.Once` in `MdoroServer.swift`. An arrival and a deadline race to
+// resume the same continuation; whichever loses must be able to find out that it lost.
+private final class Once: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+    func claim() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        if done { return false }
+        done = true
+        return true
+    }
+}
 
 // A client of this test's own. Deliberately **not** `MdoroClient`: what is being driven is the
 // server, and a client that decides for itself when to say hello and when to beat cannot send a
 // `heartbeat` from a connection that never authenticated — which is the whole of what is being
 // asked here.
-@MainActor
-private final class Probe {
+//
+// **Deliberately not `@MainActor` either**, which is the fourth run's lesson. Everything this
+// class observes is something the server does *on* the main actor; an observer that needs that
+// same actor to notice is standing in its own light.
+private final class Probe: @unchecked Sendable {
+
+    // Everything this probe has seen. Copied out under the lock and read at leisure, so a test
+    // never holds the lock while it thinks.
+    struct Observed {
+        var trail: [String] = []
+        var isReady = false
+        var ended = false
+        var messages: [ServerMessage] = []
+
+        var pongs: [TimeSyncPayload] {
+            messages.compactMap { (message: ServerMessage) -> TimeSyncPayload? in
+                if case let .timeSyncPong(payload) = message { return payload }
+                return nil
+            }
+        }
+
+        var welcomes: Int {
+            messages.filter { (message: ServerMessage) -> Bool in
+                if case .welcome = message { return true }
+                return false
+            }.count
+        }
+
+        var snapshots: Int {
+            messages.filter { (message: ServerMessage) -> Bool in
+                if case .stateSnapshot = message { return true }
+                return false
+            }.count
+        }
+
+        // The states this connection passed through, in order. `waiting(error)` is where a dial
+        // that is refused or blocked parks; a handler that only watched for `.ready` could not tell
+        // that apart from a dial still in progress, which is what left the second run mute.
+        var trailDescription: String {
+            trail.isEmpty ? "no state was ever reported" : trail.joined(separator: " -> ")
+        }
+    }
+
+    private struct Waiter {
+        let id: UUID
+        let predicate: (Observed) -> Bool
+        let once: Once
+        let continuation: CheckedContinuation<Bool, Never>
+    }
+
     private let connection: NWConnection
     private let queue = DispatchQueue(label: "MdoroMacTests.Probe")
-    private(set) var received: [ServerMessage] = []
-    private(set) var isReady = false
-    // Every state this connection passed through, in order. **The first run had no way to say
-    // what went wrong because this was not kept**: `.waiting(error)` is where a dial that is
-    // refused or blocked parks, and a handler that only looks for `.ready` cannot tell that
-    // apart from a dial that is still in progress.
-    private(set) var trail: [String] = []
-    private(set) var dialEnded = false
-    private var hasEnded = false
+    private let lock = NSLock()
+    private var observed = Observed()
+    private var waiting: [Waiter] = []
+    private var expired: Set<UUID> = []
+    private var finished = false
     private var reads = 0
 
     // `webSocket: false` makes the same dial without the upgrade on top. It is used only when the
@@ -205,64 +310,134 @@ private final class Probe {
         // loopback interface: nothing goes on the LAN and no name is registered.
         //
         // **Whether this was needed is not known.** The first run dialled `.ipv4(.loopback)` and
-        // never reached `.ready` inside 7.79 s; the third dialled this and did reach it. That is
-        // consistent with the family mattering and also with the first run simply having been
-        // slower than it looked, and the two were changed in the same commit as the bound. It is
-        // kept because it is at worst harmless — the `timing:` line each dial prints is what will
-        // eventually say how long this actually takes.
+        // never reached `.ready` inside 7.79 s; later runs dialled this and did reach it — though
+        // the fourth run showed that what those runs were really measuring was the waiting, so the
+        // comparison proves less than it looked like it did. It is kept because it is at worst
+        // harmless, and the `timing:` line each dial prints is what will say how long it takes.
         connection = NWConnection(host: "localhost", port: port, using: parameters)
     }
 
-    // **Whether the line is up is asked of the connection, not of the flag.** The flag is set on a
-    // hop through the main actor, and this suite shares that actor with forty-eight other tests;
-    // the connection's own state needs nothing drained to be true. The flag is kept as a second
-    // opinion, never as the only one.
-    var isUpNow: Bool {
-        if case .ready = connection.state { return true }
-        return isReady
+    // MARK: Waiting without the main actor
+
+    // Wait until `until` holds of what has been seen, or the budget runs out.
+    //
+    // **Nothing here reaches for the main actor.** The predicate is evaluated under this object's
+    // lock, on whichever thread saw the change; the deadline runs detached. A caller that is
+    // `@MainActor` releases that actor for the whole of this await, which is the point — what it
+    // is waiting for usually needs that actor to happen at all.
+    func waits(upTo budget: Duration, until predicate: @escaping (Observed) -> Bool) async -> Waited {
+        let started = ContinuousClock.now
+        let once = Once()
+        let id = UUID()
+
+        let deadline = Task.detached { [weak self] in
+            try? await Task.sleep(for: budget)
+            guard !Task.isCancelled else { return }
+            self?.giveUp(id)
+        }
+        defer { deadline.cancel() }
+
+        let held: Bool = await withCheckedContinuation { continuation in
+            lock.lock()
+            // Checked and registered under one hold of the lock, so a change arriving in between
+            // cannot be missed: `change` cannot run while this is deciding.
+            if predicate(observed) {
+                lock.unlock()
+                if once.claim() { continuation.resume(returning: true) }
+                return
+            }
+            // The deadline above was started before this registration, so in principle it can
+            // arrive first. **A wait nobody ever resumes is a hung test**, and a hung test on a
+            // metered runner is the most expensive failure there is, so the deadline leaves word.
+            if expired.remove(id) != nil {
+                lock.unlock()
+                if once.claim() { continuation.resume(returning: false) }
+                return
+            }
+            waiting.append(Waiter(id: id, predicate: predicate, once: once, continuation: continuation))
+            lock.unlock()
+        }
+        return Waited(held: held, elapsed: started.duration(to: ContinuousClock.now))
     }
 
-    // Returns whether the line came up, and how long that took. It does not throw — the caller is
-    // the one holding the context needed to say what failed.
+    // Every change to what has been seen goes through here, so no change can be made without the
+    // waiters being asked whether it was the one they wanted.
+    private func change(_ mutate: (inout Observed) -> Void) {
+        lock.lock()
+        mutate(&observed)
+        let woken = waiting.filter { $0.predicate(observed) }
+        let wokenIds = Set(woken.map(\.id))
+        waiting.removeAll { wokenIds.contains($0.id) }
+        lock.unlock()
+        // Resumed outside the lock: a resumed task may run at once, and must not find the lock held.
+        for waiter in woken where waiter.once.claim() {
+            waiter.continuation.resume(returning: true)
+        }
+    }
+
+    private func giveUp(_ id: UUID) {
+        lock.lock()
+        if let waiter = waiting.first(where: { $0.id == id }) {
+            waiting.removeAll { $0.id == id }
+            lock.unlock()
+            if waiter.once.claim() { waiter.continuation.resume(returning: false) }
+            return
+        }
+        // Either the wait has already been resumed — in which case this is a note nobody reads —
+        // or it has not registered yet, and this is the word it needs. Both are cheap; only the
+        // second one matters, and only a wait with a very short budget can reach it.
+        expired.insert(id)
+        lock.unlock()
+    }
+
+    // MARK: The line
+
+    // **Whether the line is up is asked of the connection itself.** Kept alongside the flag the
+    // state handler sets, never instead of it, and neither of them needs an actor drained.
+    var isUpNow: Bool {
+        if case .ready = connection.state { return true }
+        return seen.isReady
+    }
+
+    var seen: Observed {
+        lock.lock(); defer { lock.unlock() }
+        return observed
+    }
+
+    // Returns whether the line came up, and how long that took.
     func dial(upTo budget: Duration) async -> Waited {
         connection.stateUpdateHandler = { [weak self] state in
-            // Read out here and carried across as plain strings and flags: the state itself is a
-            // framework value with an error inside it, and nothing needs it on the other side.
-            let stateName: String
-            var ended = false
+            // Read out on the connection's own queue and written straight through. The framework
+            // value with the error inside it never leaves this closure.
+            let name: String
             var ready = false
+            var ended = false
             switch state {
-            case .setup: stateName = "setup"
-            case .preparing: stateName = "preparing"
-            case .ready: stateName = "ready"; ready = true
-            case let .waiting(error): stateName = "waiting(\(error))"
-            case let .failed(error): stateName = "failed(\(error))"; ended = true
-            case .cancelled: stateName = "cancelled"; ended = true
-            @unknown default: stateName = "unknown"
+            case .setup: name = "setup"
+            case .preparing: name = "preparing"
+            case .ready: name = "ready"; ready = true
+            case let .waiting(error): name = "waiting(\(error))"
+            case let .failed(error): name = "failed(\(error))"; ended = true
+            case .cancelled: name = "cancelled"; ended = true
+            @unknown default: name = "unknown"
             }
-            let didEnd = ended
-            let didReady = ready
-            Task { @MainActor in
-                guard let self else { return }
-                self.trail.append(stateName)
-                if didReady { self.isReady = true }
-                if didEnd { self.dialEnded = true }
+            self?.change {
+                $0.trail.append(name)
+                if ready { $0.isReady = true }
+                if ended { $0.ended = true }
             }
         }
         connection.start(queue: queue)
         receive()
-        let waited = await waits(upTo: budget, until: { self.isUpNow || self.dialEnded })
-        // `waits` holds when either arm of the condition is true; only one of them is the line
-        // coming up.
+        // The wait holds when either arm is true; only one of them is the line coming up.
+        let waited = await waits(upTo: budget, until: { $0.isReady || $0.ended })
         return Waited(held: isUpNow, elapsed: waited.elapsed)
     }
 
-    var trailDescription: String {
-        trail.isEmpty ? "no state was ever reported" : trail.joined(separator: " -> ")
-    }
-
     func cancel() {
-        hasEnded = true
+        lock.lock()
+        finished = true
+        lock.unlock()
         connection.cancel()
     }
 
@@ -281,34 +456,13 @@ private final class Probe {
     // what makes this usable as a receipt — see the note at the top of the file for what the
     // inference rests on and where it stops.
     //
-    // Anything the server wrote to this line before the pong is already in `received` by the time
-    // this returns: the frames arrive in the order they were written, this probe re-arms its own
-    // read one message at a time, and each arrival is appended on the main actor in that order.
-    func roundTrip() async throws -> Waited {
-        let before = pongs.count
+    // Anything the server wrote to this line before the pong is already in `seen` by the time this
+    // returns: the frames arrive in the order they were written, this probe re-arms its own read
+    // one message at a time, and each arrival is recorded before the next is asked for.
+    func roundTrip(upTo budget: Duration) async throws -> Waited {
+        let before = seen.pongs.count
         try send(.timeSyncPing(TimeSyncPayload(t1: Date())))
-        return await waits(upTo: arrivalBudget, until: { self.pongs.count > before })
-    }
-
-    var pongs: [TimeSyncPayload] {
-        received.compactMap { (message: ServerMessage) -> TimeSyncPayload? in
-            if case let .timeSyncPong(payload) = message { return payload }
-            return nil
-        }
-    }
-
-    var welcomes: Int {
-        received.filter { (message: ServerMessage) -> Bool in
-            if case .welcome = message { return true }
-            return false
-        }.count
-    }
-
-    var snapshots: Int {
-        received.filter { (message: ServerMessage) -> Bool in
-            if case .stateSnapshot = message { return true }
-            return false
-        }.count
+        return await waits(upTo: budget, until: { $0.pongs.count > before })
     }
 
     // **The re-arm is bounded, and that is not tidiness.** A WebSocket the far end closed cleanly
@@ -319,51 +473,34 @@ private final class Probe {
     // this stops on an error, on the read that says the stream is over, and on a count no test
     // comes near.
     private func receive() {
-        guard !hasEnded, reads < 200 else { return }
-        reads += 1
+        guard claimRead() else { return }
         connection.receiveMessage { [weak self] data, context, isComplete, error in
-            Task { @MainActor in
-                guard let self, !self.hasEnded else { return }
-                guard error == nil else {
-                    self.hasEnded = true
-                    return
-                }
-                if let data, !data.isEmpty,
-                   let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition)
-                    as? NWProtocolWebSocket.Metadata,
-                   metadata.opcode == .text || metadata.opcode == .binary,
-                   let envelope = try? MessageCoder.decodeServer(data) {
-                    self.received.append(envelope.body)
-                }
-                if isComplete, context?.isFinal == true, data?.isEmpty ?? true {
-                    self.hasEnded = true
-                    return
-                }
-                self.receive()
+            guard let self else { return }
+            if error != nil {
+                self.change { $0.ended = true }
+                return
             }
+            if let data, !data.isEmpty,
+               let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition)
+                as? NWProtocolWebSocket.Metadata,
+               metadata.opcode == .text || metadata.opcode == .binary,
+               let envelope = try? MessageCoder.decodeServer(data) {
+                self.change { $0.messages.append(envelope.body) }
+            }
+            if isComplete, context?.isFinal == true, data?.isEmpty ?? true {
+                self.change { $0.ended = true }
+                return
+            }
+            self.receive()
         }
     }
-}
 
-// Waiting for an arrival, not for a length of time: it returns the moment the condition holds.
-//
-// **The bound is a deadline, not a count of naps.** It used to be 500 turns of a 10 ms sleep,
-// called five seconds; on the CI runner each of those turns measured 15.58 ms — timer leeway —
-// so every bound was really 7.79 s. That is not a rounding error when a failing test walks
-// through six of them. A clock cannot drift like that.
-@MainActor
-private func waits(upTo budget: Duration, until condition: () -> Bool) async -> Waited {
-    let started = ContinuousClock.now
-    let deadline = started + budget
-    while ContinuousClock.now < deadline {
-        if condition() {
-            return Waited(held: true, elapsed: started.duration(to: ContinuousClock.now))
-        }
-        try? await Task.sleep(for: .milliseconds(10))
+    private func claimRead() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard !finished, reads < 200 else { return false }
+        reads += 1
+        return true
     }
-    // How long it waited goes back with the answer. A wait that ran out says nothing on its own:
-    // "not yet after 0.2 s" and "not yet after 20 s" are different findings.
-    return Waited(held: condition(), elapsed: started.duration(to: ContinuousClock.now))
 }
 
 // MARK: - The near end
@@ -435,22 +572,51 @@ private func raiseServer() async throws -> Bench {
     return Bench(server: server, upstream: upstream, port: port)
 }
 
+// **A line that comes up in the moment after the bound expired is not a bound that was too short.**
+// A handshake does not take twenty seconds and then finish in thirty milliseconds. It finished
+// because something stopped standing in its way — and if the gap is small, the thing that stopped
+// is *the waiting*, because that is the only thing that ended at that instant.
+//
+// The fourth run printed exactly this shape, four times, at +0.027 to +0.032 s, while this file
+// waited by polling the main actor. **Nothing here polls any more.** So if the shape comes back,
+// the waiting in this file is not the obstacle and the next place to look is whatever else holds
+// the main actor while `MdoroServer.accept` is queued on it: the WebSocket upgrade cannot finish
+// until that call runs, and plain TCP is untouched because the kernel completes it without asking
+// anyone. **That asymmetry is the tell, and the line below carries both halves of it.**
+// `beforeAnySecondDial` is there to separate the two readings of that +0.027 s, which the third and
+// fourth runs could not. Both of them saw readiness appear *during* the fallback dial, and that is
+// equally consistent with "the waiting stopped" and with "a second NWConnection being started did
+// something". Where the line comes up says which: before any second connection exists, only the
+// first can be the cause.
+private func cameUpAfterTheBound(
+    _ label: String, gap: Duration, trail: String, beforeAnySecondDial: Bool
+) -> String {
+    let atOnce = gap < .seconds(1)
+    return "\(label) went ready \(describe(gap)) after the \(describe(dialBudget)) bound expired. Line: \(trail). "
+        + (beforeAnySecondDial
+           ? "**No second connection had been made yet**, so nothing but the end of the waiting can account for it. "
+           : "**This is during the fallback dial**, so the end of the waiting and the starting of a second connection are both still on the table; a run that reports this from step 1 instead would settle it. ")
+        + (atOnce
+           ? "**It came up the instant this test stopped waiting, so the waiting is what it was waiting on — not the clock.** This file no longer polls the main actor, so look for whatever else holds that actor while MdoroServer.accept is queued on it; the upgrade cannot finish until that runs, and plain TCP is unaffected because the kernel completes it. Raising the bound will not fix this shape."
+           : "The gap is wide enough that the line may simply be slow on this runner; read the timing: lines and raise the bound.")
+}
+
 // **A dial that does not come up ends the test, and what it says is read off the evidence in
 // order.**
 //
-// The third run is the reason this is written the way it is. The version before this one dialled
-// plain TCP first and then looked at the WebSocket trail. The extra seconds that fallback took
-// were enough for the real line to come up, so the trail read `ready` — and the sentence built
-// around it announced that the WebSocket upgrade had failed. **The diagnosis contradicted the
-// evidence it was carrying, in the same line.** Reading a conclusion off one arm of a branch
-// without checking the other is the whole of that mistake.
+// The third run is the reason this is written the way it is. The version before it dialled plain
+// TCP first and then looked at the WebSocket trail. The seconds that fallback took were enough for
+// the real line to come up, so the trail read `ready` — and the sentence built around it announced
+// that the WebSocket upgrade had failed. **The diagnosis contradicted the evidence it was carrying,
+// in the same line.** Reading a conclusion off one arm of a branch without checking the other is
+// the whole of that mistake.
 //
 // So the order here is fixed:
 //
-//   1. **is the line up now?** Asked before anything that takes time. If it is, the dial works and
-//      the bound was short — that and nothing else.
+//   1. **is the line up now?** Asked before anything that takes time, and the gap since the bound
+//      expired is measured, because a gap near zero means something different from a wide one.
 //   2. only if it is not: dial the same port as plain TCP, then **ask once more**, because that
-//      dial took time and time was the thing missing at step 1.
+//      dial took time and time was what was missing at step 1.
 //   3. only if it is still not up: the plain dial splits the question. Plain TCP up means the
 //      listener is reachable and the WebSocket upgrade on top of it is what failed — worth naming,
 //      because `WebSocketLinks.dialEndpoint` only ever hands `WebSocketLink` a Bonjour `.service`
@@ -465,28 +631,35 @@ private func connectedProbe(to bench: Bench, called label: String) async throws 
         trace("timing: \(label) went ready in \(dialled.describedElapsed) on localhost:\(bench.port.rawValue)")
         return probe
     }
+    let boundExpired = ContinuousClock.now
 
     // Step 1.
     if probe.isUpNow {
-        let trail = probe.trailDescription
+        let trail = probe.seen.trailDescription
         probe.cancel()
-        throw Wrong(diagnose("\(label) came up, but not inside the \(describe(dialBudget)) dial bound. Line: \(trail). **The dial is not broken and the upgrade is not broken — the bound is too short for this runner.** Raise it; do not go looking for a fault."))
+        throw Wrong(diagnose(cameUpAfterTheBound(
+            label, gap: boundExpired.duration(to: ContinuousClock.now), trail: trail,
+            beforeAnySecondDial: true
+        )))
     }
 
     // Step 2.
     let plain = Probe(port: bench.port, webSocket: false)
     let plainDial = await plain.dial(upTo: fallbackDialBudget)
-    let plainTrail = plain.trailDescription
+    let plainTrail = plain.seen.trailDescription
     plain.cancel()
 
     if probe.isUpNow {
-        let trail = probe.trailDescription
+        let trail = probe.seen.trailDescription
         probe.cancel()
-        throw Wrong(diagnose("\(label) came up during the fallback dial — later than \(describe(dialBudget)), inside \(describe(dialBudget)) + \(plainDial.describedElapsed). Line: \(trail). The bound is short by a wide margin on this runner; nothing else is wrong."))
+        throw Wrong(diagnose(cameUpAfterTheBound(
+            label, gap: boundExpired.duration(to: ContinuousClock.now), trail: trail,
+            beforeAnySecondDial: false
+        ) + " Plain TCP to the same port: \(plainDial.held ? "ready in \(plainDial.describedElapsed)" : "not up (\(plainTrail))")."))
     }
 
     // Step 3.
-    let webSocketTrail = probe.trailDescription
+    let webSocketTrail = probe.seen.trailDescription
     probe.cancel()
     throw Wrong(diagnose(
         "\(label) never went ready in \(dialled.describedElapsed) against localhost:\(bench.port.rawValue), and was still not up after a further \(plainDial.describedElapsed). WebSocket line: \(webSocketTrail). "
@@ -504,16 +677,17 @@ private func connectedProbe(to bench: Bench, called label: String) async throws 
 private func authenticatedProbe(named name: String, on bench: Bench) async throws -> Probe {
     let probe = try await connectedProbe(to: bench, called: name)
     try probe.send(.hello(HelloPayload(deviceName: name)))
-    let welcomed = await waits(upTo: arrivalBudget, until: { probe.welcomes == 1 })
+    let welcomed = await probe.waits(upTo: arrivalBudget, until: { $0.welcomes == 1 })
     guard welcomed.held else {
-        let trail = probe.trailDescription
+        let seen = probe.seen
         probe.cancel()
-        throw Wrong(diagnose("REQ-SEC-003: \(name) said hello on a line that was ready and no welcome came back in \(welcomed.describedElapsed). Line: \(trail). Server holds connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil"), \(probe.received.count) message(s) arrived."))
+        throw Wrong(diagnose("REQ-SEC-003: \(name) said hello on a line that was ready and no welcome came back in \(welcomed.describedElapsed). Line: \(seen.trailDescription). Server holds connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil"), \(seen.messages.count) message(s) arrived."))
     }
     guard bench.server.connectedDeviceName == name else {
         probe.cancel()
         throw Wrong(diagnose("the welcome arrived but the server holds connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil"), not \(name) — nothing below would be running against the connection on record"))
     }
+    trace("timing: \(name) was welcomed in \(welcomed.describedElapsed)")
     return probe
 }
 
@@ -537,9 +711,10 @@ private func holds(_ condition: Bool, _ line: @autoclosure () -> String) {
 // A receipt that does not arrive ends the test where it stopped meaning anything.
 @MainActor
 private func receipt(from probe: Probe, called label: String) async throws {
-    let waited = try await probe.roundTrip()
+    let waited = try await probe.roundTrip(upTo: arrivalBudget)
     guard waited.held else {
-        throw Wrong(diagnose("\(noReceipt) Waiting on: \(label), for \(waited.describedElapsed). Line: \(probe.trailDescription), still up: \(probe.isUpNow), \(probe.received.count) message(s) arrived in all."))
+        let seen = probe.seen
+        throw Wrong(diagnose("\(noReceipt) Waiting on: \(label), for \(waited.describedElapsed). Line: \(seen.trailDescription), still up: \(probe.isUpNow), \(seen.messages.count) message(s) arrived in all."))
     }
 }
 
@@ -566,11 +741,12 @@ struct ServerUnderARealConnectionTests {
         let t1 = Date()
         try stranger.send(.timeSyncPing(TimeSyncPayload(t1: t1)))
 
-        let answered = await waits(upTo: arrivalBudget, until: { stranger.pongs.count == 1 })
+        let answered = await stranger.waits(upTo: arrivalBudget, until: { $0.pongs.count == 1 })
         guard answered.held else {
-            throw Wrong(diagnose("REQ-COM-005: a timeSyncPing arriving before any hello went unanswered in \(answered.describedElapsed) on a line that was ready. Line: \(stranger.trailDescription), still up: \(stranger.isUpNow). Received so far: \(stranger.received.count) message(s)."))
+            let seen = stranger.seen
+            throw Wrong(diagnose("REQ-COM-005: a timeSyncPing arriving before any hello went unanswered in \(answered.describedElapsed) on a line that was ready. Line: \(seen.trailDescription), still up: \(stranger.isUpNow). Received so far: \(seen.messages.count) message(s)."))
         }
-        let pong = try #require(stranger.pongs.first)
+        let pong = try #require(stranger.seen.pongs.first)
         // REQ-COM-007: t1 comes back so the asker can pair the answer with its question. It
         // travels as ISO-8601, which keeps whole seconds, so what returns is the same second
         // rather than the same instant.
@@ -665,22 +841,22 @@ struct ServerUnderARealConnectionTests {
         // REQ-COM-004: the accept sends the whole state unasked, after the welcome — so it is
         // waited for rather than read the moment the welcome lands, and what is counted below is
         // what arrives on top of this one.
-        let baseline = await waits(upTo: arrivalBudget, until: { phone.snapshots == 1 })
+        let baseline = await phone.waits(upTo: arrivalBudget, until: { $0.snapshots == 1 })
         guard baseline.held else {
-            throw Wrong(diagnose("REQ-COM-004: the accept did not send the whole state — the welcome arrived but no stateSnapshot followed it in \(baseline.describedElapsed), so what is counted below has no baseline (\(phone.received.count) message(s) arrived in all)"))
+            throw Wrong(diagnose("REQ-COM-004: the accept did not send the whole state — the welcome arrived but no stateSnapshot followed it in \(baseline.describedElapsed), so what is counted below has no baseline (\(phone.seen.messages.count) message(s) arrived in all)"))
         }
         let providedAtAccept = bench.upstream.snapshotsProvided
 
         try stranger.send(.requestSnapshot)
         try await receipt(from: stranger, called: "the unauthenticated probe's requestSnapshot")
-        holds(stranger.snapshots == 0,
+        holds(stranger.seen.snapshots == 0,
               "REQ-SEC-003: the whole state went out to a connection that never authenticated — the running session, the settings, the presets and the name of the task being worked on.")
         holds(bench.upstream.snapshotsProvided == providedAtAccept,
               "REQ-SEC-003: the state was gathered for an unauthenticated asker, whether or not it reached the wire")
 
         try phone.send(.requestSnapshot)
         try await receipt(from: phone, called: "the authenticated connection's requestSnapshot")
-        holds(phone.snapshots == 2,
-              "the authenticated connection asked for the state and was not sent it (\(phone.snapshots) arrived in all), so the refusal checked just above was the message never being read rather than the gate holding.")
+        holds(phone.seen.snapshots == 2,
+              "the authenticated connection asked for the state and was not sent it (\(phone.seen.snapshots) arrived in all), so the refusal checked just above was the message never being read rather than the gate holding.")
     }
 }
