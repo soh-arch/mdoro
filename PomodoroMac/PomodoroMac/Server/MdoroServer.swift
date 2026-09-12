@@ -254,10 +254,13 @@ final class MdoroServer {
             // liveness clock alive. This is the same gate `.command` and `.requestSnapshot` carry.
             //
             // **This is the one condition the four legs of REQ-COM-005 tolerate.** The phone does
-            // not send its first `heartbeat` until the `welcome` has arrived (10.2's ordering), so
-            // by the time one is sent the sender already *is* `connection`; and before the accept
-            // there is no silence check to fail — `checkHeartbeat` returns early while `connection`
-            // is nil. Nothing healthy is hung up on.
+            // not send its first `heartbeat` until the `welcome` has arrived, so by the time one is
+            // sent the sender already *is* `connection`; and before the accept there is no silence
+            // check to fail — `checkHeartbeat` returns early while `connection` is nil. Nothing
+            // healthy is hung up on. **What holds that ordering up is the other end's code, not a
+            // clause**: `MdoroClient.startKeepalive` is reached only from the `welcome`. 10.2 is a
+            // catalogue of message types and says nothing about the order they are sent in, so
+            // moving that call would break this gate with no clause and no test to say so.
             guard source === connection else { return }
             // REQ-COM-005: **this stamp is the whole of the Mac's watch.** `checkHeartbeat` reads
             // `lastHeartbeatAt` against fifteen seconds, and the only things that carry it forward
