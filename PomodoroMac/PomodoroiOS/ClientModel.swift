@@ -175,7 +175,10 @@ final class ClientModel {
         switch status {
         case .connected: return .connected
         case .connecting, .reconnecting: return .reconnecting
-        case .idle, .failed, .needsPairing: return .disconnected
+        // REQ-COM-004: a refusal is one of the ways of not being connected, the same as the rest.
+        // **And it stays that way**: nothing is dialling any more, so `.reconnecting` would be a
+        // spinner over a line nobody is trying to open.
+        case .idle, .failed, .refused, .needsPairing: return .disconnected
         }
     }
 

@@ -87,9 +87,22 @@ struct ConnectionBanner: View {
         } else if case let .failed(code) = model.status {
             Text(Self.message(for: code))
                 .font(.callout)
-            if code == .invalidPairingCode || code == .pairingAttemptsExceeded {
-                pairingField
-            }
+            // REQ-COM-004: **the reason, and a way out of it.** Once a refusal has arrived nothing
+            // is dialling any more, so a refusal that shows no control is exactly the dead end the
+            // clause names — the user left waiting without being asked anything. Six digits are the
+            // one move this end can make by itself, and `submitPairingCode` re-dials as it sends
+            // them, which is also the way back from a Mac that simply did not approve (REQ-SEC-004).
+            // **So it is offered for every reason, not for the two whose wording names a code**: a
+            // pairing window the user has just been told to open on the Mac, and a registration
+            // this Mac no longer knows, both end up here needing precisely this field.
+            pairingField
+        } else if case let .refused(reason) = model.status {
+            // REQ-PRT-004 / REQ-COM-004: **the update, and no field.** Entering a code again cannot
+            // mend a version, so offering one would send the user round a loop with no end in it.
+            // The sentence is the one 10.2's own code already carries (Decision 0035) — a refusal
+            // the app has words for does not get a second wording written for it here.
+            Text(reason.protocolErrorCode.displayMessage)
+                .font(.callout)
         } else if model.status == .needsPairing {
             Text("Start pairing in Settings on your Mac, then enter the six-digit code it shows.")
                 .font(.footnote)
