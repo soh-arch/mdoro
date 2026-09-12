@@ -43,7 +43,25 @@ jobs:
             -destination 'platform=macOS' \
             -only-testing:MdoroMacTests \
             -derivedDataPath /tmp/mdoro-ci \
+            -resultBundlePath /tmp/mdoro-ci/result.xcresult \
             CODE_SIGNING_ALLOWED=NO
+
+      # **A red run that says nothing is barely better than no run.** `xcodebuild`'s own output
+      # carries the line that a test failed and not one word of why: the expectation, the file, the
+      # line and anything the test printed are all absent from it -- measured on this job, twice.
+      # The result bundle has them, so the bundle is what gets read when the step above fails.
+      - name: what failed
+        if: failure()
+        run: |
+          xcrun xcresulttool get test-results summary \
+            --path /tmp/mdoro-ci/result.xcresult --format json > /tmp/summary.json || true
+          if [ -s /tmp/summary.json ]; then
+            jq -r '.testFailures[]? | "\n--- \(.testName // "?") (\(.targetName // "?")) ---\n\(.failureText // "no text")"' \
+              /tmp/summary.json || cat /tmp/summary.json
+          else
+            echo "no summary; falling back to the whole bundle"
+            xcrun xcresulttool get --legacy --path /tmp/mdoro-ci/result.xcresult --format json | head -c 200000
+          fi
 
   tools:
     # The document checks and the axis tool are what a session runs before it
