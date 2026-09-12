@@ -17,6 +17,34 @@ jobs:
         working-directory: Packages/MdoroCore
         run: swift test
 
+  mac:
+    # The app side's wiring: that the server is asked to start, that closing the
+    # pairing screen folds it, that a refusal reaches the log. None of it needs a
+    # device, a LAN or a person -- it sat outside CI because of where it is kept,
+    # not because of what it needs. POL-225.
+    #
+    # Only `MdoroMacTests`. The scheme's test action also carries
+    # `PomodoroMacUITests`, which drives the app through the interface and is a
+    # different kind of run: slower, and it wants a session to draw into.
+    #
+    # Signing is turned off rather than configured. `Config/Signing.xcconfig`
+    # names a development team that no runner has, and these tests reach the
+    # Keychain and the notification centre through injected seams rather than the
+    # real ones, so an unsigned host is enough for them. A test that needed a real
+    # signature would be telling us it belongs on the owner's Mac.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: xcodebuild test
+        run: |
+          set -o pipefail && xcodebuild test \
+            -project ./PomodoroMac/PomodoroMac.xcodeproj \
+            -scheme MdoroMac \
+            -destination 'platform=macOS' \
+            -only-testing:MdoroMacTests \
+            -derivedDataPath /tmp/mdoro-ci \
+            CODE_SIGNING_ALLOWED=NO
+
   tools:
     # The document checks and the axis tool are what a session runs before it
     # touches anything, and for a while nothing started them: one of them sat
