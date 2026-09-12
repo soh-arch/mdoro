@@ -25,11 +25,22 @@ def note(check: str, detail: str) -> None:
     failures.append(f"[{check}] {detail}")
 
 
+# What a role returned, kept exactly as it came back, so every check reading this list skips
+# it -- links, inline paths, requirement ids and POL numbers, all four. What they name is the
+# role's, not this repository's: a research report cites Chromium's own tree and writes
+# relative links from wherever it was standing, and a report frozen today goes on citing a
+# POL after the ledger renumbers it. Checking any of that would force an edit, and an edited
+# report is no longer the thing it was kept for. docs/experiments/README.md says why.
+VERBATIM = "experiments"
+
+
 def markdown_files() -> list[Path]:
     files = [ROOT / "CLAUDE.md", ROOT / "AGENTS.md", ROOT / "README.md"]
     files += sorted((ROOT / "docs").rglob("*.md"))
     files += sorted((ROOT / ".claude").rglob("*.md"))
-    return [f for f in files if f.exists()]
+    kept = [f for f in files if f.exists()]
+    # The index itself is ours, so it is checked; only what it indexes is exempt.
+    return [f for f in kept if VERBATIM not in f.parts or f.name == "README.md"]
 
 
 def read(path: Path) -> str:
