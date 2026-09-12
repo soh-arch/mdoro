@@ -168,6 +168,25 @@ final class ClientModel {
         connect(to: server, pairingCode: code)
     }
 
+    // REQ-COM-004 / REQ-PRT-004: **dialling again, with nothing new to send.** A refusal stops the
+    // client for good, which is right for an answer the Mac meant — but two of those answers are
+    // ones a second attempt may get past on its own, and **neither of them is mended by six
+    // digits**: a Mac whose user did not approve this connection, and a version the user has since
+    // updated one end of.
+    //
+    // Without this there is no way back from either short of quitting the app: `stopDialling`
+    // cancels the reconnect, `connect` is the only thing that clears the flag it sets, and the
+    // browser dials by itself only out of `.idle`.
+    //
+    // It is `submitPairingCode` with the code left out — the same target, and the token already
+    // held goes back out as it stands. **Nothing loops**: this runs when the user presses it, and a
+    // Mac that has not changed its mind refuses again.
+    func redial() {
+        guard let server = client.target ?? servers.first else { return }
+        lastRefusal = nil
+        connect(to: server)
+    }
+
     var isConnected: Bool { status == .connected }
 
     // REQ-UIX-004 / REQ-COM-013: the connection state must be visible at all times.
@@ -175,7 +194,10 @@ final class ClientModel {
         switch status {
         case .connected: return .connected
         case .connecting, .reconnecting: return .reconnecting
-        case .idle, .failed, .needsPairing: return .disconnected
+        // REQ-COM-004: a refusal is one of the ways of not being connected, the same as the rest.
+        // **And it stays that way**: nothing is dialling any more, so `.reconnecting` would be a
+        // spinner over a line nobody is trying to open.
+        case .idle, .failed, .refused, .needsPairing: return .disconnected
         }
     }
 

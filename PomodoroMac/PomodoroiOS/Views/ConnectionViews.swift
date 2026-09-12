@@ -87,9 +87,42 @@ struct ConnectionBanner: View {
         } else if case let .failed(code) = model.status {
             Text(Self.message(for: code))
                 .font(.callout)
-            if code == .invalidPairingCode || code == .pairingAttemptsExceeded {
+            // REQ-COM-004: **the reason, and a way out of it.** Once a refusal has arrived nothing
+            // is dialling any more, so a reason shown with no control beside it is exactly the dead
+            // end the clause names — the user left waiting without being asked anything.
+            //
+            // **Which control it is depends on what the sentence just told them**, and a `switch`
+            // rather than a test against one case so that a sixth reason cannot quietly inherit
+            // whichever side it happens to fall on. There is no right default here: the compiler
+            // asks, the way it already does for the wording in `message(for:)`.
+            switch code {
+            case .connectionRejectedByUser:
+                // REQ-SEC-004: this one is not about credentials at all. **The token this iPhone
+                // holds is good and the Mac's user simply did not approve** — there are no six
+                // digits anywhere in the user's hands, and an empty field is a control with
+                // nothing to put in it. Asking the Mac again is the whole of the move.
+                tryAgain
+            case .invalidPairingCode, .pairingModeNotActive, .pairingAttemptsExceeded, .unknownDeviceToken:
+                // These four name a code or name pairing again, and `submitPairingCode` re-dials
+                // as it sends the six digits: a code that was wrong, a pairing window the user has
+                // just been told to open on the Mac, five wrong codes, and a registration this Mac
+                // no longer knows all end up here needing precisely this field.
                 pairingField
             }
+        } else if case let .refused(reason) = model.status {
+            // REQ-PRT-004 / REQ-COM-004: **the update, and no field.** Entering a code again cannot
+            // mend a version, so offering one would send the user round a loop with no end in it.
+            // The sentence is the one 10.2's own code already carries (Decision 0035) — a refusal
+            // the app has words for does not get a second wording written for it here.
+            Text(reason.protocolErrorCode.displayMessage)
+                .font(.callout)
+            // REQ-COM-004: **and then a way to make the update count.** The client stopped dialling
+            // on the refusal and nothing starts it again by itself, so without this the user
+            // updates the end that was behind and the app goes on showing the same sentence until
+            // it is quit and opened again. Pressed while the two ends still disagree, the same
+            // refusal comes back — which is the right answer, and not a loop: it happens once for
+            // each press.
+            tryAgain
         } else if model.status == .needsPairing {
             Text("Start pairing in Settings on your Mac, then enter the six-digit code it shows.")
                 .font(.footnote)
@@ -125,6 +158,13 @@ struct ConnectionBanner: View {
             }
             .disabled(pairingCode.count != 6)
         }
+    }
+
+    // REQ-COM-004: asking the Mac again with what is already in hand — no code, and the token as
+    // it stands. The one control for the two refusals a second attempt can get past on its own.
+    private var tryAgain: some View {
+        Button("Try again") { model.redial() }
+            .font(.footnote)
     }
 
     private func openSettings() {

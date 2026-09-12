@@ -246,3 +246,47 @@ extension AuthFailureCode: DiagnosableError {
     // from a hand-written copy.
     public var diagnosticSummary: String { errorCode.summary(rawValue) }
 }
+
+// REQ-PRT-004 / 10.2: a refusal of a connection that `authFailed.code` has no word for.
+//
+// 10.2 files the version mismatch under `error.code`, not under `authFailed.code` — the five
+// `authFailed` codes are all about what the hello carried as credentials, and a version is not
+// one. Refused as `unknownDeviceToken`, the mismatch reached the iPhone as "this device is no
+// longer registered", which the iPhone answers by deleting the device token it holds: updating
+// one side alone did not merely mislead, it lost the pairing over a version number.
+//
+// **An enum with one case, not a struct.** A second reason cannot be added without the
+// exhaustive switches below asking for a number and a wire code, which is the same guard
+// `TimerError`, `CommandTranslation.Parameter` and `AuthFailureCode` carry.
+//
+// **And the wire code is not a parameter.** REQ-PRT-005 leaves an `error.code` the other end has
+// never heard of looking like a corrupt message, and `protocolVersionMismatch` is the one value
+// already in every version's catalogue. A `ProtocolErrorCode` chosen by the caller would read as
+// an invitation to refuse an old device with a code that very age keeps it from decoding.
+public enum ProtocolRefusal: String, Error, Equatable, Sendable, CaseIterable {
+    case protocolVersionMismatch
+}
+
+// REQ-ERR-010 / Decision 0034: written into the diagnostic log like every other failure of ours.
+//
+// 70–79 belong to this enum. Read the table in `ErrorCode.swift` before taking a number, and
+// leave any gap where it is — a number in an issue means one thing for good.
+extension ProtocolRefusal: DiagnosableError {
+
+    public var errorCode: ErrorCode {
+        switch self {
+        case .protocolVersionMismatch: ErrorCode(own: 70)
+        }
+    }
+
+    // No case carries a payload, so the case name describes itself — the same reason
+    // `AuthFailureCode` writes itself this way.
+    public var diagnosticSummary: String { errorCode.summary(rawValue) }
+
+    // 10.2: which `error.code` carries the refusal out over the wire.
+    public var protocolErrorCode: ProtocolErrorCode {
+        switch self {
+        case .protocolVersionMismatch: .protocolVersionMismatch
+        }
+    }
+}

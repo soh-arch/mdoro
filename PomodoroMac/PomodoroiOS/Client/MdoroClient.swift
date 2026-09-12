@@ -35,6 +35,18 @@ final class MdoroClient {
         case connected
         case reconnecting
         case failed(AuthFailureCode)
+        // REQ-COM-004 / REQ-PRT-004 / 10.2: refused, with the reason travelling on `error` because
+        // `authFailed.code` has no word for it. The mirror of `Authenticator.Decision` on the Mac,
+        // which grew `rejectWithProtocolError(ProtocolRefusal)` beside `reject(AuthFailureCode)`
+        // for the same reason: one case per message 10.2 carries a refusal in, each carrying that
+        // message's own reason type.
+        //
+        // **Not folded into `failed`.** The five `AuthFailureCode`s are all about what the hello
+        // carried as credentials, and every one of them leads the user to the same next thing —
+        // six digits. This one does not: REQ-PRT-004 asks for an update, and no code can mend a
+        // version. **Nor named after the remedy** (`needsUpdate`), which would leave the next
+        // `ProtocolRefusal` case with no state to arrive in.
+        case refused(ProtocolRefusal)
         case needsPairing
     }
 
@@ -68,6 +80,10 @@ final class MdoroClient {
     private var pairingCode: String?
     private var keepaliveTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
+    // **Whether this client is done dialling until it is asked again.** `disconnect()` sets it,
+    // and so does either refusal (REQ-COM-004) — both are answers rather than accidents, and
+    // `connect` is the only thing that clears it. Every reconnect there is reads it, which is why
+    // a refusal does not have to race the `.ended` the Mac sends straight afterwards.
     private var isStopping = false
     private var brokenMessages = BrokenMessageCounter()
     // REQ-COM-005: when something last arrived. `Heartbeat.isStale` reads it against the clock
@@ -142,6 +158,9 @@ final class MdoroClient {
             switch event {
             case .ready: self.sendHello()
             case let .message(data): self.handle(data)
+            // REQ-COM-004: **an ending is not by itself a reason to dial again.** A refusal has
+            // already set the flag `scheduleReconnect` guards on, so the ending the Mac sends
+            // right after one is read as the answer it belongs to and not as a dropped network.
             case .ended: self.scheduleReconnect()
             }
         }
@@ -161,6 +180,24 @@ final class MdoroClient {
             guard !Task.isCancelled else { return }
             await MainActor.run { self?.openConnection() }
         }
+    }
+
+    // REQ-COM-004: **an answer the Mac meant is not something to ask again.** The same `hello`
+    // returns the same refusal, so dialling on climbs to the thirty-second ceiling and stays there
+    // for ever, telling the user nothing.
+    //
+    // The line is hung up here rather than waited for: the Mac closes it straight after either
+    // refusal (`MdoroServer.sendThenClose`), but nothing about stopping should rest on the peer
+    // doing that. Either way the `.ended` that follows finds the flag already set.
+    private func stopDialling() {
+        isStopping = true
+        reconnectTask?.cancel(); reconnectTask = nil
+        keepaliveTask?.cancel(); keepaliveTask = nil
+        link?.cancel(); link = nil
+        // REQ-COM-004: **and the code at hand goes with it.** Held, it keeps `sendHello` out of the
+        // one branch that asks for a new one, so the same six digits go back for the same refusal
+        // and the user is left waiting without being asked anything.
+        pairingCode = nil
     }
 
     private func sendHello() {
@@ -219,8 +256,14 @@ final class MdoroClient {
             startKeepalive()
 
         case let .authFailed(payload):
+            // REQ-COM-004: whatever the reason, this is the Mac's considered answer. Stop dialling
+            // and let the code go — then say which refusal it was, because the state the user is
+            // put in has to carry both the reason and a way out of it.
+            stopDialling()
             status = .failed(payload.code)
-            // A token that cannot be used is thrown away.
+            // A token that cannot be used is thrown away. **Only for this one reason** — a refusal
+            // over a version arrives as `error` (REQ-PRT-004), and a token is not what is wrong
+            // with it.
             if payload.code == .unknownDeviceToken, let serverId = target?.serverId {
                 tokens.delete(serverId: serverId)
             }
@@ -240,6 +283,21 @@ final class MdoroClient {
             callbacks?.receivedEvent(payload)
 
         case let .error(payload):
+            // REQ-PRT-004 / REQ-COM-004 / 10.2: **one code on `error` is a refused connection, not
+            // a refused action.** `ProtocolRefusal` is the list of them, and the reverse lookup is
+            // taken off the same forward map the Mac sends by, so neither end can drift and a
+            // second refusal added there is picked up here without being named twice.
+            //
+            // Everything else on `error` answers a command that was sent on a connection that
+            // stands (REQ-ERR-016), and it goes where it went before.
+            if let refusal = ProtocolRefusal.allCases.first(where: { $0.protocolErrorCode == payload.code }) {
+                // REQ-COM-004: stop dialling, let the pairing code go — **and keep the token.**
+                // REQ-PRT-004 asks for an update; the registration this iPhone holds is not what is
+                // wrong, and throwing it away would cost the user a pairing over a version number.
+                stopDialling()
+                status = .refused(refusal)
+                return
+            }
             callbacks?.receivedError(payload)
         }
     }
