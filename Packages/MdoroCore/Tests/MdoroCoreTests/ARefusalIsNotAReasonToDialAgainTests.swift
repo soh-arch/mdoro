@@ -121,21 +121,74 @@ struct ARefusalIsNotAReasonToDialAgainTests {
     // REQ-COM-004: **a state nothing reads changes nothing for the user**, which is the whole of
     // what went wrong here. So the refused state is on the banner, and — REQ-PRT-004 — what it
     // offers is the update and not a field for six digits.
-    @Test func theRefusedStateIsShownAndIsOfferedNoPairingField() throws {
-        let views = try swiftFiles(under: "PomodoroMac/PomodoroiOS/Views")
-        let banner = try #require(views["ConnectionViews.swift"])
+    @Test func theRefusedStateIsShownWithARetryAndNoPairingField() throws {
+        let refused = try noticeBranch(after: "case let .refused(reason) = model.status {", in: try bannerSource())
 
-        let refused = try noticeBranch(after: "case let .refused(reason) = model.status {", in: banner)
         #expect(refused.contains("displayMessage"),
                 "REQ-PRT-004: the refused state shows nothing, so nobody is prompted to update")
         #expect(!refused.contains("pairingField"),
                 "REQ-COM-004: a version mismatch asks for a code, and a code cannot mend a version")
+        // REQ-COM-004: **and the update the sentence asks for has to be worth making.** The client
+        // stopped dialling on the refusal and nothing starts it again by itself, so with no control
+        // here the user updates the end that was behind and the app goes on showing the same
+        // sentence until it is quit and opened again — the dead end the clause names, reached from
+        // the one refusal that is most likely to have been mended since.
+        #expect(refused.contains("tryAgain"),
+                "REQ-COM-004: nothing here dials again, so a Mac that has been updated is never noticed")
+    }
 
-        // REQ-COM-004: the other refusal is the opposite case. Nothing is dialling any more, so a
-        // reason shown with no control beside it is the same dead end by another door.
-        let failed = try noticeBranch(after: "case let .failed(code) = model.status {", in: banner)
-        #expect(failed.contains("pairingField"),
-                "REQ-COM-004: a refused pairing shows its reason and no way forward")
+    // REQ-COM-004: **the reason, and a way out of it** — but not the same way out for all five.
+    // Four of the `AuthFailureCode`s answer what the hello carried as credentials, and their
+    // sentences name a code or name pairing again; `submitPairingCode` re-dials as it sends the six
+    // digits. **`connectionRejectedByUser` is not one of them**: the token this iPhone holds is
+    // good, the Mac's user simply did not approve, and there are no six digits anywhere in the
+    // user's hands — a field there is a control with nothing to put in it, which is the same dead
+    // end as no control at all. What that one needs is to ask again.
+    //
+    // The sorting is a `switch`, so **the compiler asks about a sixth reason** rather than letting
+    // it inherit whichever side a default happened to be. Which side each of the five is on is not
+    // a thing the compiler can ask about, which is what this reads.
+    @Test func onlyTheFailuresThatSixDigitsCanMendAreOfferedTheField() throws {
+        let failed = try noticeBranch(after: "case let .failed(code) = model.status {", in: try bannerSource())
+        let arms = failed.components(separatedBy: "\n            case ").dropFirst()
+        #expect(arms.count == 2, "the banner no longer sorts the reasons into a control each")
+
+        let rejected = try #require(arms.first(where: { $0.hasPrefix(".connectionRejectedByUser:") }),
+                                    "REQ-SEC-004: the one reason no code can mend has no arm of its own")
+        #expect(rejected.contains("tryAgain"),
+                "REQ-SEC-004: a Mac that did not approve leaves the user with nothing to press")
+        #expect(!rejected.contains("pairingField"),
+                "REQ-SEC-004: an empty six-digit field, for a refusal that was never about a code")
+
+        let mendable = try #require(arms.first(where: { !$0.hasPrefix(".connectionRejectedByUser:") }))
+        for code in AuthFailureCode.allCases where code != .connectionRejectedByUser {
+            #expect(mendable.contains(".\(code.rawValue)"),
+                    "REQ-COM-004: `\(code.rawValue)` is sorted away from the field its own wording asks for")
+        }
+        #expect(mendable.contains("pairingField"),
+                "REQ-COM-004: the reasons whose wording names a code are offered no way to enter one")
+        #expect(!mendable.contains("tryAgain"),
+                "REQ-COM-004: the same credentials sent back unchanged get the same refusal")
+    }
+
+    // REQ-COM-004: and "try again" has to mean dialling. A refusal stops the client for good —
+    // `connect` is the only thing that clears the flag `scheduleReconnect` reads — so the control
+    // has to reach the same door `submitPairingCode` goes through, **with no code in hand**: the
+    // token this iPhone already holds is the whole of what it has to offer, and the user was asked
+    // for nothing.
+    @Test func tryingAgainDialsAgainWithTheTokenAlreadyHeld() throws {
+        let control = try body(ofProperty: "tryAgain", in: try bannerSource())
+        #expect(control.contains("\"Try again\""),
+                "the wording the two stopped states are shown has changed")
+        #expect(control.contains("model.redial()"),
+                "REQ-COM-004: the control offered by both stopped states calls nothing")
+
+        let model = withoutComments(try source("PomodoroMac/PomodoroiOS/ClientModel.swift"))
+        let redial = try body(ofFunction: "redial", in: model)
+        #expect(redial.contains("connect(to: server)"),
+                "REQ-COM-004: trying again does not re-open the connection, which is the one thing it is for")
+        #expect(!redial.contains("pairingCode"),
+                "REQ-COM-004: trying again sends a code the user was never asked for")
     }
 
     // REQ-COM-013 / REQ-UIX-004: and it is one of the not-connected states. The compiler makes the
@@ -170,7 +223,25 @@ struct ARefusalIsNotAReasonToDialAgainTests {
     // The body of a no-argument method, up to the closing brace at method indentation.
     private func body(ofFunction name: String, in text: String) throws -> String {
         guard let opening = text.range(of: "func \(name)() {") else {
-            throw ShapeHasMoved(what: "`\(name)()` in the client")
+            throw ShapeHasMoved(what: "`\(name)()` in the file it was being read from")
+        }
+        let rest = text[opening.upperBound...]
+        guard let end = rest.range(of: "\n    }") else { return String(rest) }
+        return String(rest[..<end.lowerBound])
+    }
+
+    private func bannerSource() throws -> String {
+        let views = try swiftFiles(under: "PomodoroMac/PomodoroiOS/Views")
+        guard let banner = views["ConnectionViews.swift"] else {
+            throw ShapeHasMoved(what: "`ConnectionViews.swift` among the iPhone's views")
+        }
+        return banner
+    }
+
+    // The body of a computed view property, up to the closing brace at member indentation.
+    private func body(ofProperty name: String, in text: String) throws -> String {
+        guard let opening = text.range(of: "var \(name): some View {") else {
+            throw ShapeHasMoved(what: "`\(name)` in the connection banner")
         }
         let rest = text[opening.upperBound...]
         guard let end = rest.range(of: "\n    }") else { return String(rest) }
