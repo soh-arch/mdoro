@@ -152,7 +152,9 @@ and ask.** Do not guess. A guess that ships becomes a requirement nobody chose.
   maintainer checks a change against `docs/SPEC.md` without reconstructing your reasoning,
   and `docs/` is in Japanese, so the ID may be the only thing you and the maintainer both read.
 - `swift test` must pass. CI runs it on every pull request, together with the
-  mechanical checks over the documents.
+  Mac app's unit tests and the mechanical checks over the documents. What CI
+  cannot run is what needs a machine or a person: the simulator, a device, the
+  UI tests, and mutation testing.
 - A human merges. Nothing lands on `main` directly.
 
 ## Out of scope
