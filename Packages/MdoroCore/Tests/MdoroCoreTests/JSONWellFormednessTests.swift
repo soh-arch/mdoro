@@ -70,8 +70,11 @@ struct JSONWellFormednessTests {
 
     // Two guards that only a key can reach: the one that has an object's member start with a
     // string, and the one that has a string open with a quote. Every key above is a well-formed
-    // string, and `{a:1}` is refused by the colon that is missing rather than by either guard, so
-    // both could stop being enforced without one answer above changing.
+    // string, and `{a:1}` tells the two apart from neither: drop the first and the reader is still
+    // sitting on `a` when the colon is asked for, drop the second and the key scan runs to the end
+    // of the bytes looking for a quote to close. **The colon is there in both** -- the reason the
+    // answer does not move is where the reader is standing, not a piece of syntax that is missing.
+    // So both guards could stop being enforced without one answer above changing.
     @Test func aKeyHasToBeAStringAndAStringHasToOpenWithAQuote() {
         // Kills: no longer refusing a member whose key does not scan as a string. Without that
         // guard this reads as a nameless member and holds, because the `:` is already there.
