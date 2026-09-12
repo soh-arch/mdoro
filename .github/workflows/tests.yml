@@ -1,40 +1,67 @@
 name: tests
 
 on:
-  push:
-    branches: [main]
   pull_request:
 
+# **A run on `main` after a merge repeats the run the pull request already did, on the same
+# commit.** Pure duplication, and duplication on macOS is expensive: GitHub bills a macOS minute
+# at ten times a Linux one and rounds every job up to the minute on its own. POL-239.
+concurrency:
+  # Three pushes to one branch used to mean three full runs to the end. Only the last one is read.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  core:
-    # The shared package is where the rules live: the state machine, the log
-    # format, the colour system and its contrast checks. It builds without Xcode,
-    # so it is what CI can hold onto.
+  what-changed:
+    # **A cheap gate in front of the expensive room.** A minute spent here to skip twenty there
+    # pays for itself many times over. Documents, the role briefs and the Python tools cannot
+    # break Swift; everything else can, the workflow itself included. POL-239.
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.decide.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: decide
+        run: |
+          changed=$(git diff --name-only \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}")
+          echo "$changed"
+          if echo "$changed" | grep -qvE '^(docs/|\.claude/|Tools/|[^/]*\.md$)'; then
+            echo "code=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=no" >> "$GITHUB_OUTPUT"
+          fi
+
+  swift:
+    # **One macOS job, not two.** The shared package holds the rules — the state machine, the log
+    # format, the colour system and its contrast checks. The app side holds the wiring that keeps
+    # the Mac off the air without a readable identity, keeps what the user wrote out of the
+    # diagnostic log, and keeps a Keychain that will not answer from being overwritten. Both need
+    # the same runner, and each job is rounded up to the minute by itself, so splitting them spent
+    # a whole extra minute at the tenfold rate for nothing. POL-239.
+    #
+    # `swift test` goes first: it is the faster of the two, and if the rules are broken there is no
+    # point building an app around them.
+    #
+    # Only `MdoroMacTests` on the app side. The scheme's test action also carries
+    # `PomodoroMacUITests`, which drives the app through its interface and is a different kind of
+    # run: slower, and it wants a session to draw into.
+    #
+    # Signing is turned off rather than configured. `Config/Signing.xcconfig` names a development
+    # team no runner has, and these tests reach the Keychain and the notification centre through
+    # injected seams rather than the real ones, so an unsigned host is enough. A test that needed a
+    # real signature would be telling us it belongs on the owner's Mac.
+    needs: what-changed
+    if: needs.what-changed.outputs.code == 'yes'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: swift test
         working-directory: Packages/MdoroCore
         run: swift test
-
-  mac:
-    # The app side's wiring: that the server is asked to start, that closing the
-    # pairing screen folds it, that a refusal reaches the log. None of it needs a
-    # device, a LAN or a person -- it sat outside CI because of where it is kept,
-    # not because of what it needs. POL-225.
-    #
-    # Only `MdoroMacTests`. The scheme's test action also carries
-    # `PomodoroMacUITests`, which drives the app through the interface and is a
-    # different kind of run: slower, and it wants a session to draw into.
-    #
-    # Signing is turned off rather than configured. `Config/Signing.xcconfig`
-    # names a development team that no runner has, and these tests reach the
-    # Keychain and the notification centre through injected seams rather than the
-    # real ones, so an unsigned host is enough for them. A test that needed a real
-    # signature would be telling us it belongs on the owner's Mac.
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
       - name: xcodebuild test
         run: |
           set -o pipefail && xcodebuild test \
@@ -45,11 +72,10 @@ jobs:
             -derivedDataPath /tmp/mdoro-ci \
             -resultBundlePath /tmp/mdoro-ci/result.xcresult \
             CODE_SIGNING_ALLOWED=NO
-
       # **A red run that says nothing is barely better than no run.** `xcodebuild`'s own output
       # carries the line that a test failed and not one word of why: the expectation, the file, the
-      # line and anything the test printed are all absent from it -- measured on this job, twice.
-      # The result bundle has them, so the bundle is what gets read when the step above fails.
+      # line, and anything the test printed are all absent from it — measured on this job twice,
+      # including a marker put there on purpose to be grepped for. The result bundle has them.
       - name: what failed
         if: failure()
         run: |
@@ -64,13 +90,12 @@ jobs:
           fi
 
   tools:
-    # The document checks and the axis tool are what a session runs before it
-    # touches anything, and for a while nothing started them: one of them sat
-    # here unable to parse until somebody happened to type the command. Every
-    # version in the supported range is built, not just the ends -- that fault
-    # parsed on some of them and not others, and the interpreter a session is
-    # handed can move under us. fail-fast is off so a failure on one version
-    # does not hide the others.
+    # The document checks and the axis tool are what a session runs before it touches anything, and
+    # for a while nothing started them: one of them sat here unable to parse until somebody
+    # happened to type the command. Every version in the supported range is built, not just the
+    # ends — that fault parsed on some of them and not others, and the interpreter a session is
+    # handed can move under us. fail-fast is off so a failure on one version does not hide the
+    # others. These are Linux minutes, which is why the matrix is affordable at all.
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -86,12 +111,12 @@ jobs:
       - name: check-docs
         run: python Tools/check-docs.py
       - name: a role runs on a checkout it cannot keep
-        # POL-201 was the tools nobody ran, and parsing is not starting. This
-        # one is reached for only when work goes to a role, which is not every
-        # session, so nothing else would notice it breaking.
+        # POL-201 was the tools nobody ran, and parsing is not starting. This one is reached for
+        # only when work goes to a role, which is not every session, so nothing else would notice
+        # it breaking.
         run: python Tools/run-in-a-worktree.py -- true
       - name: and still notices what a role touched
-        # Starting is not noticing. The step above runs a command that touches
-        # nothing, so every branch worth having -- moved, escaped, refused --
-        # would be exercised by nobody. These build repositories of their own.
+        # Starting is not noticing. The step above runs a command that touches nothing, so every
+        # branch worth having -- moved, escaped, refused -- would be exercised by nobody. These
+        # build repositories of their own.
         run: python Tools/test-run-in-a-worktree.py
