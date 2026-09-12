@@ -247,10 +247,24 @@ final class MdoroServer {
             send(.timeSyncPong(TimeSyncPayload(t1: payload.t1, t2: t2, t3: Date())), to: source)
 
         case .heartbeat:
+            // REQ-COM-005: **only the authenticated connection's heartbeat is counted.** The one
+            // being judged and the one allowed to postpone the judgement must be the same: a
+            // `heartbeat` carries no token and no body, so anyone on this LAN can send one, and
+            // without this gate a stranger's beat would keep the authenticated connection's
+            // liveness clock alive. This is the same gate `.command` and `.requestSnapshot` carry.
+            //
+            // **This is the one condition the four legs of REQ-COM-005 tolerate.** The phone does
+            // not send its first `heartbeat` until the `welcome` has arrived (10.2's ordering), so
+            // by the time one is sent the sender already *is* `connection`; and before the accept
+            // there is no silence check to fail — `checkHeartbeat` returns early while `connection`
+            // is nil. Nothing healthy is hung up on.
+            guard source === connection else { return }
             // REQ-COM-005: **this stamp is the whole of the Mac's watch.** `checkHeartbeat` reads
-            // `lastHeartbeatAt` against fifteen seconds, and only this case and the accept in
-            // `settle` ever move it — a `timeSyncPing` arriving does not. It rests on the phone
-            // sending a `heartbeat` on every beat, unconditionally (`MdoroClient.startKeepalive`).
+            // `lastHeartbeatAt` against fifteen seconds, and the only things that carry it forward
+            // are this case — for the authenticated connection alone, per the guard above — and the
+            // accept in `settle`; a `timeSyncPing` arriving does not, and `handleDisconnect` only
+            // clears it. It rests on the phone sending a `heartbeat` on every beat, unconditionally
+            // (`MdoroClient.startKeepalive`).
             //
             // 10.2 has no Server → Client heartbeat, so nothing is sent back.
             lastHeartbeatAt = Date()
