@@ -249,4 +249,4 @@ Xcode.app 全体の走査:
 | `TestHost.swift:20-24` | **設定するのは XCTest ではなく起動側。** そして**優先順位では2番手** |
 | `StringCatalogTests.swift:106-107` | 「エディタだけが書く」は誤り。**Xcode のビルドと `xcstringstool sync` が書く** |
 | `StringCatalogTests.swift:7-9` | 主張は正しいが、**このテストが捕まえるのは「カタログを更新せずに出した変更」** |
-| CI（`.github/workflows/tests.yml`） | **app-hosted のテストが CI で走らない。** `TestHost` の検出が壊れても誰も気づかない |
+| CI（`.github/workflows/tests.yml`） | ~~**app-hosted のテストが CI で走らない。** `TestHost` の検出が壊れても誰も気づかない~~ —— **2026-09-12 に解消**（POL-225。`mac` ジョブが `MdoroMacTests` を走らせる）。**この行が指していた欠落は埋まった** |
