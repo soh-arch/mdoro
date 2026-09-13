@@ -16,6 +16,9 @@ jobs:
     # **A cheap gate in front of the expensive room.** A minute spent here to skip twenty there
     # pays for itself many times over. Documents, the role briefs and the Python tools cannot
     # break Swift; everything else can, the workflow itself included. POL-239.
+    #
+    # `[^/]*\.md$` reaches only the root, so the issue templates are named on their own. The
+    # workflow is deliberately not excluded: a change to it has to be able to prove itself.
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.decide.outputs.code }}
@@ -29,7 +32,7 @@ jobs:
             "${{ github.event.pull_request.base.sha }}" \
             "${{ github.event.pull_request.head.sha }}")
           echo "$changed"
-          if echo "$changed" | grep -qvE '^(docs/|\.claude/|Tools/|[^/]*\.md$)'; then
+          if echo "$changed" | grep -qvE '^(docs/|\.claude/|Tools/|\.github/ISSUE_TEMPLATE/|[^/]*\.md$)'; then
             echo "code=yes" >> "$GITHUB_OUTPUT"
           else
             echo "code=no" >> "$GITHUB_OUTPUT"
