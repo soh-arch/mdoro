@@ -738,7 +738,26 @@ struct ServerUnderARealConnectionTests {
         let stranger = try await strangerProbe(on: bench)
         defer { stranger.cancel() }
 
-        let t1 = Date()
+        // REQ-COM-007: **the instant asked about is not a reading of any clock here.**
+        //
+        // `4_000_000_000` seconds past the epoch is 2096, and it is a whole number of seconds. Both
+        // halves of that are load-bearing:
+        //
+        //   - **whole seconds** means the value survives the wire unchanged, which is what lets the
+        //     check below be exact. `MessageCoder` encodes dates with
+        //     `JSONEncoder.dateEncodingStrategy = .iso8601` and decodes them with the matching
+        //     strategy (`Messages.swift`), and that writes `2096-10-02T07:06:40Z` — whole seconds,
+        //     no fraction. **`Date()` would not survive it**, which is why it is not used: it would
+        //     come back floored to its second and force a tolerance, and a tolerance is what let
+        //     the mutation below through.
+        //   - **seventy years from now** means no clock on this machine can produce it by accident.
+        //
+        // REQ-COM-005: it being an implausible instant is also the point. `t1` is the *phone's*
+        // wall clock, and the distance between the two clocks is the very thing this exchange
+        // exists to measure — so the Mac must answer it without judging it. A plausibility check
+        // on `t1` would leave a phone whose clock runs ahead unanswered for ever, which the phone
+        // reads as the Mac being gone; here it fails a test instead of a user.
+        let t1 = Date(timeIntervalSince1970: 4_000_000_000)
         try stranger.send(.timeSyncPing(TimeSyncPayload(t1: t1)))
 
         let answered = await stranger.waits(upTo: arrivalBudget, until: { $0.pongs.count == 1 })
@@ -747,11 +766,14 @@ struct ServerUnderARealConnectionTests {
             throw Wrong(diagnose("REQ-COM-005: a timeSyncPing arriving before any hello went unanswered in \(answered.describedElapsed) on a line that was ready. Line: \(seen.trailDescription), still up: \(stranger.isUpNow). Received so far: \(seen.messages.count) message(s)."))
         }
         let pong = try #require(stranger.seen.pongs.first)
-        // REQ-COM-007: t1 comes back so the asker can pair the answer with its question. It
-        // travels as ISO-8601, which keeps whole seconds, so what returns is the same second
-        // rather than the same instant.
-        holds(abs(pong.t1.timeIntervalSince(t1)) < 1,
-              "REQ-COM-007: the answer does not carry back the t1 it was asked about (sent \(t1), got \(pong.t1))")
+        // REQ-COM-007: t1 comes back so the asker can pair the answer with its question, and
+        // **carried back is not "about the same time"**. This was a one-second tolerance, and one
+        // second is far more than a loopback round trip: a Mac answering with its own receipt time
+        // — `TimeSyncPayload(t1: t2, ...)` — would have passed it every single time, which is
+        // exactly the value this line exists to catch. Exact equality is what bites, and the
+        // instant chosen above is what makes exact equality available.
+        holds(pong.t1 == t1,
+              "REQ-COM-007: the answer does not carry back the t1 it was asked about (sent \(t1), got \(pong.t1)) — an answer carrying the Mac's own clock instead cannot be paired with the question that asked for it")
         holds(pong.t2 != nil && pong.t3 != nil,
               "REQ-COM-007: the answer carries no t2/t3, so no offset can be worked out from it")
         // Answering is all it does. A ping is not a way in.
