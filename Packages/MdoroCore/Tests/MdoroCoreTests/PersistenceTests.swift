@@ -376,8 +376,25 @@ private extension JSONDecoder {
     }
 }
 
-@Suite("Hot key bindings (REQ-UIX-033)")
+@Suite("Hot key bindings (REQ-UIX-033 / REQ-UIX-037)")
 struct HotKeyBindingTests {
+
+    // 9.3 gives all four shortcuts the same range — "contains at least one modifier" — so all four
+    // are listed here by name. A check that reaches only the first of them passes every test that
+    // sets only the first.
+    //
+    // Computed, not stored. A key path is not `Sendable`, and a stored `static` holding one is
+    // refused outright under Swift 6 concurrency checking — `#MutableGlobalVariable`, measured on
+    // the owner's Mac, where this file did not compile at all. A computed property has no storage,
+    // so there is nothing to share.
+    static var allShortcuts: [(name: String, keyPath: WritableKeyPath<AppSettings, HotKeyBinding?>)] {
+        [
+            ("pauseResumeHotKey", \.pauseResumeHotKey),
+            ("showWindowHotKey", \.showWindowHotKey),
+            ("startNextHotKey", \.startNextHotKey),
+            ("skipHotKey", \.skipHotKey),
+        ]
+    }
 
     // A binding with no modifier is not accepted. Taking a bare key away stops text entry.
     @Test func modifierIsRequired() {
@@ -407,9 +424,79 @@ struct HotKeyBindingTests {
         #expect(decoded.pauseResumeHotKey?.displayName == "⌃⌥P")
         #expect(decoded.launchAtLogin)
     }
+
+    // REQ-CFG-018 / REQ-UIX-033 / REQ-UIX-037: **9.3 states "contains at least one modifier" in
+    // the range column**, and a range is what `isWithinValidRanges()` answers for. Before this,
+    // `hasModifier` was asked only at registration time, where a bare key is dropped without a
+    // word: the value was still applied, still saved, and still shown in the settings window.
+    @Test func aShortcutWithNoModifierIsOutOfRange() {
+        for (name, keyPath) in HotKeyBindingTests.allShortcuts {
+            var settings = AppSettings.default
+            settings[keyPath: keyPath] = HotKeyBinding(keyCode: 35, modifierFlags: 0, displayName: "P")
+            #expect(!settings.isWithinValidRanges(), "9.3: \(name) took a bare key")
+        }
+    }
+
+    // REQ-CFG-018: the range has to let the good assignment through as well. A check that always
+    // says no would refuse every settings change the app has.
+    @Test func aShortcutCarryingAModifierIsWithinRange() {
+        for (name, keyPath) in HotKeyBindingTests.allShortcuts {
+            var settings = AppSettings.default
+            settings[keyPath: keyPath] = HotKeyBinding(
+                keyCode: 35, modifierFlags: NSEventModifierFlagsCommand | NSEventModifierFlagsOption,
+                displayName: "⌘⌥P"
+            )
+            #expect(settings.isWithinValidRanges(), "9.3: ⌘⌥P is what \(name) is for")
+        }
+    }
+
+    // REQ-CFG-018: all four hold at once, and one bare key among three sound ones is still out of
+    // range. A check that takes any one sound assignment for the whole would pass the first half.
+    @Test func oneBareKeyAmongSoundOnesIsStillOutOfRange() {
+        var allSound = AppSettings.default
+        for (_, keyPath) in HotKeyBindingTests.allShortcuts {
+            allSound[keyPath: keyPath] = HotKeyBinding(
+                keyCode: 35, modifierFlags: NSEventModifierFlagsCommand, displayName: "⌘P"
+            )
+        }
+        #expect(allSound.isWithinValidRanges())
+
+        for (name, keyPath) in HotKeyBindingTests.allShortcuts {
+            var settings = allSound
+            settings[keyPath: keyPath] = HotKeyBinding(keyCode: 35, modifierFlags: 0, displayName: "P")
+            #expect(!settings.isWithinValidRanges(), "9.3: \(name) took a bare key")
+        }
+    }
+
+    // REQ-UIX-033 / Decision 0016: **unset is within range.** All four are off by default, so a
+    // range that refused `nil` would have the app turn down its own first settings, and every
+    // reader would be told its untouched setup is out of range.
+    @Test func anUnsetShortcutIsWithinRange() {
+        #expect(AppSettings.default.isWithinValidRanges())
+
+        var settings = AppSettings.default
+        for (_, keyPath) in HotKeyBindingTests.allShortcuts {
+            settings[keyPath: keyPath] = nil
+        }
+        #expect(settings.isWithinValidRanges(), "REQ-UIX-033: off by default is not out of range")
+    }
+
+    // REQ-CFG-018 / REQ-UIX-033: the boundary `hasModifier` draws. Caps Lock is reported among the
+    // modifier flags and is not one a binding can be held by, so a range asking `modifierFlags != 0`
+    // would let a bare key through on the strength of it.
+    @Test func aShortcutHeldOnlyByCapsLockIsOutOfRange() {
+        for (name, keyPath) in HotKeyBindingTests.allShortcuts {
+            var settings = AppSettings.default
+            settings[keyPath: keyPath] = HotKeyBinding(
+                keyCode: 35, modifierFlags: NSEventModifierFlagsCapsLock, displayName: "P"
+            )
+            #expect(!settings.isWithinValidRanges(), "9.3: Caps Lock carried \(name)")
+        }
+    }
 }
 
 // The rawValue of NSEvent.ModifierFlags (only the values, with no dependency on AppKit).
+private let NSEventModifierFlagsCapsLock: UInt = 1 << 16
 private let NSEventModifierFlagsControl: UInt = 1 << 18
 private let NSEventModifierFlagsOption: UInt = 1 << 19
 private let NSEventModifierFlagsCommand: UInt = 1 << 20
