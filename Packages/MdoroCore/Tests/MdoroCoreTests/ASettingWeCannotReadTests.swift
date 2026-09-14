@@ -447,6 +447,31 @@ struct ASettingWeCannotReadTests {
         }
     }
 
+    // REQ-CFG-018 / REQ-UIX-033 / 9.3: **"contains at least one modifier" is a range too.** A
+    // binding without one reads perfectly well — every field has a case here and the flags are a
+    // number the type holds — so it arrives whole, the way a number outside 0–12 does, and it is
+    // `isWithinValidRanges()` that turns it down. `theMacAnswersForANumberOutsideItsRangeBeforeItIsApplied`
+    // and `theMacRefusesTheValueBeforeItIsApplied` pin where the answer is sent from, and that
+    // gate asks the one question for the whole of `AppSettings`.
+    @Test func aShortcutWithNoModifierStillReadsAndIsStillOutOfRange() throws {
+        let command = try decodeCommand(
+            commandJSON(
+                action: "updateSettings",
+                requestId: "r9",
+                params: #""settings":{"pauseResumeHotKey":{"keyCode":35,"modifierFlags":0,"displayName":"P"}}"#
+            )
+        )
+        // The answer is owed to this id, and the value read whole, so the id is still here.
+        #expect(command.clientRequestId == "r9")
+        #expect(command.params?.unreadableValues.isEmpty == true)
+        let settings = try #require(command.params?.settings)
+        #expect(settings.pauseResumeHotKey?.modifierFlags == 0, "a value with a case here is read as it arrived")
+        #expect(!settings.isWithinValidRanges(), "REQ-CFG-018 / 9.3: a shortcut carries a modifier")
+        // The shared translator decides nothing about ranges, and the Mac never asks it about
+        // settings: it hands the command on exactly as it does for an out-of-range number.
+        #expect(translate(command) == .success(.updateSettings(settings)))
+    }
+
     // REQ-ERR-017 / Decision 0036: **the state file reads the same types and must keep throwing.**
     // Reading it leniently would call an unreadable file understood, and the next save would write
     // over the very bytes the reader is told to go and fetch.

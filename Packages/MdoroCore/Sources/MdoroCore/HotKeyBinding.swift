@@ -15,6 +15,9 @@ public struct HotKeyBinding: Equatable, Sendable, Codable, Hashable {
     }
 
     // A binding without a modifier is refused: taking a bare key away stops the user typing.
+    // REQ-CFG-018 / 9.3: this is the range 9.3 states for all four shortcuts, so
+    // `AppSettings.isWithinValidRanges()` asks it before the value is applied. Registration asks it
+    // again, and that second answer is silent — it is the last stop, not the one that replies.
     public var hasModifier: Bool {
         let command: UInt = 1 << 20
         let option: UInt = 1 << 19
