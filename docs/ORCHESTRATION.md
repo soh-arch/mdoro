@@ -283,8 +283,8 @@ Tools/build-everything.sh
 | 軸出し（天井） | クラウドでよい | 渡すのは差分だけ |
 | 実装（`MdoroCore`） | **クラウドでよい** | **書くのはクラウド、テストは CI**（`macos-latest` で `swift test`）。手元では走らない |
 | **Mac アプリ側の単体テスト**（`MdoroMacTests`） | **CI が見る**（2026-09-12 から） | **何も要さない。**配線の検査であり、実機も LAN も人間も要らない。`xcodebuild` はランナーにある |
-| iOS 側のテスト（`PomodoroiOSTests`） | **ローカル** | **シミュレータ** |
-| UI テスト（`PomodoroMacUITests`） | **ローカル** | **描画先。**アプリを画面越しに操作する別種の実行である |
+| iOS 側のテスト（ターゲット `MdoroiOSTests`・フォルダ `PomodoroiOSTests/`） | **ローカル** | **シミュレータ。**`-only-testing:` に書くのは**ターゲット名**である —— フォルダ名を書くと1本も走らずに緑になる |
+| ~~UI テスト~~ | — | **存在しない。**`MdoroMac.xcscheme` / `MdoroiOS.xcscheme` が `PomodoroMacUITests` / `PomodoroiOSUITests` を参照しているが、**`project.pbxproj` にその名前は1度も出てこない**（2026-09-14 に実測）。**scheme に残った切れた参照である**（POL-248） |
 | **変異テスト** | **ローカル** | **手作業。**1行壊して走らせる工程で、道具が無い |
 | ビルドの確認・実機での確認 | **ローカル** | `xcodebuild`・シミュレータ・実機・DerivedData は**単一**で、この Mac にしかない |
 | capability・署名・ターゲットへのリンク | **人間** | Xcode の操作（[0013](decisions/0013-pbxproj-is-owned-by-xcode.md)） |

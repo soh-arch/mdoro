@@ -340,7 +340,7 @@ Git に入っていないため、失われると復元できない。
 | Decision Record の番号 | `docs/decisions/` 自身 | 同上（欠番も見る） |
 | Apple の事実の番号 | `docs/PLATFORM.md`（索引）と `docs/platform/` | 同上 |
 | 作業の一覧と状態 | `docs/PUNCHLIST.md` | `grep -c '^| \*\*POL-' docs/PUNCHLIST.md` |
-| `MdoroCore` のテスト | —— | `cd Packages/MdoroCore && swift test`（2026-09-03: **377件 / 64スイート**）。**CI が PR ごとに macOS ランナーで走らせる**ので、クラウドからでも結果は返る。**CI は `MdoroMacTests` も走らせる**（2026-09-12 から。48本・72秒・署名は切る。POL-225）。**走らせないのは、機械か人間を要するものだけである** —— iOS 側のテスト（シミュレータ）・UI テスト（描画先）・変異テスト（手作業）・実機。**線の引き方は `docs/ORCHESTRATION.md` §8** |
+| `MdoroCore` のテスト | —— | `cd Packages/MdoroCore && swift test`（2026-09-03: **377件 / 64スイート**）。**CI が PR ごとに macOS ランナーで走らせる**ので、クラウドからでも結果は返る。**CI は `MdoroMacTests` も走らせる**（2026-09-12 から。48本・72秒・署名は切る。POL-225）。**走らせないのは、機械か人間を要するものだけである** —— iOS 側のテスト（シミュレータ）・変異テスト（手作業）・実機。**UI テストは存在しない** —— scheme が参照しているだけで、ターゲットが無い（POL-248）。**線の引き方は `docs/ORCHESTRATION.md` §8** |
 | Mac / iOS のテスト | —— | **`xcodebuild test` が要る。Mac のスイートは `MdoroMac.app` にホストされるので、走らせるとアプリが起動する。** 利用者が実機で使用中のときは実行しない（POL-158） |
 
 **サブエージェントは5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / platform-researcher。
