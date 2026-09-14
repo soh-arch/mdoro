@@ -40,7 +40,7 @@ is on the wire.
 | Where | What |
 | :---- | :---- |
 | Mac, app container | Timer state, settings, presets, and security-scoped bookmarks for the folders you picked |
-| Mac, `~/Library/Logs/Mdoro` | The diagnostic log, which contains no task names, file paths or device names |
+| Mac, inside the app container | The diagnostic log, which contains no task names, file paths or device names. The app is sandboxed, so `~/Library/Logs/Mdoro` is not where it lands — Settings → Files → Diagnostic log opens the real folder |
 | Mac, app container | A file holding this Mac's id, which is what a paired iPhone recognises it by |
 | Mac, Keychain | The tokens this Mac has issued, each with the name of the device and the date |
 | iPhone, Keychain | The device token issued at pairing, filed under the Mac's id |

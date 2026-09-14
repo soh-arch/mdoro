@@ -42,9 +42,11 @@ issue に貼られたログを読む初対面の第三者**になる。同時に
 アプリ版・OS 版・アーキテクチャ・**挙動に効く設定値**（各セッション長、長い休憩の間隔、
 通知音、事前通知の構成）を固定で出す。パス・ファイル名は出さない。
 
-### 4. 置き場所は `~/Library/Logs/Pomodoro/`、形式は1行1イベントのプレーンテキスト
+### 4. 置き場所はアプリのコンテナの中の `Library/Logs/Mdoro/`、形式は1行1イベントのプレーンテキスト
 
 追記のみ。排他ロックを持たない。`tail -f` できること。
+
+**この条は当初 `~/Library/Logs/Pomodoro/` と書いていた。二重に誤っていた** —— 名前が旧名であり、**`MdoroMac` はサンドボックス下にある**（`ENABLE_APP_SANDBOX = YES`）ので、`FileManager` が返す `Library` はホームではなくコンテナのものである。実体は `~/Library/Containers/com.sohta.MdoroMac/Data/Library/Logs/Mdoro/`。**コードは初めから正しく、誤っていたのは文書だけだった**（`DiagnosticLog.defaultDirectory`）。**利用者に絶対パスを覚えさせない** —— 設定画面が実際の場所を表示し、Finder で開くボタンを持つ。POL-121
 
 ### 5. Mac のみに持たせる。iPhone 側には持たせない
 
