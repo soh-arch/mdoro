@@ -86,6 +86,61 @@ set -o pipefail && xcodebuild \
   build | xcbeautify
 ```
 
+### macOS アプリのテスト
+
+CI が PR ごとに走らせているのと同じ選択である。
+
+```bash
+set -o pipefail && xcodebuild test \
+  -project ./PomodoroMac/PomodoroMac.xcodeproj \
+  -scheme MdoroMac \
+  -destination 'platform=macOS' \
+  -only-testing:MdoroMacTests \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+⚠ **`CODE_SIGNING_ALLOWED=NO` を落とさないこと。** 署名チームを設定していない機体で落とすと、
+**テストが1本も走らないまま `Early unexpected exit ... while preparing to run tests`（exit 65）で落ちる**
+（POL-157・2回再現）。**ビルドは通る**ので、症状は「テストだけが落ちる」形で現れる。
+テストホストは `MdoroMac.app` であり、ad-hoc 署名のホストを起動するところで止まる。
+**Keychain も通知センターも注入した継ぎ目を通るので、本物の署名は要らない。**
+**本物の署名を要するテストがあれば、それは「この検査はこの Mac のものだ」と言っている。**
+
+⚠ **走らせると `MdoroMac.app` が起動する。** その Mac で Mdoro を使用中なら走らせない。
+
+### iOS アプリのテスト（シミュレータ）
+
+⚠ **ターゲット名は `MdoroiOSTests` である。フォルダ名（`PomodoroiOSTests`）ではない。**
+`-only-testing:` にフォルダ名を書くと、**1本も走らないまま緑になる。**
+
+```bash
+set -o pipefail && xcodebuild test \
+  -project ./PomodoroMac/PomodoroMac.xcodeproj \
+  -scheme MdoroiOS \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -only-testing:MdoroiOSTests
+```
+
+**CI はこれを走らせない。** シミュレータが要るためである（`ORCHESTRATION.md` §8）。
+**したがって、iOS 側のテストを守っているのはこのコマンドだけである。**
+
+### 何本走ったかを確かめる
+
+**`xcodebuild` は1本も走らなくても `** TEST SUCCEEDED **` と出す**（POL-240 で実測）。
+**本数を読むこと。**
+
+```bash
+rm -rf /tmp/mdoro-test.xcresult   # 既にあると -resultBundlePath は拒否する
+set -o pipefail && xcodebuild test \
+  ...（上のいずれか）... \
+  -resultBundlePath /tmp/mdoro-test.xcresult
+xcrun xcresulttool get test-results summary \
+  --path /tmp/mdoro-test.xcresult --format json | \
+  python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["result"], d["totalTestCount"], "passed:", d["passedTests"])'
+```
+
+**`totalTestCount` が 0 なら、走っていない。**
+
 ### シミュレータ一覧
 
 ```bash

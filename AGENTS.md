@@ -61,6 +61,38 @@ iOS app on the simulator:
 set -o pipefail && xcodebuild -project ./PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroiOS -destination 'platform=iOS Simulator,name=iPhone 17' build | xcbeautify
 ```
 
+The Mac app's own tests. This is the same selection CI runs on every pull request:
+
+```bash
+set -o pipefail && xcodebuild test -project ./PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroMac -destination 'platform=macOS' -only-testing:MdoroMacTests CODE_SIGNING_ALLOWED=NO | xcbeautify
+```
+
+**Keep `CODE_SIGNING_ALLOWED=NO`.** Without a signing team, dropping it makes the run fail
+with `Early unexpected exit ... while preparing to run tests` (exit 65) having run no test at
+all. The build still succeeds, so it looks like the tests are broken rather than the signature:
+the suite is hosted by `MdoroMac.app`, and an ad-hoc host is where it stops. These tests reach
+the Keychain and the notification centre through injected seams, so no real signature is
+needed. **Running them launches `MdoroMac.app`** — do not run them on a Mac that is using
+Mdoro right now.
+
+The iOS app's tests, on the simulator. CI does not run these; this command is the only thing
+that does:
+
+```bash
+set -o pipefail && xcodebuild test -project ./PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroiOS -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:MdoroiOSTests | xcbeautify
+```
+
+**The target is `MdoroiOSTests`; the folder it lives in is `PomodoroiOSTests`.** Naming the
+folder in `-only-testing:` runs nothing and still reports success.
+
+**`xcodebuild` prints `TEST SUCCEEDED` having run nothing at all**, so read the count rather
+than the line. Add `-resultBundlePath /tmp/mdoro-test.xcresult` (delete it first — it refuses
+an existing bundle) and read `totalTestCount` back with:
+
+```bash
+xcrun xcresulttool get test-results summary --path /tmp/mdoro-test.xcresult --format json
+```
+
 **Always pass `-destination`.** Without it, `xcodebuild` picks a generic iOS device, builds for
 `Debug-iphoneos`, and installs onto whatever iPhone is plugged in — replacing the app on someone's
 own phone. Nothing in the command says that is what happened.
@@ -153,8 +185,8 @@ and ask.** Do not guess. A guess that ships becomes a requirement nobody chose.
   and `docs/` is in Japanese, so the ID may be the only thing you and the maintainer both read.
 - `swift test` must pass. CI runs it on every pull request, together with the
   Mac app's unit tests and the mechanical checks over the documents. What CI
-  cannot run is what needs a machine or a person: the simulator, a device, the
-  UI tests, and mutation testing.
+  cannot run is what needs a machine or a person: the simulator, a device, and
+  mutation testing. **So the iOS tests are yours to run** — nothing else will.
 - A human merges. Nothing lands on `main` directly.
 
 ## Out of scope
