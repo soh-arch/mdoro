@@ -1046,4 +1046,49 @@ struct ServerUnderARealConnectionTests {
         holds(bench.server.connectedDeviceName == "Probe iPhone",
               "the Mac is no longer holding the connection it welcomed (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil"))")
     }
+
+    // REQ-ERR-009: **the run of ten belongs to one connection.** `handle` is reached before any
+    // `source === connection` gate — it has to be, since the hello that makes a connection the one
+    // on record arrives through it — so a count kept on the server rather than per connection is a
+    // count anyone who can reach this port contributes to. Nine unreadable messages from a stranger
+    // and one from the iPhone would then hang the iPhone up, over and over, for as long as the
+    // stranger cares to keep it up.
+    //
+    // **What this test can and cannot establish.** The nine and the one are on two different
+    // connections, and the receipt this file is built on says nothing across connections — its
+    // whole force comes from one line delivering in order (see the top of this file). What stands
+    // in is a full round trip on the iPhone's line between the two halves: the server handles
+    // everything on one actor, and the stranger's nine frames were written before any of it. That
+    // is strong enough to make this fail against a shared count and **not strong enough to make it
+    // fail for any other reason** — the way it can go wrong is a green that observed nothing, never
+    // a red that means nothing.
+    @Test func aStrangersBrokenMessagesAreNotCountedAgainstTheIPhonesConnection() async throws {
+        let bench = try await raiseServer()
+        defer { bench.server.stop() }
+
+        let phone = try await authenticatedProbe(named: "Probe iPhone", on: bench)
+        defer { phone.cancel() }
+        let stranger = try await strangerProbe(on: bench)
+        defer { stranger.cancel() }
+
+        // One short of the limit, from someone who never said hello.
+        for _ in 1..<BrokenMessageCounter.limit {
+            let unreadable = try aValueThisVersionCannotRead()
+            stranger.sendRaw(unreadable)
+        }
+        // Not a receipt on the stranger's own line: a message that decodes would start its run
+        // over, which is the very thing this test needs left standing. This round trip is here to
+        // put the stranger's nine behind us in time, and for nothing else.
+        try await receipt(from: phone, called: "a round trip after the stranger's nine")
+
+        // The tenth, on the other connection. Under one count for the whole server this is where
+        // the iPhone is hung up on.
+        let unreadable = try aValueThisVersionCannotRead()
+        phone.sendRaw(unreadable)
+        try await receipt(from: phone, called: "the iPhone's own first unreadable message")
+        holds(bench.upstream.hangUps == 0,
+              "REQ-ERR-009: a stranger's \(BrokenMessageCounter.limit - 1) unreadable messages and one of the iPhone's came to ten together and the iPhone's connection was hung up. The run belongs to a connection, not to the Mac — kept on the Mac, anyone who can reach this port can drop the paired iPhone at will, since handle runs before the gate that would tell them apart.")
+        holds(bench.server.connectedDeviceName == "Probe iPhone",
+              "the Mac is no longer holding the connection it welcomed (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil"))")
+    }
 }
