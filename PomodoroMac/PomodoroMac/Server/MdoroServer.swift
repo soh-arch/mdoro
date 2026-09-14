@@ -188,7 +188,18 @@ final class MdoroServer {
         receive(on: incoming)
     }
 
-    private func receive(on connection: NWConnection) {
+    // REQ-ERR-009: **the run of broken messages belongs to this connection and to no other**, and
+    // it rides the read loop rather than sitting on the server. `accept` starts one loop per
+    // connection and each turn hands the count to the next, so a connection begins at zero because
+    // its loop does, and the count goes when the loop goes — there is no table to key, to clear, or
+    // to leak. It is the same thing `MdoroClient.openConnection` does with a `reset()`, said by the
+    // shape instead.
+    //
+    // **A field on the server would be one count shared by every connection at once.** `handle` is
+    // reached before any `source === connection` gate, so a stranger who can reach this port could
+    // then walk the count up and have the authenticated connection hung up on — nine of theirs and
+    // one of anybody's would do it.
+    private func receive(on connection: NWConnection, counting brokenMessages: BrokenMessageCounter = BrokenMessageCounter()) {
         connection.receiveMessage { [weak self] data, context, _, error in
             Task { @MainActor in
                 guard let self else { return }
@@ -196,14 +207,16 @@ final class MdoroServer {
                     self.handleDisconnect(connection)
                     return
                 }
+                var counter = brokenMessages
                 if let data, !data.isEmpty,
                    let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition)
                     as? NWProtocolWebSocket.Metadata,
                    metadata.opcode == .text || metadata.opcode == .binary {
                     // Both text and binary are read as JSON.
-                    self.handle(data, from: connection)
+                    // REQ-ERR-009: a line that has just been hung up on is not read from again.
+                    guard self.handle(data, from: connection, counting: &counter) else { return }
                 }
-                self.receive(on: connection)
+                self.receive(on: connection, counting: counter)
             }
         }
     }
@@ -219,11 +232,49 @@ final class MdoroServer {
 
     // MARK: - Receiving
 
-    private func handle(_ data: Data, from source: NWConnection) {
-        // REQ-ERR-009: a broken message is thrown away and the connection is kept.
-        guard let envelope = try? MessageCoder.decodeClient(data) else { return }
+    // Returns whether this connection is still one to read from. False says a run of ten broken
+    // messages has just hung it up (REQ-ERR-009) and there is nothing further to take off it.
+    //
+    // **The `try?` this replaced flattened two different things into one silence.** `decodeClient`
+    // throws when the bytes cannot be read and returns nil when they are read perfectly well and
+    // name a message type this version has never heard of — and REQ-PRT-005 makes those opposites:
+    // the first is corruption to be counted (REQ-ERR-009), the second is forward compatibility to
+    // be ignored. `MdoroClient.handle` has told them apart since it was written; this end had the
+    // same comment over an expression that could not.
+    private func handle(
+        _ data: Data, from source: NWConnection, counting brokenMessages: inout BrokenMessageCounter
+    ) -> Bool {
+        let decoded: Envelope<ClientMessage>?
+        do {
+            decoded = try MessageCoder.decodeClient(data)
+        } catch {
+            // REQ-ERR-009: the message alone is thrown away and the connection is kept — until ten
+            // have come in a row, and then what is no good is the line. **The Mac does not
+            // reconnect**: the iPhone is always the end that dials, so hanging up here is how
+            // REQ-COM-004's reconnect is asked for.
+            //
+            // REQ-PRT-005: **ten is the earliest this is allowed to happen.** Dropping the
+            // connection on the first message that cannot be read is what that clause forbids in a
+            // MUST — REQ-ERR-009 is a SHOULD, but this one point is not — and the counter is the
+            // whole of what keeps it from happening.
+            if brokenMessages.recordBroken() {
+                source.cancel()
+                handleDisconnect(source)
+                return false
+            }
+            return true
+        }
+        // The envelope was well formed, so the peer is speaking: the run of ten starts over.
+        brokenMessages.reset()
+        // REQ-PRT-005: a type this version does not know decodes to nil. That is forward
+        // compatibility, not corruption — it is ignored and it is not counted as broken.
+        guard let envelope = decoded else { return true }
+        dispatch(envelope.body, from: source)
+        return true
+    }
 
-        switch envelope.body {
+    private func dispatch(_ message: ClientMessage, from source: NWConnection) {
+        switch message {
         case let .hello(payload):
             handleHello(payload, from: source)
 

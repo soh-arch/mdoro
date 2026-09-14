@@ -6,7 +6,7 @@ import MdoroCore
 
 // REQ-COM-005 / REQ-SEC-003: **`MdoroServer` driven over a line that really carries bytes.**
 //
-// Three of the cases in `handle(_:from:)` — `.command`, `.requestSnapshot` and `.heartbeat` —
+// Three of the cases in `dispatch(_:from:)` — `.command`, `.requestSnapshot` and `.heartbeat` —
 // begin with `guard source === connection`. They are the whole of what keeps anyone else who can
 // reach the port from driving the timer, reading the task the user is working on, or holding the
 // authenticated connection's liveness clock open. **A `heartbeat` carries no token and no body,
@@ -41,20 +41,27 @@ import MdoroCore
 // **That inference is not a clause.** It rests on three things, none of which is written down:
 //
 //   1. one WebSocket connection delivers in the order it was written (TCP beneath it);
-//   2. `MdoroServer.receive(on:)` re-arms only *after* `handle` has returned, so messages from
-//      one connection are handled one after another on the main actor;
+//   2. `MdoroServer.receive(on:counting:)` re-arms only *after* `handle` has returned, so messages
+//      from one connection are handled one after another on the main actor;
 //   3. the pong is sent inside that same handling, before the re-arm.
 //
-// Move the re-arm in `receive(on:)` above the `handle` call and the ordering is gone — these
+// Move the re-arm in `receive(on:counting:)` above the `handle` call and the ordering is gone — these
 // tests would go on passing while observing nothing. **If that line is ever touched, this is the
 // reason to stop and look here.** It also buys nothing across two connections, which is why every
 // exchange below is sequenced: one connection's message and its receipt, then the other's.
 //
 // **What the receipt still cannot tell apart**, and what stands in for that: a message discarded
-// as unreadable (REQ-ERR-009 throws the bytes away in silence) looks exactly like a message a
-// gate refused. So each test below sends the same message, built by the same helper, down the
-// **authenticated** line as well and requires it to be honoured. One half is the gate; the other
-// half is the proof that those bytes reach the handler at all.
+// as unreadable (REQ-ERR-009 throws the bytes away in silence, for the first nine in a row) looks
+// exactly like a message a gate refused. So each gate test below sends the same message, built by
+// the same helper, down the **authenticated** line as well and requires it to be honoured. One
+// half is the gate; the other half is the proof that those bytes reach the handler at all.
+//
+// **The three tests about broken messages** are about that silence itself — what ends it
+// (REQ-ERR-009's run of ten), what must not be mistaken for it (REQ-PRT-005's unknown message
+// type), and whose it is (a stranger's unreadable messages are not the iPhone's). They are also
+// where the receipt earns the most: a pong coming back after nine unreadable messages says both
+// that the line is still here and that the nine were read off it. **The last of the three carries
+// a written-up account of a mutation no test here catches; read it before adding a fourth.**
 //
 // **Left unverified here on purpose:** the fifteen-second silence check itself
 // (`startHeartbeatMonitor` / `checkHeartbeat`). Pinning it would mean either waiting fifteen
@@ -446,7 +453,14 @@ private final class Probe: @unchecked Sendable {
     // message the server can actually read — bytes it cannot read are discarded in silence
     // (REQ-ERR-009) and would look just like a gate holding.
     func send(_ message: ClientMessage) throws {
-        let data = try MessageCoder.encode(Envelope(body: message))
+        sendRaw(try MessageCoder.encode(Envelope(body: message)))
+    }
+
+    // REQ-ERR-009 / REQ-PRT-005: the same frame, carrying bytes `MessageCoder` never made. This is
+    // the only way to put a message on this wire that the far end cannot read — everything sent
+    // through `send(_:)` above is by construction readable — and it is the whole of what the two
+    // tests about counting stand on.
+    func sendRaw(_ data: Data) {
         let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
         let context = NWConnection.ContentContext(identifier: "send", metadata: [metadata])
         connection.send(content: data, contentContext: context, completion: .contentProcessed { _ in })
@@ -511,6 +525,45 @@ private final class Probe: @unchecked Sendable {
 private final class Upstream {
     private(set) var commands: [CommandPayload] = []
     private(set) var snapshotsProvided = 0
+    // REQ-ERR-009: how many times the Mac has said the connection is gone. **This is the near end
+    // of the hang-up**, and it is what the counting test observes: `handleDisconnect` reports it
+    // on the main actor at the moment it drops the connection, so it is exact and it is early —
+    // earlier than the close can travel back down the wire and be noticed there.
+    private(set) var hangUps = 0
+
+    private var waitingForHangUp: CheckedContinuation<Void, Never>?
+
+    // Wait until the Mac drops a connection, or give up. **Nothing is polled**: this is resumed
+    // from `connectionChanged`, which runs on the main actor — the same actor `MdoroServer` needs
+    // to do the dropping — so a test that is waiting here is holding nothing of what it waits for.
+    // That is the fourth run's lesson at the top of this file, kept to.
+    func waitsForHangUp(upTo budget: Duration) async -> Bool {
+        if hangUps > 0 { return true }
+        let deadline = Task { [weak self] in
+            try? await Task.sleep(for: budget)
+            guard !Task.isCancelled else { return }
+            self?.giveUpWaitingForHangUp()
+        }
+        defer { deadline.cancel() }
+        // The deadline sleeps before it can resume anything, so the registration below is always
+        // in place first — there is no window in which a resumption is lost.
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            waitingForHangUp = continuation
+        }
+        return hangUps > 0
+    }
+
+    private func giveUpWaitingForHangUp() {
+        waitingForHangUp?.resume()
+        waitingForHangUp = nil
+    }
+
+    private func note(_ state: ConnectionState) {
+        guard !state.isConnected else { return }
+        hangUps += 1
+        waitingForHangUp?.resume()
+        waitingForHangUp = nil
+    }
 
     // Every hello is accepted: REQ-SEC-003's own judgement lives in `Authenticator` and is held
     // still elsewhere. What the gates below are about is a connection that never said hello at
@@ -534,7 +587,7 @@ private final class Upstream {
             },
             provideTaskList: { nil },
             provideDisplayName: { AppSettings.defaultDisplayName },
-            connectionChanged: { _ in }
+            connectionChanged: { [weak self] state in self?.note(state) }
         )
     }
 }
@@ -718,7 +771,38 @@ private func receipt(from probe: Probe, called label: String) async throws {
     }
 }
 
-@Suite("MdoroServer over a line that carries bytes (REQ-COM-005 / REQ-SEC-003)")
+// MARK: - Two messages that differ only in which field carries the word this version does not know
+
+// REQ-PRT-005: **a type this version has never heard of.** Well formed, header and all; the only
+// thing about it this Mac cannot do is name it. The clause says to ignore it — that is the whole of
+// forward compatibility, and REQ-ERR-009 must not count it as broken, or the first message a later
+// version adds starts a run of ten towards hanging up every iPhone that sends it.
+private func aTypeThisVersionDoesNotKnow() throws -> Data {
+    try JSONSerialization.data(withJSONObject: [
+        "type": "somethingALaterVersionAdded",
+        "messageId": UUID().uuidString,
+        "sentAt": "2026-01-01T00:00:00Z",
+    ], options: [])
+}
+
+// REQ-PRT-005: **a value this version cannot make.** The type is known, the field is known, and
+// only the value is not — and the exemption above does not reach values. Nothing anywhere lays down
+// a response for an `action` outside its set, and reading it as one of the values that *are* in the
+// set is forbidden, so the message stays unreadable. REQ-ERR-009 names exactly this as broken.
+//
+// **These two differ in one word and in which key it sits under.** That is the line the `try?` in
+// `MdoroServer.handle` could not draw: one of them decodes to nil and the other throws.
+private func aValueThisVersionCannotRead() throws -> Data {
+    try JSONSerialization.data(withJSONObject: [
+        "type": "command",
+        "messageId": UUID().uuidString,
+        "sentAt": "2026-01-01T00:00:00Z",
+        "clientRequestId": UUID().uuidString,
+        "action": "somethingALaterVersionAdded",
+    ], options: [])
+}
+
+@Suite("MdoroServer over a line that carries bytes (REQ-COM-005 / REQ-SEC-003 / REQ-ERR-009)")
 @MainActor
 struct ServerUnderARealConnectionTests {
 
@@ -880,5 +964,147 @@ struct ServerUnderARealConnectionTests {
         try await receipt(from: phone, called: "the authenticated connection's requestSnapshot")
         holds(phone.seen.snapshots == 2,
               "the authenticated connection asked for the state and was not sent it (\(phone.seen.snapshots) arrived in all), so the refusal checked just above was the message never being read rather than the gate holding.")
+    }
+
+    // REQ-ERR-009: **one broken message is thrown away; ten in a row mean the line is.** The Mac
+    // has no reconnect of its own — the iPhone is always the end that dials — so what it does at
+    // ten is hang up, and REQ-COM-004 on the other end turns that into the reconnect the clause
+    // asks for.
+    //
+    // Three claims, in one run, because each rests on the one before it:
+    //
+    //   1. **nine are kept.** The receipt comes back, which says both that the line is here and
+    //      that the nine were read off it (see the note at the top of this file for what that
+    //      inference rests on). Nine is the count that bites: an implementation that hung up on
+    //      the first, or the second, or the fifth, fails here and nowhere else.
+    //   2. **a message that decodes starts the run over.** The receipt in step 1 *is* that
+    //      message, so nine more — eighteen unreadable messages in all — still leave the line
+    //      standing. Without the `reset()` the line is gone by the tenth of those eighteen and the
+    //      second receipt never arrives.
+    //   3. **the tenth in a row ends it.**
+    //
+    // REQ-PRT-005 is the other half of step 1, and it is the half with the MUST on it: hanging up
+    // before the count is reached is what that clause forbids outright.
+    @Test func tenBrokenMessagesInARowEndTheConnectionAndOneThatDecodesStartsTheRunOver() async throws {
+        let bench = try await raiseServer()
+        defer { bench.server.stop() }
+
+        let phone = try await authenticatedProbe(named: "Probe iPhone", on: bench)
+        defer { phone.cancel() }
+
+        for _ in 1..<BrokenMessageCounter.limit {
+            let unreadable = try aValueThisVersionCannotRead()
+            phone.sendRaw(unreadable)
+        }
+        try await receipt(from: phone, called: "nine unreadable messages in a row")
+        holds(bench.upstream.hangUps == 0,
+              "REQ-ERR-009 / REQ-PRT-005: the Mac hung up before \(BrokenMessageCounter.limit) unreadable messages had come in a row. REQ-ERR-009 is a SHOULD, but not this point — REQ-PRT-005 forbids in a MUST that a discarded message cost the connection before the count is reached, and the count is what the shared BrokenMessageCounter is for.")
+
+        // The receipt just above decoded, so the run starts over on it. These nine make eighteen.
+        for _ in 1..<BrokenMessageCounter.limit {
+            let unreadable = try aValueThisVersionCannotRead()
+            phone.sendRaw(unreadable)
+        }
+        try await receipt(from: phone, called: "nine more, after one message that decoded")
+        holds(bench.upstream.hangUps == 0,
+              "REQ-ERR-009: eighteen unreadable messages with one readable one in the middle cost the connection. The requirement says *in a row*, and a message that decodes is what ends a row — without that the count is a lifetime total and any long-lived connection reaches ten eventually.")
+
+        for _ in 1...BrokenMessageCounter.limit {
+            let unreadable = try aValueThisVersionCannotRead()
+            phone.sendRaw(unreadable)
+        }
+        let hungUp = await bench.upstream.waitsForHangUp(upTo: arrivalBudget)
+        holds(hungUp,
+              "REQ-ERR-009: \(BrokenMessageCounter.limit) unreadable messages in a row and the Mac is still holding the connection. The Mac cannot reconnect — the iPhone is the end that dials — so hanging up is the whole of what it can do, and it is what sets REQ-COM-004's reconnect going on the other end. (\(bench.upstream.hangUps) hang-up(s) seen in all.)")
+        holds(bench.server.connection == nil && bench.server.connectedDeviceName == nil,
+              "the Mac reported the connection gone but is still holding it (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil")) — the report and the hang-up have come apart, so what the iPhone sees and what the Mac believes no longer agree")
+    }
+
+    // REQ-PRT-005: **a type this version does not know is ignored, and ignoring is not discarding.**
+    // The whole point of the exemption is that a later version may add a message without every
+    // older Mac on the LAN falling over; count these as broken and the exemption is worth nothing,
+    // because the tenth one hangs up the connection that the clause exists to keep.
+    //
+    // Twice the limit is sent, so a version of `handle` that counts them is not merely over the
+    // line, it is twice over it — and one that counts them and resets on nothing is too. The count
+    // is not asked for directly: the receipt afterwards is what says the line is still here, and a
+    // line that is not here cannot answer.
+    //
+    // **This is the test the `try?` in `MdoroServer.handle` could not have passed once the counting
+    // was added**, because that expression had no way to tell these bytes from the ones above.
+    @Test func aTypeThisVersionDoesNotKnowIsIgnoredAndNotCountedAsBroken() async throws {
+        let bench = try await raiseServer()
+        defer { bench.server.stop() }
+
+        let phone = try await authenticatedProbe(named: "Probe iPhone", on: bench)
+        defer { phone.cancel() }
+
+        for _ in 1...(BrokenMessageCounter.limit * 2) {
+            let unknownType = try aTypeThisVersionDoesNotKnow()
+            phone.sendRaw(unknownType)
+        }
+        try await receipt(from: phone, called: "twice the limit in messages of a type this version does not know")
+        holds(bench.upstream.hangUps == 0,
+              "REQ-PRT-005: messages of a type this version does not know were counted as broken and the connection was hung up. That exemption is what lets a later version add a message without older Macs dropping the iPhones that send it — counted, the tenth one ends the very connection the clause is there to keep.")
+        holds(bench.server.connectedDeviceName == "Probe iPhone",
+              "the Mac is no longer holding the connection it welcomed (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil"))")
+    }
+
+    // REQ-ERR-009 / REQ-SEC-003: **a stranger's rubbish is the stranger's.** `handle` is reached
+    // before any `source === connection` gate — it has to be, since the hello that makes a
+    // connection the one on record arrives through it — so every unreadable byte anyone on this LAN
+    // cares to send is read by the same handler that reads the iPhone's. What is asked here is that
+    // none of it reaches the iPhone's connection: not the Mac's record of it, and not the line.
+    //
+    // **One short of the limit, on purpose.** What is watched is the discarding, and stopping at
+    // nine keeps the hang-up out of it — a hang-up on the stranger's own line at ten is the right
+    // answer, and telling it apart from the wrong one needs an observation this file cannot make
+    // (see below). The receipt is taken **on the stranger's own line**, which is the only place it
+    // means anything: the ordering the whole file rests on is within one connection.
+    //
+    // **What this does not catch — and nothing in this file does.**
+    //
+    // **Move the count off the read loop and onto the server** — one run of ten shared by every
+    // connection at once — and this test still passes, as does every other test in this file and in
+    // `BrokenMessageCounterTests`. The mutation is a real one: `handle` runs before the gate, so a
+    // shared run lets anyone who can reach this port put nine unreadable messages in and have the
+    // paired iPhone hung up by the tenth, whoever sends it.
+    //
+    // **Catching it needs a moment where the stranger's messages are known to have been handled and
+    // the run is known to still be standing, and there is no such moment.** Everything the server
+    // answers is a message that decodes, so observing arrival resets the very run that would have
+    // to be left standing — under that mutation a round trip on *either* line resets the one shared
+    // count. And an unreadable message below the limit has no observable effect at all: no reply,
+    // no record, nothing. Ordering across two connections is not something this file can establish
+    // either; TCP gives it within one line and nothing gives it between two.
+    //
+    // **So the guard against that mutation is the shape of `receive(on:counting:)` and not a test.**
+    // The count is a parameter of the read loop, and `accept` starts one loop per connection — there
+    // is no server-wide place for it to be put without changing that signature. Written down here
+    // rather than left for the next reader to rediscover.
+    @Test func aStrangersUnreadableMessagesAreDiscardedWithoutTouchingTheIPhonesConnection() async throws {
+        let bench = try await raiseServer()
+        defer { bench.server.stop() }
+
+        let phone = try await authenticatedProbe(named: "Probe iPhone", on: bench)
+        defer { phone.cancel() }
+        let stranger = try await strangerProbe(on: bench)
+        defer { stranger.cancel() }
+
+        for _ in 1..<BrokenMessageCounter.limit {
+            let unreadable = try aValueThisVersionCannotRead()
+            stranger.sendRaw(unreadable)
+        }
+        // The receipt says those nine were taken off this line and handled before it. It is also a
+        // message that decodes, so it starts this connection's run over — nothing below leans on
+        // the run still standing, which is the whole of the limitation written up above.
+        try await receipt(from: stranger, called: "the stranger's nine unreadable messages")
+
+        holds(bench.upstream.hangUps == 0,
+              "REQ-ERR-009 / REQ-SEC-003: nine unreadable messages from a connection that never authenticated cost the iPhone its connection. They are the stranger's to be discarded — the limit was not reached on any line, and nothing in them was the iPhone's.")
+        holds(bench.server.connectedDeviceName == "Probe iPhone",
+              "the Mac stopped holding the connection it welcomed (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil")) while the only thing to arrive was rubbish on somebody else's line")
+        // And the line itself, not just the Mac's record of it.
+        try await receipt(from: phone, called: "the authenticated connection, after the stranger's nine")
     }
 }
