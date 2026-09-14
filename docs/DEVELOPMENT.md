@@ -50,6 +50,20 @@ Pomodoro_Timer/                        # プロジェクトルート
 プロジェクトルート: このリポジトリのルート
 Xcode プロジェクト: `./PomodoroMac/PomodoroMac.xcodeproj`
 
+### 全部がコンパイルできるかだけを見る
+
+```bash
+Tools/build-everything.sh
+```
+
+`MdoroCore`（テスト込み）・`MdoroMac` と `MdoroMacTests`・`MdoroiOS` と `MdoroiOSTests` と
+`MdoroWidget` を建てる。**テストは走らせないので、アプリは起動しない。**
+**1段が落ちても残りは走る**ので、1回で全部の誤りが出る。
+
+**クラウドのセッションは Swift を1行もコンパイルできない。** そして **CI が建てるのは
+`MdoroCore` と `MdoroMac` の側だけで、iPhone 側の19ファイルはどのランナーでも建たない。**
+**Swift を触った PR には、この1回が要る**（POL-243。`docs/ORCHESTRATION.md` §6）。
+
 ### 共有パッケージ
 
 プロジェクトルートから実行する。
