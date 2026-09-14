@@ -148,6 +148,11 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: the tools parse
         run: python -m compileall -q Tools
+      - name: check-docs tests itself
+        # POL-245: once the ledger is clean the newest check has nothing to fire on, so a
+        # break in it would leave the run below green and silent. This fires it on rows
+        # kept for the purpose, and fails if it lets one through or catches a sound one.
+        run: python Tools/check-docs.py --self-test
       - name: check-docs
         run: python Tools/check-docs.py
       - name: a role runs on a checkout it cannot keep
