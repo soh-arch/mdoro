@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -144,6 +145,53 @@ def check_pols() -> None:
                 note("pol", f"{md.relative_to(ROOT)}:{line} cites POL-{m.group(1)}, which is not filed")
 
 
+# --- a row in progress names its work -----------------------------------------
+# A status is written by hand, so it records an intention and nothing else. Four rows
+# carried `doing` for fifteen days with nothing started, and the count of what was left
+# was read off them and came out wrong (POL-244). Staleness itself is not measurable
+# here -- a row holds no date -- but this is: `doing` and `review` say a branch exists,
+# so the row has to name it. That turns the column from a declaration into a claim the
+# repository can be asked about.
+#
+# What counts as naming it is a shape, not the absence of a placeholder. Anything that is
+# merely not an em dash -- `TODO`, `調整中`, `——`, `?` -- would satisfy a blacklist while
+# naming nothing, so the cell has to carry a branch (every branch here is `prefix/name`)
+# or a pull request number. That the named branch really exists is deliberately not
+# checked: proving it needs the network, or refs a shallow CI checkout does not fetch,
+# and a check that cannot run everywhere is worse than one that can (POL-245).
+IN_PROGRESS = ("doing", "review")
+NAMES_WORK = re.compile(r"`[^`\s]*/[^`\s]*`|#\d+")
+
+# A body cell can hold an escaped pipe (`grep -o \| wc -l`), and splitting on the bare
+# character walks the columns out of step. Nothing downstream of here counts columns, but
+# the next reader should not have to know that.
+CELL = re.compile(r"(?<!\\)\|")
+
+
+def punch_rows() -> list[tuple[int, str, list[str]]]:
+    rows = []
+    for line_no, line in enumerate(read(PUNCH).split("\n"), 1):
+        m = re.match(r"\| \*\*POL-(\d+)\*\*", line)
+        if m:
+            cells = [c.strip().strip("*").strip() for c in CELL.split(line)]
+            rows.append((line_no, m.group(1), cells))
+    return rows
+
+
+def check_in_progress_rows() -> None:
+    for line_no, pol, cells in punch_rows():
+        at = next((i for i, c in enumerate(cells) if c in IN_PROGRESS), None)
+        if at is None:
+            continue
+        named = cells[at + 1] if at + 1 < len(cells) else ""
+        if not NAMES_WORK.search(named):
+            note(
+                "pol",
+                f"docs/PUNCHLIST.md:{line_no} POL-{pol} is `{cells[at]}` but names no branch or pull "
+                f"request -- a row in progress says where the work is, or it is not in progress",
+            )
+
+
 # --- decision records --------------------------------------------------------
 def decision_numbers() -> set[int]:
     return {int(p.name[:4]) for p in DECISIONS.glob("[0-9][0-9][0-9][0-9]-*.md")}
@@ -197,15 +245,80 @@ def check_spec_header() -> None:
                 note("spec", f"the v{newest} entry claims {m.group(1)} requirements; {actual} rows are defined")
 
 
+# --- what runs, and what the ok line may claim -------------------------------
+# The success message used to be a fixed string. Deleting a call from main() left it
+# still naming the check it no longer ran, and the script stayed green (found by the
+# reviewer, 2026-09-14). Named once, the claim cannot outlive the call.
+CHECKS = (
+    ("links", check_links),
+    ("inline paths", check_inline_paths),
+    ("requirement ids", check_requirement_ids),
+    ("POL numbers", check_pols),
+    ("rows in progress", check_in_progress_rows),
+    ("decision records", check_decisions),
+    ("spec header", check_spec_header),
+)
+
+
+# --- the newest check's own test ---------------------------------------------
+# Once the ledger is clean, check_in_progress_rows() has nothing left to fire on, so
+# breaking it leaves this script green and says nothing. Every mutation the reviewer
+# found -- dropping `review`, reading the wrong cell, letting a placeholder through --
+# fails at least one row below. Run it with --self-test; CI runs it before the checks
+# themselves (POL-245).
+#
+# The escaped pipe in the last row is pinned, not proved: splitting on a bare `|` cannot
+# actually produce a clean `doing` cell, because the backslash always stays attached to
+# one side. CELL is there so the next reader does not have to work that out.
+SELF_TEST = (
+    ("| **POL-001** | a | b | c | agent | minor | doing | — |", True),
+    ("| **POL-002** | a | b | c | agent | minor | doing |  |", True),
+    ("| **POL-003** | a | b | c | agent | minor | doing | TODO |", True),
+    ("| **POL-004** | a | b | c | agent | minor | doing | —— |", True),
+    ("| **POL-005** | a | b | c | agent | minor | doing | 未定 |", True),
+    ("| **POL-006** | a | b | c | agent | minor | review | 調整中 |", True),
+    ("| **POL-007** | a | b | c | agent | minor | review | - |", True),
+    ("| **POL-008** | a | b | c | agent | minor | doing | `fix/a-branch` |", False),
+    ("| **POL-009** | a | b | c | agent | minor | review | #82 |", False),
+    ("| **POL-010** | a | b | c | agent | minor | open | — |", False),
+    ("| **POL-011** | a | b | c | agent | minor | 決定済み | — |", False),
+    ("| **POL-012** | a | b | c | agent | minor | done | — |", False),
+    ("| **POL-013** | `grep -o \\| wc -l` | b | c | agent | minor | doing | — |", True),
+)
+
+
+def self_test() -> int:
+    global PUNCH
+    kept, wrong = PUNCH, []
+    # A check that is not in CHECKS never runs, however well it works on its own.
+    if check_in_progress_rows not in [c for _, c in CHECKS]:
+        wrong.append("  check_in_progress_rows is not in CHECKS, so a real run never calls it")
+    with tempfile.TemporaryDirectory() as tmp:
+        PUNCH = Path(tmp) / "PUNCHLIST.md"
+        for row, must_complain in SELF_TEST:
+            PUNCH.write_text(row + "\n", encoding="utf-8")
+            failures.clear()
+            check_in_progress_rows()
+            if bool(failures) != must_complain:
+                wanted = "a complaint" if must_complain else "silence"
+                wrong.append(f"  wanted {wanted}, got {len(failures)}: {row}")
+    PUNCH = kept
+    failures.clear()
+    if wrong:
+        print(f"the check itself is wrong in {len(wrong)} place(s), over {len(SELF_TEST)} rows:\n")
+        print("\n".join(wrong))
+        return 1
+    print(f"ok — rows in progress, {len(SELF_TEST)} rows of its own")
+    return 0
+
+
 def main() -> int:
-    check_links()
-    check_inline_paths()
-    check_requirement_ids()
-    check_pols()
-    check_decisions()
-    check_spec_header()
+    if "--self-test" in sys.argv:
+        return self_test()
+    for _, check in CHECKS:
+        check()
     if not failures:
-        print("ok — links, inline paths, requirement ids, POL numbers, decision records, spec header")
+        print("ok — " + ", ".join(name for name, _ in CHECKS))
         return 0
     print(f"{len(failures)} problem(s):\n")
     for f in failures:
