@@ -279,7 +279,10 @@ struct ASettingWeCannotReadTests {
             #""settings":{"displayName":"\uD800A"}"#,
             #""settings":{"displayName":"\uD83D\uD83D"}"#,
             #""settings":{"displayName":"a\uD83Db"}"#,
-            // A surrogate pair written back to front denotes nothing either.
+            // A pair written back to front. Kept for the shape, not for a branch of its own:
+            // a review read `scanString` and found the low surrogate turned down where it
+            // stands, so whatever follows is never reached — the line above already covers
+            // it. Whether Foundation's own decoder splits them is not known here.
             #""settings":{"displayName":"\uDE00\uD83D"}"#,
         ] {
             #expect(throws: (any Error).self, "\(params)") {
@@ -311,8 +314,15 @@ struct ASettingWeCannotReadTests {
                 try MessageCoder.decodeClient(commandCarryingRawBytes(bytes, in: "displayName"))
             }
         }
-        // Not a UTF-8 fault but the same answer: JSON has a control character written as an
-        // escape, so a raw one denotes nothing here either.
+    }
+
+    // REQ-ERR-009: **a raw control character is refused for a different reason, so it is named
+    // separately.** `0x0A` is perfectly good UTF-8 — it spells U+000A — so nothing about the
+    // character is wrong, and it does not belong under a name that says otherwise. What is wrong
+    // is the grammar: JSON requires a control character inside a string to be written as an
+    // escape, and `scanString` turns down every byte below `0x20`. It was filed beside the bytes
+    // above until a review read the name against what it was holding.
+    @Test func aRawControlCharacterInAStringIsStillABrokenMessage() {
         #expect(throws: (any Error).self) {
             try MessageCoder.decodeClient(commandCarryingRawBytes([0x0A], in: "displayName"))
         }
