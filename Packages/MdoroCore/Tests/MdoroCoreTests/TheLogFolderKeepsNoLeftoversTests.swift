@@ -7,11 +7,10 @@ import Foundation
 //
 // **These tests exist for the deletions that must not happen.** The code under them runs inside a
 // folder of the user's — their vault, their notes, whatever they chose — and removes files from it.
-// A pattern that
-// is one condition short takes the user's notes with it. So the sweep is asserted twice over: once
-// for what it clears, and once, at greater length, for everything standing next to it that it must
-// walk past. `Task.md` is the first principle (`CLAUDE.md`), and `MdoroLog.md` is the record the
-// whole app exists to keep.
+// A pattern one condition short takes their notes with it. So the sweep is asserted twice over:
+// once for what it clears, and once, at greater length, for everything standing next to it that it
+// must walk past. `Task.md` is the first principle (`CLAUDE.md`), and `MdoroLog.md` is the record
+// the whole app exists to keep.
 
 private let logFileName = "MdoroLog.md"
 
@@ -31,6 +30,12 @@ private func write(_ name: String, in directory: URL, contents: String = "x") ->
 
 private func names(in directory: URL) -> Set<String> {
     Set((try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? [])
+}
+
+// A source scan that matched line by line would go red at a reformat and say nothing about it, so
+// the whitespace comes out first and the shapes below are written with none.
+private func withoutWhitespace(_ text: String) -> String {
+    text.filter { !$0.isWhitespace }
 }
 
 @Suite("Recognising a temporary file of ours (Decision 0042)")
@@ -239,6 +244,99 @@ struct LogLeftoverSweepTests {
         let contents = try String(contentsOf: url, encoding: .utf8)
         #expect(contents.contains("- kept"), "REQ-LOG-003: the line that was already there stays")
         #expect(names(in: directory) == [logFileName])
+    }
+}
+
+// Decision 0042: "the side that makes the name and the side that recognises it are derived from one
+// place. Written apart, one of them will change on its own one day." **`everyNameAWriteMakesIsRecognisedAsOne`
+// does not see that day arrive.** It asks `LogTemporaryFile.name` itself, so a `LogWriter` that goes
+// back to spelling the name inline — which is what it did before Decision 0042 — passes every test
+// above while staging files the sweep no longer knows. That is the whole of what 0042 protects, and
+// nothing was watching it.
+//
+// **What this suite guarantees, and what it does not.**
+//
+// It reads the letters. `LogWriter` cannot spell a temporary name of its own, and it has to name the
+// file after the one it is replacing. Nothing in the log sources may carry the pieces a temporary
+// name is made of, except the one file that owns them. That is enough to catch the drift 0042 names,
+// because drift has to be written down before it can happen.
+//
+// It is **not** proof that the call is reached, that the staged file is really named that, or that
+// the two halves agree — a scan matches text and does not run anything. The agreement is
+// `everyNameAWriteMakesIsRecognisedAsOne`, which is a real round trip, and what a launch does with
+// it is `LogSweepWiringTests`. **Each of the three is blind where the others look**; none of them
+// stands on its own.
+//
+// What would replace all three is a seam on `LogWriter`'s `FileManager`, so that a write could be
+// stopped after staging and the leftover it really made handed to the sweep. **That is a change to
+// the type that carries the first principle**, and a larger thing than the sweep it would be
+// checking, so it is not taken here.
+@Suite("The writer takes its temporary name from the one place (Decision 0042)")
+struct LogTemporaryNameHasOneAuthorTests {
+
+    private static let logSources = "Packages/MdoroCore/Sources/MdoroCore/Log"
+    private static let owner = "LogTemporaryFile.swift"
+    // The pieces a temporary name is made of. Spelled anywhere but in `owner`, they are a second
+    // author for the name. `FileStateStore` also stages and swaps, and Decision 0042 leaves it
+    // alone on purpose — it writes inside the sandbox container, where the user never looks — so
+    // the scan stays inside the log sources rather than going out over the repository.
+    // The suffix is looked for bare rather than as a whole literal: written back inline it reads
+    // `".\(fileURL.lastPathComponent).\(UUID().uuidString).tmp"`, where `".tmp"` never appears.
+    private static let piecesOfAName = [".tmp", "uuidString"]
+
+    // The call, as it has to read. Whitespace is already gone from both sides.
+    private static let theCall = withoutWhitespace(
+        "LogTemporaryFile.name(forLogFileNamed: fileURL.lastPathComponent)"
+    )
+
+    @Test func theWriterAsksForTheNameRatherThanSpellingOne() throws {
+        let body = withoutWhitespace(withoutComments(try source("\(Self.logSources)/LogWriter.swift")))
+        #expect(
+            body.contains(Self.theCall),
+            """
+            Decision 0042: LogWriter no longer stages its temporary file under \
+            `LogTemporaryFile.name(forLogFileNamed: fileURL.lastPathComponent)`, so the name it \
+            writes and the name the startup sweep looks for are two things now. Whichever one \
+            changes next, the other will not — and the two ways that ends are leftovers piling up \
+            in the reader's folder, or a file of theirs being deleted.
+            """
+        )
+    }
+
+    @Test func nothingElseInTheLogSourcesKnowsHowToSpellOne() throws {
+        let files = try swiftFiles(under: Self.logSources, recursive: true)
+        for (name, text) in files where name != Self.owner {
+            for piece in Self.piecesOfAName {
+                #expect(
+                    !withoutWhitespace(text).contains(withoutWhitespace(piece)),
+                    "Decision 0042: \(name) carries `\(piece)`, which is a second author for a name that may have only one"
+                )
+            }
+        }
+    }
+
+    // **A scan that cannot see is a scan that passes.** The directory moving is already an error
+    // (`swiftFiles` throws), so what is left to check is that the two files are in it and that the
+    // pieces above are still what a name is spelled out of — otherwise the test above forbids a
+    // spelling nobody uses, and says nothing at all.
+    @Test func theScanIsLookingAtSomething() throws {
+        let files = try swiftFiles(under: Self.logSources, recursive: true)
+        #expect(files["LogWriter.swift"] != nil, "\(Self.logSources) no longer holds LogWriter.swift")
+        let ownerSource = try #require(files[Self.owner], "\(Self.logSources) no longer holds \(Self.owner)")
+        for piece in Self.piecesOfAName {
+            #expect(
+                withoutWhitespace(ownerSource).contains(withoutWhitespace(piece)),
+                "\(Self.owner) no longer spells `\(piece)`, so forbidding it elsewhere forbids nothing"
+            )
+        }
+    }
+
+    // The whitespace has to come out for the shapes above to survive a reformat, and it has to
+    // come out of both sides or they never meet.
+    @Test func theScanSurvivesAReformat() {
+        #expect(withoutWhitespace("a( b :\n    c )") == "a(b:c)")
+        #expect(withoutWhitespace("LogTemporaryFile.name(\n  forLogFileNamed: fileURL.lastPathComponent\n)")
+                .contains(Self.theCall))
     }
 }
 
