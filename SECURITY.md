@@ -28,8 +28,10 @@ people's devices on the same Wi-Fi - somebody able to watch the traffic can read
 
 The Mac advertises itself over Bonjour under **a name you choose**, which is `Mdoro` until you
 change it in Settings. Your Mac's own name is not sent - it used to be, and for most people that
-is their own name. It also answers an unauthenticated `GET /info` with the name you chose and
-with whether pairing is currently open.
+is their own name. The advertisement carries that name, the port, the protocol version and
+an id for this Mac, and anyone on the network can read it without pairing first. A Mac that
+has never paired advertises only while its pairing screen is open, so seeing one at all says
+that much.
 
 None of this leaves the local network. All of it is visible on it. **Encrypting the link is
 planned, and it is not done** - so if you use Mdoro on a network you do not trust, know what

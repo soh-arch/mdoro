@@ -111,9 +111,9 @@ knowing before you run it.
 | What | When | How far it reaches |
 | :---- | :---- | :---- |
 | **Keeping the Mac from idling to sleep** | The whole time a session is running | **The machine, not just this app.** It shows up in `pmset -g assertions` as "A session is running". The display still sleeps, and there is no setting to turn this off — it is tied to the timer being in RUNNING |
-| **One TCP listener, on every interface** | At launch | The WebSocket the iPhone talks over. This is what the local network prompt is asking about |
-| **A Bonjour advertisement** | Once the listener is up | Your LAN. Anyone browsing it sees the name you chose — **`Mdoro` by default, not your Mac's own name** — along with the port, the protocol version, and an id for this Mac. Nothing has to pair first to see that much |
-| **Notifications** | At launch, and when a session ends or is about to | **The task name appears in the notification body**, so it stays in Notification Centre and shows on the lock screen according to your preview setting |
+| **One TCP listener, on every interface** | Only once an iPhone is paired — before that, only while the pairing screen is open | The WebSocket the iPhone talks over. This is what the local network prompt is asking about. **A Mac you never pair raises nothing**, so using Mdoro on its own costs you no open port |
+| **A Bonjour advertisement** | Whenever that listener is up | Your LAN. Anyone browsing it sees the name you chose — **`Mdoro` by default, not your Mac's own name** — along with the port, the protocol version, and an id for this Mac. Nothing has to pair first to see that much |
+| **Notifications** | Permission at launch; then when a session ends, and before it does if you asked for that | **The name of the task appears in the body when a work session ends** — not on a break ending, and not in an "ending soon" — so it stays in Notification Centre and shows on the lock screen according to your preview setting |
 | **A global hotkey, up to four** | Only for the ones you assign | System-wide, so they win over whatever app you are in. All four are unset until you set them |
 | **A login item** | Only if you switch it on | The app appears in System Settings → General → Login Items |
 | **Read-only access to your task file, read-write to your log folder** | When you pick them | Only the folders you pick, through bookmarks macOS remembers. The task file's bookmark is created read-only at the OS level |
