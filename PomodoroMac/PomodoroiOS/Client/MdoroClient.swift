@@ -1,29 +1,6 @@
 import Foundation
 import MdoroCore
 
-// REQ-ERR-009: a broken message is thrown away on its own, but ten in a row say the line itself
-// is no good, not the one message. Counting is the whole of it — the reconnect belongs to the client.
-struct BrokenMessageCounter {
-    // REQ-ERR-009: "ten in a row". The number the requirement names, in one place.
-    static let limit = 10
-
-    private(set) var count = 0
-
-    // True when this failure is the tenth in a row, and the count starts over at that point:
-    // anything still in flight on the doomed connection must not ask for a second reconnect.
-    mutating func recordBroken() -> Bool {
-        count += 1
-        guard count >= Self.limit else { return false }
-        count = 0
-        return true
-    }
-
-    // A message that decodes puts the count back to zero — the requirement says *in a row*.
-    mutating func reset() {
-        count = 0
-    }
-}
-
 // REQ-COM-001: the iPhone is the child (the client).
 // **It does not settle a session as complete** (REQ-COM-012). It only passes the state it receives straight up.
 @MainActor

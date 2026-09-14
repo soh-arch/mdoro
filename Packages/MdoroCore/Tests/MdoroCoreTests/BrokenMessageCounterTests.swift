@@ -1,7 +1,11 @@
 import Testing
-@testable import MdoroiOS
+import MdoroCore
 
-// REQ-ERR-009: one broken message is thrown away; **ten in a row** mean the connection is remade.
+// REQ-ERR-009: one broken message is thrown away; **ten in a row** mean the line itself is no good.
+//
+// REQ-PRT-001: **the counter is shared, so these run once for both ends.** They moved here with it
+// — while it lived in the iPhone's client they ran inside MdoroiOSTests, which needs a simulator,
+// and the Mac had no counter to run them against at all.
 @Suite("Counting broken messages")
 struct BrokenMessageCounterTests {
 
@@ -9,7 +13,7 @@ struct BrokenMessageCounterTests {
         #expect(BrokenMessageCounter.limit == 10)
     }
 
-    @Test func theTenthInARowAsksForTheReconnect() {
+    @Test func theTenthInARowIsTheOneThatAsksForTheLineToEnd() {
         var counter = BrokenMessageCounter()
         for _ in 1..<BrokenMessageCounter.limit {
             #expect(counter.recordBroken() == false, "the connection is kept until the tenth")
@@ -29,7 +33,7 @@ struct BrokenMessageCounterTests {
         #expect(counter.recordBroken() == true)
     }
 
-    // Whatever is still in flight on the doomed connection must not ask for a second reconnect.
+    // Whatever is still in flight on the doomed connection must not ask for a second hang-up.
     @Test func theCountIsZeroOnceItHasAsked() {
         var counter = BrokenMessageCounter()
         for _ in 1...BrokenMessageCounter.limit { _ = counter.recordBroken() }
