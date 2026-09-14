@@ -256,12 +256,27 @@ public struct AppSettings: Equatable, Sendable, Codable {
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? d.launchAtLogin
     }
 
+    // REQ-UIX-033 / REQ-UIX-037 / 9.3: the range 9.3 sets for all four shortcuts is "contains at
+    // least one modifier", and it applies to an assignment that is there. **Unset is within range**
+    // — all four are off by default (Decision 0016), so a rule refusing `nil` would have the app
+    // turn down its own untouched settings.
+    private static func isValidHotKey(_ binding: HotKeyBinding?) -> Bool {
+        binding?.hasModifier ?? true
+    }
+
     // REQ-CFG-018 / 9.3: an out-of-range value is not applied.
     public func isWithinValidRanges() -> Bool {
         (0...12).contains(logicalDayStartHour)
             && (1...48).contains(idleResetHours)
             && AppSettings.isValidLogFileName(logFileName)
             && AppSettings.isValidDisplayName(displayName)
+            // REQ-UIX-033 / REQ-UIX-037: all four, so none is left applied and silent. Asking
+            // `hasModifier` only at registration time let a bare key be saved and shown while
+            // doing nothing (`HotKeyCenter`).
+            && AppSettings.isValidHotKey(pauseResumeHotKey)
+            && AppSettings.isValidHotKey(showWindowHotKey)
+            && AppSettings.isValidHotKey(startNextHotKey)
+            && AppSettings.isValidHotKey(skipHotKey)
     }
 }
 
