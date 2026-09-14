@@ -178,7 +178,12 @@ public struct LogWriter: Sendable {
     // which the user's editor does not.
     private func writeAtomically(_ contents: String, replacing snapshot: String?) throws -> Bool {
         let directory = fileURL.deletingLastPathComponent()
-        let temporaryURL = directory.appendingPathComponent(".\(fileURL.lastPathComponent).\(UUID().uuidString).tmp")
+        // Decision 0042: the name comes from `LogTemporaryFile`, which is also where the startup
+        // sweep decides what one of these looks like. Spelling it out here again is how the two
+        // would come apart.
+        let temporaryURL = directory.appendingPathComponent(
+            LogTemporaryFile.name(forLogFileNamed: fileURL.lastPathComponent)
+        )
         do {
             try Data(contents.utf8).write(to: temporaryURL, options: .atomic)
 
