@@ -80,30 +80,40 @@ public struct CommandParams: Equatable, Sendable, Codable {
     // does not hold together is not.** Both arrive here as a throw out of one field's read, and
     // the whole of the difference is which of them it was.
     //
-    // Two kinds of throw are the first sort, and REQ-CFG-018 names the answer both are owed:
+    // Two kinds of throw can be the first sort, and REQ-CFG-018 names the answer both are owed:
     //
     // - `DecodingError.dataCorrupted`, which for the types on the other side of this means a raw
     //   value none of an enum's cases matches (`"appearance":"sepia"`,
     //   `"notificationSound":"gamelan"`, a pre-notification's `type`).
     // - **a number no Swift type on the other side can hold** — `4.5` for an hour, `-1` for a
     //   `UInt16`, a figure past `Int`. The JSON parser gives up on the literal itself before any
-    //   type here is asked to make a value of it, and what it raises is not a `DecodingError`
-    //   (`docs/platform/0012`), so the clause above never sees it. `JSONDecoder` wraps it as
+    //   type here is asked to make a value of it, and what it raises is not a `DecodingError` at
+    //   all (`docs/platform/0012`), so it is not the case above. `JSONDecoder` wraps it as
     //   `dataCorrupted` on the way out, which is all a reader at the top of the stack is shown.
     //
-    // Everything else says the message itself does not hold together — a number where an object
-    // belongs, a field the value cannot do without (`typeMismatch`, `keyNotFound`) — and stays
-    // what it was: discarded and counted (REQ-ERR-009).
+    // Any other `DecodingError` says the message itself does not hold together — a number where an
+    // object belongs, a field the value cannot do without (`typeMismatch`, `keyNotFound`) — and
+    // stays what it was: discarded and counted (REQ-ERR-009).
     //
-    // **The second clause is not "anything that is not a `DecodingError`".** The parser raises the
-    // same error for a number it cannot represent and for one that is malformed (`01`, `1e`,
-    // `--3`), and for a string that is not a string (`"\uD800"`, a byte that is not UTF-8); only
-    // the first of those is a value, and the rest are broken messages. **Nothing Foundation can be
-    // asked separates them** — its scanner accepts a number-shaped run of bytes without reading it
-    // and only judges the digits when a type asks for a value, so every numeric type refuses
-    // `1e309` and `01` alike (`docs/platform/0012`). What tells them apart is the grammar, read
-    // off the message as it arrived: `JSONWellFormedness`. Widening the catch to the error type
-    // instead would answer `settingOutOfRange` to bytes nobody could read.
+    // **Neither kind is taken for a value on the strength of the error alone**, and both are asked
+    // the same question before they are: does the message they rode in on hold together?
+    //
+    // - For the number, because the error does not say. The parser raises the same one for a
+    //   number it cannot represent and for one that is malformed (`01`, `1e`, `--3`), and for a
+    //   string that is not a string (`"\uD800"`, a byte that is not UTF-8); only the first of
+    //   those is a value, and the rest are broken messages. **Nothing Foundation can be asked
+    //   separates them** — its scanner accepts a number-shaped run of bytes without reading it and
+    //   only judges the digits when a type asks for a value, so every numeric type refuses `1e309`
+    //   and `01` alike (`docs/platform/0012`). Widening the catch to the error type instead would
+    //   answer `settingOutOfRange` to bytes nobody could read.
+    // - For the enum case, because **the read stopped where it stopped.** Fields are read in the
+    //   order they are declared, so the first one that fails ends the object: an `appearance` with
+    //   no case here raises `dataCorrupted` while an unpaired `\uD800` further down the same
+    //   settings is still unread. Answered on the error alone, a message REQ-ERR-009 has discarded
+    //   and counted comes back as "the setting is outside the allowed range" instead. The grammar
+    //   reads the whole text, so it sees what the decoder never reached.
+    //
+    // What answers that question is `JSONWellFormedness`, read off the message as it arrived.
     //
     // With no message in hand there is nothing to ask, and every throw is kept — which is what any
     // reader other than `MessageCoder` gets, the state file included (REQ-ERR-017 / Decision 0036).
@@ -117,12 +127,15 @@ public struct CommandParams: Equatable, Sendable, Codable {
     ) throws -> T? {
         do {
             return try container.decodeIfPresent(type, forKey: key)
-        } catch let error as DecodingError {
-            guard case .dataCorrupted = error else { throw error }
-            unreadable.insert(parameter)
-            return nil
-        } catch let parserError {
-            guard let message, JSONWellFormedness.holds(for: message) else { throw parserError }
+        } catch {
+            // REQ-PRT-005: of the errors `JSONDecoder` itself raises, only `dataCorrupted` can be
+            // a value; the rest say the message does not hold together. Anything that is not a
+            // `DecodingError` came from the parser, and that is the number it gave up on.
+            if let decodingError = error as? DecodingError {
+                guard case .dataCorrupted = decodingError else { throw error }
+            }
+            // REQ-ERR-009: either way, it is a value only if the message around it holds together.
+            guard let message, JSONWellFormedness.holds(for: message) else { throw error }
             unreadable.insert(parameter)
             return nil
         }
