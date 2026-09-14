@@ -89,20 +89,32 @@ jobs:
       # nothing, and until now the only thing covering that was somebody counting the lines by hand.
       # So the count is read on **every** run, not just on failure, and zero is a red. POL-240.
       #
-      # The same step still says what failed, which is why it exists at all: `xcodebuild`'s own
-      # output carries the line that a test failed and not one word of why — not the expectation,
-      # not the file, not even a marker printed on purpose to be grepped for. The bundle has them.
-      # Two steps became one; a missing bundle is now a failure rather than a silence.
+      # The check went into the step that already existed to say *what* failed, so no step was
+      # added. That step exists because `xcodebuild`'s own output carries the line that a test
+      # failed and not one word of why — not the expectation, not the file, not even a marker
+      # printed on purpose to be grepped for. The bundle has all of it.
+      #
+      # **The summary is checked for being JSON at all, not for being non-empty.** A first attempt
+      # used `[ -s ]`, and a review found the hole: a bundle holding one newline is not empty, so
+      # every `jq` after it returned the empty string, the numeric comparison became a shell error
+      # inside an `if`, and the step went green having measured nothing — the exact shape this step
+      # exists to stop. `jq -e` separates the three cases: 0 is readable, 4 is no document, 5 is
+      # not JSON. Both failures print what was written instead, which is also the debugging the
+      # first attempt had dropped.
       #
       # The scalars are printed by whatever names the bundle uses rather than by names guessed here,
-      # so a renamed field shows up as itself instead of quietly reading zero.
+      # so a renamed field shows up as itself. The count is then read only when it really is a
+      # number, so a renamed or retyped field reads as zero and fails closed.
       - name: how many ran, and what failed
         if: ${{ !cancelled() }}
         run: |
           xcrun xcresulttool get test-results summary \
             --path /tmp/mdoro-ci/result.xcresult --format json > /tmp/summary.json || true
-          if [ ! -s /tmp/summary.json ]; then
-            echo "::error::no test summary could be read from the result bundle"
+          if ! jq -e . /tmp/summary.json > /dev/null 2>&1; then
+            echo "::error::the test summary is missing or is not JSON"
+            echo "--- what was written instead ---"
+            head -c 4000 /tmp/summary.json || true
+            echo "--- the bundle itself ---"
             xcrun xcresulttool get --legacy --path /tmp/mdoro-ci/result.xcresult --format json | head -c 200000
             exit 1
           fi
@@ -110,7 +122,9 @@ jobs:
             /tmp/summary.json
           jq -r '.testFailures[]? | "\n--- \(.testName // "?") (\(.targetName // "?")) ---\n\(.failureText // "no text")"' \
             /tmp/summary.json
-          if [ "$(jq -r '.totalTestCount // 0' /tmp/summary.json)" -eq 0 ]; then
+          ran=$(jq -r 'if (.totalTestCount | type) == "number" then .totalTestCount else 0 end' \
+            /tmp/summary.json)
+          if [ "$ran" -eq 0 ]; then
             echo "::error::zero tests ran; TEST SUCCEEDED means nothing here"
             exit 1
           fi
