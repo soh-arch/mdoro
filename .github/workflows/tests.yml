@@ -49,9 +49,11 @@ jobs:
     # `swift test` goes first: it is the faster of the two, and if the rules are broken there is no
     # point building an app around them.
     #
-    # Only `MdoroMacTests` on the app side. The scheme's test action also carries
-    # `PomodoroMacUITests`, which drives the app through its interface and is a different kind of
-    # run: slower, and it wants a session to draw into.
+    # Only `MdoroMacTests` on the app side. This used to be explained by the scheme's test action
+    # also carrying `PomodoroMacUITests` — but that target does not exist: `UITests` appears
+    # nowhere in `project.pbxproj`, and the scheme's reference to it resolves to nothing
+    # (measured 2026-09-14, POL-248). The selector stays because it says out loud what this job
+    # runs, and because a selector naming a suite is what keeps a new one from arriving unnoticed.
     #
     # Signing is turned off rather than configured. `Config/Signing.xcconfig` names a development
     # team no runner has, and these tests reach the Keychain and the notification centre through
