@@ -56,9 +56,12 @@ import MdoroCore
 // the same helper, down the **authenticated** line as well and requires it to be honoured. One
 // half is the gate; the other half is the proof that those bytes reach the handler at all.
 //
-// The last two tests are about that silence itself — what ends it, and what must not be mistaken
-// for it — and they are the reason the receipt is worth as much as it is: a pong coming back after
-// nine unreadable messages says both that the line is still here and that the nine were read.
+// **The three tests about broken messages** are about that silence itself — what ends it
+// (REQ-ERR-009's run of ten), what must not be mistaken for it (REQ-PRT-005's unknown message
+// type), and whose it is (a stranger's unreadable messages are not the iPhone's). They are also
+// where the receipt earns the most: a pong coming back after nine unreadable messages says both
+// that the line is still here and that the nine were read off it. **The last of the three carries
+// a written-up account of a mutation no test here catches; read it before adding a fourth.**
 //
 // **Left unverified here on purpose:** the fifteen-second silence check itself
 // (`startHeartbeatMonitor` / `checkHeartbeat`). Pinning it would mean either waiting fifteen
@@ -1047,22 +1050,39 @@ struct ServerUnderARealConnectionTests {
               "the Mac is no longer holding the connection it welcomed (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil"))")
     }
 
-    // REQ-ERR-009: **the run of ten belongs to one connection.** `handle` is reached before any
-    // `source === connection` gate — it has to be, since the hello that makes a connection the one
-    // on record arrives through it — so a count kept on the server rather than per connection is a
-    // count anyone who can reach this port contributes to. Nine unreadable messages from a stranger
-    // and one from the iPhone would then hang the iPhone up, over and over, for as long as the
-    // stranger cares to keep it up.
+    // REQ-ERR-009 / REQ-SEC-003: **a stranger's rubbish is the stranger's.** `handle` is reached
+    // before any `source === connection` gate — it has to be, since the hello that makes a
+    // connection the one on record arrives through it — so every unreadable byte anyone on this LAN
+    // cares to send is read by the same handler that reads the iPhone's. What is asked here is that
+    // none of it reaches the iPhone's connection: not the Mac's record of it, and not the line.
     //
-    // **What this test can and cannot establish.** The nine and the one are on two different
-    // connections, and the receipt this file is built on says nothing across connections — its
-    // whole force comes from one line delivering in order (see the top of this file). What stands
-    // in is a full round trip on the iPhone's line between the two halves: the server handles
-    // everything on one actor, and the stranger's nine frames were written before any of it. That
-    // is strong enough to make this fail against a shared count and **not strong enough to make it
-    // fail for any other reason** — the way it can go wrong is a green that observed nothing, never
-    // a red that means nothing.
-    @Test func aStrangersBrokenMessagesAreNotCountedAgainstTheIPhonesConnection() async throws {
+    // **One short of the limit, on purpose.** What is watched is the discarding, and stopping at
+    // nine keeps the hang-up out of it — a hang-up on the stranger's own line at ten is the right
+    // answer, and telling it apart from the wrong one needs an observation this file cannot make
+    // (see below). The receipt is taken **on the stranger's own line**, which is the only place it
+    // means anything: the ordering the whole file rests on is within one connection.
+    //
+    // **What this does not catch — and nothing in this file does.**
+    //
+    // **Move the count off the read loop and onto the server** — one run of ten shared by every
+    // connection at once — and this test still passes, as does every other test in this file and in
+    // `BrokenMessageCounterTests`. The mutation is a real one: `handle` runs before the gate, so a
+    // shared run lets anyone who can reach this port put nine unreadable messages in and have the
+    // paired iPhone hung up by the tenth, whoever sends it.
+    //
+    // **Catching it needs a moment where the stranger's messages are known to have been handled and
+    // the run is known to still be standing, and there is no such moment.** Everything the server
+    // answers is a message that decodes, so observing arrival resets the very run that would have
+    // to be left standing — under that mutation a round trip on *either* line resets the one shared
+    // count. And an unreadable message below the limit has no observable effect at all: no reply,
+    // no record, nothing. Ordering across two connections is not something this file can establish
+    // either; TCP gives it within one line and nothing gives it between two.
+    //
+    // **So the guard against that mutation is the shape of `receive(on:counting:)` and not a test.**
+    // The count is a parameter of the read loop, and `accept` starts one loop per connection — there
+    // is no server-wide place for it to be put without changing that signature. Written down here
+    // rather than left for the next reader to rediscover.
+    @Test func aStrangersUnreadableMessagesAreDiscardedWithoutTouchingTheIPhonesConnection() async throws {
         let bench = try await raiseServer()
         defer { bench.server.stop() }
 
@@ -1071,24 +1091,20 @@ struct ServerUnderARealConnectionTests {
         let stranger = try await strangerProbe(on: bench)
         defer { stranger.cancel() }
 
-        // One short of the limit, from someone who never said hello.
         for _ in 1..<BrokenMessageCounter.limit {
             let unreadable = try aValueThisVersionCannotRead()
             stranger.sendRaw(unreadable)
         }
-        // Not a receipt on the stranger's own line: a message that decodes would start its run
-        // over, which is the very thing this test needs left standing. This round trip is here to
-        // put the stranger's nine behind us in time, and for nothing else.
-        try await receipt(from: phone, called: "a round trip after the stranger's nine")
+        // The receipt says those nine were taken off this line and handled before it. It is also a
+        // message that decodes, so it starts this connection's run over — nothing below leans on
+        // the run still standing, which is the whole of the limitation written up above.
+        try await receipt(from: stranger, called: "the stranger's nine unreadable messages")
 
-        // The tenth, on the other connection. Under one count for the whole server this is where
-        // the iPhone is hung up on.
-        let unreadable = try aValueThisVersionCannotRead()
-        phone.sendRaw(unreadable)
-        try await receipt(from: phone, called: "the iPhone's own first unreadable message")
         holds(bench.upstream.hangUps == 0,
-              "REQ-ERR-009: a stranger's \(BrokenMessageCounter.limit - 1) unreadable messages and one of the iPhone's came to ten together and the iPhone's connection was hung up. The run belongs to a connection, not to the Mac — kept on the Mac, anyone who can reach this port can drop the paired iPhone at will, since handle runs before the gate that would tell them apart.")
+              "REQ-ERR-009 / REQ-SEC-003: nine unreadable messages from a connection that never authenticated cost the iPhone its connection. They are the stranger's to be discarded — the limit was not reached on any line, and nothing in them was the iPhone's.")
         holds(bench.server.connectedDeviceName == "Probe iPhone",
-              "the Mac is no longer holding the connection it welcomed (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil"))")
+              "the Mac stopped holding the connection it welcomed (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil")) while the only thing to arrive was rubbish on somebody else's line")
+        // And the line itself, not just the Mac's record of it.
+        try await receipt(from: phone, called: "the authenticated connection, after the stranger's nine")
     }
 }
