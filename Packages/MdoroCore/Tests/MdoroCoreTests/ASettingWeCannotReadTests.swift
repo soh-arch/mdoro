@@ -80,6 +80,17 @@ enum UnreadableSetting: CaseIterable, Sendable {
     }
 }
 
+// A command whose settings carry `bytes` verbatim inside a JSON string. `commandJSON` cannot do
+// this: a Swift `String` holds no byte sequence that is not UTF-8, so the bytes are spliced in
+// where the `@` stands. `leadingFields` goes in front of the field, written out with its comma.
+private func commandCarryingRawBytes(
+    _ bytes: [UInt8], in field: String, after leadingFields: String = ""
+) -> Data {
+    let params = "\"settings\":{" + leadingFields + "\"" + field + "\":\"@\"}"
+    let around = commandJSON(action: "updateSettings", params: params).components(separatedBy: "@")
+    return Data(around[0].utf8) + Data(bytes) + Data(around[1].utf8)
+}
+
 private func translate(_ command: CommandPayload) -> Result<TimerAction, CommandTranslation.Failure> {
     CommandTranslation.action(for: command, activePresetId: "p1", selectedTaskSnapshot: nil)
 }
@@ -238,6 +249,99 @@ struct ASettingWeCannotReadTests {
         notUTF8.append(0xFF)
         notUTF8.append(contentsOf: Data(around[1].utf8))
         #expect(throws: (any Error).self) { try MessageCoder.decodeClient(notUTF8) }
+    }
+
+    // REQ-PRT-005 / REQ-ERR-009: **an unpaired surrogate is a broken message, in every shape it
+    // comes in.** `aStringThatDoesNotDenoteAStringIsStillABrokenMessage` pins one of them, a
+    // `\uD800` standing alone. RFC 8259 §7 lets a string spell a character outside the BMP only as
+    // a high surrogate followed immediately by a low one, so there are several other ways to write
+    // an escape that denotes no character — a low surrogate with nothing before it, a pair the
+    // wrong way round, a debt paid to something that is not a low surrogate — and none of them is
+    // a value REQ-CFG-018 owes an answer to.
+    //
+    // **What this measures is which clause of `CommandParams.value` these reach.** The one that
+    // answers `settingOutOfRange` for a number no type here can hold reads the grammar off the
+    // message first (`JSONWellFormedness`); the one that answers for an enum case this version
+    // does not have does not, and `docs/platform/0012` measured only numbers. If a broken
+    // character arrives as a `DecodingError.dataCorrupted`, it takes the first door and comes back
+    // as "the setting is outside the allowed range" for bytes nobody could read.
+    @Test func anUnpairedSurrogateInASettingIsStillABrokenMessage() {
+        for params in [
+            // A high surrogate owed a low one that never comes.
+            #""settings":{"appearance":"\uD83D"}"#,
+            #""settings":{"displayName":"\uD800"}"#,
+            #""settings":{"logFileName":"\uDBFF"}"#,
+            // A low surrogate with no high surrogate in front of it.
+            #""settings":{"appearance":"\uDC00"}"#,
+            #""settings":{"displayName":"\uDE00"}"#,
+            // The debt is owed to the very next escape, and these pay it to something else.
+            #""settings":{"displayName":"\uD800\n"}"#,
+            #""settings":{"displayName":"\uD800A"}"#,
+            #""settings":{"displayName":"\uD83D\uD83D"}"#,
+            #""settings":{"displayName":"a\uD83Db"}"#,
+            // A surrogate pair written back to front denotes nothing either.
+            #""settings":{"displayName":"\uDE00\uD83D"}"#,
+        ] {
+            #expect(throws: (any Error).self, "\(params)") {
+                try MessageCoder.decodeClient(Data(commandJSON(action: "updateSettings", params: params).utf8))
+            }
+        }
+    }
+
+    // REQ-PRT-005 / REQ-ERR-009: **bytes that spell no character are a broken message too.**
+    // `aStringThatDoesNotDenoteAStringIsStillABrokenMessage` pins a single `0xFF`, which is never
+    // UTF-8 anywhere. These are the shapes that look more like text — a sequence cut short, a
+    // continuation byte on its own, an overlong encoding, a surrogate spelled out in UTF-8, a
+    // scalar past the last one there is. A reader that asks only `String(data:encoding:.utf8)`
+    // turns all of them down, so what this holds in place is that the question is asked at all
+    // before the value is answered for.
+    @Test func aByteSequenceThatDenotesNoCharacterIsStillABrokenMessage() {
+        let denotesNoCharacter: [[UInt8]] = [
+            [0x80],                     // a continuation byte with no lead in front of it
+            [0xC3],                     // the lead of a two-byte sequence, and nothing follows
+            [0xE3, 0x81],               // a three-byte sequence one byte short
+            [0xF0, 0x9F, 0x98],         // a four-byte sequence one byte short
+            [0xC0, 0x80],               // U+0000 written the long way, which UTF-8 forbids
+            [0xED, 0xA0, 0x80],         // U+D800 spelled in UTF-8, which UTF-8 also forbids
+            [0xF5, 0x80, 0x80, 0x80],   // past U+10FFFF
+            [0xFE, 0xFF],               // bytes UTF-8 never uses
+        ]
+        for bytes in denotesNoCharacter {
+            #expect(throws: (any Error).self, "\(bytes)") {
+                try MessageCoder.decodeClient(commandCarryingRawBytes(bytes, in: "displayName"))
+            }
+        }
+        // Not a UTF-8 fault but the same answer: JSON has a control character written as an
+        // escape, so a raw one denotes nothing here either.
+        #expect(throws: (any Error).self) {
+            try MessageCoder.decodeClient(commandCarryingRawBytes([0x0A], in: "displayName"))
+        }
+    }
+
+    // REQ-PRT-005 / REQ-ERR-009: **a broken character is not made readable by a value that fails
+    // before it.** The two tests before this one put the broken bytes where they are the first
+    // thing in the settings that cannot be read, and the reading stops on them. Here something
+    // else stops it first: `appearance` is the field `AppSettings.init(from:)` asks for first, and
+    // `"sepia"` is an enum case this version does not have, so it raises `dataCorrupted` while the
+    // broken character is still further down the object, unread.
+    //
+    // **That clause answers `settingOutOfRange` on the error alone** and never reads the grammar
+    // off the message, so a message is answered for with bytes in it that denote no character —
+    // and REQ-ERR-009 has such a message discarded and counted, not answered. `docs/platform/0012`
+    // measured that clause against numbers and nothing else, which is why this is written down
+    // whichever way it lands.
+    @Test func aBrokenCharacterBesideAValueWeCannotReadIsStillABrokenMessage() {
+        #expect(throws: (any Error).self) {
+            try MessageCoder.decodeClient(Data(commandJSON(
+                action: "updateSettings",
+                params: #""settings":{"appearance":"sepia","displayName":"\uD800"}"#
+            ).utf8))
+        }
+        #expect(throws: (any Error).self) {
+            try MessageCoder.decodeClient(
+                commandCarryingRawBytes([0xFF], in: "displayName", after: #""appearance":"sepia","#)
+            )
+        }
     }
 
     // REQ-PRT-005 / REQ-ERR-009: **the answer is owed to a value, not to a shape.** A field of the
