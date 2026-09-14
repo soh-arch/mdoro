@@ -205,10 +205,37 @@ python3 Tools/run-in-a-worktree.py -- <役を起動するコマンド>
 
 ## 6. PR を出す前
 
+- [ ] **Swift を1行でも触ったなら、利用者の Mac で `Tools/build-everything.sh` を1回通す**（下記）
 - [ ] **検証役を通したか。** 飛ばしたなら**飛ばしたと報告する**
 - [ ] **指摘が解消しているか。** 採らない指摘には**理由を1行**
 - [ ] CI（`swift test`・文書の機械的な検査・`Tools/run-in-a-worktree.py` が**起動し、検出も落ちないこと**）
 - [ ] **PUNCHLIST の行を更新**（状態・由来・ブランチ名）
+
+### Swift を触ったら、利用者の Mac で1回建てる
+
+**裁定（2026-09-14・人間）: 恒久の工程とする**（POL-243）。
+
+**この体制で Swift を書く3者は、全員読むだけである** —— オーケストレーター・実装役・検証役は
+いずれも Linux のクラウドにいて、**Swift も Xcode も macOS も無い。**
+2026-09-14、`static let` に `WritableKeyPath` を置いた実装がビルドできず、
+**実装役は「読みで担保した」と報告し、検証役も見つけなかった。**利用者の Mac で初めて分かった。
+
+```bash
+Tools/build-everything.sh
+```
+
+**建てるのは3つ** —— `MdoroCore`（テスト込み）／`MdoroMac` と `MdoroMacTests`／
+`MdoroiOS` と `MdoroiOSTests` と `MdoroWidget`。**テストは走らせない。**
+（走らせると `MdoroMac.app` が起動する。テストのコマンドは `docs/DEVELOPMENT.md`。）
+
+**`build` ではなく `build-for-testing` である。** 今回落ちたのはテストのファイルなので、
+**`build` では素通りしていた。**
+
+⚠ **CI があっても、この工程は要る。** CI が建てるのは `MdoroCore` と `MdoroMac` の側だけで、
+**`MdoroiOS` / `MdoroiOSTests` / `MdoroWidget` の19ファイルは、どのランナーも一度も建てない**
+（`MdoroMac` の scheme は BuildAction に依存を1つも持たず、ワークフローは `-scheme MdoroMac` しか
+走らせない。2026-09-14 に実測 —— 建つのは111ファイル、建たないのが19ファイルである。POL-249）。
+**Actions の分が戻っても、そこは塞がらない。**
 
 ---
 
