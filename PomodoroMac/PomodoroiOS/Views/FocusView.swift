@@ -85,6 +85,13 @@ struct FocusView: View {
         // was extended to close.
         // `ClientModel.send` clears the refusal before each command, so a second refusal of the same
         // code arrives as nil and then as itself, and the notice comes up again.
+        //
+        // A refusal already standing when this view is put up is **not** replayed: `initial:` is
+        // left at its default, so nothing fires on appear. **The band here answers a press made
+        // here.** A press made on `MainScreen` was answered there, by an overlay that stays up
+        // until the user acknowledges it (REQ-ERR-016) and is still standing underneath this
+        // cover. Firing on appear would put a notice on the screen that answers nothing the user
+        // just did, every time they go full screen, until they go back and dismiss it.
         .onChange(of: model.lastRefusal) { _, latest in
             guard let latest else { return }
             showRefusal(latest)
