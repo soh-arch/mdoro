@@ -57,8 +57,16 @@ jobs:
     # team no runner has, and these tests reach the Keychain and the notification centre through
     # injected seams rather than the real ones, so an unsigned host is enough. A test that needed a
     # real signature would be telling us it belongs on the owner's Mac.
+    #
+    # **The gate fails safe.** If `what-changed` does not succeed it has no answer to give, and a
+    # dependent job with an unmet `needs` is reported as `skipped` — a word that reads as "not
+    # needed" when the truth is "nobody decided". That happened four times in a row on #90, where
+    # the account was out of minutes and no runner was assigned. So: run the tests unless the gate
+    # actually said no. A broken gate then costs one macOS run instead of hiding an unrun suite,
+    # and `cancelled()` is excluded so the concurrency group above still stops work it cancels.
+    # POL-240.
     needs: what-changed
-    if: needs.what-changed.outputs.code == 'yes'
+    if: ${{ !cancelled() && (needs.what-changed.result != 'success' || needs.what-changed.outputs.code == 'yes') }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,21 +83,36 @@ jobs:
             -derivedDataPath /tmp/mdoro-ci \
             -resultBundlePath /tmp/mdoro-ci/result.xcresult \
             CODE_SIGNING_ALLOWED=NO
-      # **A red run that says nothing is barely better than no run.** `xcodebuild`'s own output
-      # carries the line that a test failed and not one word of why: the expectation, the file, the
-      # line, and anything the test printed are all absent from it — measured on this job twice,
-      # including a marker put there on purpose to be grepped for. The result bundle has them.
-      - name: what failed
-        if: failure()
+      # **Green has to mean "it ran and it passed".** `xcodebuild` prints TEST SUCCEEDED having run
+      # nothing at all — measured: a selector naming tests absent from the checkout returned success
+      # with a count of zero. One mistyped character in `-only-testing` buys a green that means
+      # nothing, and until now the only thing covering that was somebody counting the lines by hand.
+      # So the count is read on **every** run, not just on failure, and zero is a red. POL-240.
+      #
+      # The same step still says what failed, which is why it exists at all: `xcodebuild`'s own
+      # output carries the line that a test failed and not one word of why — not the expectation,
+      # not the file, not even a marker printed on purpose to be grepped for. The bundle has them.
+      # Two steps became one; a missing bundle is now a failure rather than a silence.
+      #
+      # The scalars are printed by whatever names the bundle uses rather than by names guessed here,
+      # so a renamed field shows up as itself instead of quietly reading zero.
+      - name: how many ran, and what failed
+        if: ${{ !cancelled() }}
         run: |
           xcrun xcresulttool get test-results summary \
             --path /tmp/mdoro-ci/result.xcresult --format json > /tmp/summary.json || true
-          if [ -s /tmp/summary.json ]; then
-            jq -r '.testFailures[]? | "\n--- \(.testName // "?") (\(.targetName // "?")) ---\n\(.failureText // "no text")"' \
-              /tmp/summary.json || cat /tmp/summary.json
-          else
-            echo "no summary; falling back to the whole bundle"
+          if [ ! -s /tmp/summary.json ]; then
+            echo "::error::no test summary could be read from the result bundle"
             xcrun xcresulttool get --legacy --path /tmp/mdoro-ci/result.xcresult --format json | head -c 200000
+            exit 1
+          fi
+          jq -r 'to_entries[] | select(.value | type == "number" or type == "string") | "\(.key): \(.value)"' \
+            /tmp/summary.json
+          jq -r '.testFailures[]? | "\n--- \(.testName // "?") (\(.targetName // "?")) ---\n\(.failureText // "no text")"' \
+            /tmp/summary.json
+          if [ "$(jq -r '.totalTestCount // 0' /tmp/summary.json)" -eq 0 ]; then
+            echo "::error::zero tests ran; TEST SUCCEEDED means nothing here"
+            exit 1
           fi
 
   tools:
