@@ -2,7 +2,10 @@ import SwiftUI
 import MdoroCore
 
 // REQ-UIX-010–014 / Decision 0005: the focus view.
-// The aim is **to cut what enters the field of view to the barest minimum**, so do not add secondary information.
+// The aim is **to cut what enters the field of view to the barest minimum**, so do not add secondary
+// information. **What REQ-UIX-010 counts as secondary is what this screen shows all the time** — a
+// notice that comes up on an action and goes away in a few seconds is not it, and the clause names
+// the two that live here: the way back, and an action the Mac did not accept.
 struct FocusView: View {
     @Environment(ClientModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -13,6 +16,11 @@ struct FocusView: View {
     @State private var isExitHintVisible = false
     @State private var hintTimer: Task<Void, Never>?
     @State private var driftTimer: Task<Void, Never>?
+    // REQ-ERR-016: the refusal being shown right now. **Held here, not read straight off the model**,
+    // because this screen shows it for a few seconds and the model keeps it until the user says it
+    // has been read.
+    @State private var shownRefusal: ProtocolErrorCode?
+    @State private var refusalTimer: Task<Void, Never>?
 
     private let theme = Theme(focusView: true)
 
@@ -49,6 +57,9 @@ struct FocusView: View {
                     // REQ-COL-031 / 013: the session type's colour goes on **the progress indicator and the type label, not the digits**.
                     progressBar(width: min(geometry.size.width * 0.72, 520))
                     Spacer(minLength: 0)
+                    // REQ-ERR-016: **right above the buttons**, where the eye already is when the
+                    // press it answers was made.
+                    refusalNotice(height: secondaryHeight)
                     controls(height: secondaryHeight)
                     Spacer(minLength: 0)
                     // REQ-UIX-011: the only way back is a double tap.
@@ -68,6 +79,23 @@ struct FocusView: View {
         .statusBarHidden()
         // REQ-COL-030: always the dark palette. Without matching the vessel too, only the standard controls stay light.
         .preferredColorScheme(.dark)
+        // REQ-ERR-016 / Decision 0035: **a refusal has to arrive here as well.** This view is put up
+        // as a `fullScreenCover`, so it covers the overlay `MainScreen` shows refusals in — without
+        // this, `Pause` and `+N min` are turned down in silence, which is the one thing the clause
+        // was extended to close.
+        // `ClientModel.send` clears the refusal before each command, so a second refusal of the same
+        // code arrives as nil and then as itself, and the notice comes up again.
+        //
+        // A refusal already standing when this view is put up is **not** replayed: `initial:` is
+        // left at its default, so nothing fires on appear. **The band here answers a press made
+        // here.** A press made on `MainScreen` was answered there, by an overlay that stays up
+        // until the user acknowledges it (REQ-ERR-016) and is still standing underneath this
+        // cover. Firing on appear would put a notice on the screen that answers nothing the user
+        // just did, every time they go full screen, until they go back and dismiss it.
+        .onChange(of: model.lastRefusal) { _, latest in
+            guard let latest else { return }
+            showRefusal(latest)
+        }
         .onAppear {
             // REQ-UIX-012: the automatic screen lock is held off.
             UIApplication.shared.isIdleTimerDisabled = true
@@ -80,6 +108,8 @@ struct FocusView: View {
             driftTimer = nil
             hintTimer?.cancel()
             hintTimer = nil
+            refusalTimer?.cancel()
+            refusalTimer = nil
         }
     }
 
@@ -134,6 +164,54 @@ struct FocusView: View {
             .background(RoundedRectangle(cornerRadius: 8).fill(theme.surface))
             .opacity(isExitHintVisible ? 1 : 0)
             .animation(.easeInOut(duration: 0.25), value: isExitHintVisible)
+    }
+
+    // REQ-ERR-016 / REQ-UIX-010: what the Mac turned down, said on the screen the user is actually on.
+    //
+    // **This is not secondary information.** REQ-UIX-010 limits that to what this screen carries all
+    // the time, and names "a notice that the action was not accepted" among the things that come up
+    // on an action and go away in a few seconds. So it takes the same shape as the exit hint: the
+    // ground stays `surface` and only the text is coloured — **REQ-UIX-010 allows no coloured ground
+    // here** (REQ-UIX-046).
+    //
+    // 10.2 / Decision 0035: the wording comes from `code`. The `message` that came with it is for
+    // diagnosis, and the sender does not choose the words on this screen.
+    @ViewBuilder
+    private func refusalNotice(height: CGFloat) -> some View {
+        if let refusal = shownRefusal {
+            Text(refusal.displayMessage)
+                // Smaller than the hint, because these sentences are whole sentences. It is exempt
+                // from REQ-UIX-010's ratio either way, being neither permanent nor secondary.
+                .font(.system(size: height * 0.5))
+                .multilineTextAlignment(.center)
+                // These are whole sentences, and landscape is short. Shrink rather than cut: a
+                // refusal with its end missing says less than nothing.
+                .lineLimit(3)
+                .minimumScaleFactor(0.6)
+                .foregroundStyle(theme.color(.warning, .text))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(theme.surface))
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
+                .transition(.opacity)
+        }
+    }
+
+    // REQ-UIX-010: **it goes away on its own in a few seconds.** That is what keeps it out of the
+    // secondary information this screen is allowed to hold.
+    //
+    // `acknowledgeRefusal` is deliberately not called: the model keeps a refusal until the user says
+    // it has been read (REQ-ERR-016), and clearing it on a timer here would also empty the band
+    // waiting on the main screen — the user would have dismissed something by walking past it.
+    private func showRefusal(_ code: ProtocolErrorCode) {
+        refusalTimer?.cancel()
+        withAnimation(.easeInOut(duration: 0.25)) { shownRefusal = code }
+        refusalTimer = Task {
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.25)) { shownRefusal = nil }
+        }
     }
 
     private func showExitHint() {

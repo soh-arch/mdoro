@@ -125,6 +125,8 @@ struct MenuBarMenuContent: View {
 
         Divider()
 
+        stateNotices
+
         // REQ-UIX-004 / Decision 0031: on the Mac the connection state is here and in the status line,
         // nowhere else. **One line, to read only** — and only while a pairing exists (v2.25).
         if model.showsConnectionState {
@@ -134,6 +136,33 @@ struct MenuBarMenuContent: View {
         Button("Open Main Window") { openMain() }
         Divider()
         Button("Quit") { NSApplication.shared.terminate(nil) }
+    }
+
+    // REQ-ERR-017 / REQ-UIX-031 / Decision 0037: **the menu is the last place a message can reach.**
+    // Mdoro sits in the menu bar and runs with the main window shut, so the bands in that window
+    // never arrive for someone who does not open it.
+    //
+    // **Only what cannot be taken back goes here.** A state that could not be restored is already
+    // lost, and a save that has stopped is losing more with every session. No report of success, no
+    // progress, no statistics (Decision 0037), and it sits below the actions so that nobody looking
+    // for a control has to read past it (Decision 0029).
+    //
+    // **The sentence, the set-aside path and the way to dismiss stay in the window.** The path is
+    // reading matter, and it is the only pointer back to the file (Decision 0036) — a dismissal
+    // offered here would let it be cleared by someone who was never shown it. So the notice states
+    // what happened and opens the place that holds the rest.
+    @ViewBuilder
+    private var stateNotices: some View {
+        // REQ-ERR-017: a failed restore is shown once per launch. This line stands until the band in
+        // the window is dismissed, which clears both.
+        if model.stateRestoreProblem != nil {
+            Button("The previous state could not be restored…") { openMain() }
+        }
+        // REQ-ERR-017: a failed save is shown **until it resolves**, so this line stands as long as
+        // the condition does. It is the graver of the two: work done from here on is not being kept.
+        if model.stateSaveProblem != nil {
+            Button("Mdoro is not saving its state…") { openMain() }
+        }
     }
 
     // **Only choosing; nothing here touches the outside world.**

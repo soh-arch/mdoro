@@ -361,27 +361,58 @@ struct FailuresThatReachSomeoneTests {
     // **Look at the use, not the declaration.** Deleting the display while leaving the property
     // assigned passed the whole suite before this test existed, on both platforms — the same
     // shape as the `lastError` hole Decision 0035 was written to close.
-    @Test func theFailuresTheModelHoldsAreActuallyReadByAView() throws {
-        let macViews = try swiftFiles(under: "PomodoroMac/PomodoroMac/Views")
-        let iosViews = try swiftFiles(under: "PomodoroMac/PomodoroiOS/Views")
+    //
+    // **And look at every screen the clause names, not at "somewhere".** This asked whether any
+    // file under each Views folder mentioned the reader, so one screen answered for a whole
+    // platform: `MenuBarViews` held nothing and `FocusView` held nothing, and both clauses still
+    // read as kept. Both were in fact empty — the menu is the one surface Decision 0037 added
+    // REQ-ERR-017's sentence for, and the focus view is a `fullScreenCover` that covers the very
+    // overlay `MainScreen` answers REQ-ERR-016 with.
+    //
+    // **What this keeps**: the named file reads the named property, so the value has a route to
+    // that screen, and moving or renaming the file fails rather than passing on an empty folder.
+    // **What it cannot keep**: that the route is ever taken (text inside a branch that never runs
+    // still counts), that the wording is right, that the notice is laid out where it can be seen,
+    // or — on the focus view — that it goes away again. Those want a running app.
+    @Test func everyScreenTheFailureMustReachActuallyReadsIt() throws {
+        // REQ-ERR-017 / Decision 0037: the window's band **and** the menu. The set-aside path
+        // (Decision 0036) and the dismissal are asked of the window alone, on purpose: the menu
+        // carries the fact and opens the window for the rest.
+        let macScreens = [
+            "MainWindowView.swift": [
+                "model.stateRestoreProblem", "model.stateSaveProblem", "model.stateSetAsidePath",
+                // "Once at startup" means the user can dismiss it, so the means has to be there too.
+                "acknowledgeStateRestoreProblem",
+            ],
+            "MenuBarViews.swift": ["model.stateRestoreProblem", "model.stateSaveProblem"],
+        ]
+        // REQ-ERR-016: wherever the user was standing when the tap was refused.
+        let iosScreens = [
+            "MainScreen.swift": ["model.lastRefusal", "RefusalNotice("],
+            // The focus view keeps its own notice rather than `RefusalNotice`: REQ-UIX-010 allows
+            // no coloured ground here and wants it gone in a few seconds, so only the route in is
+            // pinned.
+            "FocusView.swift": ["model.lastRefusal"],
+        ]
 
-        for reader in ["model.stateRestoreProblem", "model.stateSaveProblem", "model.stateSetAsidePath"] {
-            #expect(
-                macViews.values.contains { $0.contains(reader) },
-                "REQ-ERR-017: nothing on the Mac's screen reads `\(reader)` — it is held and never shown"
-            )
-        }
-        // "Once at startup" means the user can dismiss it. The means to dismiss it has to be on
-        // the screen too.
-        #expect(
-            macViews.values.contains { $0.contains("acknowledgeStateRestoreProblem") },
-            "REQ-ERR-017: the band cannot be dismissed, so `once at startup` has no meaning"
-        )
-        for reader in ["model.lastRefusal", "RefusalNotice("] {
-            #expect(
-                iosViews.values.contains { $0.contains(reader) },
-                "REQ-ERR-016: nothing on the iPhone's screen reads `\(reader)` — a refused tap stays silent"
-            )
+        let folders = [
+            ("REQ-ERR-017", "PomodoroMac/PomodoroMac/Views", macScreens),
+            ("REQ-ERR-016", "PomodoroMac/PomodoroiOS/Views", iosScreens),
+        ]
+        for (clause, folder, screens) in folders {
+            let views = try swiftFiles(under: folder)
+            for (name, readers) in screens.sorted(by: { $0.key < $1.key }) {
+                let text = try #require(
+                    views[name],
+                    "\(clause): \(folder)/\(name) is gone — the screen it answered for now has nothing"
+                )
+                for reader in readers {
+                    #expect(
+                        text.contains(reader),
+                        "\(clause): \(name) does not read `\(reader)` — the failure never reaches that screen"
+                    )
+                }
+            }
         }
     }
 
