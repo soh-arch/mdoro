@@ -275,6 +275,9 @@ final class AppModel {
             }
             await refreshNotificationPermission()
         }
+        // Decision 0042: clear what an earlier run left behind in the user's folder, before this
+        // run starts staging temporary files of its own there.
+        removeLeftoverLogTemporaryFiles()
         // If the destination is usable, write out what could not be written last time, first of all.
         flushLogQueue()
         reloadTasksFromDisk()
@@ -1167,6 +1170,50 @@ final class AppModel {
         }
         pendingLogCount = logQueue.pendingCount
         flushLogQueue()
+    }
+
+    // Decision 0042: a temporary file is left in the log folder when its own removal fails, or when
+    // the process dies between staging it and swapping it in. **The run it belonged to is gone and
+    // has no chance to tidy up**, so the next launch is the first chance anyone gets — which is why
+    // this is here and not on a timer or on every write. It is the one thing about this that the
+    // user can see (they see it stop happening), so it stays at launch.
+    //
+    // REQ-COM-003: a second instance stands down (`SingleInstance`), so nothing here can remove a
+    // temporary file another Mdoro is in the middle of writing.
+    //
+    // **What may be removed is decided in `LogTemporaryFile`, beside the code that makes the name.**
+    func removeLeftoverLogTemporaryFiles() {
+        // REQ-LOG-002 / Decision 0033: with nowhere chosen there is no folder of the user's to
+        // tidy. Same guard as `flushLogQueue`, for the same reason: the bookmark is what reaches
+        // the folder, and `settings.logFolderPath` is only what is shown.
+        guard let bookmark = bookmarks.logFolder else { return }
+        let fileName = settings.logFileName
+        do {
+            let sweep = try VaultFileAccess.withAccess(to: bookmark) { folderURL in
+                LogTemporaryFile.removeLeftovers(inDirectory: folderURL, logFileName: fileName)
+            }
+            // Nothing to report when there was nothing to clear. A line saying zero at every launch
+            // would bury the launches where it is not zero. Decision 0018: counts, and nothing that
+            // came from the user.
+            guard !sweep.isEmpty else { return }
+            diagnostics.write("log.sweep", level: sweep.failed > 0 ? .warn : .info, [
+                DiagnosticField("removed", sweep.removed),
+                DiagnosticField("failed", sweep.failed),
+            ])
+        } catch {
+            // Decision 0042: **tidying up stops neither the app nor the recording.** It is kept off
+            // the screen and out of the notifications on that account — the user asked for none of
+            // it, and a session log that writes perfectly well would be reported as broken. It is
+            // not swallowed either: REQ-ERR-010 / Decision 0034 keep the domain and the code here,
+            // never the text the OS wrote. A folder that has really gone away is reported where it
+            // matters, by the write that follows this one.
+            let failure = error as? VaultFileAccess.AccessError
+            diagnostics.write("log.sweep", level: .warn, [
+                DiagnosticField("removed", 0),
+                DiagnosticField("failed", 0),
+                DiagnosticField("why", failure?.diagnosticSummary ?? ErrorCode(error).summary("unexpected")),
+            ])
+        }
     }
 
     func flushLogQueue() {
