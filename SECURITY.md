@@ -28,8 +28,10 @@ people's devices on the same Wi-Fi - somebody able to watch the traffic can read
 
 The Mac advertises itself over Bonjour under **a name you choose**, which is `Mdoro` until you
 change it in Settings. Your Mac's own name is not sent - it used to be, and for most people that
-is their own name. It also answers an unauthenticated `GET /info` with the name you chose and
-with whether pairing is currently open.
+is their own name. The advertisement carries that name, the port, the protocol version and
+an id for this Mac, and anyone on the network can read it without pairing first. A Mac that
+has never paired advertises only while its pairing screen is open, so seeing one at all says
+that much.
 
 None of this leaves the local network. All of it is visible on it. **Encrypting the link is
 planned, and it is not done** - so if you use Mdoro on a network you do not trust, know what
@@ -40,7 +42,7 @@ is on the wire.
 | Where | What |
 | :---- | :---- |
 | Mac, app container | Timer state, settings, presets, and security-scoped bookmarks for the folders you picked |
-| Mac, `~/Library/Logs/Mdoro` | The diagnostic log, which contains no task names, file paths or device names |
+| Mac, inside the app container | The diagnostic log, which contains no task names, file paths or device names. The app is sandboxed, so `~/Library/Logs/Mdoro` is not where it lands — Settings → Files → Diagnostic log opens the real folder |
 | Mac, app container | A file holding this Mac's id, which is what a paired iPhone recognises it by |
 | Mac, Keychain | The tokens this Mac has issued, each with the name of the device and the date |
 | iPhone, Keychain | The device token issued at pairing, filed under the Mac's id |
