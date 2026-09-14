@@ -144,6 +144,44 @@ def check_pols() -> None:
                 note("pol", f"{md.relative_to(ROOT)}:{line} cites POL-{m.group(1)}, which is not filed")
 
 
+# --- a row in progress names its work -----------------------------------------
+# A status is written by hand, so it records an intention and nothing else. Four rows
+# carried `doing` for fifteen days with nothing started, and the count of what was left
+# was read off them and came out wrong (POL-244). Staleness itself is not measurable
+# here -- a row holds no date -- but this is: `doing` and `review` say a branch exists,
+# so the row has to name it. That turns the column from a declaration into a claim the
+# repository can be asked about.
+#
+# Whether the named branch really exists is deliberately not checked. It would need the
+# network, or refs that a shallow CI checkout does not have, and a check that cannot run
+# everywhere is worse than one that can (POL-245).
+IN_PROGRESS = ("doing", "review")
+UNNAMED = ("", "—", "-", "TBD")
+
+
+def punch_rows() -> list[tuple[int, str, list[str]]]:
+    rows = []
+    for line_no, line in enumerate(read(PUNCH).split("\n"), 1):
+        m = re.match(r"\| \*\*POL-(\d+)\*\*", line)
+        if m:
+            rows.append((line_no, m.group(1), [c.strip().strip("*").strip() for c in line.split("|")]))
+    return rows
+
+
+def check_in_progress_rows() -> None:
+    for line_no, pol, cells in punch_rows():
+        at = next((i for i, c in enumerate(cells) if c in IN_PROGRESS), None)
+        if at is None:
+            continue
+        named = cells[at + 1] if at + 1 < len(cells) else ""
+        if named in UNNAMED:
+            note(
+                "punch",
+                f"docs/PUNCHLIST.md:{line_no} POL-{pol} is `{cells[at]}` but names no branch or PR "
+                f"-- a row in progress says where the work is, or it is not in progress",
+            )
+
+
 # --- decision records --------------------------------------------------------
 def decision_numbers() -> set[int]:
     return {int(p.name[:4]) for p in DECISIONS.glob("[0-9][0-9][0-9][0-9]-*.md")}
@@ -202,10 +240,11 @@ def main() -> int:
     check_inline_paths()
     check_requirement_ids()
     check_pols()
+    check_in_progress_rows()
     check_decisions()
     check_spec_header()
     if not failures:
-        print("ok — links, inline paths, requirement ids, POL numbers, decision records, spec header")
+        print("ok — links, inline paths, requirement ids, POL numbers, rows in progress, decision records, spec header")
         return 0
     print(f"{len(failures)} problem(s):\n")
     for f in failures:
