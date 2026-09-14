@@ -234,7 +234,7 @@ Tools/build-everything.sh
 ⚠ **CI があっても、この工程は要る。** CI が建てるのは `MdoroCore` と `MdoroMac` の側だけで、
 **`MdoroiOS` / `MdoroiOSTests` / `MdoroWidget` の19ファイルは、どのランナーも一度も建てない**
 （`MdoroMac` の scheme は BuildAction に依存を1つも持たず、ワークフローは `-scheme MdoroMac` しか
-走らせない。2026-09-14 に実測 —— 建つのは111ファイル、建たないのが19ファイルである）。
+走らせない。2026-09-14 に実測 —— 建つのは111ファイル、建たないのが19ファイルである。POL-249）。
 **Actions の分が戻っても、そこは塞がらない。**
 
 ---

@@ -61,7 +61,7 @@ Tools/build-everything.sh
 **1段が落ちても残りは走る**ので、1回で全部の誤りが出る。
 
 **クラウドのセッションは Swift を1行もコンパイルできない。** そして **CI が建てるのは
-`MdoroCore` と `MdoroMac` の側だけで、iPhone 側の19ファイルはどのランナーでも建たない。**
+`MdoroCore` と `MdoroMac` の側だけで、iPhone 側の19ファイルはどのランナーでも建たない**（POL-249）。
 **Swift を触った PR には、この1回が要る**（POL-243。`docs/ORCHESTRATION.md` §6）。
 
 ### 共有パッケージ
