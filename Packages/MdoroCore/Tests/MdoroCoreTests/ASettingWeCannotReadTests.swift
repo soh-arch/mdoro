@@ -18,8 +18,8 @@ import Foundation
 // **A number no type here can hold is the same kind of thing**, and reaches the same answer:
 // `4.5` for an hour, a figure past `Int`, `-1` for a `UInt16`. It arrives by a different route —
 // the JSON parser gives up on the literal before any of our types is asked for a value, and what
-// it raises is not a `DecodingError` (`docs/platform/0012`) — so the two are caught by different
-// clauses and land in the same place. **A number that is merely malformed does not join them**
+// it raises is not a `DecodingError` (`docs/platform/0012`) — a different kind of throw that
+// lands in the same place. **A number that is merely malformed does not join them**
 // (`01`, `1e`): those bytes are not a value at all, and REQ-ERR-009 has them discarded and
 // counted.
 //
@@ -152,8 +152,8 @@ struct ASettingWeCannotReadTests {
     // value this version cannot make sense of.** `4.5` for an hour, a figure past `Int`, `-1` for
     // a `UInt16`. It used to take the whole command down: the parser gives up on the literal
     // before any of our types is asked to make a value of it, and what it raises is not a
-    // `DecodingError` (`docs/platform/0012`), so it went straight past the clause that catches an
-    // unknown enum case — and the iPhone waited on an answer REQ-CFG-018 requires.
+    // `DecodingError` (`docs/platform/0012`), so the test for an unknown enum case never saw it —
+    // and the iPhone waited on an answer REQ-CFG-018 requires.
     //
     // **`1e309` is here because the first fix did not reach it.** That fix asked Foundation to read
     // the field a second time as untyped JSON, and the second read gave up on `1e309` for the same
@@ -259,12 +259,12 @@ struct ASettingWeCannotReadTests {
     // wrong way round, a debt paid to something that is not a low surrogate — and none of them is
     // a value REQ-CFG-018 owes an answer to.
     //
-    // **What this measures is which clause of `CommandParams.value` these reach.** The one that
-    // answers `settingOutOfRange` for a number no type here can hold reads the grammar off the
-    // message first (`JSONWellFormedness`); the one that answers for an enum case this version
-    // does not have does not, and `docs/platform/0012` measured only numbers. If a broken
-    // character arrives as a `DecodingError.dataCorrupted`, it takes the first door and comes back
-    // as "the setting is outside the allowed range" for bytes nobody could read.
+    // **What this measures is whether the grammar is read before any of them is answered for.**
+    // `CommandParams.value` asks `JSONWellFormedness` of every throw it is willing to treat as a
+    // value, whichever kind it is, so a broken character cannot come back as "the setting is
+    // outside the allowed range" by arriving as one kind rather than the other. It did not always:
+    // the clause for a `DecodingError` used to answer on the error alone, and the test below this
+    // one is the one that caught it (REQ-ERR-009).
     @Test func anUnpairedSurrogateInASettingIsStillABrokenMessage() {
         for params in [
             // A high surrogate owed a low one that never comes.
@@ -335,11 +335,15 @@ struct ASettingWeCannotReadTests {
     // `"sepia"` is an enum case this version does not have, so it raises `dataCorrupted` while the
     // broken character is still further down the object, unread.
     //
-    // **That clause answers `settingOutOfRange` on the error alone** and never reads the grammar
-    // off the message, so a message is answered for with bytes in it that denote no character —
-    // and REQ-ERR-009 has such a message discarded and counted, not answered. `docs/platform/0012`
-    // measured that clause against numbers and nothing else, which is why this is written down
-    // whichever way it lands.
+    // **It used to be answered for.** That clause took `dataCorrupted` as a value on the strength
+    // of the error alone and never read the grammar, so a message carrying bytes that denote no
+    // character came back as "the setting is outside the allowed range" — where REQ-ERR-009 has it
+    // discarded and counted. Measured on 2026-09-14, failing at both forms; the clause now asks
+    // the same question of every throw it is willing to treat as a value.
+    //
+    // **Nothing about this is particular to characters.** The reading stops at the first field
+    // that fails, so a malformed number sitting behind one would have gone the same way. That has
+    // not been measured.
     @Test func aBrokenCharacterBesideAValueWeCannotReadIsStillABrokenMessage() {
         #expect(throws: (any Error).self) {
             try MessageCoder.decodeClient(Data(commandJSON(
