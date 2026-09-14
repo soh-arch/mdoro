@@ -1852,5 +1852,5 @@ JSON では判別子 `type` を持つオブジェクトとして表現する。
 | **OPEN-017** | ~~`Mdoro` への改名の範囲~~（解決: **全範囲で行う。** `decisions/0024-rename-everything-to-mdoro.md`）。 |
 | **OPEN-018** | ~~ツール固有のタスク記法への対応範囲~~（解決: **標準のチェックボックス記法のみを読む。** `decisions/0025-standard-checkbox-syntax-only.md`）。 |
 | **OPEN-019** | ~~ライセンス~~（解決: **MIT**。2026-08-27）。 |
-| **OPEN-020** | 支援リンク（Buy Me a Coffee）の URL（REQ-NFR-008）。 |
+| **OPEN-020** | ~~支援リンク（Buy Me a Coffee）の URL~~（解決: **`https://buymeacoffee.com/soh.arch`**。2026-08-28。**`MdoroCore/AppInfo.swift` が唯一の出典**。`decisions/0021-published-as-oss-named-mdoro.md`）。 |
 | **OPEN-021** | ~~配布形態~~（解決: **ソースからのビルドのみ。** 無償の Personal Team では署名済み成果物を配れない。`decisions/0021-published-as-oss-named-mdoro.md`）。 |
