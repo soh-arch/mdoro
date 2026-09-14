@@ -397,9 +397,23 @@ struct HotKeyBindingTests {
     }
 
     // A binding with no modifier is not accepted. Taking a bare key away stops text entry.
+    //
+    // **All four are named one at a time.** 9.3's range is "carries at least one modifier", and a
+    // mask that quietly lost one of them would turn down a binding the clause allows. A review
+    // found that only command and option were ever asked for on their own, so dropping shift or
+    // control from the mask went unnoticed by everything here.
     @Test func modifierIsRequired() {
-        let command = NSEventModifierFlagsCommand
-        #expect(HotKeyBinding(keyCode: 35, modifierFlags: command, displayName: "⌘P").hasModifier)
+        for (name, flag) in [
+            ("command", NSEventModifierFlagsCommand),
+            ("option", NSEventModifierFlagsOption),
+            ("control", NSEventModifierFlagsControl),
+            ("shift", NSEventModifierFlagsShift),
+        ] {
+            #expect(
+                HotKeyBinding(keyCode: 35, modifierFlags: flag, displayName: "P").hasModifier,
+                "REQ-UIX-033: \(name) on its own is a modifier"
+            )
+        }
         #expect(!HotKeyBinding(keyCode: 35, modifierFlags: 0, displayName: "P").hasModifier)
         // Modifiers such as Caps Lock cannot be used for a binding.
         #expect(!HotKeyBinding(keyCode: 35, modifierFlags: 1 << 16, displayName: "P").hasModifier)
@@ -497,6 +511,7 @@ struct HotKeyBindingTests {
 
 // The rawValue of NSEvent.ModifierFlags (only the values, with no dependency on AppKit).
 private let NSEventModifierFlagsCapsLock: UInt = 1 << 16
+private let NSEventModifierFlagsShift: UInt = 1 << 17
 private let NSEventModifierFlagsControl: UInt = 1 << 18
 private let NSEventModifierFlagsOption: UInt = 1 << 19
 private let NSEventModifierFlagsCommand: UInt = 1 << 20
