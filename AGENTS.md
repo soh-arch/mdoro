@@ -93,6 +93,9 @@ an existing bundle) and read `totalTestCount` back with:
 xcrun xcresulttool get test-results summary --path /tmp/mdoro-test.xcresult --format json
 ```
 
+The keys to read are `result`, `totalTestCount` and `passedTests`. A `totalTestCount` of zero
+means nothing ran, whatever the build said.
+
 **Always pass `-destination`.** Without it, `xcodebuild` picks a generic iOS device, builds for
 `Debug-iphoneos`, and installs onto whatever iPhone is plugged in — replacing the app on someone's
 own phone. Nothing in the command says that is what happened.

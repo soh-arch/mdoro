@@ -129,11 +129,17 @@ set -o pipefail && xcodebuild test \
 **`xcodebuild` は1本も走らなくても `** TEST SUCCEEDED **` と出す**（POL-240 で実測）。
 **本数を読むこと。**
 
+上のどちらかのコマンドに `-resultBundlePath /tmp/mdoro-test.xcresult` を足す。
+**足す前に消すこと** —— **既にバンドルがあると `xcodebuild` は `Existing file at -resultBundlePath`
+で止まる**（2026-09-14 に実測。このとき `totalTestCount` が 0 のまま返り、1往復を無駄にした）。
+
 ```bash
-rm -rf /tmp/mdoro-test.xcresult   # 既にあると -resultBundlePath は拒否する
-set -o pipefail && xcodebuild test \
-  ...（上のいずれか）... \
-  -resultBundlePath /tmp/mdoro-test.xcresult
+rm -rf /tmp/mdoro-test.xcresult
+```
+
+走り終えたら、本数を読む。
+
+```bash
 xcrun xcresulttool get test-results summary \
   --path /tmp/mdoro-test.xcresult --format json | \
   python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["result"], d["totalTestCount"], "passed:", d["passedTests"])'
