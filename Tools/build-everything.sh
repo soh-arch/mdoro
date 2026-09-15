@@ -31,7 +31,13 @@ cd "$(dirname "$0")/.." || exit 1
 
 # Said plainly rather than reported as a compile failure: a missing tool is not a broken tree,
 # and confusing the two is how a green or a red comes to mean nothing (POL-240).
-for tool in swift xcodebuild; do
+#
+# xcrun and python3 are on the list for exactly that reason, though neither compiles anything.
+# They are what reads the number of tests back out of the result bundle, and without them a run
+# that was fine is reported in the same words as a suite that never ran. Stopping here says
+# which it is. (python3 can also be present and unable to start, which the Mac stage still has
+# to report on its own; this catches the cheaper half.)
+for tool in swift xcodebuild xcrun python3; do
     if ! command -v "$tool" > /dev/null 2>&1; then
         echo "$tool is not here, so nothing was compiled."
         echo "This needs a Mac with Xcode. It is the one step the cloud cannot take (POL-243)."
@@ -75,9 +81,16 @@ took() {
 # A bundle that cannot be read, or a summary whose count is renamed or is not a number, prints
 # nothing or prints zero. Both are failures here rather than something to shrug at: the caller
 # reports them, and neither can be mistaken for a passing run.
+#
+# The summary is written to a file rather than piped straight in, and what the read complained
+# about is kept beside it, so that a failure to read can show what came back instead of only
+# saying that nothing did. That is the debugging CI prints, and it is the debugging somebody
+# needs on the one machine that can take the next step.
+#
+# $1 the bundle, $2 the file to write the summary to, $3 the file to keep the complaints in.
 test_summary() {
-    xcrun xcresulttool get test-results summary --path "$1" --format json 2> /dev/null \
-        | python3 -c '
+    xcrun xcresulttool get test-results summary --path "$1" --format json > "$2" 2> "$3"
+    python3 -c '
 import json, sys
 
 try:
@@ -86,8 +99,21 @@ except Exception:
     sys.exit(1)
 if not isinstance(summary, dict):
     sys.exit(1)
+
+# JSON has one number type, so a count can arrive as 5 or as 5.0 and mean the same thing;
+# reading only the first of those turns a sound run red. bool is a subclass of int in Python
+# and is not a count: True would otherwise read as one test having run. NaN and infinity are
+# accepted by this parser and survive neither comparison nor int(), so they are turned away
+# here rather than further down.
 count = summary.get("totalTestCount")
-if isinstance(count, int):
+countable = not isinstance(count, bool) and isinstance(count, (int, float))
+if countable:
+    try:
+        count = int(count)
+    except (ValueError, OverflowError):
+        countable = False
+
+if countable:
     print(count)
 else:
     # Read as zero, and fail, rather than guessing at another name for it. The scalars are
@@ -100,7 +126,7 @@ else:
 for failure in summary.get("testFailures") or []:
     print("--- %s (%s) ---" % (failure.get("testName", "?"), failure.get("targetName", "?")))
     print(failure.get("failureText", "no text"))
-'
+' < "$2"
 }
 
 whole_run_started=$(date +%s)
@@ -111,11 +137,18 @@ stage_started=$(date +%s)
 # separates "this does not compile" from "this compiles and a test is wrong", and once the
 # build has been done the test run reuses it, so the stage is not paid for twice.
 #
-# No count is read back on this side. The hole the Mac stage guards against was opened by a
-# selector -- one wrong character in -only-testing: and nothing runs -- and nothing is selected
-# here. What is left is the test target vanishing from Package.swift, which is a line in a
-# diff. Counting would mean parsing swift-testing's own output, whose exact wording nobody who
-# writes this script can check from Linux, and a guess at it would fail a run that was fine.
+# No count is read back on this side, which leaves a hole open rather than closing one, so here
+# is the hole. The Mac stage's was opened by a selector -- one wrong character in -only-testing:
+# and nothing runs -- and nothing is selected here. But a suite can empty out from the other
+# end: the test target stays in Package.swift, in plain sight of any diff, while the tests
+# inside it are deleted, commented out or skipped. Nobody here has run that to watch it happen,
+# and if `swift test` then reports nothing to run and exits zero, this stage goes green having
+# proven nothing -- the same shape as the green that means nothing on the Mac side.
+#
+# It is left open deliberately. Counting would mean parsing swift-testing's own output, whose
+# exact wording nobody who writes this script can check from Linux, and a guess at it would
+# fail a run that was fine. `swift test --list-tests` may be a way in; its output has not been
+# seen here either, so it is a lead rather than a plan. One look on a Mac settles it.
 if ! (cd Packages/MdoroCore && swift build --build-tests); then
     not_compiled="$not_compiled MdoroCore"
 elif ! (cd Packages/MdoroCore && swift test); then
@@ -148,9 +181,9 @@ stage_started=$(date +%s)
 # the first built.
 #
 # CI's steps carry `set -o pipefail` and these do not: pipefail rescues an exit status that a
-# pipeline would otherwise throw away, and nothing here pipes xcodebuild into anything. The one
-# pipeline in this script reads the result bundle, and a read that comes back empty is already
-# reported as a failure of its own.
+# pipeline would otherwise throw away, and nothing here is piped anywhere. xcodebuild is run on
+# its own, and the result bundle is read through a file, which is also what keeps the complaints
+# from that read.
 #
 # -derivedDataPath, which the iOS stage below does not use, is what makes "identical arguments"
 # true of the products as well: the run finds exactly the build. It also keeps this out of the
@@ -158,6 +191,8 @@ stage_started=$(date +%s)
 # time and warm after, until something clears /tmp.
 mac_derived=/tmp/mdoro-build-everything
 mac_result=$mac_derived/result.xcresult
+mac_summary=$mac_derived/summary.json
+mac_read_complaints=$mac_derived/reading-the-summary.txt
 
 if ! xcodebuild build-for-testing \
     -project "$project" \
@@ -184,10 +219,15 @@ else
         xcodebuild_said=failed
     fi
 
-    summary=$(test_summary "$mac_result")
+    summary=$(test_summary "$mac_result" "$mac_summary" "$mac_read_complaints")
     if [ -z "$summary" ]; then
         echo "the result bundle gave no answer, so nothing here says whether a test ran"
-        echo "(xcrun xcresulttool, or python3, could not read $mac_result)"
+        echo "($mac_result could not be read)"
+        echo "--- what the read said ---"
+        head -c 4000 "$mac_read_complaints" 2> /dev/null
+        echo "--- what came back instead of a summary ---"
+        head -c 4000 "$mac_summary" 2> /dev/null
+        printf '\n'
         never_ran="$never_ran MdoroMacTests"
     else
         ran=$(printf '%s\n' "$summary" | sed -n 1p)
