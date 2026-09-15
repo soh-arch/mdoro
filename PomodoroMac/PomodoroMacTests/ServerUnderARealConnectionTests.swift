@@ -1189,7 +1189,8 @@ struct ServerUnderARealConnectionTests {
 private final class HeldReads: ServerLineReading {
     private(set) var lines: [NWConnection] = []
     private var outstanding: [ServerLineRead] = []
-    private var waiting: (needed: Int, continuation: CheckedContinuation<Void, Never>)?
+    private var waiting: (needed: Int, ticket: Int, continuation: CheckedContinuation<Void, Never>)?
+    private var tickets = 0
 
     var timesArmed: Int { lines.count }
 
@@ -1205,25 +1206,41 @@ private final class HeldReads: ServerLineReading {
     // Wait until the loop has asked for `count` reads in all, or give up. **Nothing is polled** —
     // this is resumed from `read` above, on the main actor, which is the actor the loop needs to ask
     // on at all. Same shape as `Upstream.waitsForHangUp`, and for the same reason.
+    //
+    // **There is one waiting slot, and a second waiter would take it silently.** The first waiter
+    // would then sit there until its own deadline and report a timeout that never had anything to
+    // do with the server — a test that fails for a reason nobody can read, which is the shape this
+    // repository keeps being caught by. So a second waiter traps here instead, where the line
+    // number says which call did it. **A comment saying "do not wait twice" would hold nothing.**
     func waitsForReads(_ count: Int, upTo budget: Duration) async -> Bool {
         if timesArmed >= count { return true }
+        if case .some = waiting {
+            preconditionFailure("HeldReads has one waiting slot and something is already in it: this call would take it from a waiter that is still suspended, and that waiter would then run out its own budget and blame the server for it. Wait for one thing at a time, or give this double a queue of waiters.")
+        }
+        tickets += 1
+        let ticket = tickets
         let deadline = Task { [weak self] in
             try? await Task.sleep(for: budget)
             guard !Task.isCancelled else { return }
-            self?.giveUpWaiting()
+            self?.giveUpWaiting(ticket)
         }
         defer { deadline.cancel() }
         // The deadline sleeps before it can resume anything, so the registration below is always in
         // place first — there is no window in which a resumption is lost.
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            waiting = (count, continuation)
+            waiting = (count, ticket, continuation)
         }
         return timesArmed >= count
     }
 
-    private func giveUpWaiting() {
-        waiting?.continuation.resume()
+    // **The ticket is which wait this deadline was started for.** `deadline.cancel()` is asked for
+    // when a wait returns and is not instant, so a deadline belonging to a wait that is already
+    // over could otherwise arrive and cut short the next one — a wait that ends early reads as the
+    // loop never arming, which is the same unreadable failure the precondition above is against.
+    private func giveUpWaiting(_ ticket: Int) {
+        guard let pending = waiting, pending.ticket == ticket else { return }
         waiting = nil
+        pending.continuation.resume()
     }
 
     // Answer the oldest read still outstanding, in `NWConnection.receiveMessage`'s own four values.
@@ -1245,13 +1262,22 @@ private final class HeldReads: ServerLineReading {
 }
 
 // Cancellation is asked for on one queue and settles on another, so it is waited for rather than
-// read straight after — the same wait `ListenerFoldingTests` makes of a listener. Two seconds is far
-// longer than it takes and short enough to fail a run rather than hang it.
+// read straight after — the same wait `ListenerFoldingTests` makes of a listener. The bound below is
+// far longer than it should take and short enough to fail a run rather than hang it.
+//
+// **What running out means is two things, and this cannot tell them apart** — so the message at the
+// call site names both, in the order they are worth looking at, and it reads the bound from here so
+// that raising the number cannot leave the sentence saying the old one.
+private let cancelBound = Duration.seconds(2)
+
 private func settlesAsCancelled(_ connection: NWConnection) async -> Bool {
-    for _ in 0..<100 {
+    let deadline = ContinuousClock.now + cancelBound
+    while ContinuousClock.now < deadline {
         if case .cancelled = connection.state { return true }
         try? await Task.sleep(for: .milliseconds(20))
     }
+    // Asked once more after the bound: a sleep that overran is not an answer.
+    if case .cancelled = connection.state { return true }
     return false
 }
 
@@ -1286,11 +1312,12 @@ struct ServerReadLoopEndingTests {
 
         let cancelled = await settlesAsCancelled(line)
         holds(cancelled,
-              "REQ-COM-004: the read said the line was over and the connection was let go of rather than handed back. Nothing else in MdoroServer will ever cancel it — this line never said hello, so `handleDisconnect` refuses it and `checkHeartbeat` and `stop` reach only the connection the Mac is holding — and an `NWConnection` nobody cancels keeps its endpoint and its path monitor for as long as it is held.")
+              "REQ-COM-004: \(describe(cancelBound)) after the read said this line was over, the connection has not reached `.cancelled`. **Two things put it here and this observation cannot tell them apart. Read them in this order.** (a) **The `.end` arm no longer calls `connection.cancel()`.** That is where to look first and it is the likely one: this line never said hello, so `handleDisconnect` refuses it and `checkHeartbeat` and `stop` reach only the connection the Mac is holding — no other path in MdoroServer would ever cancel it, and an `NWConnection` nobody cancels keeps its endpoint and its path monitor for as long as it is held. (b) The `cancel()` is still there and `NWConnection.state` did not settle on `.cancelled` within the bound. **Nothing on record says how long that takes**: `docs/PLATFORM.md` has no entry for it, and this is the first test in the project to stand on that transition — `ListenerFoldingTests` makes the same observation of an `NWListener`, which is a different type and says nothing about this one. **So read the `.end` arm before touching the bound.** If the `cancel()` is gone, (a) is the answer and the bound is innocent; if it is still there, (b) is what is left and it is worth writing down in `docs/PLATFORM.md` rather than absorbing here.")
 
         // **The ending has been acted on by the time this is read.** Either the cancel settled, or
-        // two seconds of waiting went by with the main actor free — and a re-arm is the next
-        // statement after the arm above, not something that arrives late.
+        // the whole of `cancelBound` went by with the main actor free — and a re-arm is the next
+        // statement after the `.end` arm, not something that arrives late. So this stands whichever
+        // way the observation above went, which is why it is a separate `holds` and not a follow-on.
         holds(reads.timesArmed == 1,
               "REQ-COM-004: the loop was told the line was over and asked for another read (\(reads.timesArmed) asked for in all). On a finished connection that read comes back at once and with nothing on it, so this is a turn on the main actor for every one of the fifteen seconds until REQ-COM-005's silence watch expires — which is the backstop for this, not a substitute.")
     }
