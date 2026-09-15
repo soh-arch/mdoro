@@ -49,8 +49,14 @@ final class MdoroServer {
     // reaches an issue with no way to tell five wrong codes from a token the Mac no longer knows.
     private let diagnostics: DiagnosticLog
 
-    init(diagnostics: DiagnosticLog) {
+    // REQ-COM-004: the read loop's one call into the transport, taken as a seam so that what the
+    // loop does with an ending can be driven from a test (`ServerLineReading`). The default is the
+    // real one, so nothing but a test ever names it.
+    private let reads: any ServerLineReading
+
+    init(diagnostics: DiagnosticLog, reads: any ServerLineReading = WebSocketLineReads()) {
         self.diagnostics = diagnostics
+        self.reads = reads
     }
 
     private let queue = DispatchQueue(label: "MdoroMac.Server")
@@ -212,8 +218,14 @@ final class MdoroServer {
     // those fifteen seconds the Mac shows a phone that has gone, and a loop that re-armed through
     // the ending would spend them turning on the main actor, because a read on a finished
     // connection comes back at once and with nothing on it.
+    //
+    // REQ-COM-004: **the read itself goes through `reads`, and that is the only part of this
+    // connection that does.** The two things this loop does with an ending — hand the connection
+    // back, and stop asking — are what a test could not reach, because an `NWConnection` dials the
+    // moment it is started and there was nowhere to stand and give the loop a read. The seam is one
+    // call wide: `cancel()` below is still the connection's own, and so is everything else about it.
     private func receive(on connection: NWConnection, counting brokenMessages: BrokenMessageCounter = BrokenMessageCounter()) {
-        connection.receiveMessage { [weak self] data, context, isComplete, error in
+        reads.read(from: connection) { [weak self] data, context, isComplete, error in
             Task { @MainActor in
                 guard let self else { return }
                 var counter = brokenMessages
