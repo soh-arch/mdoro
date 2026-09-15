@@ -4,6 +4,26 @@ import Network
 import MdoroCore
 @testable import MdoroiOS
 
+// REQ-COM-004: **what this file keeps, and what it cannot.**
+//
+// **What it keeps**: the decision one read off the line carries (`LineRead.of` — every ending, and
+// every arrival that must not be mistaken for one), and which line's ending `MdoroClient` acts on.
+// Both are reached without a LAN, the first because the decision was lifted out of the read
+// callback and the second through `ClientLinkMaking`.
+//
+// **What it cannot keep**: anything inside `WebSocketLink` itself. `NWConnection` cannot be stood
+// in for — it dials the moment it is started — so nothing here executes the read loop, and three
+// things this branch changed are **not** covered by any test below:
+//
+// - that `deliver(.ended)` cancels the connection rather than letting go of it,
+// - that `deinit` does the same for a line that never ended,
+// - that `receive()` stops re-arming once the line has ended (the loop this branch was written
+//   for is the one thing no assertion here can see turning).
+//
+// `LineReadTests` says `.end` is the right answer; **that the loop then stops asking is between
+// `receive()` and the reader.** Closing that would mean putting a seam under `NWConnection`, which
+// is a larger change than the faults asked for. Until then it rests on reading the function.
+
 // REQ-COM-004: **every way a line can be over, and what the reading loop does about each.**
 //
 // The reconnect hangs off `.ended` and nothing else reaches it, so an ending the line never tells
@@ -79,6 +99,16 @@ struct LineReadTests {
     // line is fine.
     @Test func anEmptyTextFrameIsNeitherAMessageNorAnEnding() {
         #expect(LineRead.of(data: Data(), opcode: .text, isComplete: true, failed: false) == .skip)
+    }
+
+    // **The one case that holds `isComplete` in the condition at all.** Every other read here is
+    // either complete or failed, so drop `isComplete` from the ending above and the rest of this
+    // suite goes on passing while a read that has not finished and has nothing yet becomes an
+    // ending. The mark is that the read is *over* and nothing came with it; a read that is not
+    // over has said nothing either way, and the line stands.
+    @Test func aReadThatHasNotCompletedIsNotAnEnding() {
+        #expect(LineRead.of(data: nil, opcode: nil, isComplete: false, failed: false) == .skip)
+        #expect(LineRead.of(data: Data(), opcode: nil, isComplete: false, failed: false) == .skip)
     }
 }
 

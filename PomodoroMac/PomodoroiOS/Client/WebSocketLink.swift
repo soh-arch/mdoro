@@ -62,15 +62,20 @@ enum LineRead: Equatable {
     // 3. **A completed read with no frame on it and no bytes** — the end of the line as the
     //    transport reports it when there was no close frame to hand over.
     //
-    // **The third asks for the read to be empty and unframed on purpose.** On a message-oriented
-    // protocol `isComplete` is true of every whole message, so taken on its own it would end the
-    // line at the first thing the Mac ever said. What marks an ending is that nothing came with it,
-    // and a read carrying bytes is never read as one.
+    // **The third asks for all three of completed, unframed and empty.** On a message-oriented
+    // protocol `isComplete` is true of every whole message, so on its own it would end the line at
+    // the first thing the Mac ever said; and without it, a read that has not finished and has
+    // nothing yet would be read as an ending. What marks an ending is that the read is over and
+    // nothing came with it, and a read carrying bytes is never read as one.
     //
-    // The Mac's own test harness reads a line the same way and says why it must
-    // (`ServerUnderARealConnectionTests.receive`): a read that completes with nothing on it re-arms
-    // into another that completes with nothing at once, so a loop with no ending to stop it spins
-    // for as long as the process lives.
+    // **The Mac's own test harness marks that third ending differently**
+    // (`ServerUnderARealConnectionTests.receive`): it asks `isComplete, context?.isFinal == true,
+    // data?.isEmpty ?? true`, where this asks for no WebSocket frame on the read rather than for a
+    // context that says it is the last one. **They are different properties**, and a read that
+    // arrives with no context at all satisfies this one and not that one. Whether the two ought to
+    // be brought together is filed and not settled here. What the harness does settle is that the
+    // ending is needed at all — "a read that completes with nothing on it re-arms into a read that
+    // completes with nothing at once", which is the loop this line was found able to spin in.
     static func of(
         data: Data?, opcode: NWProtocolWebSocket.Opcode?, isComplete: Bool, failed: Bool
     ) -> LineRead {
