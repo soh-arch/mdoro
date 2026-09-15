@@ -137,22 +137,85 @@ stage_started=$(date +%s)
 # separates "this does not compile" from "this compiles and a test is wrong", and once the
 # build has been done the test run reuses it, so the stage is not paid for twice.
 #
-# No count is read back on this side, which leaves a hole open rather than closing one, so here
-# is the hole. The Mac stage's was opened by a selector -- one wrong character in -only-testing:
-# and nothing runs -- and nothing is selected here. But a suite can empty out from the other
-# end: the test target stays in Package.swift, in plain sight of any diff, while the tests
-# inside it are deleted, commented out or skipped. Nobody here has run that to watch it happen,
-# and if `swift test` then reports nothing to run and exits zero, this stage goes green having
-# proven nothing -- the same shape as the green that means nothing on the Mac side.
+# A green has to mean something here too, and what it is read from is `swift test list`. The
+# Mac stage's hole was opened by a selector -- one wrong character in -only-testing: and nothing
+# runs -- and nothing is selected here. But a suite can empty out from the other end: the test
+# target stays in Package.swift, in plain sight of any diff, while the tests inside it are
+# deleted or commented out. `swift build --build-tests` still compiles, `swift test` then finds
+# nothing to run and exits zero, and the stage goes green having proven nothing -- the same
+# shape as the green that means nothing on the Mac stage above, which docs/DEVELOPMENT.md
+# writes up.
 #
-# It is left open deliberately. Counting would mean parsing swift-testing's own output, whose
-# exact wording nobody who writes this script can check from Linux, and a guess at it would
-# fail a run that was fine. `swift test --list-tests` may be a way in; its output has not been
-# seen here either, so it is a lead rather than a plan. One look on a Mac settles it.
+# `swift test list`, not `swift test --list-tests`: the flag is deprecated and says so --
+# "use 'swift test list' instead". Measured on the owner's Mac, 2026-09-15, as is everything in
+# the next paragraph; none of it is inferred from here, where there is no swift to ask.
+#
+# What comes back is the build's own noise -- [1/1] Planning build, Building for debugging...,
+# Build complete! -- and then one line per test:
+#
+#   MdoroCoreTests.ARefusalIsNotAReasonToDialAgainTests/anErrorThatIsNotARefusalStillReachesTheBanner()
+#
+# Module.Suite/name(). Every line of noise carries whitespace and no test line does, which is
+# what the pattern leans on, together with the slash. It ends at `)` rather than at `()` on
+# purpose: what a test whose name carries argument labels lists as has not been seen here, and
+# a pattern too narrow for those would turn a sound run red, which is the worse of the two ways
+# to be wrong. stderr is folded into stdout because which of the two the listing comes out on
+# was not measured either; the pattern discards the extra noise along with the rest.
+#
+# **This narrows the hole. It does not close it.** What stays open:
+#
+#   - tests that are listed and never run. Every one of them .disabled, or every one skipped at
+#     run time, and this stage counts them and goes green just the same. Listing and running are
+#     two different questions and only the first is asked here.
+#   - whether `swift test list` prints a .disabled test at all. Nobody has looked. If it leaves
+#     them out, a wholly disabled suite lists as zero and is caught here; if it prints them, it
+#     is not. Which of those is true is unknown, not decided.
+#   - a test named in backticks. Swift takes an identifier with spaces in it that way, and a
+#     test named so puts whitespace into its own line, slipping past a pattern built on noise
+#     being the only thing that has any. There are none in Packages/MdoroCore/Tests today, and
+#     the pattern is left as it is: such a test goes uncounted rather than miscounted, and one
+#     ordinarily named test beside it keeps the count off zero.
+#
+# And once in the other direction, towards a red that is not earned: `swift test list` is a
+# second process, so it can come back non-zero for a reason that has nothing to do with finding
+# tests, after `swift test` has already passed. The whole of what it printed goes out under the
+# heading below, which is what lets the next person tell that from a suite with nothing in it.
+#
+# The listing is only read when `swift test` came back clean. A suite that failed has already
+# proven that a test ran, and that is the only thing the count is for.
 if ! (cd Packages/MdoroCore && swift build --build-tests); then
     not_compiled="$not_compiled MdoroCore"
 elif ! (cd Packages/MdoroCore && swift test); then
     tests_failed="$tests_failed MdoroCoreTests"
+else
+    core_listing=$( (cd Packages/MdoroCore && swift test list) 2>&1 )
+    core_list_status=$?
+    core_listed=$(printf '%s\n' "$core_listing" | grep -c '^[^[:space:]]*/[^[:space:]]*)$')
+    case "$core_listed" in
+        '' | *[!0-9]*) core_listed=0 ;;
+    esac
+
+    core_trouble=
+    if [ "$core_list_status" -ne 0 ]; then
+        core_trouble="swift test list exited $core_list_status, so nothing here says whether a test exists"
+    elif [ "$core_listed" -eq 0 ]; then
+        core_trouble="no test was listed at all — what swift test printed says nothing about the code"
+    fi
+
+    if [ -n "$core_trouble" ]; then
+        # What came back is printed, not summarised. The read is the whole of the evidence, and
+        # a red that does not show it leaves the next person with nowhere to start.
+        echo "$core_trouble"
+        echo "--- what the listing said ---"
+        printf '%s\n' "$core_listing" | head -c 4000
+        printf '\n'
+        never_ran="$never_ran MdoroCoreTests"
+    else
+        # "listed", not "ran". The Mac stage's number comes from a result bundle and is a count
+        # of tests that ran; this one is a count of tests that exist. They are not the same
+        # fact and they do not get the same word.
+        echo "MdoroCoreTests: $core_listed listed, and swift test passed"
+    fi
 fi
 took "$stage_started" "MdoroCore"
 
