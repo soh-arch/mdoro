@@ -6,12 +6,18 @@ The point is not completeness: it is that these classes never need a reader
 again. Run it before asking anyone — human or model — to read a change.
 
     python3 Tools/check-docs.py
+    python3 Tools/check-docs.py --self-test   # ask the checks themselves
+
+Every check here has cases of its own, because a sound repository gives a broken
+check nothing to fire on: see "every check's own test" at the bottom.
 """
 from __future__ import annotations
+import contextlib
 import re
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -76,9 +82,14 @@ def is_ignored(target: str) -> bool:
     `Config/Signing.local.xcconfig` and `docs/PRIVATE-LINKS.md` are created by
     whoever builds the app, and the documents that name them are telling the
     reader to create one. Only this working tree ever has them.
+
+    The answer is the exit status; git's own output is not read. It is captured
+    so that a ROOT which is not a repository -- the throwaway tree the self-test
+    builds -- says "not ignored" quietly instead of printing a fatal error over
+    the results.
     """
     return subprocess.run(
-        ["git", "check-ignore", "-q", target], cwd=ROOT
+        ["git", "check-ignore", "-q", target], cwd=ROOT, capture_output=True
     ).returncode == 0
 
 
@@ -135,14 +146,18 @@ def check_pols() -> None:
     gaps = [n for n in range(min(filed), max(filed) + 1) if n not in filed]
     if gaps:
         note("pol", f"numbering has gaps: {gaps} (the punch list says 欠番を作らない)")
-    for md in markdown_files():
-        if md == PUNCH:
+    # The tools cite the ledger too, and a citation in a comment goes stale exactly the way one
+    # in a document does -- this file names POL-244 and POL-245 in its own margins. Nothing was
+    # watching those. Only this check is widened: the other four reading markdown_files() ask
+    # questions about prose, and a Python file is not prose.
+    for source in markdown_files() + sorted((ROOT / "Tools").glob("*.py")):
+        if source == PUNCH:
             continue
-        text = read(md)
+        text = read(source)
         for m in re.finditer(r"POL-(\d+)", text):
             if int(m.group(1)) not in filed:
                 line = text[: m.start()].count("\n") + 1
-                note("pol", f"{md.relative_to(ROOT)}:{line} cites POL-{m.group(1)}, which is not filed")
+                note("pol", f"{source.relative_to(ROOT)}:{line} cites POL-{m.group(1)}, which is not filed")
 
 
 # --- a row in progress names its work -----------------------------------------
@@ -260,12 +275,201 @@ CHECKS = (
 )
 
 
-# --- the newest check's own test ---------------------------------------------
-# Once the ledger is clean, check_in_progress_rows() has nothing left to fire on, so
-# breaking it leaves this script green and says nothing. Every mutation the reviewer
-# found -- dropping `review`, reading the wrong cell, letting a placeholder through --
-# fails at least one row below. Run it with --self-test; CI runs it before the checks
-# themselves (POL-245).
+# --- every check's own test ---------------------------------------------------
+# Once the repository is sound, a check has nothing left to fire on, so breaking it leaves
+# this script green and says nothing: with no broken link anywhere in the tree, a broken link
+# checker still prints ok. CHECKS made a *deleted* call visible -- the name drops out of the ok
+# line -- and says nothing about a call that still runs and no longer works (POL-246).
+#
+# So each check is run against a repository built to ask it one question. The checks read their
+# inputs through ROOT, SPEC, PUNCH and DECISIONS at call time and hold no other path, so
+# rebinding those four is the whole of it: no check needed a new argument, and a real run is
+# untouched. Run it with --self-test; CI runs it before the checks themselves (POL-245).
+#
+# Both polarities are required of every check. "Catches what it should" on its own would be
+# passed by a check that complains about everything, which is the same silence in a louder form.
+
+
+@contextlib.contextmanager
+def a_repository(files: dict[str, str]):
+    """Point this module at a throwaway tree holding exactly `files`, then put it back."""
+    global ROOT, SPEC, PUNCH, DECISIONS
+    kept = (ROOT, SPEC, PUNCH, DECISIONS)
+    with tempfile.TemporaryDirectory() as tmp:
+        ROOT = Path(tmp)
+        SPEC, PUNCH, DECISIONS = ROOT / "docs/SPEC.md", ROOT / "docs/PUNCHLIST.md", ROOT / "docs/decisions"
+        for name, body in files.items():
+            path = ROOT / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(body, encoding="utf-8")
+        try:
+            yield
+        finally:
+            ROOT, SPEC, PUNCH, DECISIONS = kept
+
+
+# A spec that agrees with itself: one requirement row, a header, and a revision history whose
+# newest entry states the count as it now is. The older entry states a count that was true then
+# and is wrong now, which is the case check_spec_header must *not* fire on. Each case below
+# changes one thing about this.
+SOUND_SPEC = """# spec
+
+**バージョン:** 2.1
+
+## 0. 本書について
+
+### 0.2 v2.0 からの変更点（v2.1）
+
+| **新設** | **REQ-ABC-001** を追加。要件数 0 → 001要件 |
+
+### 0.1 v1.0 からの変更点（v2.0）
+
+| **整理** | 要件数 000要件 |
+
+## 3. 要件
+
+| ID | レベル | 内容 |
+| :---- | :---- | :---- |
+| **REQ-ABC-001** | MUST | a requirement |
+"""
+
+# The front matter is what check_decisions reads; everything from the first `## ` on is body.
+SOUND_DECISION = """# 0001. a decision
+
+- **状態**: accepted
+- **日付**: 2026-09-15
+
+## 文脈
+
+why.
+"""
+
+# (check, what the tree is asking, the tree, whether the check must complain)
+CASES = (
+    (check_links, "a relative link whose target is not there", {
+        "docs/a.md": "[b](b.md)\n",
+    }, True),
+    (check_links, "a relative link that resolves, anchor and all", {
+        "docs/a.md": "[b](b.md#a-section) and [up](../CLAUDE.md)\n",
+        "docs/b.md": "b\n",
+        "CLAUDE.md": "c\n",
+    }, False),
+    (check_links, "an absolute url is nobody's file", {
+        "docs/a.md": "[x](https://example.invalid/none) [m](mailto:nobody@example.invalid)\n",
+    }, False),
+    (check_links, "a bare word in a code example is prose, not a path", {
+        "docs/a.md": "write it as [text](url)\n",
+    }, False),
+    (check_links, "a report kept verbatim is exempt, however it links", {
+        "docs/experiments/a-report.md": "[gone](nowhere.md)\n",
+    }, False),
+    (check_links, "but the index over those reports is ours", {
+        "docs/experiments/README.md": "[gone](nowhere.md)\n",
+    }, True),
+
+    (check_inline_paths, "inline code naming a file the repository does not have", {
+        "docs/a.md": "see `docs/gone.md`\n",
+    }, True),
+    (check_inline_paths, "inline code naming a file that is there", {
+        "docs/a.md": "see `docs/b.md`\n",
+        "docs/b.md": "b\n",
+    }, False),
+    (check_inline_paths, "a path outside the repository's own directories", {
+        "docs/a.md": "see `notes/gone.md`\n",
+    }, False),
+    (check_inline_paths, "a placeholder and a glob name no one file", {
+        "docs/a.md": "see `docs/<name>.md` and `docs/*.md`\n",
+    }, False),
+
+    (check_requirement_ids, "a document citing an id SPEC does not define", {
+        "docs/SPEC.md": SOUND_SPEC,
+        "docs/a.md": "this rests on REQ-ABC-002\n",
+    }, True),
+    (check_requirement_ids, "swift citing an id SPEC does not define", {
+        "docs/SPEC.md": SOUND_SPEC,
+        "Packages/MdoroCore/Sources/A.swift": "// REQ-ABC-002: why this line is here\n",
+    }, True),
+    (check_requirement_ids, "an id SPEC really defines, cited from both", {
+        "docs/SPEC.md": SOUND_SPEC,
+        "docs/a.md": "this rests on REQ-ABC-001\n",
+        "Packages/MdoroCore/Sources/A.swift": "// REQ-ABC-001: why this line is here\n",
+    }, False),
+    (check_requirement_ids, "the punch list files bad ids on purpose", {
+        "docs/SPEC.md": SOUND_SPEC,
+        "docs/PUNCHLIST.md": "| **POL-001** | a comment cites REQ-ABC-002 | open |\n",
+    }, False),
+    (check_requirement_ids, "a SPEC with no requirement rows at all", {
+        "docs/SPEC.md": "**バージョン:** 2.1\n",
+    }, True),
+
+    (check_pols, "a document citing a POL that was never filed", {
+        "docs/PUNCHLIST.md": "| **POL-001** | a |\n",
+        "docs/a.md": "as POL-002 found\n",
+    }, True),
+    (check_pols, "a gap in the numbering", {
+        "docs/PUNCHLIST.md": "| **POL-001** | a |\n| **POL-003** | c |\n",
+    }, True),
+    (check_pols, "a document citing a POL that is filed", {
+        "docs/PUNCHLIST.md": "| **POL-001** | a |\n| **POL-002** | b |\n",
+        "docs/a.md": "as POL-002 found\n",
+    }, False),
+    # The two below are the range this check was widened to hold, and they are why the rows in
+    # SELF_TEST cite POL numbers that really are filed: check_pols() now reads this file.
+    (check_pols, "a tool's comment citing a POL that was never filed", {
+        "docs/PUNCHLIST.md": "| **POL-001** | a |\n",
+        "Tools/a-tool.py": "# POL-002: why this line is here\n",
+    }, True),
+    (check_pols, "a tool's comment citing a POL that is filed", {
+        "docs/PUNCHLIST.md": "| **POL-001** | a |\n",
+        "Tools/a-tool.py": "# POL-001: why this line is here\n",
+    }, False),
+    (check_pols, "a punch list with no rows at all", {
+        "docs/PUNCHLIST.md": "nothing is filed here\n",
+    }, True),
+
+    (check_decisions, "a gap in the numbering", {
+        "docs/decisions/0001-a.md": SOUND_DECISION,
+        "docs/decisions/0003-c.md": SOUND_DECISION.replace("0001", "0003"),
+    }, True),
+    (check_decisions, "a record with no 状態 in its front matter", {
+        "docs/decisions/0001-a.md": "# 0001. a decision\n\n## 文脈\n\nwhy.\n",
+    }, True),
+    (check_decisions, "a record naming a replacement that does not exist", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted", "- **状態**: superseded\n- **置換先**: [0009](0009-gone.md)"),
+    }, True),
+    (check_decisions, "a record naming a replacement that does exist", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted", "- **状態**: accepted\n- **一部置換**: [0002](0002-b.md)"),
+        "docs/decisions/0002-b.md": SOUND_DECISION.replace("0001", "0002"),
+    }, False),
+    (check_decisions, "a sound record, beside a README that needs no 状態", {
+        "docs/decisions/0001-a.md": SOUND_DECISION,
+        "docs/decisions/README.md": "the index over the records\n",
+    }, False),
+    (check_decisions, "no records at all", {}, True),
+
+    (check_spec_header, "the header and the newest revision entry disagree", {
+        "docs/SPEC.md": SOUND_SPEC.replace("**バージョン:** 2.1", "**バージョン:** 2.0"),
+    }, True),
+    (check_spec_header, "the newest entry claims a count the rows do not add up to", {
+        "docs/SPEC.md": SOUND_SPEC.replace("0 → 001要件", "0 → 002要件"),
+    }, True),
+    (check_spec_header, "no version in the header", {
+        "docs/SPEC.md": SOUND_SPEC.replace("**バージョン:** 2.1\n", ""),
+    }, True),
+    (check_spec_header, "no revision entries", {
+        "docs/SPEC.md": "**バージョン:** 2.1\n\n| **REQ-ABC-001** | MUST | a |\n",
+    }, True),
+    (check_spec_header, "a spec that agrees with itself, stale older counts and all", {
+        "docs/SPEC.md": SOUND_SPEC,
+    }, False),
+)
+
+
+# Rows for check_in_progress_rows, kept in the shape they are read in. Every mutation the
+# reviewer found -- dropping `review`, reading the wrong cell, letting a placeholder through --
+# fails at least one of them.
 #
 # The escaped pipe in the last row is pinned, not proved: splitting on a bare `|` cannot
 # actually produce a clean `doing` cell, because the backslash always stays attached to
@@ -288,27 +492,41 @@ SELF_TEST = (
 
 
 def self_test() -> int:
-    global PUNCH
-    kept, wrong = PUNCH, []
-    # A check that is not in CHECKS never runs, however well it works on its own.
-    if check_in_progress_rows not in [c for _, c in CHECKS]:
-        wrong.append("  check_in_progress_rows is not in CHECKS, so a real run never calls it")
-    with tempfile.TemporaryDirectory() as tmp:
-        PUNCH = Path(tmp) / "PUNCHLIST.md"
-        for row, must_complain in SELF_TEST:
-            PUNCH.write_text(row + "\n", encoding="utf-8")
+    cases = [
+        (check_in_progress_rows, row, {"docs/PUNCHLIST.md": row + "\n"}, must_complain)
+        for row, must_complain in SELF_TEST
+    ]
+    cases += list(CASES)
+    wrong: list[str] = []
+
+    # A check that is not in CHECKS never runs, however well it works on its own; a check in
+    # CHECKS with no case here is the hole this section exists to close.
+    listed = {check for _, check in CHECKS}
+    must_catch = {check for check, _, _, m in cases if m}
+    must_pass = {check for check, _, _, m in cases if not m}
+    for name, check in CHECKS:
+        if check not in must_catch:
+            wrong.append(f"  {name} has no case it must catch")
+        if check not in must_pass:
+            wrong.append(f"  {name} has no sound case it must let through")
+    for check in {c for c, _, _, _ in cases} - listed:
+        wrong.append(f"  {check.__name__} is not in CHECKS, so a real run never calls it")
+
+    for check, asking, files, must_complain in cases:
+        with a_repository(files):
             failures.clear()
-            check_in_progress_rows()
+            check()
             if bool(failures) != must_complain:
                 wanted = "a complaint" if must_complain else "silence"
-                wrong.append(f"  wanted {wanted}, got {len(failures)}: {row}")
-    PUNCH = kept
+                wrong.append(f"  {check.__name__}: wanted {wanted}, got {len(failures)}: {asking}")
     failures.clear()
+
     if wrong:
-        print(f"the check itself is wrong in {len(wrong)} place(s), over {len(SELF_TEST)} rows:\n")
+        print(f"the checks themselves are wrong in {len(wrong)} place(s), over {len(cases)} cases:\n")
         print("\n".join(wrong))
         return 1
-    print(f"ok — rows in progress, {len(SELF_TEST)} rows of its own")
+    counts = Counter(check for check, _, _, _ in cases)
+    print("ok — " + ", ".join(f"{name} ({counts[check]})" for name, check in CHECKS))
     return 0
 
 
