@@ -211,7 +211,7 @@ python3 Tools/run-in-a-worktree.py -- <役を起動するコマンド>
 - [ ] CI（`swift test`・文書の機械的な検査・`Tools/run-in-a-worktree.py` が**起動し、検出も落ちないこと**）
 - [ ] **PUNCHLIST の行を更新**（状態・由来・ブランチ名）
 
-### Swift を触ったら、利用者の Mac で1回建てる
+### Swift を触ったら、利用者の Mac で1回通す
 
 **裁定（2026-09-14・人間）: 恒久の工程とする**（POL-243）。
 
@@ -225,11 +225,23 @@ Tools/build-everything.sh
 ```
 
 **建てるのは3つ** —— `MdoroCore`（テスト込み）／`MdoroMac` と `MdoroMacTests`／
-`MdoroiOS` と `MdoroiOSTests` と `MdoroWidget`。**テストは走らせない。**
-（走らせると `MdoroMac.app` が起動する。テストのコマンドは `docs/DEVELOPMENT.md`。）
+`MdoroiOS` と `MdoroiOSTests` と `MdoroWidget`。
+
+**そのうち2つは走らせる**（2026-09-15 から） —— `MdoroCore` のスイートと `MdoroMacTests` である。
+**どちらもこの Mac の上だけで走る** —— シミュレータも実機も LAN もランナーも要らない。
+**建てるだけの台本は、走らせられるものを走らせていなかった**（POL-263。裁定は 2026-09-15・人間）。
+**iOS 側は建てるだけである** —— 走らせるにはシミュレータが要る（POL-249。別の票）。
+
+⚠ **`MdoroMacTests` は `MdoroMac.app` をテストホストとして起動する。**
+**その Mac で Mdoro を使用中なら走らせない**（`docs/DEVELOPMENT.md`）。
 
 **`build` ではなく `build-for-testing` である。** 今回落ちたのはテストのファイルなので、
 **`build` では素通りしていた。**
+
+**コンパイルできなかったのか、テストが落ちたのか、1本も走らなかったのかを、台本が区別して出す。**
+**`xcodebuild` は1本も走らなくても `** TEST SUCCEEDED **` と出す**ので（POL-240）、
+**CI と同じく結果バンドルから本数を読み、0本なら赤で終わる。**
+**所要時間は台本自身が測って出す** —— 推測で語らないためである。
 
 ⚠ **CI があっても、この工程は要る。** CI が建てるのは `MdoroCore` と `MdoroMac` の側だけで、
 **`MdoroiOS` / `MdoroiOSTests` / `MdoroWidget` の19ファイルは、どのランナーも一度も建てない**
@@ -282,7 +294,7 @@ Tools/build-everything.sh
 | 読み取りの監査（`spec-auditor` / `repo-auditor`） | クラウドでよい | 読むだけ |
 | 軸出し（天井） | クラウドでよい | 渡すのは差分だけ |
 | 実装（`MdoroCore`） | **クラウドでよい** | **書くのはクラウド、テストは CI**（`macos-latest` で `swift test`）。手元では走らない |
-| **Mac アプリ側の単体テスト**（`MdoroMacTests`） | **CI が見る**（2026-09-12 から） | **何も要さない。**配線の検査であり、実機も LAN も人間も要らない。`xcodebuild` はランナーにある |
+| **Mac アプリ側の単体テスト**（`MdoroMacTests`） | **CI が見る**（2026-09-12 から）。**`Tools/build-everything.sh` も走らせる**（2026-09-15 から。§6） | **何も要さない。**配線の検査であり、実機も LAN も人間も要らない。`xcodebuild` はランナーにある |
 | iOS 側のテスト（ターゲット `MdoroiOSTests`・フォルダ `PomodoroiOSTests/`） | **ローカル** | **シミュレータ。**`-only-testing:` に書くのは**ターゲット名**である —— フォルダ名を書くと1本も走らずに緑になる |
 | ~~UI テスト~~ | — | **存在しない。**`MdoroMac.xcscheme` / `MdoroiOS.xcscheme` が `PomodoroMacUITests` / `PomodoroiOSUITests` を参照しているが、**`project.pbxproj` にその名前は1度も出てこない**（2026-09-14 に実測）。**scheme に残った切れた参照である**（POL-248） |
 | **変異テスト** | **ローカル** | **手作業。**1行壊して走らせる工程で、道具が無い |
@@ -293,7 +305,7 @@ Tools/build-everything.sh
 **人間が要る**（Xcode の操作）／**利用者がその Mac で Mdoro を使用中である**（アプリを起動しない・LAN に触れない）。
 **この4つに当たらない検査がローカルに残っていたら、それは置き場所の都合である。**
 
-**測った（2026-09-12・POL-225）**: `MdoroMacTests` は**ランナーで走る。当時48本・ジョブ全体で72〜81秒・署名は切って足りる**（**2026-09-14 に4本足したので52本になったが、その本数での実測はまだ無い** —— Actions の分が尽きたため。POL-239 / POL-237）
+**測った（2026-09-12・POL-225）**: `MdoroMacTests` は**ランナーで走る。当時48本・ジョブ全体で72〜81秒・署名は切って足りる**（**2026-09-14 に4本足したので52本になった。**⚠ **2026-09-15、利用者の Mac で `Tools/build-everything.sh` が走らせたところ 58本だった** ——**ランナーでの実測ではない**（Actions の分は10月1日まで尽きている。POL-239 / POL-237）**が、本数は同じソースから出る**）
 （`CODE_SIGNING_ALLOWED=NO`。Keychain も通知も注入した継ぎ目を通るため）。
 **アプリはホストとして起動する。**本物の署名を要するテストがあれば、**それは「この検査はこの Mac のものだ」と言っている。**
 

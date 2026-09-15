@@ -50,15 +50,23 @@ Pomodoro_Timer/                        # プロジェクトルート
 プロジェクトルート: このリポジトリのルート
 Xcode プロジェクト: `./PomodoroMac/PomodoroMac.xcodeproj`
 
-### 全部がコンパイルできるかだけを見る
+### 全部が建ち、走らせられるテストが通るかを見る
 
 ```bash
 Tools/build-everything.sh
 ```
 
 `MdoroCore`（テスト込み）・`MdoroMac` と `MdoroMacTests`・`MdoroiOS` と `MdoroiOSTests` と
-`MdoroWidget` を建てる。**テストは走らせないので、アプリは起動しない。**
+`MdoroWidget` を建てる。**そのうえで、この Mac だけで走らせられる2つを走らせる** ——
+`MdoroCore` のスイートと `MdoroMacTests` である（シミュレータも実機も LAN も要らない）。
+**iOS 側は建てるだけ** —— 走らせるにはシミュレータが要る（POL-249）。
+
+⚠ **`MdoroMacTests` を走らせると `MdoroMac.app` が起動する**（テストホストである）。
+**その Mac で Mdoro を使用中なら走らせない。**
+
 **1段が落ちても残りは走る**ので、1回で全部の誤りが出る。
+**コンパイルできなかったのか・テストが落ちたのか・1本も走らなかったのかは、出力で区別される。**
+**所要時間は台本自身が測って出す。**
 
 **クラウドのセッションは Swift を1行もコンパイルできない。** そして **CI が建てるのは
 `MdoroCore` と `MdoroMac` の側だけで、iPhone 側の19ファイルはどのランナーでも建たない**（POL-249）。
