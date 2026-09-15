@@ -233,11 +233,29 @@ def check_decisions() -> None:
         state = re.search(r"^- \*\*状態\*\*: *(\S+)", head, re.M)
         if record.name != "README.md" and not state:
             note("decision", f"{record.name} has no 状態 in its front matter")
-        # a record marked as replaced must name a record that exists
+        # A record marked as replaced must name a record that exists -- and, when it writes the
+        # number as a link, the link must lead to the record the number names. What rests on the
+        # two agreeing is docs/decisions/README.md: `superseded` and `一部置換` are written for a
+        # reader who follows the link, so "replaced by 0009" pointing at 0099-*.md sends them to
+        # a record nobody named. Checking the number alone passed that, and nothing else looks --
+        # check_links only asks whether the target is a file. The two are separate questions, so
+        # this asks its own and leaves that one alone.
         for key in ("一部置換", "置換先"):
-            for m in re.finditer(rf"\*\*{key}\*\*: *\[?(\d{{4}})", head):
-                if int(m.group(1)) not in numbers:
-                    note("decision", f"{record.name} names {key} {m.group(1)}, which does not exist")
+            for m in re.finditer(rf"\*\*{key}\*\*: *(\[?)(\d{{4}})", head):
+                number = m.group(2)
+                if int(number) not in numbers:
+                    note("decision", f"{record.name} names {key} {number}, which does not exist")
+                # README allows the bare number -- `一部置換: NNNN（覆された範囲）` -- so only a
+                # number written *as* a link is asked where it leads, and only the link opening
+                # on that number counts: a link further along the line belongs to the prose.
+                if not m.group(1):
+                    continue
+                link = re.match(r"[^\]\n]*\]\(([^)\n]*)\)", head[m.end():])
+                if link and Path(link.group(1)).name[:4] != number:
+                    note(
+                        "decision",
+                        f"{record.name} names {key} {number} but links to {link.group(1)}",
+                    )
 
 
 # --- spec self-consistency ---------------------------------------------------
@@ -490,10 +508,45 @@ CASES = (
         "docs/decisions/0001-a.md": SOUND_DECISION.replace(
             "- **状態**: accepted", "- **状態**: superseded\n- **置換先**: [0009](0009-gone.md)"),
     }, True),
+    # The same question of the unlinked form, which now travels a branch of its own. Writing the
+    # pattern as `\[(\d{4})\]\(...\)` -- the shape a number-against-link comparison invites -- reads
+    # only linked numbers, and a bare one stops being checked for existence at all. Every other
+    # case naming a number that is not there writes it as a link.
+    (check_decisions, "a bare number naming a replacement that does not exist", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted", "- **状態**: superseded\n- **置換先**: 0009"),
+    }, True),
     (check_decisions, "a record naming a replacement that does exist", {
         "docs/decisions/0001-a.md": SOUND_DECISION.replace(
             "- **状態**: accepted", "- **状態**: accepted\n- **一部置換**: [0002](0002-b.md)"),
         "docs/decisions/0002-b.md": SOUND_DECISION.replace("0001", "0002"),
+    }, False),
+    # Both records exist and the numbering has no gap, so the number-and-link disagreement is
+    # the only thing left for the check to fire on. Point the link at a record that is *not*
+    # there instead and the existing "does not exist" arm answers, and this case goes green
+    # over a judgement that was never made.
+    (check_decisions, "a replacement whose link leads somewhere other than the number it names", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted", "- **状態**: accepted\n- **一部置換**: [0002](0003-c.md)"),
+        "docs/decisions/0002-b.md": SOUND_DECISION.replace("0001", "0002"),
+        "docs/decisions/0003-c.md": SOUND_DECISION.replace("0001", "0003"),
+    }, True),
+    # docs/decisions/README.md writes the form as `一部置換: NNNN（覆された範囲）`, with no link at
+    # all. A check that required one would contradict the document it is checking for.
+    (check_decisions, "a replacement named by its number alone, as README allows", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted", "- **状態**: accepted\n- **一部置換**: 0002（覆された範囲）"),
+        "docs/decisions/0002-b.md": SOUND_DECISION.replace("0001", "0002"),
+    }, False),
+    # And the bare number keeps its prose, which may itself link. The link that answers for the
+    # number is the one that opens on it; reaching along the line for any `](...)` reads this
+    # row's README link as the record 0002 supposedly points at, and reports a sound record.
+    (check_decisions, "a bare number whose prose carries a link of its own", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted",
+            "- **状態**: accepted\n- **一部置換**: 0002（[README](README.md) の範囲）"),
+        "docs/decisions/0002-b.md": SOUND_DECISION.replace("0001", "0002"),
+        "docs/decisions/README.md": "the index over the records\n",
     }, False),
     (check_decisions, "a sound record, beside a README that needs no 状態", {
         "docs/decisions/0001-a.md": SOUND_DECISION,
