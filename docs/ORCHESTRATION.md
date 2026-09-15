@@ -211,7 +211,7 @@ python3 Tools/run-in-a-worktree.py -- <役を起動するコマンド>
 - [ ] CI（`swift test`・文書の機械的な検査・`Tools/run-in-a-worktree.py` が**起動し、検出も落ちないこと**）
 - [ ] **PUNCHLIST の行を更新**（状態・由来・ブランチ名）
 
-### Swift を触ったら、利用者の Mac で1回建てる
+### Swift を触ったら、利用者の Mac で1回通す
 
 **裁定（2026-09-14・人間）: 恒久の工程とする**（POL-243）。
 
@@ -225,11 +225,23 @@ Tools/build-everything.sh
 ```
 
 **建てるのは3つ** —— `MdoroCore`（テスト込み）／`MdoroMac` と `MdoroMacTests`／
-`MdoroiOS` と `MdoroiOSTests` と `MdoroWidget`。**テストは走らせない。**
-（走らせると `MdoroMac.app` が起動する。テストのコマンドは `docs/DEVELOPMENT.md`。）
+`MdoroiOS` と `MdoroiOSTests` と `MdoroWidget`。
+
+**そのうち2つは走らせる**（2026-09-15 から） —— `MdoroCore` のスイートと `MdoroMacTests` である。
+**どちらもこの Mac の上だけで走る** —— シミュレータも実機も LAN もランナーも要らない。
+**建てるだけの台本は、走らせられるものを走らせていなかった**（POL-263。裁定は 2026-09-15・人間）。
+**iOS 側は建てるだけである** —— 走らせるにはシミュレータが要る（POL-249。別の票）。
+
+⚠ **`MdoroMacTests` は `MdoroMac.app` をテストホストとして起動する。**
+**その Mac で Mdoro を使用中なら走らせない**（`docs/DEVELOPMENT.md`）。
 
 **`build` ではなく `build-for-testing` である。** 今回落ちたのはテストのファイルなので、
 **`build` では素通りしていた。**
+
+**コンパイルできなかったのか、テストが落ちたのか、1本も走らなかったのかを、台本が区別して出す。**
+**`xcodebuild` は1本も走らなくても `** TEST SUCCEEDED **` と出す**ので（POL-240）、
+**CI と同じく結果バンドルから本数を読み、0本なら赤で終わる。**
+**所要時間は台本自身が測って出す** —— 推測で語らないためである。
 
 ⚠ **CI があっても、この工程は要る。** CI が建てるのは `MdoroCore` と `MdoroMac` の側だけで、
 **`MdoroiOS` / `MdoroiOSTests` / `MdoroWidget` の19ファイルは、どのランナーも一度も建てない**
