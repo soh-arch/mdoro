@@ -1,5 +1,11 @@
 import Testing
 import Foundation
+// **No `NW` type is spelled out in this file, and it still needs this.** `discoveredMac()` builds a
+// `DiscoveredServer` whose `endpoint` is an `NWEndpoint`, and `.service(name:type:domain:interface:)`
+// is that enum's case — reached by leading dot, so the type's name never appears here. Searching
+// this file for `NW` finds nothing and says nothing; the import is load-bearing anyway, and
+// `@testable import MdoroiOS` does not re-export it.
+import Network
 import MdoroCore
 @testable import MdoroiOS
 
