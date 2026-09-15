@@ -23,7 +23,7 @@ DerivedData/
 # Package.resolved is committed: it is what pins the dependency versions.
 
 # ---- Development environment (holds absolute paths from this machine) ----
-# Regenerate: xcode-build-server config -project PomodoroMac/PomodoroMac.xcodeproj -scheme PomodoroMac
+# Regenerate: xcode-build-server config -project PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroMac
 buildServer.json
 .sourcekit-lsp/
 
