@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """What build-everything.sh must still decide when nobody is watching.
 
-Two of that script's three stages now run what they build, and with the running
-came nine judgments: three compile failures, a failing suite, a suite that never
-ran, a result bundle that cannot be read, a count under another name, a count
-that is not a number, and a missing tool. Every one of them fails the same way
-when it is wrong -- green, with nothing having run -- which is the one outcome
-the script exists to make impossible.
+Two of that script's three stages now run what they build, and both of them read
+a number back afterwards to find out whether anything really ran. Every judgment
+around those two numbers fails the same way when it is wrong -- green, with
+nothing having run -- which is the one outcome the script exists to make
+impossible.
 
 What these cases hold:
 
@@ -20,6 +19,10 @@ What these cases hold:
   - a count that is renamed, or is a bool, or is NaN, is red -- and a renamed one
     is printed under the name the bundle itself used
   - a count of 58.0 is 58, not a failure
+  - on the MdoroCore side, a `swift test list` with no test in it is red, and so
+    is a listing that will not come back at all; both print what did come back
+  - the build's own noise is not counted as tests, and the count is called
+    "listed" rather than "ran", because that is the fact it is
   - a missing swift, xcodebuild, xcrun or python3 stops everything at exit 2 and
     is not reported in the same words as broken code
   - a python3 that is present and will not run is not reported as a compile
@@ -28,12 +31,18 @@ What these cases hold:
     installs onto whatever iPhone is plugged in (CLAUDE.md)
 
 What they cannot hold: nothing is compiled here and no test is run. swift,
-xcodebuild and xcrun are stubs on PATH, and every result bundle is text this
-file wrote. Whether the real arguments are right, whether test-without-building
-finds what build-for-testing left in the same -derivedDataPath, and whether
-xcresulttool still calls the field totalTestCount are answerable only on a Mac
-with Xcode; the owner's run of 2026-09-15 answered all three once, and this file
-cannot answer them again. It covers the reading and the reporting, and says so.
+xcodebuild and xcrun are stubs on PATH, every result bundle is text this file
+wrote, and so is every listing. Whether the real arguments are right, whether
+test-without-building finds what build-for-testing left in the same
+-derivedDataPath, whether xcresulttool still calls the field totalTestCount, and
+what `swift test list` actually prints are answerable only on a Mac with Xcode;
+the owner's runs of 2026-09-15 answered all four once, and this file cannot
+answer them again. It covers the reading and the reporting, and says so.
+
+Nor can it hold what the script itself does not: a test that `swift test list`
+prints and nothing ever runs -- disabled, or skipped at run time -- is counted
+here exactly as the script counts it, because listing and running are different
+questions and only the first is being asked.
 
 The script's derived-data path is fixed at /tmp/mdoro-build-everything, so these
 cases write there. They remove the two files they cause, and the directory
@@ -59,7 +68,7 @@ DERIVED = Path("/tmp/mdoro-build-everything")
 # wants it absent: there is no way to hide a real /usr/bin/python3 from `command -v` by adding
 # to PATH, only by not having a PATH that reaches it. Everything the script and the stubs
 # genuinely need is linked in beside them.
-BORROWED = ("dirname", "date", "sed", "head", "rm", "mkdir", "cat")
+BORROWED = ("dirname", "date", "sed", "head", "rm", "mkdir", "cat", "grep")
 
 A_PASSING_SUMMARY = {"title": "MdoroMac", "totalTestCount": 58, "passedTests": 58}
 A_FAILING_SUMMARY = {
@@ -80,9 +89,34 @@ def a_stub(body: str) -> str:
     return f"#!{shutil.which('bash')}\n" + body
 
 
+# What the owner's Mac printed on 2026-09-15: the build's own noise first, then one line per
+# test as Module.Suite/name(). The script has to find the second inside the first.
+A_LISTING = """[1/1] Planning build
+Building for debugging...
+Build complete! (0.42s)
+MdoroCoreTests.ARefusalIsNotAReasonToDialAgainTests/anErrorThatIsNotARefusalStillReachesTheBanner()
+MdoroCoreTests.TheClockIsAbsoluteTests/aRemainderComesFromSessionEndAt()
+MdoroCoreTests.TheClockIsAbsoluteTests/aMonotonicReadSurvivesASleep()
+"""
+
+# The same run with every test taken out of the suite: the target is still in Package.swift, so
+# the build succeeds and `swift test` exits zero, and only this tells anyone the difference.
+JUST_THE_BUILD_NOISE = """[1/1] Planning build
+Building for debugging...
+Build complete! (0.42s)
+"""
+
+# `$1 $2` rather than `$1`, because `swift test` and `swift test list` are two different
+# questions and the stub has to be able to answer them differently.
 SWIFT_STUB = a_stub(
     """
 printf '%s\\n' "swift $*" >> "$STUB_LOG"
+case "$1 ${2:-}" in
+    'test list')
+        printf '%s' "${STUB_SWIFT_LIST:-}"
+        exit "${STUB_SWIFT_LIST_STATUS:-0}"
+        ;;
+esac
 case "$1" in
     build) exit "${STUB_SWIFT_BUILD:-0}" ;;
     test) exit "${STUB_SWIFT_TEST:-0}" ;;
@@ -182,7 +216,12 @@ class WithStubbedTools(unittest.TestCase):
         if not self.derived_was_already_there:
             shutil.rmtree(DERIVED, ignore_errors=True)
 
-    def run_script(self, summary: object = A_PASSING_SUMMARY, **knobs: str):
+    def run_script(
+        self,
+        summary: object = A_PASSING_SUMMARY,
+        listing: str | None = A_LISTING,
+        **knobs: str,
+    ):
         environment = {
             "PATH": str(self.bin),
             "STUB_LOG": str(self.log),
@@ -190,6 +229,8 @@ class WithStubbedTools(unittest.TestCase):
         }
         if summary is not None:
             environment["STUB_SUMMARY"] = json.dumps(summary)
+        if listing is not None:
+            environment["STUB_SWIFT_LIST"] = listing
         environment.update(knobs)
         return subprocess.run(
             [shutil.which("bash"), str(self.script)],
@@ -222,6 +263,35 @@ class WhenEverythingIsWell(WithStubbedTools):
         done = self.run_script(summary={"totalTestCount": 58.0})
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertIn("58 ran, all passed", done.stdout)
+
+    def test_the_core_stage_says_how_many_it_listed(self) -> None:
+        done = self.run_script()
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("MdoroCoreTests: 3 listed, and swift test passed", done.stdout)
+
+    def test_the_word_for_the_core_count_is_not_the_word_for_the_mac_count(self) -> None:
+        # One number comes from a result bundle and counts tests that ran; the other comes from
+        # a listing and counts tests that exist. Two facts, two words.
+        done = self.run_script()
+        self.assertIn("MdoroCoreTests: 3 listed", done.stdout)
+        self.assertIn("MdoroMacTests: 58 ran", done.stdout)
+        self.assertNotIn("MdoroCoreTests: 3 ran", done.stdout)
+
+    def test_the_build_noise_is_not_counted_as_tests(self) -> None:
+        # Planning build has a slash in it, Build complete! ends in a bracket, and a warning can
+        # carry both. What tells them from a test line is that every one of them has whitespace.
+        done = self.run_script(
+            listing=(
+                "[1/1] Planning build\n"
+                "Building for debugging...\n"
+                "warning: something was deprecated (use the other one)\n"
+                "Build complete! (0.42s)\n"
+                "MdoroCoreTests.OneSuite/oneTest()\n"
+                "MdoroCoreTests.OneSuite/anotherTest()\n"
+            )
+        )
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("MdoroCoreTests: 2 listed, and swift test passed", done.stdout)
 
     def test_no_xcodebuild_call_omits_a_destination(self) -> None:
         self.run_script()
@@ -278,6 +348,14 @@ class WhenTestsFail(WithStubbedTools):
         self.assertIn("expected the banner to carry the reason", done.stdout)
         self.assertIn("these compiled, and tests failed: MdoroMacTests", done.stdout)
 
+    def test_a_failing_core_suite_is_not_asked_how_many_it_listed(self) -> None:
+        # A suite that failed has already proven that a test ran, which is the whole of what the
+        # count is for; asking again would only add a second way for this stage to go wrong.
+        done = self.run_script(STUB_SWIFT_TEST="1")
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertNotIn("swift test list", self.what_was_called())
+        self.assertNotIn("nothing proves a test ran here:", done.stdout)
+
     def test_both_suites_can_fail_in_one_run(self) -> None:
         done = self.run_script(summary=A_FAILING_SUMMARY, STUB_SWIFT_TEST="1", STUB_MAC_TEST="65")
         self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
@@ -293,6 +371,43 @@ class WhenNothingRan(WithStubbedTools):
         self.assertIn("no test ran at all", done.stdout)
         self.assertIn("nothing proves a test ran here: MdoroMacTests", done.stdout)
         self.assertNotIn("all passed", done.stdout)
+
+    def test_a_suite_emptied_out_from_the_inside_is_red(self) -> None:
+        # The hole this stage was green through: the test target stays in Package.swift, the
+        # tests inside it are gone, the build compiles and `swift test` exits zero.
+        done = self.run_script(listing=JUST_THE_BUILD_NOISE)
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertIn("no test was listed at all", done.stdout)
+        self.assertIn("nothing proves a test ran here: MdoroCoreTests", done.stdout)
+        self.assertNotIn("listed, and swift test passed", done.stdout)
+        # And what came back is shown, not just judged.
+        self.assertIn("--- what the listing said ---", done.stdout)
+        self.assertIn("Build complete!", done.stdout)
+
+    def test_a_listing_that_will_not_come_back_is_red(self) -> None:
+        # Failing open here would be the same green with an extra step in front of it.
+        done = self.run_script(
+            listing="error: no test target named MdoroCoreTests",
+            STUB_SWIFT_LIST_STATUS="1",
+        )
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertIn("swift test list exited 1", done.stdout)
+        self.assertIn("nothing proves a test ran here: MdoroCoreTests", done.stdout)
+        self.assertIn("--- what the listing said ---", done.stdout)
+        self.assertIn("no test target named MdoroCoreTests", done.stdout)
+
+    def test_a_listing_that_fails_with_nothing_to_say_still_shows_its_nothing(self) -> None:
+        # The heading is printed either way, so an empty read is told from an unread one.
+        done = self.run_script(listing="", STUB_SWIFT_LIST_STATUS="1")
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertIn("swift test list exited 1", done.stdout)
+        self.assertIn("--- what the listing said ---", done.stdout)
+        self.assertIn("nothing proves a test ran here: MdoroCoreTests", done.stdout)
+
+    def test_both_stages_can_have_nothing_to_show_in_one_run(self) -> None:
+        done = self.run_script(listing=JUST_THE_BUILD_NOISE, summary={"totalTestCount": 0})
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertIn("nothing proves a test ran here: MdoroCoreTests MdoroMacTests", done.stdout)
 
     def test_an_unreadable_bundle_shows_both_halves_of_what_happened(self) -> None:
         done = self.run_script(
