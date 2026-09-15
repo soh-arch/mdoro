@@ -129,9 +129,28 @@ final class MdoroClient {
         // REQ-ERR-009: every connection counts its own broken messages from zero.
         brokenMessages.reset()
 
+        // REQ-COM-004: **the line being displaced is hung up on, and its ending is not listened
+        // to.** `openConnection` is reached from more than one place — the backoff, and the user
+        // asking for a Mac while a dial is already in flight (`ClientModel.forgetPairedMac`,
+        // "Choose a Mac") — and a line left here when the next one opens is under nobody's control.
+        // Left open it keeps its socket; listened to, its `.ended` would reach `scheduleReconnect`,
+        // which would clear the line that had taken its place and dial again on a backoff nothing
+        // had wound back.
+        //
+        // **The displaced line is keeping its own contract** — `.ended` exactly once, and last — so
+        // no guard inside it could tell this apart. The two lines are different objects, and only
+        // this end knows which one it is holding.
+        let displaced = self.link
         self.link = link
+        // The identity is held as a value, not as a reference: the closure is kept by the line, and
+        // a closure that held the line back would be a cycle neither could leave.
+        let held = ObjectIdentifier(link)
+        displaced?.cancel()
+
         link.start { [weak self] event in
             guard let self else { return }
+            // REQ-COM-004: an event from a line this client has already let go of is not acted on.
+            guard let current = self.link, ObjectIdentifier(current) == held else { return }
             switch event {
             case .ready: self.sendHello()
             case let .message(data): self.handle(data)
