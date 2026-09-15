@@ -369,11 +369,20 @@ struct FailuresThatReachSomeoneTests {
     // REQ-ERR-017's sentence for, and the focus view is a `fullScreenCover` that covers the very
     // overlay `MainScreen` answers REQ-ERR-016 with.
     //
+    // **And look at the call, not only the declaration.** Reading whole files let a member be
+    // written out in full and never used: `refusalNotice(` declared on the focus view and left
+    // out of the layout, `stateNotices` declared and cut from the menu. Every property above is
+    // still written down in that case, so every clause still read as kept, while nothing put a
+    // sentence on the screen. The second table below asks for the call.
+    //
     // **What this keeps**: the named file reads the named property, so the value has a route to
-    // that screen, and moving or renaming the file fails rather than passing on an empty folder.
-    // **What it cannot keep**: that the route is ever taken (text inside a branch that never runs
-    // still counts), that the wording is right, that the notice is laid out where it can be seen,
-    // or — on the focus view — that it goes away again. Those want a running app.
+    // that screen; the member that carries the notice is called rather than only declared; and
+    // moving or renaming the file fails rather than passing on an empty folder.
+    // **What it cannot keep**: that the call is reached from `body` rather than from some other
+    // member nothing calls, that the branch inside it ever runs (a notice wrapped in `if false`
+    // still counts), that the state it reads is ever assigned, that the timer which takes it
+    // away again is still there, that the wording is right, or that the notice is laid out where
+    // it can be seen. Those want a running app.
     @Test func everyScreenTheFailureMustReachActuallyReadsIt() throws {
         // REQ-ERR-017 / Decision 0037: the window's band **and** the menu. The set-aside path
         // (Decision 0036) and the dismissal are asked of the window alone, on purpose: the menu
@@ -410,6 +419,46 @@ struct FailuresThatReachSomeoneTests {
                     #expect(
                         text.contains(reader),
                         "\(clause): \(name) does not read `\(reader)` — the failure never reaches that screen"
+                    )
+                }
+            }
+        }
+
+        // REQ-ERR-016 / REQ-ERR-017: the member that carries the notice has to be called.
+        // A declaration is the one place a name can sit with nothing using it, so it is blanked
+        // out and the name has to survive the blanking. A type's name written with `(` is a call
+        // already — `struct StateRestoreBanner: View` cannot match `StateRestoreBanner(`.
+        // body → `content` → `StateRestoreBanner` → the dismissal, and body → `statusBar` →
+        // the failed save. Each link is asked for; the chain is not walked.
+        let macMembers = [
+            "MainWindowView.swift": ["content", "statusBar", "StateRestoreBanner("],
+            "MenuBarViews.swift": ["stateNotices"],
+        ]
+        // `MainScreen` builds its notice in `body` itself, so `RefusalNotice(` above is already
+        // the call. The focus view holds both halves in members of its own: the one that draws
+        // the band, and the one `.onChange` hands the refusal to.
+        let iosMembers = [
+            "FocusView.swift": ["refusalNotice(", "showRefusal("],
+        ]
+
+        let calls = [
+            ("REQ-ERR-017", "PomodoroMac/PomodoroMac/Views", macMembers),
+            ("REQ-ERR-016", "PomodoroMac/PomodoroiOS/Views", iosMembers),
+        ]
+        for (clause, folder, screens) in calls {
+            let views = try swiftFiles(under: folder)
+            for (name, members) in screens.sorted(by: { $0.key < $1.key }) {
+                let text = try #require(
+                    views[name],
+                    "\(clause): \(folder)/\(name) is gone — the screen it answered for now has nothing"
+                )
+                for member in members {
+                    let withoutDeclaration = text
+                        .replacingOccurrences(of: "var \(member)", with: "var <declared>")
+                        .replacingOccurrences(of: "func \(member)", with: "func <declared>")
+                    #expect(
+                        withoutDeclaration.contains(member),
+                        "\(clause): \(name) declares `\(member)` and never calls it — the notice is written but not shown"
                     )
                 }
             }
