@@ -321,11 +321,26 @@ class WhenNothingRan(WithStubbedTools):
         self.assertIn("nothing proves a test ran here: MdoroMacTests", done.stdout)
 
     def test_a_count_that_is_not_a_number_at_all(self) -> None:
-        for count in ("NaN", "Infinity", '"58"', "null"):
+        # Each of these has to say what it saw, not only that it saw nothing countable: the red
+        # is the same red every time, and the field as the bundle wrote it is the only thing
+        # that tells one of these apart from the next. NaN and infinity survive json.load and
+        # then survive neither comparison nor int(), which is why they are here beside a count
+        # that is a string and a count that is absent.
+        for count, diagnosis in (
+            ("NaN", "totalTestCount: nan"),
+            ("Infinity", "totalTestCount: inf"),
+            ('"58"', "totalTestCount: 58"),
+            ("null", "title: MdoroMac"),
+        ):
             with self.subTest(count=count):
-                done = self.run_script(summary=None, STUB_SUMMARY='{"totalTestCount": %s}' % count)
+                done = self.run_script(
+                    summary=None,
+                    STUB_SUMMARY='{"totalTestCount": %s, "title": "MdoroMac"}' % count,
+                )
                 self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
                 self.assertIn("nothing proves a test ran here: MdoroMacTests", done.stdout)
+                self.assertIn("no numeric totalTestCount", done.stdout)
+                self.assertIn(diagnosis, done.stdout)
 
     def test_a_summary_that_is_not_an_object(self) -> None:
         done = self.run_script(summary=None, STUB_SUMMARY="[58]")
