@@ -127,7 +127,14 @@ def check_requirement_ids() -> None:
         if f == PUNCH:
             continue
         text = read(f)
-        for m in re.finditer(r"REQ-[A-Z]{3}-\d{3}", text):
+        # `\d+`, not `\d{3}`. A typo in the digits -- `REQ-ABC-0011` -- used to be read as the
+        # first three of them, resolve to the id that really exists, and pass as a sound
+        # citation: the check was blind to exactly the mistake it is here to catch (found by the
+        # reviewer, 2026-09-15). Read whole, the typo is an id SPEC does not define, and says so.
+        #
+        # SPEC's own rows are still matched by `\d{3}` above, so a malformed row there defines
+        # nothing and every citation of it is reported -- which is the safe direction.
+        for m in re.finditer(r"REQ-[A-Z]{3}-\d+", text):
             if m.group(0) not in defined:
                 line = text[: m.start()].count("\n") + 1
                 note("req", f"{f.relative_to(ROOT)}:{line} cites {m.group(0)}, which SPEC does not define")
@@ -354,6 +361,22 @@ CASES = (
         "docs/b.md": "b\n",
         "CLAUDE.md": "c\n",
     }, False),
+    # Two links on one line, which is where the two lazy pieces of the pattern earn their keep.
+    # Let `[^\]]*` become `.*` and the pair fuses into one match that keeps only the last
+    # target: a dead link beside a live one then goes unreported. Let `[^)]+` become `(.+)` and
+    # the fusion runs the other way, swallowing the text between, so two sound links read as one
+    # nonsense path. Neither shows up when a line holds a single link (found by the reviewer,
+    # 2026-09-15 -- the sound case above missed both, because the fused target happened to keep
+    # a `#` and split back into a file that exists).
+    (check_links, "a dead link sharing a line with a live one", {
+        "docs/a.md": "[gone](nowhere.md) and [b](b.md)\n",
+        "docs/b.md": "b\n",
+    }, True),
+    (check_links, "two live links on one line are two links, not one", {
+        "docs/a.md": "[b](b.md) and [c](c.md)\n",
+        "docs/b.md": "b\n",
+        "docs/c.md": "c\n",
+    }, False),
     (check_links, "an absolute url is nobody's file", {
         "docs/a.md": "[x](https://example.invalid/none) [m](mailto:nobody@example.invalid)\n",
     }, False),
@@ -377,6 +400,24 @@ CASES = (
     (check_inline_paths, "a path outside the repository's own directories", {
         "docs/a.md": "see `notes/gone.md`\n",
     }, False),
+    # One case per entry in REPO_DIRS, because a case naming several of them survives the
+    # deletion of any one: the others keep it complaining. Five of the six were covered by
+    # nothing at all (found by the reviewer, 2026-09-15).
+    (check_inline_paths, "a missing file under Tools/", {
+        "docs/a.md": "see `Tools/gone.py`\n",
+    }, True),
+    (check_inline_paths, "a missing file under .claude/", {
+        "docs/a.md": "see `.claude/gone.md`\n",
+    }, True),
+    (check_inline_paths, "a missing file under Packages/", {
+        "docs/a.md": "see `Packages/gone.swift`\n",
+    }, True),
+    (check_inline_paths, "a missing file under PomodoroMac/", {
+        "docs/a.md": "see `PomodoroMac/gone.plist`\n",
+    }, True),
+    (check_inline_paths, "a missing file under Config/", {
+        "docs/a.md": "see `Config/gone.xcconfig`\n",
+    }, True),
     (check_inline_paths, "a placeholder and a glob name no one file", {
         "docs/a.md": "see `docs/<name>.md` and `docs/*.md`\n",
     }, False),
@@ -398,6 +439,10 @@ CASES = (
         "docs/SPEC.md": SOUND_SPEC,
         "docs/PUNCHLIST.md": "| **POL-001** | a comment cites REQ-ABC-002 | open |\n",
     }, False),
+    (check_requirement_ids, "a typo in the digits of an id that does exist", {
+        "docs/SPEC.md": SOUND_SPEC,
+        "docs/a.md": "this rests on REQ-ABC-0011\n",
+    }, True),
     (check_requirement_ids, "a SPEC with no requirement rows at all", {
         "docs/SPEC.md": "**バージョン:** 2.1\n",
     }, True),
@@ -430,6 +475,13 @@ CASES = (
     (check_decisions, "a gap in the numbering", {
         "docs/decisions/0001-a.md": SOUND_DECISION,
         "docs/decisions/0003-c.md": SOUND_DECISION.replace("0001", "0003"),
+    }, True),
+    # The numbering starts at 0001, and a set that starts higher is the only thing that says so:
+    # every other fixture here contains 0001, so the lower bound of the range could be anything
+    # (found by the reviewer, 2026-09-15). The upper bound needs no case -- max(numbers) is in
+    # the set by definition, so moving it produces a check that behaves identically.
+    (check_decisions, "a numbering that never starts", {
+        "docs/decisions/0002-b.md": SOUND_DECISION.replace("0001", "0002"),
     }, True),
     (check_decisions, "a record with no 状態 in its front matter", {
         "docs/decisions/0001-a.md": "# 0001. a decision\n\n## 文脈\n\nwhy.\n",
@@ -471,9 +523,13 @@ CASES = (
 # reviewer found -- dropping `review`, reading the wrong cell, letting a placeholder through --
 # fails at least one of them.
 #
-# The escaped pipe in the last row is pinned, not proved: splitting on a bare `|` cannot
-# actually produce a clean `doing` cell, because the backslash always stays attached to
-# one side. CELL is there so the next reader does not have to work that out.
+# The escaped pipe is what CELL exists for, and the two rows that carry one ask different
+# things. POL-013 pins the shape it was written for and cannot fail: splitting on a bare `|`
+# leaves the backslash attached to one side, so no fragment ever equals `doing`, and a broken
+# CELL behaves the same. POL-014 does fail. The escape sits in the cell that is *read* rather
+# than in one that is merely counted past, so splitting on a bare `|` cuts `` `a\|fix/b` `` down
+# to `` `a\ `` -- no slash left in it, and the row is reported for naming no branch. Until that
+# row existed, CELL was pinned and not proved (found by the reviewer, 2026-09-15).
 SELF_TEST = (
     ("| **POL-001** | a | b | c | agent | minor | doing | — |", True),
     ("| **POL-002** | a | b | c | agent | minor | doing |  |", True),
@@ -488,10 +544,41 @@ SELF_TEST = (
     ("| **POL-011** | a | b | c | agent | minor | 決定済み | — |", False),
     ("| **POL-012** | a | b | c | agent | minor | done | — |", False),
     ("| **POL-013** | `grep -o \\| wc -l` | b | c | agent | minor | doing | — |", True),
+    ("| **POL-014** | a | b | c | agent | minor | doing | `a\\|fix/b` |", False),
+)
+
+
+# What --self-test asks of the case table itself, rather than of any one check. Deleting a
+# check's cases is as quiet as deleting the check was before CHECKS existed, so these are the
+# claims that keep the table honest -- and, like CHECKS, they are named rather than merely
+# written, so that the ok line cannot go on claiming one that is gone.
+META = (
+    ("every check is in CHECKS", lambda cases: [
+        f"  {check.__name__} is not in CHECKS, so a real run never calls it"
+        for check in {c for c, _, _, _ in cases} - {c for _, c in CHECKS}
+    ]),
+    ("every check has a case it must catch", lambda cases: [
+        f"  {name} has no case it must catch"
+        for name, check in CHECKS if check not in {c for c, _, _, m in cases if m}
+    ]),
+    ("every check has a sound case it must let through", lambda cases: [
+        f"  {name} has no sound case it must let through"
+        for name, check in CHECKS if check not in {c for c, _, _, m in cases if not m}
+    ]),
 )
 
 
 def self_test() -> int:
+    """Ask every check whether it still works, and the case table whether it still asks.
+
+    ⚠ The regress does not close here, and is not meant to. A check needs a test; the test
+    needs something over it; that needs one too. Nothing guards the loops below. So the claim
+    this makes -- every check has a case it catches and a sound one it lets through -- is true
+    only while META and the loops are here. What is closed is the *quiet* failure: both lists
+    below are counted as they are walked, so deleting either an entry or the walk itself
+    changes what the ok line says. Somebody still has to read it (found by the reviewer,
+    2026-09-15).
+    """
     cases = [
         (check_in_progress_rows, row, {"docs/PUNCHLIST.md": row + "\n"}, must_complain)
         for row, must_complain in SELF_TEST
@@ -499,20 +586,14 @@ def self_test() -> int:
     cases += list(CASES)
     wrong: list[str] = []
 
-    # A check that is not in CHECKS never runs, however well it works on its own; a check in
-    # CHECKS with no case here is the hole this section exists to close.
-    listed = {check for _, check in CHECKS}
-    must_catch = {check for check, _, _, m in cases if m}
-    must_pass = {check for check, _, _, m in cases if not m}
-    for name, check in CHECKS:
-        if check not in must_catch:
-            wrong.append(f"  {name} has no case it must catch")
-        if check not in must_pass:
-            wrong.append(f"  {name} has no sound case it must let through")
-    for check in {c for c, _, _, _ in cases} - listed:
-        wrong.append(f"  {check.__name__} is not in CHECKS, so a real run never calls it")
+    asked = []
+    for name, ask in META:
+        wrong += ask(cases)
+        asked.append(name)
 
+    counts: Counter = Counter()
     for check, asking, files, must_complain in cases:
+        counts[check] += 1
         with a_repository(files):
             failures.clear()
             check()
@@ -525,8 +606,8 @@ def self_test() -> int:
         print(f"the checks themselves are wrong in {len(wrong)} place(s), over {len(cases)} cases:\n")
         print("\n".join(wrong))
         return 1
-    counts = Counter(check for check, _, _, _ in cases)
     print("ok — " + ", ".join(f"{name} ({counts[check]})" for name, check in CHECKS))
+    print("     of the table itself: " + (", ".join(asked) if asked else "nothing was asked"))
     return 0
 
 
