@@ -110,7 +110,8 @@ set -o pipefail && xcodebuild \
 
 ### iOS アプリ（シミュレータ）
 
-シミュレータ: iPhone 17 / UDID `78F6E5B6-EFAE-4892-B121-C3454DB871EC`
+シミュレータ: iPhone 17。**UDID は書かない** —— 下のコマンドは `name=iPhone 17` で選ぶので要らず、
+**UDID は機体ごとに違う**（`xcrun simctl list devices` が、その Mac のものを出す）。
 
 ```bash
 set -o pipefail && xcodebuild \

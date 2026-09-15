@@ -80,9 +80,12 @@ App Sandbox が意図的に支えている**ことを示す。
 $ stat -f "%d %N" /private/tmp /private/var/folders ~ /
 16777234 /private/tmp
 16777234 /private/var/folders
-16777234 /Users/sohta
+16777234 /Users/<you>
 16777234 /
 ```
+
+⚠ **実測の出力のうち、ホームのパスのユーザー名だけを `<you>` に置き換えている。**
+**device id は1桁も触っていない** —— この記録が主張しているのはその列だけである。
 
 **すべて同一 device id である。** APFS の firmlink により、`/private/tmp`・`/private/var/folders`・
 ユーザーのホームは**同じ Data ボリューム上の同じファイルシステム**にある。
