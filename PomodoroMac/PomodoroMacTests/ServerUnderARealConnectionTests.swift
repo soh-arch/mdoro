@@ -482,26 +482,34 @@ private final class Probe: @unchecked Sendable {
     // **The re-arm is bounded, and that is not tidiness.** A WebSocket the far end closed cleanly
     // leaves this connection `.ready` — no `.failed`, no `.cancelled` — and a read that completes
     // with nothing re-arms into a read that completes with nothing at once. That is the tight loop
-    // the client's own line was found able to spin in, and here it would arrive at the end of
+    // both ends' own lines were found able to spin in, and here it would arrive at the end of
     // every test, when the server is folded, and then go on spinning for the rest of the run. So
-    // this stops on an error, on the read that says the stream is over, and on a count no test
-    // comes near.
+    // this stops on the read that says the stream is over, and on a count no test comes near.
+    //
+    // **The ending is read by `LineRead`, the same function the server under test reads it with.**
+    // It did not used to be: this probe asked `isComplete, context?.isFinal == true, data?.isEmpty
+    // ?? true`, where `LineRead` asks for no frame on the read rather than for a context that says
+    // it is the last one. **Those are different properties** — a read arriving with no context at
+    // all satisfies the second and not the first, because `nil?.isFinal == true` is false — so the
+    // probe could go on reading past an ending the server had stopped at, or stop at one the server
+    // had read through, and either way a test would be watching a line the two ends disagreed
+    // about. **The count below is what keeps this bounded if that judgement is ever wrong**; it is
+    // not what decides the ending.
     private func receive() {
         guard claimRead() else { return }
         connection.receiveMessage { [weak self] data, context, isComplete, error in
             guard let self else { return }
-            if error != nil {
-                self.change { $0.ended = true }
-                return
-            }
-            if let data, !data.isEmpty,
-               let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition)
-                as? NWProtocolWebSocket.Metadata,
-               metadata.opcode == .text || metadata.opcode == .binary,
-               let envelope = try? MessageCoder.decodeServer(data) {
-                self.change { $0.messages.append(envelope.body) }
-            }
-            if isComplete, context?.isFinal == true, data?.isEmpty ?? true {
+            switch LineRead.of(
+                data: data, frame: context?.webSocketFrame, isComplete: isComplete,
+                failed: error != nil
+            ) {
+            case let .message(message):
+                if let envelope = try? MessageCoder.decodeServer(message) {
+                    self.change { $0.messages.append(envelope.body) }
+                }
+            case .skip:
+                break
+            case .end:
                 self.change { $0.ended = true }
                 return
             }
@@ -802,7 +810,7 @@ private func aValueThisVersionCannotRead() throws -> Data {
     ], options: [])
 }
 
-@Suite("MdoroServer over a line that carries bytes (REQ-COM-005 / REQ-SEC-003 / REQ-ERR-009)")
+@Suite("MdoroServer over a line that carries bytes (REQ-COM-004 / REQ-COM-005 / REQ-SEC-003 / REQ-ERR-009)")
 @MainActor
 struct ServerUnderARealConnectionTests {
 
@@ -964,6 +972,39 @@ struct ServerUnderARealConnectionTests {
         try await receipt(from: phone, called: "the authenticated connection's requestSnapshot")
         holds(phone.seen.snapshots == 2,
               "the authenticated connection asked for the state and was not sent it (\(phone.seen.snapshots) arrived in all), so the refusal checked just above was the message never being read rather than the gate holding.")
+    }
+
+    // REQ-COM-004: **a phone that hangs up is noticed from the read, not from the silence.**
+    //
+    // `Probe.cancel` closes this line the way the iPhone's own does (`WebSocketLink.cancel` on to
+    // `NWConnection.cancel`), and a WebSocket closed cleanly leaves the far end's connection
+    // `.ready` — no `.failed`, no `.cancelled` — so the state handler `MdoroServer.accept` installs
+    // is never told. **The read is the only place the ending arrives**, which is what `LineRead`
+    // is asked in `receive(on:counting:)`.
+    //
+    // **The bound is the whole of the claim.** `checkHeartbeat` reaches the same conclusion by
+    // itself after fifteen seconds of silence (REQ-COM-005), so a test that simply waited would
+    // pass against a read loop that heard nothing at all. `arrivalBudget` is ten, and the watch
+    // cannot fire before fifteen seconds after the `welcome` that set `lastHeartbeatAt` — so a
+    // hang-up seen inside the bound was seen by the read. What the fifteen seconds cost meanwhile
+    // is a Mac showing a phone that has gone, and a loop re-arming into a read that comes back
+    // empty at once, on the main actor, for every one of them.
+    @Test func aPhoneThatHangsUpIsNoticedFromTheReadRatherThanTheSilence() async throws {
+        let bench = try await raiseServer()
+        defer { bench.server.stop() }
+
+        let phone = try await authenticatedProbe(named: "Probe iPhone", on: bench)
+        defer { phone.cancel() }
+        holds(bench.server.connection != nil && bench.upstream.hangUps == 0,
+              "REQ-SEC-001: the probe authenticated and the Mac is not holding a connection (hangUps=\(bench.upstream.hangUps)), so whatever is hung up on below is not the connection this test is about")
+
+        phone.cancel()
+
+        let hungUp = await bench.upstream.waitsForHangUp(upTo: arrivalBudget)
+        holds(hungUp,
+              "REQ-COM-004: the iPhone closed the line and the Mac did not notice inside \(arrivalBudget). Nothing is coming on that connection ever again, and until REQ-COM-005's silence watch expires at fifteen seconds the Mac says a phone is connected that is gone — while the read loop re-arms through the ending it was told, which on a finished connection comes back at once and with nothing on it.")
+        holds(bench.server.connection == nil && bench.server.connectedDeviceName == nil,
+              "the Mac reported the connection gone but is still holding it (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil")) — the report and the hang-up have come apart, so what the iPhone sees and what the Mac believes no longer agree")
     }
 
     // REQ-ERR-009: **one broken message is thrown away; ten in a row mean the line is.** The Mac

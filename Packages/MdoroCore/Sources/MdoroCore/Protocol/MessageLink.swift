@@ -9,6 +9,10 @@ import Foundation
 //
 // **The vocabulary is `Data` and nothing else.** Framing, opcodes and endpoints belong to the
 // implementation; a substitute that had to speak them would be a second implementation.
+//
+// **`LineRead` alongside is not an exception to that.** It is how an implementation decides which
+// of these events one read amounts to — asked before anything reaches this protocol, by both ends,
+// and in `LineFrame`'s own names rather than Network.framework's.
 public enum MessageLinkEvent: Sendable {
     // The line is up. Messages may go out.
     case ready

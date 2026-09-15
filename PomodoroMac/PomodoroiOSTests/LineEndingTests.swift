@@ -1,116 +1,38 @@
 import Testing
 import Foundation
+// **No `NW` type is spelled out in this file, and it still needs this.** `discoveredMac()` builds a
+// `DiscoveredServer` whose `endpoint` is an `NWEndpoint`, and `.service(name:type:domain:interface:)`
+// is that enum's case — reached by leading dot, so the type's name never appears here. Searching
+// this file for `NW` finds nothing and says nothing; the import is load-bearing anyway, and
+// `@testable import MdoroiOS` does not re-export it.
 import Network
 import MdoroCore
 @testable import MdoroiOS
 
 // REQ-COM-004: **what this file keeps, and what it cannot.**
 //
-// **What it keeps**: the decision one read off the line carries (`LineRead.of` — every ending, and
-// every arrival that must not be mistaken for one), and which line's ending `MdoroClient` acts on.
-// Both are reached without a LAN, the first because the decision was lifted out of the read
-// callback and the second through `ClientLinkMaking`.
+// **What it keeps**: which line's ending `MdoroClient` acts on, reached without a LAN through
+// `ClientLinkMaking`.
+//
+// **What moved out**: the decision one read off the line carries. `LineRead.of` is shared with the
+// Mac now (REQ-PRT-001), and `MdoroCoreTests/LineReadTests` asks it there — where `swift test` runs
+// it on every pull request, which nothing in CI does for this suite (`docs/ORCHESTRATION.md` §8).
 //
 // **What it cannot keep**: anything inside `WebSocketLink` itself. `NWConnection` cannot be stood
-// in for — it dials the moment it is started — so nothing here executes the read loop, and three
-// things this branch changed are **not** covered by any test below:
+// in for — it dials the moment it is started — so nothing here executes the read loop, and four
+// things about it are **not** covered by any test below:
 //
 // - that `deliver(.ended)` cancels the connection rather than letting go of it,
 // - that `deinit` does the same for a line that never ended,
-// - that `receive()` stops re-arming once the line has ended (the loop this branch was written
-//   for is the one thing no assertion here can see turning).
+// - that `receive()` stops re-arming once the line has ended,
+// - that it also stops once the line has been hung up on but has not ended yet — the gap
+//   `cancel()` opens when it is called from inside a read (REQ-ERR-009's tenth broken message,
+//   `stopDialling` on a refusal), which is the one thing `hasEnded` cannot cover.
 //
-// `LineReadTests` says `.end` is the right answer; **that the loop then stops asking is between
-// `receive()` and the reader.** Closing that would mean putting a seam under `NWConnection`, which
-// is a larger change than the faults asked for. Until then it rests on reading the function.
-
-// REQ-COM-004: **every way a line can be over, and what the reading loop does about each.**
-//
-// The reconnect hangs off `.ended` and nothing else reaches it, so an ending the line never tells
-// is a phone that sits on a dead connection for as long as the app runs. `WebSocketLink` learns of
-// an ending by three roads and only one of them goes through `NWConnection`'s state handler; the
-// other two arrive as reads, which is what this suite asks about.
-@Suite("What one read off the line means (REQ-COM-004)")
-struct LineReadTests {
-
-    private let payload = Data(#"{"v":1,"type":"heartbeat"}"#.utf8)
-
-    // MARK: - What is carried up
-
-    @Test func aTextFrameIsAProtocolMessage() {
-        #expect(LineRead.of(data: payload, opcode: .text, isComplete: true, failed: false)
-                == .message(payload))
-    }
-
-    @Test func aBinaryFrameIsAProtocolMessage() {
-        #expect(LineRead.of(data: payload, opcode: .binary, isComplete: true, failed: false)
-                == .message(payload))
-    }
-
-    // **This is the one that says why `isComplete` cannot be read as an ending on its own.** On a
-    // message-oriented protocol it is true of every whole message, so a loop that ended the line
-    // whenever it saw it would hang up on the first thing the Mac ever said.
-    @Test func aCompletedReadCarryingAMessageIsNotAnEnding() {
-        #expect(LineRead.of(data: payload, opcode: .text, isComplete: true, failed: false)
-                != .end)
-    }
-
-    // MARK: - The endings
-
-    // The ending the state handler never tells. A peer that closes politely leaves the connection
-    // `.ready`: no `.failed`, no `.cancelled`, and nothing said anywhere except here.
-    @Test func aCloseFrameEndsTheLine() {
-        #expect(LineRead.of(data: nil, opcode: .close, isComplete: true, failed: false) == .end)
-    }
-
-    // A close frame may carry a status code and a reason as its payload. It is still an ending.
-    @Test func aCloseFrameWithAPayloadEndsTheLine() {
-        #expect(LineRead.of(data: Data([0x03, 0xE8]), opcode: .close, isComplete: true, failed: false)
-                == .end)
-    }
-
-    @Test func aReadThatFailedEndsTheLine() {
-        #expect(LineRead.of(data: nil, opcode: nil, isComplete: false, failed: true) == .end)
-    }
-
-    // The end of the line as the transport reports it when there was no close frame to hand over:
-    // the read completes, and nothing came with it.
-    @Test func aCompletedReadWithNothingOnItEndsTheLine() {
-        #expect(LineRead.of(data: nil, opcode: nil, isComplete: true, failed: false) == .end)
-        #expect(LineRead.of(data: Data(), opcode: nil, isComplete: true, failed: false) == .end)
-    }
-
-    // MARK: - What must not be read as an ending
-
-    // The transport answers pings by itself (`NWProtocolWebSocket.Options.autoReplyPing`). One
-    // reaching this far is proof the peer is on the other end, and nothing more.
-    @Test func aPingOrAPongIsNeitherAMessageNorAnEnding() {
-        #expect(LineRead.of(data: nil, opcode: .ping, isComplete: true, failed: false) == .skip)
-        #expect(LineRead.of(data: nil, opcode: .pong, isComplete: true, failed: false) == .skip)
-    }
-
-    // **A read carrying bytes is never an ending**, whatever the frame around it turned out to be.
-    // Handing nothing up costs one message; hanging up costs the connection.
-    @Test func aReadCarryingBytesIsNotAnEnding() {
-        #expect(LineRead.of(data: payload, opcode: nil, isComplete: true, failed: false) == .skip)
-    }
-
-    // An empty text frame is not a protocol message — `MessageCoder` has nothing to read — but the
-    // line is fine.
-    @Test func anEmptyTextFrameIsNeitherAMessageNorAnEnding() {
-        #expect(LineRead.of(data: Data(), opcode: .text, isComplete: true, failed: false) == .skip)
-    }
-
-    // **The one case that holds `isComplete` in the condition at all.** Every other read here is
-    // either complete or failed, so drop `isComplete` from the ending above and the rest of this
-    // suite goes on passing while a read that has not finished and has nothing yet becomes an
-    // ending. The mark is that the read is *over* and nothing came with it; a read that is not
-    // over has said nothing either way, and the line stands.
-    @Test func aReadThatHasNotCompletedIsNotAnEnding() {
-        #expect(LineRead.of(data: nil, opcode: nil, isComplete: false, failed: false) == .skip)
-        #expect(LineRead.of(data: Data(), opcode: nil, isComplete: false, failed: false) == .skip)
-    }
-}
+// **The loop turning is the one thing no assertion here can see.** `LineReadTests` says `.end` is
+// the right answer; that the loop then stops asking is between `receive()` and the transport.
+// Closing it would mean putting a seam under `NWConnection`, which is a larger change than the
+// faults these were found in. Until then it rests on reading the function.
 
 // A line that takes its cancel the way an `NWConnection` does: the cancel is *asked for* here, and
 // the ending comes back later. **A double that ended the instant it was told to would be the one
