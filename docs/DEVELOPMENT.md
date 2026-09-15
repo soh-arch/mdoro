@@ -20,7 +20,7 @@ Pomodoro_Timer/                        # プロジェクトルート
 │   └── decisions/                     # Decision Record
 ├── AGENTS.md                          # 外部の貢献者とそのエージェント向け（英語）
 ├── .claude/agents/                    # implementer / reviewer / spec-auditor / repo-auditor
-├── buildServer.json                   # xcode-build-server の設定（Cursor の補完用）
+├── buildServer.json                   # ⚠ git に入れていない。初回 clone には無い（下記）
 ├── Packages/MdoroCore/             # 共有コード。ここが主戦場
 │   ├── Package.swift
 │   ├── Sources/MdoroCore/
@@ -230,6 +230,8 @@ xcrun simctl list devices available
   リポジトリのフォルダ名だけは `Pomodoro_Timer` のままで、この文書のパスもそれに従う。
 - **アイコンの正本は SVG。** `swift Tools/make_icon.swift` が PNG を書き出す。
   描画は AppKit の SVG 対応に任せてあり、外部ツールは要らない。
+  ⚠ **その SVG 対応は私的 API である**（`_NSSVGImageRep`）。**将来の macOS で黙って壊れうる。**
+  壊れたら PNG を手で作るのではなく、**この1行を別の描画に差し替える**（正本は SVG のままである）。
   **PNG を手で置き換えず、SVG を直して回す**（色リテラルをビューに書かないのと同じ理由）。
   - `Tools/mdoro-icon.svg` → 両プラットフォームの `AppIcon.appiconset`
     （iOS のライト・ダーク・ティントと macOS の10寸法）
@@ -238,6 +240,15 @@ xcrun simctl list devices available
     3枚しか使わない（`MenuBarMark`）。画像を足すときは `make_icon.swift` の
     `menuBarStates` と `MenuBarMark` の両方を変える
     （名前が食い違うと、何も描かれないまま静かに失敗する。`MenuBarMarkTests` が検査する）
+- **`buildServer.json` は任意である。** Xcode で建てるだけなら要らない。
+  **Cursor や VS Code で補完を効かせたいときだけ**生成する。**絶対パスを持つので git に入れていない**
+  ため、**初回 clone には無く、各自が作る。**
+
+  ```bash
+  xcode-build-server config -project PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroMac
+  ```
+
+  （同じ行が `.gitignore` にもある。**片方を変えたら、もう片方を確認する。**）
 - セットアップ手順書のリンクは `docs/PRIVATE-LINKS.md`（Git に入れていない）。
 
 ## Apple プラットフォームの事実
