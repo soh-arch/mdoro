@@ -185,8 +185,9 @@ be pasted in public:
 ## Documentation
 
 The specification, the decision records and the working notes live in `docs/` and
-are **written in Japanese** — they are the author's working language. The code
-comments are Japanese for the same reason. Everything the app itself says is English.
+are **written in Japanese** — they are the author's working language. **Everything the
+project ships is English**: identifiers, code comments, and every string the app itself
+says. The requirement IDs are what the two have in common.
 
 - `docs/SPEC.md` — the requirements, and the only normative document
 - `docs/decisions/` — why things are the way they are

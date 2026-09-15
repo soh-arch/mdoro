@@ -201,3 +201,8 @@ These will not be accepted. Please do not open PRs for them.
 - UI languages other than English
 - Editing the task file — creating and completing tasks belongs to the user's Markdown editor
 - iPad, Apple Watch, multiple simultaneous clients, connections from outside the LAN
+
+## License
+
+MIT (see [LICENSE](LICENSE)). **What you contribute ships under it too** — worth knowing
+before you open a pull request.
