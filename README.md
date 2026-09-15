@@ -155,6 +155,14 @@ Mdoro is not distributed as a signed binary. You build it yourself:
 install it again from Xcode. This is Apple's limit on free provisioning, not a
 choice Mdoro makes.
 
+**Notifications do not reach you during Focus unless you ask for them, and on a free
+Apple ID not even then.** Each preset carries a *Notify during Focus modes* switch,
+off to begin with; turn it on and the notification that ends a session is sent as
+time sensitive, which is what lets it through Focus. On a free Personal Team it still
+does not arrive: measured on a device on 2026-08-27, with `interruptionLevel =
+.timeSensitive` set and nothing delivered until Focus ended. The session ends on time
+either way; the notification is what waits.
+
 **If the app will not launch and a rebuild will not go through either, the phone may
 have stopped trusting your developer account.** Unlike the seven-day case above,
 rebuilding does not clear this one. On the iPhone: Settings → General → VPN & Device
