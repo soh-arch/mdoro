@@ -35,58 +35,6 @@ nonisolated struct WebSocketLinks: ClientLinkMaking {
     }
 }
 
-// REQ-COM-004: what one read off the line means, decided apart from the reading itself.
-//
-// **It is separated so it can be answered without a LAN.** An `NWConnection` dials the moment it
-// is started, so while this decision lived inside the read callback there was nowhere to stand and
-// ask it — the same reason `MessageLink` exists at all.
-enum LineRead: Equatable {
-    // A protocol message arrived. Hand it up, then read again.
-    case message(Data)
-    // Something arrived that this layer has nothing to say about: a ping the transport answered by
-    // itself, a frame carrying no payload. Read again.
-    case skip
-    // Nothing more will arrive on this line. **Do not read again.**
-    case end
-
-    // REQ-COM-004: **a line that is over has to say so here as well.** The reconnect hangs off
-    // `.ended` and nothing else reaches it, and the state handler does not see every ending: a peer
-    // that closes politely leaves the connection `.ready`, so no `.failed` and no `.cancelled`
-    // follow and the read is the only place the ending is told.
-    //
-    // Three endings, asked in this order:
-    //
-    // 1. **A read that failed.** Whatever it was, nothing more is coming.
-    // 2. **A close frame.** The polite ending above. It ends the line whether or not it carries a
-    //    status code as its payload.
-    // 3. **A completed read with no frame on it and no bytes** — the end of the line as the
-    //    transport reports it when there was no close frame to hand over.
-    //
-    // **The third asks for all three of completed, unframed and empty.** On a message-oriented
-    // protocol `isComplete` is true of every whole message, so on its own it would end the line at
-    // the first thing the Mac ever said; and without it, a read that has not finished and has
-    // nothing yet would be read as an ending. What marks an ending is that the read is over and
-    // nothing came with it, and a read carrying bytes is never read as one.
-    //
-    // **The Mac's own test harness marks that third ending differently**
-    // (`ServerUnderARealConnectionTests.receive`): it asks `isComplete, context?.isFinal == true,
-    // data?.isEmpty ?? true`, where this asks for no WebSocket frame on the read rather than for a
-    // context that says it is the last one. **They are different properties**, and a read that
-    // arrives with no context at all satisfies this one and not that one. Whether the two ought to
-    // be brought together is filed and not settled here. What the harness does settle is that the
-    // ending is needed at all — "a read that completes with nothing on it re-arms into a read that
-    // completes with nothing at once", which is the loop this line was found able to spin in.
-    static func of(
-        data: Data?, opcode: NWProtocolWebSocket.Opcode?, isComplete: Bool, failed: Bool
-    ) -> LineRead {
-        if failed { return .end }
-        if opcode == .close { return .end }
-        if let data, !data.isEmpty, opcode == .text || opcode == .binary { return .message(data) }
-        if isComplete, opcode == nil, data?.isEmpty ?? true { return .end }
-        return .skip
-    }
-}
-
 // REQ-COM-001: the client's end of the WebSocket, over Network.framework.
 @MainActor
 final class WebSocketLink: MessageLink {
@@ -97,6 +45,11 @@ final class WebSocketLink: MessageLink {
     // already moved on to the next line still hears this one finish.
     private var openLine: WebSocketLink?
     private var hasEnded = false
+    // REQ-ERR-009: **set the moment someone hangs up, which is before the line has ended.**
+    // `cancel()` is a request; the ending comes back later and by another road. Between the two,
+    // `hasEnded` is still false and the read loop would re-arm on a line nobody means to read from
+    // again — see `receive()`.
+    private var isHungUp = false
 
     init(endpoint: NWEndpoint) {
         let parameters = NWParameters.tcp
@@ -129,6 +82,7 @@ final class WebSocketLink: MessageLink {
     }
 
     func cancel() {
+        isHungUp = true
         connection.cancel()
     }
 
@@ -137,14 +91,27 @@ final class WebSocketLink: MessageLink {
         // immediately and with nothing on it, so a loop that re-armed regardless would turn on the
         // main actor for as long as the app lived, next to the watch that shares it
         // (`MdoroClient.endLineIfSilent`).
-        guard !hasEnded else { return }
+        //
+        // REQ-ERR-009: **and neither does a line that has just been hung up on.** The tenth broken
+        // message in a row is answered with `cancel()` from inside `MdoroClient.handle`, which runs
+        // inside the read below — so control comes back here with the cancel merely asked for and
+        // the ending not yet delivered. `hasEnded` cannot cover that gap; it is set when `.ended`
+        // goes out, and the whole point is that `.ended` has not gone out yet.
+        //
+        // **It is the hang-up that is guarded on, not the reason for it.** The same gap belongs to
+        // every caller of `cancel()` reached from inside a read — `stopDialling` on a refusal
+        // (REQ-COM-004), `disconnect` — and the Mac answers the same question in the same place
+        // (`MdoroServer.receive(on:counting:)`, "a line that has just been hung up on is not read
+        // from again").
+        guard !hasEnded, !isHungUp else { return }
         connection.receiveMessage { [weak self] data, context, isComplete, error in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition)
-                    as? NWProtocolWebSocket.Metadata
+                // REQ-PRT-001: what this read means is decided in `MdoroCore`, by the same function
+                // the Mac's read loop calls.
                 switch LineRead.of(
-                    data: data, opcode: metadata?.opcode, isComplete: isComplete, failed: error != nil
+                    data: data, frame: context?.webSocketFrame, isComplete: isComplete,
+                    failed: error != nil
                 ) {
                 case let .message(message):
                     self.deliver(.message(message))

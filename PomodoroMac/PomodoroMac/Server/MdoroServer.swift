@@ -199,22 +199,37 @@ final class MdoroServer {
     // reached before any `source === connection` gate, so a stranger who can reach this port could
     // then walk the count up and have the authenticated connection hung up on — nine of theirs and
     // one of anybody's would do it.
+    //
+    // REQ-COM-004 / REQ-PRT-001: **what one read off this line means is `LineRead`'s, in
+    // `MdoroCore`, and the iPhone's read loop asks the same function.** Three things arrive here as
+    // reads and only one of them is a message: a read that failed, a close frame, and a completed
+    // read with no frame and no bytes are all the line ending, and **a peer that closes politely
+    // leaves this `NWConnection` `.ready`** — no `.failed`, no `.cancelled`, so the state handler
+    // set up in `accept` is never told and this is the only place the ending is heard.
+    //
+    // REQ-COM-005: **`checkHeartbeat` is a backstop, not this.** Fifteen seconds of silence ends
+    // the connection whatever happens here, so an ending missed here was never permanent — but for
+    // those fifteen seconds the Mac shows a phone that has gone, and a loop that re-armed through
+    // the ending would spend them turning on the main actor, because a read on a finished
+    // connection comes back at once and with nothing on it.
     private func receive(on connection: NWConnection, counting brokenMessages: BrokenMessageCounter = BrokenMessageCounter()) {
-        connection.receiveMessage { [weak self] data, context, _, error in
+        connection.receiveMessage { [weak self] data, context, isComplete, error in
             Task { @MainActor in
                 guard let self else { return }
-                if error != nil {
-                    self.handleDisconnect(connection)
-                    return
-                }
                 var counter = brokenMessages
-                if let data, !data.isEmpty,
-                   let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition)
-                    as? NWProtocolWebSocket.Metadata,
-                   metadata.opcode == .text || metadata.opcode == .binary {
+                switch LineRead.of(
+                    data: data, frame: context?.webSocketFrame, isComplete: isComplete,
+                    failed: error != nil
+                ) {
+                case let .message(message):
                     // Both text and binary are read as JSON.
                     // REQ-ERR-009: a line that has just been hung up on is not read from again.
-                    guard self.handle(data, from: connection, counting: &counter) else { return }
+                    guard self.handle(message, from: connection, counting: &counter) else { return }
+                case .skip:
+                    break
+                case .end:
+                    self.handleDisconnect(connection)
+                    return
                 }
                 self.receive(on: connection, counting: counter)
             }
