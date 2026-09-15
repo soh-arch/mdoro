@@ -5,9 +5,9 @@ import Foundation
 // POL-114 / REQ-COM-002 / REQ-COM-003: **the Mac advertised itself several times over.**
 //
 // Measured on the reader's machine: two `MdoroMac` processes, five `_mdoro._tcp` registrations
-// (`Lychee`, then `Lychee (2)` through `(5)`). Pairing did not complete, three attempts running —
-// the iPhone kept reaching a registration whose process was not the one holding the code, and got
-// back `pairingModeNotActive`.
+// (the Mac's own name, then that name `(2)` through `(5)` — the name itself is held back, the
+// count is not). Pairing did not complete, three attempts running — the iPhone kept reaching a
+// registration whose process was not the one holding the code, and got back `pairingModeNotActive`.
 //
 // Two faults met. `AppModel.start()` is called from a view's `.task`, which runs again every time
 // that view appears, so reopening the main window started the app again; and `MdoroServer.start()`

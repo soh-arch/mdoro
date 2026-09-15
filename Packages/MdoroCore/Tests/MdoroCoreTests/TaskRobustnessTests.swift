@@ -2,6 +2,10 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
+// The fixtures are in arbitrary user languages, for the same reason `TaskParserTests` mixes them:
+// a Task.md is whatever its owner wrote. Two of them stay Japanese deliberately — the byte-limit
+// fillers, which have to be multi-byte to cut where a five-megabyte limit cuts, and the emoji
+// base text, where anything but a plain multi-byte word would test the wrong thing.
 @Suite("Robust loading (REQ-ERR-001 / 002 / 003)")
 struct TaskLoadRobustnessTests {
 
@@ -13,7 +17,7 @@ struct TaskLoadRobustnessTests {
     }
 
     @Test func failedReloadKeepsThePreviousListAndSelection() throws {
-        let parsed = TaskParser.parse("- [ ] 仕様書のレビュー\n- [ ] もうひとつ")
+        let parsed = TaskParser.parse("- [ ] مراجعة المواصفات\n- [ ] مهمة أخرى")
         var previous = TaskContext(items: parsed.items, wasTruncated: false)
         try previous.select(id: parsed.items[0].stableId)
 
@@ -24,9 +28,9 @@ struct TaskLoadRobustnessTests {
     }
 
     @Test func successfulReloadClearsTheErrorFlag() throws {
-        var previous = TaskContext(items: TaskParser.parse("- [ ] 何か").items, loadFailed: true)
+        var previous = TaskContext(items: TaskParser.parse("- [ ] 아무거나").items, loadFailed: true)
         previous.loadFailed = true
-        let outcome = TaskReloader.reload(previous: previous, result: .success(TaskParser.parse("- [ ] 何か")))
+        let outcome = TaskReloader.reload(previous: previous, result: .success(TaskParser.parse("- [ ] 아무거나")))
         #expect(!outcome.context.loadFailed)
     }
 
@@ -58,7 +62,7 @@ struct TaskParsingEdgeTests {
 
     // Parentage is never carried across a heading.
     @Test func parentageDoesNotLeakAcrossHeadings() {
-        let items = TaskParser.parse("## A\n- [ ] 親A\n\n## B\n    - [ ] Bの下の字下げ").items
+        let items = TaskParser.parse("## A\n- [ ] 상위A\n\n## B\n    - [ ] B 아래 들여쓰기").items
         let leaked = items.first { $0.section == "B" }!
         #expect(leaked.parentId == nil, "a task under another heading must not become the parent")
     }
@@ -66,24 +70,24 @@ struct TaskParsingEdgeTests {
     // Inside a fenced block is not Markdown.
     @Test func fencedBlocksAreIgnored() {
         let text = """
-        - [ ] 本物のタスク
+        - [ ] 真正的任务
 
         ```
-        ## これは見出しではない
-        - [ ] これもタスクではない
+        ## 这不是标题
+        - [ ] 这也不是任务
         ```
 
-        - [ ] もうひとつ本物
+        - [ ] 另一个真正的
         """
         let result = TaskParser.parse(text)
-        #expect(result.items.map(\.displayText) == ["本物のタスク", "もうひとつ本物"])
+        #expect(result.items.map(\.displayText) == ["真正的任务", "另一个真正的"])
         #expect(result.grouped(showCompleted: true).map(\.name) == [TaskParser.uncategorizedSection])
     }
 
     // Duplicate block IDs are still made unique. Duplicates leave the second one unselectable,
     // and break the UI with it.
     @Test func duplicateBlockIdsStayUnique() {
-        let items = TaskParser.parse("- [ ] タスク ^abc\n- [ ] 別のタスク ^abc").items
+        let items = TaskParser.parse("- [ ] Tarefa ^abc\n- [ ] Outra tarefa ^abc").items
         #expect(Set(items.map(\.stableId)).count == 2)
         #expect(items[0].stableId == "abc", "the first occurrence keeps the bare id, with no suffix")
         #expect(items[0].idKind == .blockId)
@@ -93,13 +97,13 @@ struct TaskParsingEdgeTests {
     // Break this, and a task name that never existed stays in MdoroLog.md for good.
     @Test func displayTextPreservesUnpairedSymbols() {
         #expect(TaskParser.parse("- [ ] snake_case_name を直す").items[0].displayText == "snake_case_name を直す")
-        #expect(TaskParser.parse("- [ ] 2*3 の計算").items[0].displayText == "2*3 の計算")
-        #expect(TaskParser.parse("- [ ] a_b と c_d").items[0].displayText == "a_b と c_d")
+        #expect(TaskParser.parse("- [ ] 2*3 的计算").items[0].displayText == "2*3 的计算")
+        #expect(TaskParser.parse("- [ ] a_b و c_d").items[0].displayText == "a_b و c_d")
     }
 
     @Test func displayTextStripsPairedEmphasisAndTags() {
-        #expect(TaskParser.parse("- [ ] **強調** と `コード`").items[0].displayText == "強調 と コード")
-        #expect(TaskParser.parse("- [ ] 買い物 #家事").items[0].displayText == "買い物",
+        #expect(TaskParser.parse("- [ ] **Ênfase** e `código`").items[0].displayText == "Ênfase e código")
+        #expect(TaskParser.parse("- [ ] 구매 #집안일").items[0].displayText == "구매",
                 "REQ-TSK-015: raw tag syntax must not survive into the display text or the log line")
     }
 
@@ -140,7 +144,7 @@ struct FileWatcherTests {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appendingPathComponent("Task.md")
-        try "- [ ] 最初".write(to: file, atomically: true, encoding: .utf8)
+        try "- [ ] Início".write(to: file, atomically: true, encoding: .utf8)
 
         let counter = Counter()
         let watcher = FileWatcher(fileURL: file, debounce: 0.05) { counter.increment() }
@@ -148,7 +152,7 @@ struct FileWatcherTests {
         defer { watcher.stop() }
 
         // atomically: true replaces the file through a temporary one. The inode changes.
-        try "- [ ] 書き換え後".write(to: file, atomically: true, encoding: .utf8)
+        try "- [ ] Depois da reescrita".write(to: file, atomically: true, encoding: .utf8)
 
         let deadline = Date().addingTimeInterval(3)
         while counter.count == 0, Date() < deadline { usleep(20_000) }
@@ -160,7 +164,7 @@ struct FileWatcherTests {
         let directory = try makeDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appendingPathComponent("Task.md")
-        try "- [ ] 最初".write(to: file, atomically: true, encoding: .utf8)
+        try "- [ ] Início".write(to: file, atomically: true, encoding: .utf8)
 
         let counter = Counter()
         let watcher = FileWatcher(fileURL: file, debounce: 0.3) { counter.increment() }
@@ -168,7 +172,7 @@ struct FileWatcherTests {
         defer { watcher.stop() }
 
         for i in 0..<5 {
-            try "- [ ] 連続保存\(i)".write(to: file, atomically: true, encoding: .utf8)
+            try "- [ ] Salvamento \(i)".write(to: file, atomically: true, encoding: .utf8)
             usleep(30_000)
         }
 
