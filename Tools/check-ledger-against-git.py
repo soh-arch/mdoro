@@ -47,6 +47,12 @@ new commit is not an ancestor of origin/main, so it reads as unmerged here and
 nothing is said. That is the harmless direction: the noisy direction would fire
 on sound rows, and a check people learn to ignore has stopped being a check.
 
+Today it costs nothing. This repository merges with a merge commit -- checked on
+2026-09-16, `git log origin/main --merges` names pull requests #116, #117 and
+#118 -- so the branch a row names is an ancestor of origin/main once it lands,
+and a row left at `doing` across its own merge is caught. Change how this
+repository merges and the soft spot above is what is left.
+
 Output and exit status follow Tools/check-docs.py: one `ok — ...` line and 0, or
 `N problem(s):` and 1.
 """
