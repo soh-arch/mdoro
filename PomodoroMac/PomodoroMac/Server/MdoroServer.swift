@@ -228,6 +228,25 @@ final class MdoroServer {
                 case .skip:
                     break
                 case .end:
+                    // REQ-COM-004: **the connection is handed back, not merely let go of.** Two of
+                    // the endings above reach here with nobody having cancelled anything — a read
+                    // that failed, and a peer that closed politely — and an `NWConnection` nobody
+                    // cancels keeps its endpoint and its path monitor, the same way a dropped
+                    // `NWListener` goes on listening. Cancelling one already cancelled does
+                    // nothing, so the ending that arrives by way of a `cancel()` costs a second
+                    // call and no more. It is the order the three other endings in this class use
+                    // (`disconnect(tokenValue:)`, `checkHeartbeat`, the tenth broken message).
+                    //
+                    // **`handleDisconnect` bounces every connection but the one being held, and
+                    // those are the ones this matters most for.** `accept` starts a read loop on
+                    // every incoming connection, but only a hello that is accepted makes one
+                    // `self.connection` — so a stranger who reaches the port and then goes away
+                    // has a line that ends here and is refused by the guard below, and no other
+                    // path in this class would ever cancel it: `checkHeartbeat` and `stop` reach
+                    // only the held connection. The two questions are different. Whether this line
+                    // is over was just answered by the read; whether it was the one the Mac
+                    // believed in is what the guard is for.
+                    connection.cancel()
                     self.handleDisconnect(connection)
                     return
                 }
