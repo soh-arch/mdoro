@@ -167,3 +167,11 @@ jobs:
         # branch worth having -- moved, escaped, refused -- would be exercised by nobody. These
         # build repositories of their own.
         run: python Tools/test-run-in-a-worktree.py
+      - name: the one command that compiles everything still judges
+        # Tools/build-everything.sh belongs to whoever has the Mac, and no runner here can start
+        # it. Its judgments are a different matter: a count of zero, a bundle that cannot be read,
+        # a count under another name all have to come out red, and every one of them fails green
+        # when it is wrong. These cases put stubs for swift, xcodebuild and xcrun on PATH and ask
+        # the script what it makes of each answer -- the reading and the reporting, not the
+        # compiling, which is stated at the top of the file itself.
+        run: python Tools/test-build-everything.py
