@@ -621,10 +621,14 @@ private struct Bench {
 // dial would go to a port nothing listens on, and the only symptom would be silence. Nothing
 // else in this project asserts the port is a port: `ListenerFoldingTests` compares it with
 // itself.
+//
+// REQ-COM-004: `reads` is the read loop's one call into the transport (`ServerLineReading`). Every
+// test above leaves it alone and gets the real one; the two at the foot of this file take it, so
+// that what the loop does with an ending can be asked without a peer having to produce one.
 @MainActor
-private func raiseServer() async throws -> Bench {
+private func raiseServer(reads: any ServerLineReading = WebSocketLineReads()) async throws -> Bench {
     let upstream = Upstream()
-    let server = MdoroServer(diagnostics: unopenedLog())
+    let server = MdoroServer(diagnostics: unopenedLog(), reads: reads)
     let raw = try await server.start(callbacks: upstream.callbacks())
     guard raw != 0, let port = NWEndpoint.Port(rawValue: raw) else {
         server.stop()
@@ -1147,5 +1151,178 @@ struct ServerUnderARealConnectionTests {
               "the Mac stopped holding the connection it welcomed (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil")) while the only thing to arrive was rubbish on somebody else's line")
         // And the line itself, not just the Mac's record of it.
         try await receipt(from: phone, called: "the authenticated connection, after the stranger's nine")
+    }
+}
+
+// MARK: - The end of a line, handed to the read loop
+
+// REQ-COM-004: **what the read loop does when a read says the line is over.**
+//
+// Two things, and until `ServerLineReading` existed neither could be observed at all:
+//
+//   1. **the connection is handed back** — `connection.cancel()` in the `.end` arm. Delete that
+//      line and every test in this file above goes on passing: the two they watch
+//      (`connectionChanged`, `MdoroServer.connection`) both come from `handleDisconnect`, which
+//      runs either way.
+//   2. **the loop stops asking.** A read on a finished connection comes back at once and with
+//      nothing on it, so a loop that re-armed through the ending turns on the main actor for the
+//      fifteen seconds until REQ-COM-005's silence watch expires. **That hot loop is the fault this
+//      whole line of work began with**, and nothing asked about it.
+//
+// **Why these two live in this file rather than a new one.** Everything else about them is
+// wire-free — the reads below are made up by the test and no peer sends anything — but claim 1 is
+// read off `NWConnection.state`, and a connection that was never started has no state to move: the
+// framework updates it from the handler installed at `start(queue:)`. So the line has to be a real
+// one that really came up, which is `raiseServer` and `connectedProbe`, which are here. It is the
+// same observation `ListenerFoldingTests` makes of a cancelled `NWListener`, on the same footing.
+//
+// **The line these run against is a stranger's**, and that is the case the `.end` arm's own comment
+// singles out: `accept` starts a read loop on every incoming connection, but only an accepted hello
+// makes one `self.connection`, so `handleDisconnect` refuses a stranger's line and no other path in
+// the class would ever cancel it. If the `.end` arm does not, nobody does — which makes it the one
+// line whose cancel can be seen from outside.
+
+// The read loop's one call into the transport, taken. **Nothing is ever completed on its own**: a
+// read handed out here stays outstanding until the test delivers it, so a loop that re-armed when
+// it should have stopped shows up as a second request and not as a spin.
+@MainActor
+private final class HeldReads: ServerLineReading {
+    private(set) var lines: [NWConnection] = []
+    private var outstanding: [ServerLineRead] = []
+    private var waiting: (needed: Int, continuation: CheckedContinuation<Void, Never>)?
+
+    var timesArmed: Int { lines.count }
+
+    func read(from connection: NWConnection, completion: @escaping ServerLineRead) {
+        lines.append(connection)
+        outstanding.append(completion)
+        if let pending = waiting, lines.count >= pending.needed {
+            waiting = nil
+            pending.continuation.resume()
+        }
+    }
+
+    // Wait until the loop has asked for `count` reads in all, or give up. **Nothing is polled** —
+    // this is resumed from `read` above, on the main actor, which is the actor the loop needs to ask
+    // on at all. Same shape as `Upstream.waitsForHangUp`, and for the same reason.
+    func waitsForReads(_ count: Int, upTo budget: Duration) async -> Bool {
+        if timesArmed >= count { return true }
+        let deadline = Task { [weak self] in
+            try? await Task.sleep(for: budget)
+            guard !Task.isCancelled else { return }
+            self?.giveUpWaiting()
+        }
+        defer { deadline.cancel() }
+        // The deadline sleeps before it can resume anything, so the registration below is always in
+        // place first — there is no window in which a resumption is lost.
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            waiting = (count, continuation)
+        }
+        return timesArmed >= count
+    }
+
+    private func giveUpWaiting() {
+        waiting?.continuation.resume()
+        waiting = nil
+    }
+
+    // Answer the oldest read still outstanding, in `NWConnection.receiveMessage`'s own four values.
+    // What they mean is not decided here: they go to `LineRead.of` through the loop, by way of this
+    // target's own `webSocketFrame` translation, exactly as a read off the wire would.
+    func deliver(
+        data: Data? = nil, frame: NWProtocolWebSocket.Opcode? = nil, isComplete: Bool = true
+    ) -> Bool {
+        guard !outstanding.isEmpty else { return false }
+        let completion = outstanding.removeFirst()
+        let context = frame.map {
+            NWConnection.ContentContext(
+                identifier: "delivered", metadata: [NWProtocolWebSocket.Metadata(opcode: $0)]
+            )
+        }
+        completion(data, context, isComplete, nil)
+        return true
+    }
+}
+
+// Cancellation is asked for on one queue and settles on another, so it is waited for rather than
+// read straight after — the same wait `ListenerFoldingTests` makes of a listener. Two seconds is far
+// longer than it takes and short enough to fail a run rather than hang it.
+private func settlesAsCancelled(_ connection: NWConnection) async -> Bool {
+    for _ in 0..<100 {
+        if case .cancelled = connection.state { return true }
+        try? await Task.sleep(for: .milliseconds(20))
+    }
+    return false
+}
+
+@Suite("What the read loop does with the end of a line (REQ-COM-004)")
+@MainActor
+struct ServerReadLoopEndingTests {
+
+    // Both halves of the `.end` arm, in one run, because the second rests on the first having been
+    // reached. **`holds` records and carries on**, so a mutation that breaks one is not hidden by
+    // the other failing first.
+    @Test func anEndingHangsTheLineUpAndStopsTheLoop() async throws {
+        let reads = HeldReads()
+        let bench = try await raiseServer(reads: reads)
+        defer { bench.server.stop() }
+
+        let stranger = try await strangerProbe(on: bench)
+        defer { stranger.cancel() }
+        // Every line this loop was given, handed back before the test returns. The one below is
+        // cancelled by the code under test; this is for the run where it is not.
+        defer { for opened in reads.lines { opened.cancel() } }
+
+        let armed = await reads.waitsForReads(1, upTo: arrivalBudget)
+        guard armed else {
+            throw Wrong(diagnose("REQ-COM-004: a connection reached the listener and went ready, and the server never asked to read from it inside \(arrivalBudget) — `accept` starts the read loop, so nothing below has a loop to observe"))
+        }
+        let line = try #require(reads.lines.first, "the read loop was armed without a connection")
+
+        // REQ-COM-004: a completed read carrying no frame and no bytes. It is the ending as the
+        // transport reports it when there was no close frame to hand over, and `LineRead.of` is what
+        // says so — this test states the read, not the answer.
+        holds(reads.deliver(), "no read was outstanding to answer — the loop had already stopped asking before it was told anything")
+
+        let cancelled = await settlesAsCancelled(line)
+        holds(cancelled,
+              "REQ-COM-004: the read said the line was over and the connection was let go of rather than handed back. Nothing else in MdoroServer will ever cancel it — this line never said hello, so `handleDisconnect` refuses it and `checkHeartbeat` and `stop` reach only the connection the Mac is holding — and an `NWConnection` nobody cancels keeps its endpoint and its path monitor for as long as it is held.")
+
+        // **The ending has been acted on by the time this is read.** Either the cancel settled, or
+        // two seconds of waiting went by with the main actor free — and a re-arm is the next
+        // statement after the arm above, not something that arrives late.
+        holds(reads.timesArmed == 1,
+              "REQ-COM-004: the loop was told the line was over and asked for another read (\(reads.timesArmed) asked for in all). On a finished connection that read comes back at once and with nothing on it, so this is a turn on the main actor for every one of the fifteen seconds until REQ-COM-005's silence watch expires — which is the backstop for this, not a substitute.")
+    }
+
+    // **A loop that stopped asking for every read would pass the test above.** So the other side has
+    // to be shown: a read that is not an ending arms it again. This one is a ping — the transport
+    // answers those itself, and `LineRead.of` reads it as neither a message nor an ending — so it
+    // travels the `.skip` arm without anything being handed upward.
+    @Test func aReadThatIsNotAnEndingArmsTheLoopAgain() async throws {
+        let reads = HeldReads()
+        let bench = try await raiseServer(reads: reads)
+        defer { bench.server.stop() }
+
+        let stranger = try await strangerProbe(on: bench)
+        defer { stranger.cancel() }
+        defer { for opened in reads.lines { opened.cancel() } }
+
+        let armed = await reads.waitsForReads(1, upTo: arrivalBudget)
+        guard armed else {
+            throw Wrong(diagnose("REQ-COM-004: a connection reached the listener and went ready, and the server never asked to read from it inside \(arrivalBudget)"))
+        }
+        let line = try #require(reads.lines.first, "the read loop was armed without a connection")
+
+        holds(reads.deliver(frame: .ping), "no read was outstanding to answer")
+
+        let armedAgain = await reads.waitsForReads(2, upTo: arrivalBudget)
+        holds(armedAgain,
+              "REQ-COM-004: a ping was read off the line and the loop stopped reading (\(reads.timesArmed) read(s) asked for in all). The transport answers pings by itself and nothing is handed upward, so a line that is perfectly healthy goes deaf — and REQ-COM-005's silence watch then hangs it up fifteen seconds later, with everything else green.")
+
+        var stillUp = true
+        if case .cancelled = line.state { stillUp = false }
+        holds(stillUp,
+              "REQ-COM-004: a ping hung the connection up. `LineRead.of` reads a ping as neither a message nor an ending, and the transport has already answered it — hanging up here would end a healthy line at the first ping the peer sends.")
     }
 }
