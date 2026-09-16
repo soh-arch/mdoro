@@ -129,8 +129,8 @@ struct StringCatalogTests {
 
     // Decision 0022's boundary for the package: MdoroCore has no catalogue to reach, so it
     // keeps the state and the two identifiers, and each platform's `Format` keeps the words.
-    // The iPhone had already written them a second time; the Mac was the one still reading
-    // the package's copy.
+    // Wording kept in the package would have to be written a second time on each screen anyway,
+    // and the copy that is read is then the one no catalogue can translate.
     @Test func theConnectionStateIsNamedByTheCoreAndWordedByTheScreens() throws {
         let words = ["Connected", "Reconnecting", "Not connected"]
         let core = try source("Packages/MdoroCore/Sources/MdoroCore/ConnectionState.swift")

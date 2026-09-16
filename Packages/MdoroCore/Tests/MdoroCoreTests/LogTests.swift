@@ -169,7 +169,7 @@ struct LogFileEditorTests {
         ).contents
     }
 
-    // POL-087: the file the app creates for itself ends with a newline. Nothing of the user's is
+    // REQ-LOG-001: the file the app creates for itself ends with a newline. Nothing of the user's is
     // being preserved here, and a Markdown file ending mid-line makes the next write share that line.
     @Test func emptyFileGetsHeadingAndLine() throws {
         let result = try insert(into: "")
@@ -228,7 +228,7 @@ struct LogFileEditorTests {
 
     // REQ-LOG-022: when the heading has been deleted or renamed outside the app, recreate it and
     // append at the end of the file. Never try to restore or correct the existing lines.
-    // POL-087: the file ends with a newline, so the result does too. A file that ends without one is
+    // REQ-LOG-001: the file ends with a newline, so the result does too. A file that ends without one is
     // the subject of `aFileWithoutATrailingNewlineDoesNotGainOne`; this one is about the heading.
     @Test func missingHeadingIsRecreatedAtTheEndOfFile() throws {
         let existing = "## 2026-08-23 (Sun)\n\n- 前日の行\n"
@@ -285,10 +285,10 @@ struct LogFileEditorTests {
         #expect(result == "## 2026-08-24 (Mon)\n\n- 既存の行\n- 新しい行\n")
     }
 
-    // POL-087 / REQ-LOG-001: **a file that did not end with a newline must not come back with one.**
-    // Plenty of editors leave a Markdown file without a final newline, and appending is all this is
-    // allowed to do to the user's file — the last line is one of theirs, and a byte was being added
-    // to it. Both branches are read: the day's heading found, and the heading recreated.
+    // REQ-LOG-001: **a file that did not end with a newline must not come back with one.**
+    // Plenty of editors leave a Markdown file without a final newline, and inserting is all this is
+    // allowed to do to the user's file — the last line is one of theirs, and adding a byte to it is
+    // a rewrite. Both branches are read: the day's heading found, and the heading recreated.
     @Test func aFileWithoutATrailingNewlineDoesNotGainOne() throws {
         #expect(
             try insert(into: "## 2026-08-24 (Mon)\n\n- 既存の行")
@@ -305,9 +305,9 @@ struct LogFileEditorTests {
         )
     }
 
-    // POL-087: **the guard is not what keeps the ending.** `preservesAllLines` compares arrays of
-    // lines, and the two files below reduce to the same array — it returns the same verdict for
-    // both and never looks at the final byte. It passed all the while one was being added, which
+    // REQ-LOG-001: **the guard is not what keeps the ending.** `preservesAllLines` compares arrays
+    // of lines, and the two files below reduce to the same array — it returns the same verdict for
+    // both and never looks at the final byte, so it passes whether or not one has been added. That
     // is why the test above reads the whole string instead of asking the guard.
     @Test func theGuardCannotSeeATrailingNewline() throws {
         let withoutNewline = "## 2026-08-24 (Mon)\n\n- 既存の行"
@@ -467,7 +467,8 @@ struct LogWriteQueueTests {
     }
 
     // REQ-ERR-004 / Decision 0039: the failure that comes and goes is the one worth hearing about.
-    // A run of three would never be reached here, and the old rule stayed silent forever.
+    // A run of three is never reached here, so a rule counting only consecutive failures stays
+    // silent for ever.
     @Test func failuresThatComeAndGoStillReachTheThreshold() {
         let queue = LogWriteQueue()
 
@@ -669,9 +670,9 @@ struct UnsetLogDestinationTests {
         #expect(queue.pendingCount == 1)
     }
 
-    // REQ-ERR-004 / Decision 0033: **the reason the distinction matters.** Read the old way, a new
-    // user was notified that writing had failed on their third session — with nothing broken and
-    // nothing attempted.
+    // REQ-ERR-004 / Decision 0033: **the reason the distinction matters.** Count a refusal as a
+    // failed write and a new user is notified that writing failed on their third session — with
+    // nothing broken and nothing attempted.
     @Test func sessionsThatWereNeverRecordedNeverReachTheFailureThreshold() {
         let queue = LogWriteQueue()
         var refused = 0
@@ -757,10 +758,10 @@ struct LogTaskSnapshotTests {
     }
 }
 
-// POL-120: `LogWriter` reads the file, builds an insertion from what it read, and then replaces
-// **the whole file**. Anything saved to it in between was inside what got overwritten — the user's
-// save disappeared, silently, and so did everything the app had never read. `preservesAllLines`
-// could not see it: it compares two arrays the app is holding, and neither of them is the disk.
+// REQ-LOG-004: `LogWriter` reads the file, builds an insertion from what it read, and then
+// replaces **the whole file**. Anything saved to it in between is inside what gets overwritten —
+// the user's save, silently, and with it everything the app never read. `preservesAllLines` cannot
+// see that: it compares two arrays the app is holding, and neither of them is the disk.
 //
 // Every test here puts a save in exactly that gap. The hook fires after the read and before the
 // swap, which is where the window is.
@@ -812,7 +813,7 @@ struct LogWriterConcurrentEditTests {
         #expect(contents.contains("Loop 1/4"))
     }
 
-    // POL-120: rereading is the answer, so it has to stop somewhere.
+    // REQ-LOG-004: rereading is the answer, so it has to stop somewhere.
     @Test func rereadingStopsAtTheAttemptLimit() throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

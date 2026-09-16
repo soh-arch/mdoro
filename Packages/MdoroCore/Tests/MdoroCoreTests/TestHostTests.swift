@@ -2,13 +2,13 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
-// POL-047: the suite runs *inside* MdoroMac.app and MdoroiOS.app — these targets `@testable
-// import` the app module, and linking against an app's own symbols is what needs
+// The suite runs *inside* MdoroMac.app and MdoroiOS.app — these targets `@testable import` the
+// app module, and linking against an app's own symbols is what needs
 // `BUNDLE_LOADER = $(TEST_HOST)` (`docs/PLATFORM.md`), so there is no version of this where
 // the host is absent.
 // An app that starts normally there delivers notifications, takes the window to the front,
 // advertises on the LAN and watches the reader's own `Task.md`. The product owner saw all of
-// it; every contributor would too.
+// it on their own machine; every contributor would too.
 //
 // The guard that stops it is one line in a file `swift test` cannot link, which is exactly
 // the kind of line that gets deleted in a refactor and noticed by nobody. So this reads the
@@ -110,11 +110,11 @@ struct TestHostTests {
         }
     }
 
-    // POL-053: the same hole, one dependency along. REQ-PER-006 tells the OS to keep the machine
-    // awake for as long as a session is RUNNING, and `ProcessInfo.beginActivity` raises a system
-    // assertion — it does not stop at the process, and no bundle identifier separates the suite's
-    // from the app's. Every test that started a session was holding the machine of whoever ran it
-    // awake, including the host app's own model, which had substituted three things and not this.
+    // REQ-PER-006: the same hole, one dependency along. The requirement tells the OS to keep the
+    // machine awake for as long as a session is RUNNING, and `ProcessInfo.beginActivity` raises a
+    // system assertion — it does not stop at the process, and no bundle identifier separates the
+    // suite's from the app's. Left unsubstituted, every test that starts a session holds the
+    // machine of whoever ran it awake, the host app's own model included.
     //
     // Read exactly as the check above: `AppModel()` with no arguments is the app running for a
     // person; anything built with arguments is built for a test and has to say where this goes.
@@ -134,8 +134,8 @@ struct TestHostTests {
         }
     }
 
-    // POL-047 / Decision 0040: the same hole, one dependency further along. The tokens moved from
-    // a plist into the Keychain, and the Keychain is not inside this process either: the suite runs
+    // Decision 0040: the same hole, one dependency further along. The tokens live in the Keychain
+    // rather than in a plist, and the Keychain is not inside this process either: the suite runs
     // under the app's own bundle identifier, so an item a test writes lands in the reader's own
     // login keychain and is still there when the run ends.
     //
@@ -159,7 +159,7 @@ struct TestHostTests {
         }
     }
 
-    // POL-047 / REQ-UIX-030: a scene is placed before any view of it appears, so `.task`
+    // REQ-UIX-030: a scene is placed before any view of it appears, so `.task`
     // cannot reach one. The window opens itself at launch and the menu bar mark is inserted
     // with it — Mdoro taking the screen, and the menu bar, of whoever runs the suite.
     @Test func neitherSceneShowsItselfDuringATestRun() throws {
@@ -180,7 +180,7 @@ struct TestHostTests {
         )
     }
 
-    // POL-111: **the launcher puts these in the host process, not XCTest** — Xcode and
+    // **The launcher puts these in the host process, not XCTest** — Xcode and
     // `xcodebuild` write them and XCTestCore reads them (`docs/PLATFORM.md`). Nothing else
     // writes either, and an app run by a person has neither, which is the whole reason the
     // check is safe to leave in.
@@ -195,7 +195,7 @@ struct TestHostTests {
         #expect(TestHost.isRunning(in: ["HOME": "/Users/someone"]) == false)
     }
 
-    // POL-111: **and the other one, which is the one XCTestCore tries first.**
+    // **And the other one, which is the one XCTestCore tries first.**
     // `loadTestConfiguration` reads the encoded value before it reads the file path, so a
     // launcher that took that route would leave a check on the file path alone answering false
     // — the guard would stand open and nothing would say so. The name reads like a symbol

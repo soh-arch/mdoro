@@ -6,11 +6,10 @@ import Foundation
 //
 // Several suites here hold rules that live in the app targets by reading their source
 // (`ColorLiteralTests`, `StringCatalogTests`, `TestHostTests`, `NotationSampleTests`). Every
-// one of them is a loop over files, and a loop over no files passes. The recursive branch of
-// `swiftFiles` used to answer `[]` when the directory was not there, so renaming
-// `PomodoroMacTests` was enough to silence the guard that keeps a test run from reaching the
-// reader's notification centre — the scans failing open, in exactly the way they exist to
-// prevent.
+// one of them is a loop over files, and a loop over no files passes. Let the recursive branch of
+// `swiftFiles` answer `[]` for a directory that is not there and renaming `PomodoroMacTests` is
+// enough to silence the guard that keeps a test run from reaching the reader's notification
+// centre — the scans failing open, in exactly the way they exist to prevent.
 //
 // This is not hypothetical maintenance. `project.pbxproj` belongs to Xcode and to the human
 // working in it (Decision 0013), and the folders under `PomodoroMac/` still carry their

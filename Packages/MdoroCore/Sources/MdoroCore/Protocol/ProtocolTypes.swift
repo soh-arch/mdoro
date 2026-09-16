@@ -222,10 +222,10 @@ public enum AuthFailureCode: String, Error, Equatable, Sendable, Codable, CaseIt
     case connectionRejectedByUser
 }
 
-// REQ-ERR-010 / Decision 0034 / 0035: this was the last refusal still going out as prose.
+// REQ-ERR-010 / Decision 0034 / 0035: a refusal goes out as a code, never as prose.
 // `authFailed.message` is diagnostic, like `error.message` beside it — the iPhone reads
-// `code` and keeps its own wording — so the Mac was writing six sentences that reached no
-// screen at all, in a shape nothing else in the app uses.
+// `code` and keeps its own wording — so a sentence written here reaches no screen at all,
+// in a shape nothing else in the app uses.
 //
 // 60–69 belong to this enum. Read the table in `ErrorCode.swift` before taking a number.
 // Decision 0034: the numbers are allocated, not counted off. A gap in them stays a gap —

@@ -5,12 +5,11 @@ import MdoroCore
 // REQ-COM-004 / REQ-PRT-001: **every way a line can be over, and what each end's reading loop does
 // about it.**
 //
-// This suite used to live in `MdoroiOSTests`, next to the only end that had the judgement. It moved
-// here with the judgement itself, and the move is the point: the Mac's read loop had no decision of
-// this kind at all and let every ending through, so both ends now ask this one function and one
-// suite answers for both.
+// This suite sits beside the judgement in `MdoroCore`, not in `MdoroiOSTests` next to one end of
+// it. That placement is the point: both ends ask this one function, so one suite answers for both,
+// and a Mac read loop that lets every ending through is a failure this can see.
 //
-// **Moving it also put it somewhere that runs.** The iOS suites need a simulator and nothing in CI
+// **It also has to be somewhere that runs.** The iOS suites need a simulator and nothing in CI
 // starts one (`docs/ORCHESTRATION.md` §8); `swift test` runs on every pull request.
 //
 // What hangs on the answers: on the iPhone the reconnect hangs off the line's ending and nothing

@@ -27,11 +27,11 @@ func withoutComments(_ text: String) -> String {
         .joined(separator: "\n")
 }
 
-// **A directory that moved is not a directory with nothing in it.** The recursive branch used
-// to answer `[]` when `enumerator` handed back nil, so a scan whose target had been renamed
-// passed by finding nothing to object to — which is the one failure these scans exist to
-// prevent, arriving through the scans themselves. Renaming `PomodoroMacTests` was enough to
-// silence a guard on notifications reaching the reader.
+// **A directory that moved is not a directory with nothing in it.** A recursive branch answering
+// `[]` when `enumerator` hands back nil lets a scan whose target has been renamed pass by finding
+// nothing to object to — which is the one failure these scans exist to prevent, arriving through
+// the scans themselves. Renaming `PomodoroMacTests` is enough to silence a guard on notifications
+// reaching the reader.
 //
 // The folders here are the ones Xcode owns and the ones still carrying their pre-Mdoro names
 // (left over from stage 9). **They will move.** Every caller has to hear about it, so the check

@@ -81,8 +81,9 @@ struct FailuresThatReachSomeoneTests {
     // MARK: - REQ-ERR-017 / Decision 0036: the unreadable file survives
 
     // The damage the audit measured: 19 bytes of the user's file became 1389 bytes of a clean
-    // one, because the launch restored first and saved afterwards. The order is the fix, so
-    // the test runs the whole launch — read, set aside, then the save that used to land on top.
+    // one, because a launch that restores first and saves afterwards writes over it. The order is
+    // what prevents it, so the test runs the whole launch — read, set aside, then the save that
+    // would otherwise land on top.
     @Test func anUnreadableStateFileIsSetAsideBeforeAnythingIsWrittenOverIt() throws {
         let directory = try temporaryDirectory()
         defer { discard(directory) }
@@ -98,13 +99,13 @@ struct FailuresThatReachSomeoneTests {
         let setAsideAt = try #require(startup.setAsideAt, "REQ-ERR-017: the file has to go somewhere")
         #expect(setAsideAt.lastPathComponent.hasPrefix("state.json.unreadable-"))
 
-        // The save that used to destroy it.
+        // The save that would destroy it.
         try store.save(PersistedState.initial(now: Date()))
 
         #expect(try Data(contentsOf: setAsideAt) == original, "the user's bytes must survive intact")
         #expect(try Data(contentsOf: fileURL) != original, "the new state is a separate file")
-        // REQ-LOG-005: what used to be lost along with it. It has to be recoverable from the
-        // file that was set aside.
+        // REQ-LOG-005: what goes with it. It has to be recoverable from the file that was set
+        // aside.
         let rescued = try #require(try? JSONDecoder.iso8601.decode(PersistedState.self, from: Data(contentsOf: setAsideAt)))
         #expect(rescued.pendingLogEntries.count == 1, "the unwritten log entry is still in the file")
     }
@@ -539,10 +540,10 @@ struct FailuresThatReachSomeoneTests {
         }
     }
 
-    // POL-042 changed what `message` carries, and nothing on the iPhone may move with it.
+    // Decision 0034: what `message` carries may change, and nothing on the iPhone moves with it.
     // The screen reads `code`, so pinning the route from a refusal to the code it is sent
     // under is what fails if the sentence someone sees changes; the summary is checked not
-    // to appear in it, which is the only way the new payload could have leaked through.
+    // to appear in it, which is the only way the payload could leak through.
     @Test func rewritingTheWireMessageLeavesTheiPhonesSentenceWhereItWas() {
         let route: [TimerError: ProtocolErrorCode] = [
             .invalidStateForAction: .invalidStateForAction,
@@ -615,10 +616,10 @@ struct FailuresThatReachSomeoneTests {
         )
     }
 
-    // POL-050: the refusals in `MdoroServer` were the last ones sent as prose. Six sentences
-    // went into `authFailed.message`, which no screen reads — the iPhone takes `code` and
-    // keeps its own wording, exactly as it does for `error` (10.2 / Decision 0035). So they
-    // reached nobody, in a shape nothing else in the app uses.
+    // REQ-ERR-010 / Decision 0034 / 0035: no refusal in `MdoroServer` goes out as prose. A
+    // sentence put into `authFailed.message` reaches no screen — the iPhone takes `code` and
+    // keeps its own wording, exactly as it does for `error` (10.2 / Decision 0035) — so it
+    // reaches nobody, in a shape nothing else in the app uses.
     //
     // The payload has no parameter for a sentence any more, so the compiler holds this for
     // anyone who builds. That is not everyone: `swift test` cannot compile the Mac target,
@@ -655,9 +656,10 @@ struct FailuresThatReachSomeoneTests {
         }
     }
 
-    // POL-054: the refusal reaches the iPhone, and it reached nobody else. "It will not pair" is
-    // the report; five wrong codes, a pairing window that had closed and a token this Mac no
-    // longer knows all left the same silence in the log the reader pastes into an issue.
+    // REQ-ERR-010 / Decision 0018: the refusal reaches the iPhone, and it has to reach the log
+    // too. "It will not pair" is the report; five wrong codes, a pairing window that has closed
+    // and a token this Mac does not know otherwise leave the same silence in the log the reader
+    // pastes into an issue.
     //
     // **A line that has to be remembered is a line that gets forgotten**, so the record and the
     // send are one call, and this holds it that way: every `AuthFailedPayload` the file builds
@@ -720,11 +722,11 @@ struct FailuresThatReachSomeoneTests {
 
     // MARK: - Decision 0034: the OS's own words reach no screen
 
-    // Every place the pre-release audit found them. Nothing in these files needs them: what
+    // Every file that has ever reached for them. Nothing in these files needs them: what
     // reaches a reader here is a code (the diagnostic log's own write, Decision 0035's one
-    // exception) or a fixed English sentence. `AppModel` joined the list with POL-042 — the
-    // two `String(describing:)` it kept spelled our own error enums into `error.message`,
-    // which held no OS text but was the last thing written in a shape of its own.
+    // exception) or a fixed English sentence. `AppModel` is on the list for the same rule at one
+    // remove — a `String(describing:)` there spells our own error enums into `error.message`,
+    // which holds no OS text but is a shape of its own, which Decision 0034 does not allow either.
     @Test func theWordsTheOSChoseReachNoScreen() throws {
         let files = [
             "Packages/MdoroCore/Sources/MdoroCore/Diagnostics/DiagnosticLogFile.swift",

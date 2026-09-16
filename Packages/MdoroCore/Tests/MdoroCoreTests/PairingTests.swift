@@ -134,7 +134,7 @@ struct AuthenticatorTests {
         #expect(decision == .needsUserApproval(requestingDeviceName: "iPhone (2台目)"))
     }
 
-    // POL-139 / REQ-SEC-004: **a first pairing made while another client is connected.** Nothing
+    // REQ-SEC-004: **a first pairing made while another client is connected.** Nothing
     // is issued while the answer is "ask the user"; the verified hello is held, and the approval
     // issues from it directly.
     @Test func aCodeThatNeedsApprovalIssuesNothingUntilTheUserApproves() {
@@ -211,7 +211,7 @@ struct AuthenticatorTests {
         #expect(auth.issuedTokens == [record], "nothing new was issued")
     }
 
-    // POL-139 / REQ-SEC-004: a denial — or the 60-second timeout, which arrives as the same
+    // REQ-SEC-004: a denial — or the 60-second timeout, which arrives as the same
     // refusal — leaves no token on record, and drops the held hello with it.
     @Test func aDeniedApprovalLeavesNoTokenBehind() {
         var auth = Authenticator()
@@ -242,10 +242,10 @@ struct AuthenticatorTests {
                 "a revoked token still authenticates")
     }
 
-    // POL-146 / REQ-SEC-004: a token revoked between the question and the answer is refused at
-    // the answer — and the refusal does not forget who is connected. It used to:
-    // `connectedClientName` was cleared before the token was looked up, so after one such
-    // refusal every valid hello was accepted without the approval REQ-SEC-004 requires.
+    // REQ-SEC-004: a token revoked between the question and the answer is refused at the answer —
+    // and the refusal does not forget who is connected. Clear `connectedClientName` before the
+    // token is looked up and one such refusal is enough: every valid hello after it is accepted
+    // without the approval REQ-SEC-004 requires.
     @Test func aTokenRevokedWhileTheQuestionWaitedDoesNotForgetTheStandingConnection() {
         var auth = Authenticator(issuedTokens: [issued("tok1", to: "A"), issued("tok2", to: "B")])
         auth.connectedClientName = "A"
@@ -271,14 +271,14 @@ struct AuthenticatorTests {
         #expect(auth.resolveApproval(approved: true, now: t0) == nil)
     }
 
-    // POL-182 / REQ-PRT-004 / 10.2: an incompatible version has its connection rejected — **and
-    // which refusal is sent is the whole of it.** `authFailed.code` has no word for a version, so
-    // 10.2 carries this reason on `error.code`. Sent as `unknownDeviceToken`, it reached the
-    // iPhone as "this device is no longer registered", and the iPhone answers that by deleting
-    // the device token it holds: a Mac updated on its own destroyed the pairing it was refusing,
-    // then sent the user to pair again, which fails the same way for the same reason, for ever.
+    // REQ-PRT-004 / 10.2: an incompatible version has its connection rejected — **and which
+    // refusal is sent is the whole of it.** `authFailed.code` has no word for a version, so 10.2
+    // carries this reason on `error.code`. Sent as `unknownDeviceToken` it reaches the iPhone as
+    // "this device is no longer registered", and the iPhone answers that by deleting the device
+    // token it holds: a Mac updated on its own would destroy the pairing it is refusing, then send
+    // the user to pair again, which fails the same way for the same reason, for ever.
     //
-    // The old test asked only `case .reject`, which is what let the wrong code stand.
+    // The decision is compared whole: asking only `case .reject` lets the wrong code stand.
     @Test func incompatibleProtocolVersionIsRefusedAsAVersionAndNotAsAnUnknownToken() {
         var auth = Authenticator(issuedTokens: [issued("tok")])
         let decision = auth.authenticate(hello(token: "tok", version: 99), now: t0)
@@ -320,11 +320,10 @@ struct AuthenticatorTests {
     }
 }
 
-// POL-182 / REQ-PRT-004 / 10.2: the vocabulary the refusal is spoken in.
+// REQ-PRT-004 / 10.2: the vocabulary the refusal is spoken in.
 //
-// The deviation this fixes came from a silence: REQ-PRT-004 says to refuse and to tell both ends
-// to update, but not which message says so. 10.2 does, and nothing in the implementation held it
-// there. These are that anchor.
+// REQ-PRT-004 says to refuse and to tell both ends to update, but not which message says so. 10.2
+// does, and nothing in the implementation itself holds it there. These are that anchor.
 @Suite("A version the Mac cannot speak to (REQ-PRT-004 / 10.2 / POL-182)")
 struct ProtocolRefusalTests {
 
@@ -346,7 +345,7 @@ struct ProtocolRefusalTests {
         #expect(ProtocolRefusal.allCases.count == 1, "a second reason needs its own line in 10.2 first")
     }
 
-    // POL-054 / REQ-ERR-010 / Decision 0034: it is still a refused connection, so it is written
+    // REQ-ERR-010 / Decision 0034: it is still a refused connection, so it is written
     // into the diagnostic log like every other failure of ours — `case(domain:code)`, in our own
     // domain, out of the block of numbers this enum owns.
     @Test func everyProtocolRefusalIsWrittenLikeAnyOtherFailure() {
@@ -361,9 +360,9 @@ struct ProtocolRefusalTests {
         }
     }
 
-    // POL-054: **a refusal is recorded before it leaves, on every path.** The Mac target is not
-    // reachable from here, so the wiring is read: the case added to `settle` must go through a
-    // `refuse` that records, not straight to the wire.
+    // REQ-ERR-010 / Decision 0018: **a refusal is recorded before it leaves, on every path.** The
+    // Mac target is not reachable from here, so the wiring is read: every case `settle` answers
+    // must go through a `refuse` that records, not straight to the wire.
     @Test func theServerRecordsThisRefusalBeforeSendingIt() throws {
         let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
 

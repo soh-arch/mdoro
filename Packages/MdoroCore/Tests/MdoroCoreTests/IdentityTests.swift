@@ -295,9 +295,9 @@ struct DeviceTokenRecordTests {
         #expect(kept.issuedAt == t0)
     }
 
-    // `issuedAt` means when it was issued. It used to be rebuilt from the hello on every
-    // reconnect, which would show today's date beside a pairing made months ago — and the
-    // revocation screen (Decision 0040) is built to be read.
+    // `issuedAt` means when it was issued, so the record on file is handed back rather than
+    // rebuilt from the hello: rebuilt on every reconnect it shows today's date beside a pairing
+    // made months ago — and the revocation screen (Decision 0040) is built to be read.
     @Test func reconnectingDoesNotMoveTheDateItWasIssued() {
         let issued = DeviceToken(value: "tok", deviceName: "Nori's iPhone", issuedAt: t0)
         var auth = Authenticator(issuedTokens: [issued])
@@ -341,10 +341,10 @@ struct DeviceTokenRecordTests {
 @Suite("One name space each side (Decision 0040)")
 struct NameSpaceTests {
 
-    // POL-113: the Keychain account used to be a `String` filled with whatever "server name" was
-    // nearest — the Bonjour instance name where it was saved, `welcome.serverName` where it was
-    // read. mDNSResponder renaming a registration to `Mdoro (2)` turned a paired Mac into an
-    // unknown one, and the iPhone asked for a six-digit code it had already been given.
+    // Decision 0040: the Keychain account is the id and never a `String` holding whatever "server
+    // name" is nearest — the Bonjour instance name where it is saved, `welcome.serverName` where it
+    // is read. Keyed on either, mDNSResponder renaming a registration to `Mdoro (2)` turns a paired
+    // Mac into an unknown one, and the iPhone asks for a six-digit code it has already been given.
     @Test func theiPhoneFilesItsPairingUnderTheIdAndNotAName() throws {
         let keychain = withoutComments(try source("PomodoroMac/PomodoroiOS/Client/TokenKeychain.swift"))
 
@@ -364,10 +364,10 @@ struct NameSpaceTests {
         )
     }
 
-    // POL-113: `pairedServerName` mixed `client.serverName` (from `welcome`) with
-    // `servers.first?.name` (from Bonjour) and `submitPairingCode` matched one against the other,
-    // falling through to `servers.first` whenever they differed — which is every time they do,
-    // and any time two Macs are listed.
+    // Decision 0040: a Mac is never found by matching one name against another. `client.serverName`
+    // (from `welcome`) and `servers.first?.name` (from Bonjour) are two different names for the same
+    // Mac, so a match between them falls through to `servers.first` every time they differ — and
+    // any time two Macs are listed.
     @Test func theiPhoneNeverFindsAMacByComparingNames() throws {
         let model = withoutComments(try source("PomodoroMac/PomodoroiOS/ClientModel.swift"))
 
@@ -375,9 +375,9 @@ struct NameSpaceTests {
         #expect(!model.contains("servers.first?.name"), "Decision 0040: nor by taking the first name going")
     }
 
-    // Decision 0040: **the Mac's own name does not leave the Mac.** It used to go out in
-    // `welcome` — and from there into the iPhone's Keychain and onto its lock screen — and it is
-    // the one string here most likely to have a person's name in it.
+    // Decision 0040: **the Mac's own name does not leave the Mac.** Sent in `welcome` it goes on
+    // into the iPhone's Keychain and onto its lock screen, and it is the one string here most
+    // likely to have a person's name in it.
     @Test func theMacsOwnNameGoesNowhere() throws {
         for (name, text) in try swiftFiles(under: "PomodoroMac/PomodoroMac", recursive: true) {
             #expect(
@@ -422,17 +422,17 @@ struct NameSpaceTests {
     }
 }
 
-// REQ-SEC-002 / Decision 0040: **the records were emptied on the way to being written.**
+// REQ-SEC-002 / Decision 0040: **a record is not emptied on the way to being written.**
 //
-// `save` was `SecItemDelete` and then `SecItemAdd` with its `OSStatus` discarded, and `load`
-// folded every status other than `errSecSuccess` into `[]`. An add that failed left the reader
-// with nothing on file and no trace of it anywhere; a read that failed answered "nothing paired",
-// so the next pairing wrote one record over all of them. The old plist store made neither of
-// these reachable in practice — **both arrived with the move to the Keychain.**
+// A `save` that is `SecItemDelete` then `SecItemAdd` with its `OSStatus` discarded, and a `load`
+// that folds every status other than `errSecSuccess` into `[]`, are each enough to lose the lot:
+// an add that fails leaves the reader with nothing on file and no trace of it anywhere; a read
+// that fails answers "nothing paired", so the next pairing writes one record over all of them.
+// Both are reachable once the records live in the Keychain rather than in a plist.
 //
 // The Keychain itself cannot be exercised here: under `xcodebuild` the suite runs inside
-// MdoroMac.app and writes into the reader's own login keychain (POL-047). What this holds is the
-// shape of the calls; the policy built on them is `DeviceTokenRecordTests` in the Mac target.
+// MdoroMac.app and writes into the reader's own login keychain. What this holds is the shape of
+// the calls; the policy built on them is `DeviceTokenRecordTests` in the Mac target.
 @Suite("Records are not destroyed on the way to being written (REQ-SEC-002 / Decision 0040)")
 struct DeviceTokenStorageTests {
 
@@ -483,10 +483,10 @@ struct DeviceTokenStorageTests {
         )
     }
 
-    // POL-047 / POL-053 / Decision 0040: `UserDefaults.standard` under this bundle identifier is
-    // the reader's own settings, and the suite runs inside the app. Erasing the leftover plist is
-    // part of the seam for exactly the reason the rest of it exists — a static call outside the
-    // seam is a call a test makes for real, which is the shape of both POL-047 and POL-053.
+    // Decision 0040: `UserDefaults.standard` under this bundle identifier is the reader's own
+    // settings, and the suite runs inside the app. Erasing the leftover plist is part of the seam
+    // for exactly the reason the rest of it exists — a static call outside the seam is a call a
+    // test makes for real, on the machine of whoever ran it.
     @Test func theLeftoverPlistIsErasedThroughTheSeamAndNowhereElse() throws {
         #expect(
             withoutComments(try store).contains("func eraseLeftoverPlaintext()"),
@@ -504,9 +504,9 @@ struct DeviceTokenStorageTests {
     }
 }
 
-// Decision 0040: `theMacsOwnNameGoesNowhere` watches the old name leave. **Nothing watched the
-// new one arrive** — the rename branch could be deleted whole and `provideDisplayName` pinned to
-// a literal, and every test in the repository still passed.
+// Decision 0040: `theMacsOwnNameGoesNowhere` watches that the host name never leaves. **This
+// watches that the chosen one arrives** — without it the rename branch could be deleted whole and
+// `provideDisplayName` pinned to a literal, with every test in the repository still passing.
 @Suite("The name the user chose is the name that travels (Decision 0040)")
 struct DisplayNameTravelTests {
 
@@ -540,10 +540,9 @@ struct DisplayNameTravelTests {
         #expect(body.contains("readvertise()"), "Decision 0040: the old name stays on the air")
     }
 
-    // POL-114 / Decision 0040: a failed rename used to be read off the listener object, and
-    // **one failed rename closed the door on every later one**. What a re-advertisement needs to
-    // know is whether the Mac is on the air, which is the port — never the listener it is about
-    // to fold and raise again.
+    // Decision 0040: what a re-advertisement needs to know is whether the Mac is on the air, which
+    // is the port — never the listener it is about to fold and raise again. Read a failed rename
+    // off the listener object and **one failed rename closes the door on every later one**.
     @Test func aRenameThatFailedDoesNotShutTheDoorOnTheNext() throws {
         let text = try appModel
         let function = try #require(
