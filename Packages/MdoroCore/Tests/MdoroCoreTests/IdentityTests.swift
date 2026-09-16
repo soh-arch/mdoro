@@ -253,7 +253,7 @@ struct DisplayNameTests {
         #expect(!settings.isWithinValidRanges(), "whitespace advertises a row nothing can read")
         settings.displayName = "M"
         #expect(settings.isWithinValidRanges())
-        settings.displayName = "Soh の Mac"
+        settings.displayName = "書斎の Mac"
         #expect(settings.isWithinValidRanges(), "what the user types is theirs")
     }
 
@@ -282,7 +282,7 @@ struct DeviceTokenRecordTests {
         var auth = Authenticator()
         auth.beginPairing(code: "123456", now: t0)
         guard case let .accept(token) = auth.authenticate(
-            HelloPayload(deviceToken: nil, pairingCode: "123456", deviceName: "Soh's iPhone"), now: t0
+            HelloPayload(deviceToken: nil, pairingCode: "123456", deviceName: "Nori's iPhone"), now: t0
         ) else {
             Issue.record("the correct pairing code was not accepted")
             return
@@ -291,7 +291,7 @@ struct DeviceTokenRecordTests {
         #expect(auth.issuedTokens.count == 1)
         let kept = auth.issuedTokens[0]
         #expect(kept.value == token.value)
-        #expect(kept.deviceName == "Soh's iPhone")
+        #expect(kept.deviceName == "Nori's iPhone")
         #expect(kept.issuedAt == t0)
     }
 
@@ -299,7 +299,7 @@ struct DeviceTokenRecordTests {
     // reconnect, which would show today's date beside a pairing made months ago — and the
     // revocation screen (Decision 0040) is built to be read.
     @Test func reconnectingDoesNotMoveTheDateItWasIssued() {
-        let issued = DeviceToken(value: "tok", deviceName: "Soh's iPhone", issuedAt: t0)
+        let issued = DeviceToken(value: "tok", deviceName: "Nori's iPhone", issuedAt: t0)
         var auth = Authenticator(issuedTokens: [issued])
         let muchLater = t0.addingTimeInterval(90 * 24 * 3600)
 
@@ -315,11 +315,13 @@ struct DeviceTokenRecordTests {
     }
 
     // What the Keychain holds is this, encoded. All three fields have to survive the trip, or the
-    // record is a value again with extra steps.
+    // record is a value again with extra steps. The names are in arbitrary user languages — a
+    // device name is whatever its owner typed into Settings, and a round trip through JSON is
+    // where a right-to-left one would come back wrong.
     @Test func theRecordSurvivesBeingSavedAndReadBack() throws {
         let records = [
-            DeviceToken(value: "a", deviceName: "Soh's iPhone", issuedAt: t0),
-            DeviceToken(value: "b", deviceName: "仕事用 iPhone", issuedAt: t0.addingTimeInterval(3600)),
+            DeviceToken(value: "a", deviceName: "Nori's iPhone", issuedAt: t0),
+            DeviceToken(value: "b", deviceName: "آيفون العمل", issuedAt: t0.addingTimeInterval(3600)),
         ]
         let data = try MessageCoder.encoder.encode(records)
         let read = try MessageCoder.decoder.decode([DeviceToken].self, from: data)

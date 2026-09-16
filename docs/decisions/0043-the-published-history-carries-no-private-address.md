@@ -197,7 +197,7 @@ git config user.email "257237375+soh-arch@users.noreply.github.com"
 
 ### 11. 公開してよいのは、9が終わってからである
 
-**`docs/experiments/` を残すかどうか**（POL-219）と、**`Lychee`**（POL-271）は別の票である。
+**`docs/experiments/` を残すかどうか**（POL-219）と、**テストに残る作者の Mac のホスト名**（POL-271）は別の票である。
 **公開の前に、両方とも閉じておく。**
 
 ## 影響
