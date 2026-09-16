@@ -2,8 +2,8 @@ import Foundation
 import UserNotifications
 import MdoroCore
 
-// POL-047: everything `AppModel` can ask of the notification centre, so a test can stand
-// where the centre does.
+// Everything `AppModel` can ask of the notification centre, so a test can stand where the centre
+// does.
 //
 // This is the boundary the reader's Mac is on the other side of. `UNUserNotificationCenter`
 // belongs to the OS, not to the app: a request handed to it is delivered to the person using
@@ -31,7 +31,7 @@ protocol SessionNotifying {
     func deliverSoundTest(preset: Preset)
 }
 
-// POL-047: the destination when this process is hosting a test bundle.
+// The destination when this process is hosting a test bundle.
 //
 // The app builds its model before any view exists, so the guards in `.task` are too late to
 // stop what that model holds. `store` and `bookmarks` were already substituted there; this is

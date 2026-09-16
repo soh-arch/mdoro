@@ -32,9 +32,11 @@ final class MdoroServer {
     }
 
     private(set) var listenPort: UInt16?
-    // POL-114: readable so that a test can see the listener a second `start` replaced, and see that
-    // it was cancelled rather than dropped. **A dropped NWListener keeps listening** — Network.framework
-    // holds it for its queue, and nothing releases the port or the Bonjour name but `cancel()`.
+    // Readable so that a test can see the listener a second `start` replaced, and see that it was
+    // cancelled rather than dropped. **A dropped NWListener keeps listening** — Network.framework
+    // holds it for its queue, and nothing releases the port or the Bonjour name but `cancel()`, so
+    // a listener let go goes on answering and advertising with nothing left holding a reference
+    // to it.
     private(set) var listener: NWListener?
     private(set) var connection: NWConnection?
     private(set) var connectedDeviceName: String?
@@ -44,9 +46,9 @@ final class MdoroServer {
     private(set) var connectedTokenValue: String?
     private(set) var lastHeartbeatAt: Date?
 
-    // POL-054 / REQ-ERR-010: a refused connection is the one thing that happens here and nowhere
-    // else, and the person reporting it cannot see any of it. Without a line, "it will not pair"
-    // reaches an issue with no way to tell five wrong codes from a token the Mac no longer knows.
+    // Decision 0018: a refused connection is the one thing that happens here and nowhere else, and
+    // the person reporting it cannot see any of it. Without a line, "it will not pair" reaches an
+    // issue with no way to tell five wrong codes from a token the Mac no longer knows.
     private let diagnostics: DiagnosticLog
 
     // REQ-COM-004: the read loop's one call into the transport, taken as a seam so that what the
@@ -75,11 +77,11 @@ final class MdoroServer {
     // **It returns only once the port is settled.** Return before it is settled and the value that goes
     // into the Bonjour TXT record is 0.
     //
-    // POL-114 / REQ-COM-003: **whatever is listening now is folded first.** This used to overwrite
-    // `self.listener` and leave the old one running, so a second start meant a second port and a second
-    // Bonjour registration; mDNSResponder numbered them `(2)`, `(3)` and the iPhone had no way to tell
-    // which of the identically named Macs was the one holding the pairing code. The tidying up is the
-    // one already in `stop()` — there is no second version of it to fall behind.
+    // **Whatever is listening now is folded first.** Overwrite `self.listener` and leave the old one
+    // running, and a second start is a second port and a second Bonjour registration: mDNSResponder
+    // numbers them `(2)`, `(3)` — seen on the reader's own Mac, 2026-08-30 — and the iPhone has no
+    // way to tell which of the identically named Macs is the one holding the pairing code. The
+    // tidying up is the one already in `stop()` — there is no second version of it to fall behind.
     func start(callbacks: Callbacks) async throws -> UInt16 {
         stop()
         self.callbacks = callbacks
@@ -110,12 +112,12 @@ final class MdoroServer {
         return port
     }
 
-    // REQ-COM-002 / 003: the Bonjour registration rides this listener now. `GET /info` is gone
-    // (v2.25), and with it the listener that used to carry the name — so TXT `ws` names this
-    // listener's own port rather than a second one's. The browsing side reads the port from the
-    // TXT record either way (`ServerBrowser.read`), so nothing changes for the iPhone.
+    // REQ-COM-002 / 003: the Bonjour registration rides this listener. `GET /info` is gone (v2.25)
+    // and this process holds no second listener, so TXT `ws` names this listener's own port and can
+    // name no other. The browsing side reads the port from the TXT record either way
+    // (`ServerBrowser.read`).
     //
-    // POL-140: the fold-before-bind at the top of `start()` is also what keeps a failed start
+    // REQ-COM-003: the fold-before-bind at the top of `start()` is also what keeps a failed start
     // from leaving a stale advertisement — with one listener, whatever was advertised comes down
     // before anything new is bound, so a `start()` that throws leaves nothing on the air.
     //
@@ -427,9 +429,9 @@ final class MdoroServer {
         }
     }
 
-    // POL-054: **the only ways a refusal leaves this process**, so the record cannot be forgotten
-    // on a path someone adds later. Two of them, because 10.2 carries the two kinds of reason in
-    // two different messages — and both of them write the line first.
+    // Decision 0018: **the only ways a refusal leaves this process**, so the record cannot be
+    // forgotten on a path someone adds later. Two of them, because 10.2 carries the two kinds of
+    // reason in two different messages — and both of them write the line first.
     private func refuse(_ code: AuthFailureCode, of hello: HelloPayload, to connection: NWConnection) {
         record(refusal: code, of: hello)
         sendThenClose(.authFailed(AuthFailedPayload(code: code)), to: connection)
@@ -494,15 +496,17 @@ final class MdoroServer {
             refuse(.connectionRejectedByUser, of: pending.hello, to: pending.connection)
             return
         }
-        // REQ-SEC-004 / POL-139: settled against the hello held when the question was asked, not
-        // by authenticating it afresh — the pairing window may have expired or been closed while
-        // the user was deciding, and a re-authentication then refused the very hello being
+        // REQ-SEC-003 (v2.28) / REQ-SEC-004: settled against the hello held when the question was
+        // asked, not by authenticating it afresh. A code that passed inside the window may reach
+        // issue on the strength of the approval alone, and the window can close or be shut while
+        // the user is deciding — authenticating again at that point refuses the very hello being
         // approved.
         guard let decision = callbacks?.resolveApproval(true) else { return }
         // Only an approval that ends in an accept drops the existing connection — `settle`'s
-        // accept branch folds it on its way in. POL-146 / REQ-SEC-004: an approval the
-        // Authenticator refused (the token was revoked while the question waited) keeps the
-        // standing connection, exactly as the Authenticator's own record of it is kept.
+        // accept branch folds it on its way in. REQ-SEC-004: only a new connection that is
+        // accepted costs the standing one, so an approval the Authenticator refused (the token was
+        // revoked while the question waited) keeps it, exactly as the Authenticator's own record of
+        // it is kept.
         settle(decision, of: pending.hello, from: pending.connection)
     }
 

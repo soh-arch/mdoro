@@ -17,17 +17,18 @@ protocol DeviceTokenStoring: Sendable {
     func load() -> DeviceTokenRecords
     // nil when the records are on file. Non-nil is the reason they are not.
     func save(_ tokens: [DeviceToken]) -> ErrorCode?
-    // Decision 0040: the plaintext array the tokens used to sit in. **Part of this seam and not a
-    // free function**, because `UserDefaults.standard` under this bundle identifier is the
-    // reader's own settings — the same reason the rest of the protocol exists (POL-047 / 053).
+    // Decision 0040: the plaintext array older versions kept tokens in, which may still be on the
+    // reader's disk. **Part of this seam and not a free function**, because `UserDefaults.standard`
+    // under this bundle identifier is the reader's own settings — the same reason the rest of the
+    // protocol exists: the suite runs inside MdoroMac.app and shares that identifier.
     func eraseLeftoverPlaintext()
 }
 
 // REQ-SEC-002 / REQ-ERR-010: what came back, and whether it is the whole answer.
 //
-// **"Nothing on record" and "could not be read" used to be the same answer.** `load()` folded
-// every `OSStatus` other than `errSecSuccess` into `[]`, so one refusal from the Keychain left the
-// authenticator holding nothing — and the next pairing wrote that one record over all of them.
+// **"Nothing on record" and "could not be read" are not the same answer.** Fold every `OSStatus`
+// other than `errSecSuccess` into `[]`, and one refusal from the Keychain leaves the authenticator
+// holding nothing — and the next pairing writes that one record over all of them.
 enum DeviceTokenRecords: Equatable {
     // What is on file. Empty is a complete answer: nothing has been paired yet.
     case onRecord([DeviceToken])
@@ -143,7 +144,7 @@ struct KeychainDeviceTokenStore: DeviceTokenStoring {
     }
 }
 
-// Decision 0040: the plaintext array this used to be kept in.
+// Decision 0040: the plaintext array older versions kept this in.
 //
 // **Not a migration.** Nothing is read out of it — the tokens it names were issued under the old
 // protocol version and no iPhone can present one any more (REQ-PRT-004). It is erased because
@@ -160,7 +161,7 @@ enum LeftoverPlaintextTokens {
     }
 }
 
-// POL-047 / Decision 0040: where the Keychain would be, when this process is hosting a test bundle.
+// Decision 0040: where the Keychain would be, when this process is hosting a test bundle.
 //
 // The app builds its model before any view exists, so the guard in `.task` is too late to stop
 // what that model holds — the same reason `SilentNotifications` and `SleepLeftAlone` exist.

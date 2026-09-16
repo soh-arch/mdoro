@@ -38,7 +38,7 @@ final class ClientModel {
     // REQ-COL-003 / Decision 0027: **the appearance is a setting for this device alone.** It is not sent to the Mac.
     private(set) var appearance: AppearancePreference = .system
 
-    // POL-047 / Decision 0040: the Keychain is outside this process. **The default is the same
+    // REQ-SEC-002 / Decision 0040: the Keychain is outside this process. **The default is the same
     // as production**, and only when it is replaced does a test write into the reader's own.
     private let tokens: any TokenStoring
     // **Where the client the app runs is made.** REQ-COM-005's five seconds are whatever is — or,
@@ -156,10 +156,10 @@ final class ClientModel {
         ))
     }
 
-    // Decision 0040: **the code goes back to the Mac that asked for it.** This used to look the
-    // target up by matching `$0.name` (the Bonjour instance name) against `client.serverName`
-    // (what the Mac called itself in `welcome`) — two different name spaces sharing a variable
-    // name — and fell through to `servers.first` whenever they did not match, which is every time
+    // Decision 0040: **the code goes back to the Mac that asked for it.** Looking the target up by
+    // matching `$0.name` (the Bonjour instance name) against `client.serverName` (what the Mac
+    // called itself in `welcome`) is a match across two different name spaces that share a variable
+    // name, and it falls through to `servers.first` whenever they do not agree — which is every time
     // the two differ and any time two Macs are listed. The client already knows which one it is
     // dialling; nothing has to be matched at all.
     func submitPairingCode(_ code: String) {

@@ -14,7 +14,7 @@ struct MdoroMacApp: App {
     // **All five are replaced.** A store holding nothing has nothing to restore, empty bookmarks
     // reach no folder of theirs, the notification centre is keyed by bundle identifier —
     // `cancelAll` on the real one would discard what the real Mdoro had scheduled — holding
-    // off idle sleep (POL-053) reaches past this process to the machine itself, and an item put
+    // off idle sleep reaches past this process to the machine itself, and an item put
     // in the Keychain (Decision 0040) is written into the reader's own login keychain and stays
     // there after the run. See `TestHost`.
     //
@@ -23,7 +23,7 @@ struct MdoroMacApp: App {
     // before `AppModel.init` touches state.json or the notification centre.
     @State private var model: AppModel
     @State private var notificationDelegate: NotificationDelegate
-    // POL-047 / REQ-UIX-030: **the mark in the menu bar is a Scene, and does not sit behind `.task`.**
+    // REQ-UIX-030: **the mark in the menu bar is a Scene, and does not sit behind `.task`.**
     // A scene is placed before any view of it appears, so the guard below cannot reach it. The
     // suite would put Mdoro's mark in a contributor's menu bar for the length of the run.
     @State private var showsMenuBarExtra: Bool
@@ -59,16 +59,16 @@ struct MdoroMacApp: App {
         Window("Mdoro", id: Self.mainWindowId) {
             MainWindowView()
                 .environment(model)
-                // POL-114: **this is a view's lifecycle, not the app's.** `.task` runs again every time
-                // this view appears, so closing the main window and reopening it ran the app's whole
-                // startup a second time — the reader ended up with several Bonjour registrations for one
-                // Mac, and the iPhone kept meeting the one that was not in pairing mode.
+                // **This is a view's lifecycle, not the app's.** `.task` runs again every time this
+                // view appears, so closing the main window and reopening it runs the app's whole
+                // startup a second time — several Bonjour registrations for one Mac, with the iPhone
+                // meeting the one that is not in pairing mode (seen on the reader's own Mac, 2026-08-30).
                 //
                 // It stays here because of the two things this block does that only a view can:
-                // `openWindow` comes out of the Environment, and the POL-047 guard has to sit in front of
-                // everything the suite must not do. **What was moved instead is the decision about
-                // repeating** — `AppModel.start()` now answers for being called more than once, which is
-                // the guarantee an app-lifecycle hook would have given.
+                // `openWindow` comes out of the Environment, and the test-host guard has to sit in front
+                // of everything the suite must not do. **The decision about repeating is not here** —
+                // `AppModel.start()` answers for being called more than once, which is the guarantee an
+                // app-lifecycle hook would give.
                 .task {
                     // The suite runs inside this app, so starting up here would advertise on
                     // the LAN, watch the reader's Task.md, take the notification delegate and
@@ -84,9 +84,9 @@ struct MdoroMacApp: App {
                 }
         }
         .defaultSize(width: 480, height: 620)
-        // POL-047: the window opens itself at launch, which under test means Mdoro taking the
-        // screen from whoever is running the suite. The scene has to stay — the test bundle is
-        // loaded into this app — so what is suppressed is its appearing.
+        // The window opens itself at launch, which under test means Mdoro taking the screen from
+        // whoever is running the suite. The scene has to stay — the test bundle is loaded into this
+        // app — so what is suppressed is its appearing.
         .defaultLaunchBehavior(TestHost.isRunning ? .suppressed : .presented)
 
         // REQ-UIX-030: it lives in the menu bar, and by default shows the remaining time and the session
