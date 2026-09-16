@@ -1,11 +1,11 @@
 import Testing
 import Foundation
 
-// REQ-TSK-016 / REQ-UIX-047: when nothing was found in the task file, the app answers by
-// showing the notation it reads. A sample the reader cannot pick out of the sentence does not
-// show anything, and that is what a verbatim `Text` produces — `String(localized:)` resolves
-// the key first, so `Text` gets a plain String and prints the backticks as themselves. Handing
-// `Text` the key instead lets SwiftUI set the sample as code.
+// REQ-TSK-016: when nothing was found in the task file, the app answers by showing the notation
+// it reads. A sample the reader cannot pick out of the sentence does not show anything, and that
+// is what a verbatim `Text` produces — `String(localized:)` resolves the key first, so `Text`
+// gets a plain String and prints the backticks as themselves. Handing `Text` the key instead
+// lets SwiftUI set the sample as code.
 //
 // The two forms read almost identically at the call site, so neither one holds the other in
 // place. The rule is checked on the text instead: nothing that draws resolves a string with a

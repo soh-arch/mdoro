@@ -219,8 +219,9 @@ public struct ProtocolErrorPayload: Equatable, Sendable, Codable {
 //
 // The code settles the message, so there is no second argument — the same reason
 // `AppModel.reject` takes the failure itself rather than a code and a sentence. A parameter for
-// the sentence is an invitation to write prose into a field no screen ever reads, so there is
-// none. Decoding still takes what arrived.
+// the sentence is an invitation that was taken five times over: three call sites wrote prose into
+// `error.message` while there was one, and the two here did the same, into a field no screen ever
+// reads. Decoding still takes what arrived.
 public struct AuthFailedPayload: Equatable, Sendable, Codable {
     public var code: AuthFailureCode
     public var message: String

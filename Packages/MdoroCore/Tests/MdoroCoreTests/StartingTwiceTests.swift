@@ -2,7 +2,8 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
-// REQ-COM-002 / REQ-COM-003: **the Mac advertises itself exactly once.**
+// **The Mac advertises itself exactly once**: `start()` runs once per process, and no listener
+// is replaced without being folded first.
 //
 // Measured on the reader's machine: two `MdoroMac` processes, five `_mdoro._tcp` registrations
 // (the Mac's own name, then that name `(2)` through `(5)` — the name itself is held back, the

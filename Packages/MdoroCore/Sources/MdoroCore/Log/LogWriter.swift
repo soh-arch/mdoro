@@ -331,8 +331,9 @@ public final class LogWriteQueue: @unchecked Sendable {
     // The caller holds `lock`.
     private func settle(outcome: FlushOutcome?, written: Int, lastError: LogWriteError?) -> FlushResult {
         // Decision 0039: one outcome per attempt, only the last `recentWindow` of them kept.
-        // Letting attempts that wrote nothing in would let idle flushes wash real failures out:
-        // ten idle flushes are enough to empty a window of ten.
+        // Letting attempts that wrote nothing in would let idle flushes wash real failures out —
+        // ten of them empty this window, where a consecutive count can only ever lose two before
+        // it fires.
         if let outcome {
             recentOutcomes.append(outcome)
             if recentOutcomes.count > Self.recentWindow {

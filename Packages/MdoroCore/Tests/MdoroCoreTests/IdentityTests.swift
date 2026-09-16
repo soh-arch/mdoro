@@ -540,10 +540,9 @@ struct DisplayNameTravelTests {
         #expect(body.contains("readvertise()"), "Decision 0040: the old name stays on the air")
     }
 
-    // REQ-COM-003 / Decision 0040: what a re-advertisement needs to know is whether the Mac is on
-    // the air, which is the port — never the listener it is about to fold and raise again. Read a
-    // failed rename off the listener object and **one failed rename closes the door on every later
-    // one**.
+    // Decision 0040: what a re-advertisement needs to know is whether the Mac is on the air, which
+    // is the port — never the listener it is about to fold and raise again. Read a failed rename
+    // off the listener object and **one failed rename closes the door on every later one**.
     @Test func aRenameThatFailedDoesNotShutTheDoorOnTheNext() throws {
         let text = try appModel
         let function = try #require(
