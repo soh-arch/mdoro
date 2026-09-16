@@ -2,13 +2,13 @@ import Foundation
 import MdoroCore
 @testable import MdoroMac
 
-// POL-047: where the notification centre would be.
+// Where the notification centre would be.
 //
 // This target's tests run inside MdoroMac.app, under the app's own bundle identifier, so a
 // request handed to `UNUserNotificationCenter` is delivered to the person sitting at the
-// machine — and `cancelAll` throws away what the real app had scheduled. The product owner
-// was getting notifications mid-session from a test run, two at a time, once per case in
-// `everySoundIsWrittenTheSameWay`.
+// machine — and `cancelAll` throws away what the real app had scheduled. Without this stand-in
+// the product owner gets notifications mid-session from a test run, two at a time, once per case
+// in `everySoundIsWrittenTheSameWay` — which is how it was found.
 //
 // What those tests read is the diagnostic log, not the notification, so nothing is lost by
 // stopping here. The calls are kept rather than dropped: a test that wants to know a boundary

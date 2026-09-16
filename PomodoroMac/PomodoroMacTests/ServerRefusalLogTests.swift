@@ -3,15 +3,17 @@ import Foundation
 import MdoroCore
 @testable import MdoroMac
 
-// POL-054 / REQ-ERR-010 / Decision 0018: what the Mac writes when it turns a connection away.
+// What the Mac writes when it turns a connection away.
 //
-// "It will not pair" is the report, and until now nothing in the diagnostic log answered it.
-// Five wrong codes, a pairing window that had closed, a token this Mac no longer knows and a
-// request the user never answered all left the same silence — refusals the reader cannot see,
-// on a screen that is not theirs.
+// "It will not pair" is the report, and the diagnostic log is what answers it. Leave a refusal
+// unwritten and five wrong codes, a pairing window that had closed, a token this Mac no longer
+// knows and a request the user never answered all read as the same silence — refusals the reader
+// cannot see, on a screen that is not theirs. No clause asks for these lines: the reader Decision
+// 0018 wrote the log for is the whole of why they exist.
 //
-// The log is what they paste into an issue, so it is also the one place these must never carry
-// the device name, the token or the pairing code that were in hand at the moment of refusal.
+// REQ-ERR-010 / Decision 0018: that reader pastes the log into an issue, which is why a refusal is
+// the one place the device name, the token and the pairing code must never reach — and all three
+// are in hand at the moment one is written.
 
 // One event per line: `timestamp LEVEL code key=value ...`.
 private struct RefusalLine {

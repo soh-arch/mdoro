@@ -6,9 +6,9 @@ import MdoroCore
 // REQ-ERR-010 / Decision 0018 / 0034: what `AppModel` actually writes to the diagnostic log.
 //
 // `MdoroCore` owns the format and holds it under `swift test`; what it cannot reach is the
-// call sites, which live in this target. That gap was real — POL-034 found that
-// `preset.notificationSound.diagnosticValue` could be changed back to `.rawValue` in two
-// places and every test in the repository would still pass. So these read the file back
+// call sites, which live in this target. The gap is real, and it was measured: with it open,
+// `preset.notificationSound.diagnosticValue` can be changed back to `.rawValue` in two
+// places and every test in the repository still passes. So these read the file back
 // rather than the fields handed in, which is the only version a reader on an issue sees.
 //
 // **Never touch what belongs to the user.** Empty bookmarks are handed in (nothing can be written
@@ -49,7 +49,7 @@ private struct Recording {
     let directory: URL
     let text: String
     let events: [LoggedEvent]
-    // POL-047: what the app asked the notification centre for, had one been there.
+    // What the app asked the notification centre for, had one been there.
     let notifications: [RecordedNotifications.Call]
 
     func events(_ code: String) -> [LoggedEvent] { events.filter { $0.code == code } }
@@ -70,7 +70,7 @@ private func record(
         settings: settings,
         savedAt: Date()
     )
-    // POL-047: the notification sink is swapped out too. **The real target is the user's own
+    // The notification sink is swapped out too. **The real target is the user's own
     // Notification Centre.** What these tests read is the diagnostic log, not the notifications.
     let notifications = RecordedNotifications()
     let model = AppModel(
@@ -80,8 +80,8 @@ private func record(
         // Decision 0033): the entry stops at `log.notRecorded` and never reaches the user's folder.
         bookmarks: VaultBookmarks(),
         notifications: notifications,
-        // POL-053: every case below runs a session to its end, and RUNNING is where REQ-PER-006
-        // tells the OS to keep the machine awake. `IdleSleepTests` is where that rule is checked.
+        // Every case below runs a session to its end, and RUNNING is where REQ-PER-006 tells the
+        // OS to keep the machine awake. `IdleSleepTests` is where that rule is checked.
         idleSleep: RecordedSleepGuard(),
         // Decision 0040: the Keychain is the reader's too. Nothing here pairs anything.
         deviceTokens: TokensKeptNowhere()
@@ -116,10 +116,10 @@ private func runOneSessionToItsEnd(_ model: AppModel, taskSnapshot: String) {
 @MainActor
 struct DiagnosticLogTests {
 
-    // POL-047: this suite runs inside MdoroMac.app, so every notification it asked for was
-    // delivered to the person at the machine — two at a time, once per case below. The
-    // requests still have to be made, because what these tests read is the record the app
-    // writes of having made them. Only the destination changed.
+    // This suite runs inside MdoroMac.app, so a notification it asks for is delivered to the
+    // person at the machine — two at a time, once per case below. The requests still have to
+    // be made, because what these tests read is the record the app writes of having made them,
+    // so the stand-in takes the destination and nothing else.
     @Test func theRequestsAreStillMadeAndNoneOfThemLeaveTheProcess() throws {
         var preset = Preset.standard()
         preset.notificationSound = .chime

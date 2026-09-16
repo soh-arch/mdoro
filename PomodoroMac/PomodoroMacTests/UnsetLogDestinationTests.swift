@@ -6,20 +6,20 @@ import MdoroCore
 // REQ-LOG-002 / Decision 0033: what `AppModel` does with a session that finishes while no folder
 // has been chosen for the session log.
 //
-// **This is the state every user is in on their first run**, and the app used to treat it as a
-// failed write: the entry went into the retry queue, the status line said writing had failed, and
-// REQ-ERR-004 notified on the third session. The queue was persisted, so it grew across restarts
-// until a folder was chosen — and then every session since installation was poured into the file at
-// once. Decision 0033 says none of that: nothing is written, nothing is queued, nothing is a
-// failure, and the screen says so.
+// **This is the state every user is in on their first run**, and Decision 0033 says what it is
+// not: nothing is written, nothing is queued, nothing is a failure, and the screen says so. Treat
+// it as a failed write instead and the entry goes into the retry queue, the status line says
+// writing has failed, and REQ-ERR-004 notifies on the third session — and because the queue is
+// persisted it grows across restarts until a folder is chosen, at which point every session since
+// installation pours into the file at once.
 //
 // `MdoroCore` holds the rule itself (`LogDestinationTests` under `swift test`). What it cannot
 // reach is this wiring, which is where all three bugs were.
 //
 // **Never touch what belongs to the user.** The state store is in memory, the diagnostic log points
 // at a temporary directory, the notification sink and the sleep guard are recorded rather than
-// raised (POL-047 / POL-053), and `start()` is never called — it raises a listener and a Bonjour
-// registration, and the reader's own Mdoro is running.
+// raised, and `start()` is never called — it raises a listener and a Bonjour registration, and
+// the reader's own Mdoro is running.
 
 private struct LoggedLine {
     let level: String
@@ -166,8 +166,8 @@ struct UnsetLogDestinationTests {
         #expect(harness.model.timer.committedAt != nil)
     }
 
-    // (c) The bug the reader would have met on the day they finally chose a folder: days of
-    // sessions, written at once, none of them asked for.
+    // (c) What reaches the reader on the day they finally choose a folder, if nothing stops it:
+    // days of sessions, written at once, none of them asked for.
     @Test func choosingAFolderLaterWritesNothingFromBefore() {
         let before = Harness(logFolder: nil)
         defer { before.cleanUp() }
@@ -257,14 +257,14 @@ struct UnsetLogDestinationTests {
 }
 
 // REQ-ERR-004 / Decision 0039. The other end of the same distinction: a folder **is** set, and
-// reaching it fails. The bookmark no longer resolves — the folder was deleted, renamed, or moved to
+// reaching it fails. The bookmark does not resolve — the folder was deleted, renamed, or moved to
 // a volume that is not mounted — so `VaultFileAccess.withAccess` throws and the write never reaches
 // `LogWriteQueue.flush` at all.
 //
-// **That whole path used to go uncounted.** `logWriteFailed` was raised, so the screen said writing
-// had failed, while the threshold it is supposed to be counted against never moved: the
-// notification could not arrive however long the folder stayed gone. Decision 0039 asks that
-// failures which never build a run still be heard; this one never even built an attempt.
+// **That whole path has to be counted.** Leave it out and `logWriteFailed` is raised, so the screen
+// says writing has failed, while the threshold it is supposed to be counted against never moves:
+// the notification cannot arrive however long the folder stays gone. Decision 0039 asks that
+// failures which never build a run still be heard; this one does not even build an attempt.
 @Suite("A log folder that cannot be reached (REQ-ERR-004 / Decision 0039)")
 @MainActor
 struct UnreachableLogFolderTests {

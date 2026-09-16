@@ -5,8 +5,8 @@ import MdoroCore
 
 // **One Mac can show up as "Name" and "Name (2)" at once — and so can two Macs.** Nothing on
 // screen can tell those two situations apart: the number is mDNSResponder settling a name
-// collision (`docs/PLATFORM.md`). So none of them is hidden. The rule that used to hide one kept
-// the highest number, and the highest number is not the newest.
+// collision (`docs/PLATFORM.md`). So none of them is hidden. A rule that hides one has to pick,
+// and keeping the highest number picks wrong: the highest number is not the newest.
 //
 // **What tells them apart to the app is the TXT `id`** (Decision 0040), which is not a thing
 // anyone can read off a list — so the list still shows names, number and all.
@@ -105,11 +105,11 @@ struct AdvertisementReadingTests {
     }
 }
 
-// REQ-COM-003 / POL-143: what the client dials. It used to build "\(instanceName).local" — an
-// mDNS host name and a Bonjour instance name are unrelated, and the two matched only while the
-// instance name happened to be the computer's name. With the default instance name "Mdoro",
-// that dialled a host that does not exist. The dial goes to the discovered `.service` endpoint,
-// which Network.framework resolves by name at connect time.
+// REQ-COM-003: what the client dials. The dial goes to the discovered `.service` endpoint, which
+// Network.framework resolves by name at connect time. Build "\(instanceName).local" instead and it
+// dials a host that does not exist — an mDNS host name and a Bonjour instance name are unrelated,
+// and the two match only while the instance name happens to be the computer's name, which the
+// default instance name "Mdoro" is not.
 @Suite("The client dials the service it discovered (REQ-COM-003)")
 struct DialEndpointTests {
 
@@ -122,7 +122,7 @@ struct DialEndpointTests {
         )
     }
 
-    // The seat of POL-143: the dial is the discovered service endpoint itself, not a host name
+    // The seat of the rule: the dial is the discovered service endpoint itself, not a host name
     // derived from the instance name. "Mdoro.local" is nobody.
     @Test func theDialIsTheDiscoveredServiceItself() {
         let discovered = server(named: "Mdoro", websocketPort: 51234)
@@ -138,7 +138,7 @@ struct DialEndpointTests {
     }
 
     // The service resolves to the port the advertisement rides on, so the TXT `ws` value —
-    // kept for protocol compatibility — no longer gates the dial.
+    // kept for protocol compatibility — does not gate the dial.
     @Test func aMissingTXTPortDoesNotStopTheDial() {
         #expect(WebSocketLinks.dialEndpoint(for: server(named: "Mdoro", websocketPort: nil)) != nil)
     }

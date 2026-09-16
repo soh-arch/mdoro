@@ -9,7 +9,7 @@ import MdoroCore
 // pairing screen opening is what makes an unpaired Mac try, and that the screen closing folds
 // what nothing needs any more.
 //
-// **Nothing here raises a listener or puts a name on the LAN** (POL-047). The "it starts" halves
+// **Nothing here raises a listener or puts a name on the LAN.** The "it starts" halves
 // run against records that keep the Mac off the air on purpose — an identity that cannot be read
 // is refused before any listener is built — so what is observed is the *attempt* (the refusal it
 // ends in), never the server. The "it does not start" halves observe that not even the identity
