@@ -25,20 +25,20 @@ struct ServerBrowserDiscoveryTests {
     // Three at once is not hypothetical; the product owner has seen three.
     @Test func everyRegistrationOfTheSameNameIsOffered() {
         let found = ServerBrowser.inDisplayOrder(
-            [server("Lychee (3)"), server("Lychee"), server("Lychee (2)")]
+            [server("Guava (3)"), server("Guava"), server("Guava (2)")]
         )
         #expect(found.count == 3)
         // The number is the only thing on screen that tells them apart, so it is kept.
-        #expect(found.map(\.name) == ["Lychee", "Lychee (2)", "Lychee (3)"])
+        #expect(found.map(\.name) == ["Guava", "Guava (2)", "Guava (3)"])
     }
 
-    // The rule that stood here kept "Lychee (2)" and dropped "Lychee". Measurement says the one
+    // The rule that stood here kept "Guava (2)" and dropped "Guava". Measurement says the one
     // without a number is the later arrival: a number is never handed back, so the survivor of a
     // collision keeps its "(2)" and the next registration takes the name that came free.
     @Test func theMacWithNoNumberIsNotDroppedForTheOneWithOne() {
         #expect(
-            ServerBrowser.inDisplayOrder([server("Lychee (2)"), server("Lychee")]).map(\.id)
-                == ["Lychee", "Lychee (2)"]
+            ServerBrowser.inDisplayOrder([server("Guava (2)"), server("Guava")]).map(\.id)
+                == ["Guava", "Guava (2)"]
         )
     }
 
@@ -46,16 +46,16 @@ struct ServerBrowserDiscoveryTests {
     // any two things at all.
     @Test func differentMacsAreNotMerged() {
         #expect(
-            ServerBrowser.inDisplayOrder([server("Mango"), server("Lychee")]).map(\.name)
-                == ["Lychee", "Mango"]
+            ServerBrowser.inDisplayOrder([server("Mango"), server("Guava")]).map(\.name)
+                == ["Guava", "Mango"]
         )
     }
 
     // NWBrowser hands back a Set, so the order they arrive in is not the order they arrived in
     // last time. A list of same-named Macs that shuffles between callbacks cannot be chosen from.
     @Test func theOrderDoesNotFollowTheOrderTheBrowserGaveThem() {
-        let names = ["Mango", "Lychee (2)", "Lychee", "Lychee (10)", "Lychee (3)"]
-        let expected = ["Lychee", "Lychee (2)", "Lychee (3)", "Lychee (10)", "Mango"]
+        let names = ["Mango", "Guava (2)", "Guava", "Guava (10)", "Guava (3)"]
+        let expected = ["Guava", "Guava (2)", "Guava (3)", "Guava (10)", "Mango"]
         for rotation in 0..<names.count {
             let rotated = Array(names[rotation...] + names[..<rotation])
             #expect(

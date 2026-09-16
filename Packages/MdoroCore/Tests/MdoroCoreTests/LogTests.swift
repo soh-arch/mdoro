@@ -29,7 +29,7 @@ private func entry(
     outcome: LogOutcome = .completed,
     preset: String = "Standard",
     edited: Bool = false,
-    task: String? = "仕様書のレビュー",
+    task: String? = "Revisão da especificação",
     extended: Int = 0,
     loopAfter: Int? = 1,
     interval: Int = 4
@@ -42,13 +42,17 @@ private func entry(
     )
 }
 
+// The task names and the user's own log lines below are in arbitrary user languages. What goes
+// into MdoroLog.md is whatever the owner wrote in Task.md (REQ-LOG-013 / 023), and the file
+// the line is inserted into is theirs as well (REQ-LOG-001), so no single language stands in
+// for "not English" here.
 @Suite("Log line formatting (REQ-LOG-010–017)")
 struct LogFormatterTests {
 
     // Reproduce the example output of 7.2 exactly.
     @Test func matchesTheExamplesInSection72() {
         #expect(LogFormatter.line(for: entry(), calendar: calendar)
-                == "- 09:00–09:25 WORK 25m ✅ Loop 1/4 [Standard] — 仕様書のレビュー")
+                == "- 09:00–09:25 WORK 25m ✅ Loop 1/4 [Standard] — Revisão da especificação")
 
         #expect(LogFormatter.line(for: entry(
             type: .shortBreak, start: at(9, 25), end: at(9, 30), elapsed: 5 * 60,
@@ -57,8 +61,8 @@ struct LogFormatterTests {
 
         #expect(LogFormatter.line(for: entry(
             start: at(9, 32), end: at(10, 4), elapsed: 32 * 60,
-            task: "プロトコル設計", extended: 7 * 60, loopAfter: 2), calendar: calendar)
-                == "- 09:32–10:04 WORK 32m ✅ Loop 2/4 (+7m extended) [Standard] — プロトコル設計")
+            task: "프로토콜 설계", extended: 7 * 60, loopAfter: 2), calendar: calendar)
+                == "- 09:32–10:04 WORK 32m ✅ Loop 2/4 (+7m extended) [Standard] — 프로토콜 설계")
 
         #expect(LogFormatter.line(for: entry(
             type: .shortBreak, start: at(10, 4), end: at(10, 9), elapsed: 5 * 60,
@@ -67,8 +71,8 @@ struct LogFormatterTests {
 
         #expect(LogFormatter.line(for: entry(
             start: at(11, 35), end: at(11, 43), elapsed: 8 * 60, outcome: .aborted,
-            preset: "ディープワーク", task: "プロトコル設計", loopAfter: nil), calendar: calendar)
-                == "- 11:35–11:43 WORK 8m ⏹ Stopped [ディープワーク] — プロトコル設計")
+            preset: "ディープワーク", task: "프로토콜 설계", loopAfter: nil), calendar: calendar)
+                == "- 11:35–11:43 WORK 8m ⏹ Stopped [ディープワーク] — 프로토콜 설계")
     }
 
     // REQ-LOG-011: the loop uses the same modulo form as REQ-TIM-025, matching what the UI shows.
@@ -109,17 +113,17 @@ struct LogFormatterTests {
 
     // REQ-LOG-010 / 023: the task name is for WORK only.
     @Test func taskNameOnlyAppearsForWork() {
-        #expect(!LogFormatter.line(for: entry(type: .shortBreak, task: "残っていたら異常", loopAfter: nil), calendar: calendar).contains("残っていたら異常"))
+        #expect(!LogFormatter.line(for: entry(type: .shortBreak, task: "不应残留", loopAfter: nil), calendar: calendar).contains("不应残留"))
     }
 
     // REQ-LOG-013: plain text that is not a link by default. A setting can make it a link.
     @Test func taskNameIsPlainByDefaultAndLinkableByOption() {
-        let plain = LogFormatter.line(for: entry(task: "プロトコル設計"), calendar: calendar)
-        #expect(plain.hasSuffix("— プロトコル設計"))
+        let plain = LogFormatter.line(for: entry(task: "프로토콜 설계"), calendar: calendar)
+        #expect(plain.hasSuffix("— 프로토콜 설계"))
         #expect(!plain.contains("[["))
 
-        let linked = LogFormatter.line(for: entry(task: "プロトコル設計"), options: .init(taskAsLink: true), calendar: calendar)
-        #expect(linked.hasSuffix("— [[プロトコル設計]]"))
+        let linked = LogFormatter.line(for: entry(task: "프로토콜 설계"), options: .init(taskAsLink: true), calendar: calendar)
+        #expect(linked.hasSuffix("— [[프로토콜 설계]]"))
     }
 
     // Even when [[...]] is left in the text, the default does not turn it into a link.
@@ -206,12 +210,12 @@ struct LogFileEditorTests {
 
         ## 2026-08-24 (Mon)
 
-        - 既存の行
-          - 手で足した子行
+        - שורה קיימת
+          - 손으로 추가한 자식 줄
 
         ## 2026-08-25 (Tue)
 
-        - 翌日の行
+        - linha do dia seguinte
         """
         let result = try insert(into: existing)
         for line in existing.components(separatedBy: "\n") where !line.isEmpty {
@@ -245,11 +249,11 @@ struct LogFileEditorTests {
     // REQ-LOG-003 / REQ-LOG-022: a heading the user wrote is not taken as the day's heading, even
     // when it contains the date.
     @Test func userHeadingContainingADateIsNotTreatedAsTheDaySection() throws {
-        let existing = "## 週次レビュー 2026-08-24 の分\n\n- ユーザーのメモ\n"
+        let existing = "## 주간 회고 2026-08-24 분량\n\n- 사용자 메모\n"
         let result = try insert(into: existing)
         #expect(result.contains("## 2026-08-24 (Mon)"), "must create a new date heading")
         let lines = result.components(separatedBy: "\n")
-        let memo = lines.firstIndex(of: "- ユーザーのメモ")!
+        let memo = lines.firstIndex(of: "- 사용자 메모")!
         let inserted = lines.firstIndex(of: "- 新しい行")!
         #expect(inserted > memo + 1, "must not insert into a section the user wrote")
     }
@@ -354,7 +358,7 @@ struct LogWriterTests {
         #expect(contents == """
         ## 2026-08-24 (Mon)
 
-        - 09:00–09:25 WORK 25m ✅ Loop 1/4 [Standard] — 仕様書のレビュー
+        - 09:00–09:25 WORK 25m ✅ Loop 1/4 [Standard] — Revisão da especificação
         - 09:25–09:30 SHORT_BREAK 5m ✅ [Standard]
 
         """)
@@ -369,12 +373,12 @@ struct LogWriterTests {
 
         try writer.append(entry(), calendar: calendar)
         var edited = try String(contentsOf: url, encoding: .utf8)
-        edited += "\n- ユーザーが手で書いた行\n"
+        edited += "\n- linha escrita à mão\n"
         try edited.write(to: url, atomically: true, encoding: .utf8)
 
         try writer.append(entry(start: at(10, 0), end: at(10, 25), loopAfter: 2), calendar: calendar)
         let contents = try String(contentsOf: url, encoding: .utf8)
-        #expect(contents.contains("- ユーザーが手で書いた行"), "a line added outside the app must not be lost")
+        #expect(contents.contains("- linha escrita à mão"), "a line added outside the app must not be lost")
         #expect(contents.contains("Loop 2/4"))
     }
 
@@ -730,7 +734,7 @@ struct LogTaskSnapshotTests {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
 
         let started = try TimerEngine.reduce(
-            action: .startWork(presetId: p.id, taskSnapshot: "開始時に選んでいたタスク"),
+            action: .startWork(presetId: p.id, taskSnapshot: "المهمة المختارة عند البدء"),
             context: .idle(now: start), presets: presets, now: start
         ).get().context
         let endAt = started.sessionEndAt!
@@ -739,7 +743,7 @@ struct LogTaskSnapshotTests {
         let finished = TimerEngine.tick(context: started, presets: presets, now: endAt).context
         #expect(finished.runState == .finished)
         let reselected = try TimerEngine.reduce(
-            action: .selectTask(snapshot: "あとから選んだ別のタスク"),
+            action: .selectTask(snapshot: "مهمة أخرى اختيرت بعد ذلك"),
             context: finished, presets: presets, now: endAt.addingTimeInterval(10)
         ).get().context
 
@@ -749,8 +753,8 @@ struct LogTaskSnapshotTests {
             Issue.record("no commitLog was emitted")
             return
         }
-        #expect(entry.taskSnapshot == "開始時に選んでいたタスク")
-        #expect(LogFormatter.line(for: entry).hasSuffix("— 開始時に選んでいたタスク"))
+        #expect(entry.taskSnapshot == "المهمة المختارة عند البدء")
+        #expect(LogFormatter.line(for: entry).hasSuffix("— المهمة المختارة عند البدء"))
     }
 }
 

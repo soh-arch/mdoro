@@ -10,7 +10,7 @@ import MdoroCore
 // started listener alive for its queue, so the old one went on holding its port and — once
 // `advertise` had set `.service`, which rides this listener now that `/info` is gone
 // (REQ-COM-002 v2.25) — its Bonjour registration. mDNSResponder renames a colliding registration
-// instead of refusing it, so the reader saw `Lychee (2)` through `(5)` for two processes, and
+// instead of refusing it, so the reader saw one name `(2)` through `(5)` for two processes, and
 // pairing kept landing on a registration whose process was not the one holding the code.
 //
 // `MdoroCoreTests` reads the file and checks the fold is written down, which is what CI runs.

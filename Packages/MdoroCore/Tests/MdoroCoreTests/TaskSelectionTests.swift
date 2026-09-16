@@ -2,6 +2,10 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
+// The task texts here are in arbitrary user languages. A Markdown task file holds whatever its
+// owner writes, so no one language stands for "not English" — and the follow-through threshold
+// (REQ-TSK-032) counts Characters, which is why the distances below are checked in more than one
+// script.
 private func load(_ text: String) -> TaskParseResult { TaskParser.parse(text) }
 
 private func context(_ text: String, selecting displayText: String? = nil) throws -> TaskContext {
@@ -17,25 +21,25 @@ private func context(_ text: String, selecting displayText: String? = nil) throw
 struct SelectedTaskStateTests {
 
     @Test func judgementOrderIsNoneCompletedPresentMissing() throws {
-        var ctx = try context("- [ ] 作業中\n- [x] 済んだもの")
+        var ctx = try context("- [ ] 진행 중\n- [x] 끝난 일")
         #expect(ctx.selectedTaskState == .none)
 
-        let present = ctx.items.first { $0.displayText == "作業中" }!
+        let present = ctx.items.first { $0.displayText == "진행 중" }!
         try ctx.select(id: present.stableId)
         #expect(ctx.selectedTaskState == .present)
 
-        let completed = ctx.items.first { $0.displayText == "済んだもの" }!
+        let completed = ctx.items.first { $0.displayText == "끝난 일" }!
         try ctx.select(id: completed.stableId)
         #expect(ctx.selectedTaskState == .completed)
 
-        ctx.selectedTaskId = "存在しないID"
+        ctx.selectedTaskId = "없는 ID"
         #expect(ctx.selectedTaskState == .missing)
     }
 
     // REQ-TSK-034: showCompletedTasks must not affect the judgement.
     // A task that is merely out of view is never mistaken for missing.
     @Test func showCompletedSettingDoesNotAffectTheJudgement() throws {
-        let ctx = try context("- [x] 済んだもの", selecting: "済んだもの")
+        let ctx = try context("- [x] 已完成", selecting: "已完成")
         #expect(ctx.selectedTaskState == .completed)
         #expect(ctx.grouped(showCompleted: false).flatMap(\.items).isEmpty, "it is filtered out of the visible list")
         #expect(ctx.selectedTaskState == .completed, "but its state must still not be missing")
@@ -55,22 +59,22 @@ struct TaskReloadTests {
 
     // REQ-TSK-030 / 031: a task disappearing never clears the selection on its own.
     @Test func missingSelectionIsKeptNotCleared() throws {
-        let before = try context("- [ ] 仕様書のレビュー", selecting: "仕様書のレビュー")
-        let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] まったく別のタスク"))
+        let before = try context("- [ ] Revisão da especificação", selecting: "Revisão da especificação")
+        let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] Compra do supermercado"))
         #expect(outcome.context.selectedTaskId == before.selectedTaskId)
         #expect(outcome.context.selectedTaskState == .missing)
         #expect(!outcome.didFollow)
         // REQ-TSK-031: the session log records the last text that was known.
-        #expect(outcome.context.selectedTaskSnapshot == "仕様書のレビュー")
+        #expect(outcome.context.selectedTaskSnapshot == "Revisão da especificação")
     }
 
     // REQ-TSK-032: polishing the wording is followed.
     @Test func minorEditIsFollowed() throws {
-        let before = try context("- [ ] 仕様書のレビューをする", selecting: "仕様書のレビューをする")
-        let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] 仕様書のレビューをやる"))
+        let before = try context("- [ ] Revisão da especificação", selecting: "Revisão da especificação")
+        let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] Revisão das especificações"))
         #expect(outcome.didFollow)
         #expect(outcome.context.selectedTaskState == .present)
-        #expect(outcome.context.selectedTaskSnapshot == "仕様書のレビューをやる")
+        #expect(outcome.context.selectedTaskSnapshot == "Revisão das especificações")
     }
 
     @Test func rewriteBeyondTheThresholdIsNotFollowed() throws {
@@ -82,8 +86,8 @@ struct TaskReloadTests {
 
     // With no single candidate, nothing is followed. A wrong link is worse than no link at all.
     @Test func ambiguousCandidatesAreNotFollowed() throws {
-        let before = try context("- [ ] タスクA1", selecting: "タスクA1")
-        let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] タスクA2\n- [ ] タスクA3"))
+        let before = try context("- [ ] 작업A1", selecting: "작업A1")
+        let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] 작업A2\n- [ ] 작업A3"))
         #expect(!outcome.didFollow)
         #expect(outcome.context.selectedTaskState == .missing)
     }
@@ -103,11 +107,11 @@ struct TaskReloadTests {
 
     // With a block ID, follow-through never comes into play at all.
     @Test func blockIdNeedsNoFollowing() throws {
-        let before = try context("- [ ] 仕様書のレビュー ^abc123", selecting: "仕様書のレビュー")
-        let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] 全面的に書き直した文言 ^abc123"))
+        let before = try context("- [ ] משימה קיימת ^abc123", selecting: "משימה קיימת")
+        let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] טקסט שנכתב מחדש ^abc123"))
         #expect(!outcome.didFollow, "the id did not change, so follow-through must not run")
         #expect(outcome.context.selectedTaskState == .present)
-        #expect(outcome.context.selectedTaskSnapshot == "全面的に書き直した文言")
+        #expect(outcome.context.selectedTaskSnapshot == "טקסט שנכתב מחדש")
     }
 
     // REQ-TSK-033: becoming completed keeps the selection while the timer is running.
@@ -119,8 +123,8 @@ struct TaskReloadTests {
     }
 
     @Test func unselectedContextIsUnaffected() throws {
-        let before = try context("- [ ] なにか")
-        let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] べつのなにか"))
+        let before = try context("- [ ] 随便什么")
+        let outcome = TaskReloader.reload(previous: before, parsed: load("- [ ] 另一件事"))
         #expect(outcome.context.selectedTaskState == .none)
         #expect(!outcome.didFollow)
     }

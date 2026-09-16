@@ -2,26 +2,31 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
+// A Task.md holds whatever its owner writes, so the fixture is in arbitrary user languages rather
+// than in one stand-in for "not English". The scripts are not decoration: multi-byte text,
+// precomposed accents, Hangul and RTL each break differently, and REQ-TSK-015 / 022 run over all
+// of them. The width variants and the byte-limit fillers stay Japanese on purpose — those two
+// check NFKC folding and a multi-byte cut, which is what they are for.
 private let sample = """
 やることメモ
 
-- [ ] 見出しより前のタスク
+- [ ] 제목 앞의 할 일
 
 ## 今日
 
-- [ ] 仕様書のレビュー
+- [ ] Revisão da especificação
     - [ ] 第4章
     - [x] 第5章
 - [X] 完了したもの
-- [-] 取り消したもの
-- [ ] リンクつき [[プロトコル設計]] と [外部](https://example.com) #tag
+- [-] ملغاة
+- [ ] リンクつき [[プロトコル設計]] と [외부](https://example.com) #tag
 - [ ] ブロックIDつき ^task-1
 
-## あとで
+## 나중에
 
-* [ ] アスタリスクのマーカー
-+ [ ] プラスのマーカー
-- これはタスクではない
+* [ ] 星号标记
++ [ ] Marcador de mais
+- 這不是任務
 本文行
 """
 
@@ -31,21 +36,21 @@ struct TaskParserTests {
     @Test func onlyCheckboxListItemsBecomeTasks() {
         let result = TaskParser.parse(sample)
         #expect(result.items.count == 10)
-        #expect(!result.items.contains { $0.displayText == "これはタスクではない" })
+        #expect(!result.items.contains { $0.displayText == "這不是任務" })
         #expect(!result.items.contains { $0.displayText == "本文行" })
     }
 
     @Test func allThreeListMarkersAreAccepted() {
         let result = TaskParser.parse(sample)
-        #expect(result.items.contains { $0.displayText == "アスタリスクのマーカー" })
-        #expect(result.items.contains { $0.displayText == "プラスのマーカー" })
+        #expect(result.items.contains { $0.displayText == "星号标记" })
+        #expect(result.items.contains { $0.displayText == "Marcador de mais" })
     }
 
     // REQ-TSK-011: a group per heading. Tasks above the first heading go into "(Uncategorized)".
     @Test func headingsBecomeSectionsAndPrecedingTasksAreUncategorized() {
         let result = TaskParser.parse(sample)
         let sections = result.grouped(showCompleted: true).map(\.name)
-        #expect(sections == [TaskParser.uncategorizedSection, "今日", "あとで"])
+        #expect(sections == [TaskParser.uncategorizedSection, "今日", "나중에"])
         #expect(result.items.first?.section == TaskParser.uncategorizedSection)
     }
 
@@ -55,8 +60,8 @@ struct TaskParserTests {
         let completed = result.items.filter(\.isCompleted).map(\.displayText)
         #expect(completed.contains("第5章"))
         #expect(completed.contains("完了したもの"))
-        #expect(completed.contains("取り消したもの"), "[-] counts as completed as well")
-        #expect(!completed.contains("仕様書のレビュー"))
+        #expect(completed.contains("ملغاة"), "[-] counts as completed as well")
+        #expect(!completed.contains("Revisão da especificação"))
     }
 
     @Test func completedTasksAreExcludedByDefault() {
@@ -70,7 +75,7 @@ struct TaskParserTests {
     // REQ-TSK-013 / 014: the first indent detected is one level, and parentage follows from it.
     @Test func indentDefinesDepthAndParentage() {
         let result = TaskParser.parse(sample)
-        let parent = result.items.first { $0.displayText == "仕様書のレビュー" }!
+        let parent = result.items.first { $0.displayText == "Revisão da especificação" }!
         let child = result.items.first { $0.displayText == "第4章" }!
         #expect(parent.depth == 0)
         #expect(child.depth == 1)
@@ -102,7 +107,7 @@ struct TaskParserTests {
         #expect(item.displayText.contains("プロトコル設計"))
         #expect(!item.displayText.contains("[["))
         #expect(!item.displayText.contains("https://example.com"))
-        #expect(item.displayText.contains("外部"))
+        #expect(item.displayText.contains("외부"))
     }
 
     // REQ-ERR-003 / REQ-TSK-037: cut off at 1,000 items, and say that it was cut off.
@@ -139,9 +144,9 @@ struct TaskIdTests {
     }
 
     @Test func contentHashIsUsedWhenNoBlockId() {
-        let item = TaskParser.parse("- [ ] ふつうのタスク").items[0]
+        let item = TaskParser.parse("- [ ] משימה רגילה").items[0]
         #expect(item.idKind == .contentHash)
-        #expect(item.stableId.hasPrefix(TaskTextNormalizer.contentHash("ふつうのタスク")))
+        #expect(item.stableId.hasPrefix(TaskTextNormalizer.contentHash("משימה רגילה")))
     }
 
     // What REQ-TSK-020 is worth: editing the wording keeps the selection.
@@ -166,17 +171,17 @@ struct TaskIdTests {
 
     // REQ-TSK-022: a difference in decoration alone never makes it a different task.
     @Test func normalizationAbsorbsDecorationDifferences() {
-        let plain = TaskParser.parse("- [ ] 仕様書のレビュー").items[0]
-        let decorated = TaskParser.parse("- [ ]   **仕様書のレビュー**  #仕事 🔥  ").items[0]
+        let plain = TaskParser.parse("- [ ] Revisão da especificação").items[0]
+        let decorated = TaskParser.parse("- [ ]   **Revisão da especificação**  #trabalho 🔥  ").items[0]
         #expect(plain.normalizedText == decorated.normalizedText)
         #expect(plain.stableId == decorated.stableId)
     }
 
     @Test func linksAreReplacedByTheirDisplayText() {
-        let wiki = TaskParser.parse("- [ ] [[設計ノート|プロトコル設計]] を書く").items[0]
-        #expect(wiki.normalizedText == "プロトコル設計 を書く")
-        let bare = TaskParser.parse("- [ ] [[プロトコル設計]] を書く").items[0]
-        #expect(bare.normalizedText == "プロトコル設計 を書く")
+        let wiki = TaskParser.parse("- [ ] [[설계 노트|프로토콜 설계]] 쓰기").items[0]
+        #expect(wiki.normalizedText == "프로토콜 설계 쓰기")
+        let bare = TaskParser.parse("- [ ] [[프로토콜 설계]] 쓰기").items[0]
+        #expect(bare.normalizedText == "프로토콜 설계 쓰기")
     }
 
     @Test func nfkcFoldsWidthVariants() {
