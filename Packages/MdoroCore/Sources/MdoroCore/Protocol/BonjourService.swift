@@ -3,9 +3,10 @@ import Foundation
 // REQ-COM-003 / REQ-PRT-001: what goes on the air, written once for the side that advertises and
 // the side that browses.
 //
-// The service type and the TXT keys used to be spelled out at both ends, in two files that never
-// see each other. **A key spelled differently on one side is not a build error** — it is a Mac
-// that answers and cannot be paired with, which is exactly the failure Decision 0040 is about.
+// Neither the service type nor a TXT key is spelled anywhere else: a second spelling would live in
+// a file this one never sees. **A key spelled differently on one side is not a build error** — it
+// is a Mac that answers and cannot be paired with, which is exactly the failure Decision 0040 is
+// about.
 public enum BonjourService {
     // Decision 0024: renamed with everything else.
     public static let type = "_mdoro._tcp"

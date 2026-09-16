@@ -54,10 +54,9 @@ public struct PairingSession: Equatable, Sendable {
 // REQ-SEC-002 / Decision 0040: from the second time on, a device token authenticates on its own,
 // with nothing for the user to do.
 //
-// **All three fields are kept, and the Mac keeps them.** It used to hold a `Set<String>` of
-// values, so the name and the date were thrown away at the moment of saving — which is why there
-// was no revocation screen to build: nothing was left to put on it. "There is no way to revoke"
-// was really "the thing to revoke cannot be identified, because we discarded what identified it".
+// **All three fields are kept, and the Mac keeps them.** A bare `Set<String>` of values throws the
+// name and the date away at the moment of saving, and the revocation screen (9.x) has nothing left
+// to put on it: what cannot be identified cannot be revoked.
 public struct DeviceToken: Equatable, Sendable, Codable, Hashable {
     public let value: String
     public let deviceName: String
@@ -128,9 +127,10 @@ public struct Authenticator: Equatable, Sendable {
         // REQ-PRT-004 / 10.2: an incompatible version is refused — and told so. This is looked
         // at before anything the hello carried as credentials, so the answer does not depend on
         // them; what the answer must not be is one of those credentials' own refusals.
-        // `unknownDeviceToken` stood here, and the iPhone acts on it by deleting the device
-        // token it holds, so a Mac updated on its own did not just mislead the user into pairing
-        // again — it destroyed the pairing it was refusing, for a reason pairing cannot mend.
+        // `unknownDeviceToken` must not stand here: the iPhone acts on it by deleting the device
+        // token it holds, so a Mac updated on its own would not merely mislead the user into
+        // pairing again — it would destroy the pairing it is refusing, for a reason pairing
+        // cannot mend.
         guard PomodoroProtocol.isCompatible(hello.protocolVersion) else {
             return .rejectWithProtocolError(.protocolVersionMismatch)
         }
@@ -164,12 +164,12 @@ public struct Authenticator: Equatable, Sendable {
 
         switch outcome {
         case .accepted:
-            // POL-139 / REQ-SEC-004: **nothing is issued and nothing is closed while the answer
-            // is "ask the user".** This used to append the token and end pairing before returning,
-            // so the re-authentication that follows an approval found pairing over and refused the
-            // very hello it was approving — and every refused attempt left one orphaned token
-            // behind. The verified hello is held instead, and `resolveApproval` issues from it —
-            // a denial (or the 60-second timeout) issues nothing, because nothing was issued yet.
+            // REQ-SEC-004: **nothing is issued and nothing is closed while the answer is "ask
+            // the user".** The verified hello is held, and `resolveApproval` issues from it, so a
+            // denial (or the 60-second timeout) issues nothing — because nothing was issued yet.
+            // Appending the token and ending pairing here would leave the re-authentication that
+            // follows an approval with no pairing to find, refusing the very hello it is
+            // approving, and every refused attempt would leave one orphaned token behind.
             if connectedClientName != nil {
                 awaitingApproval = hello
                 return .needsUserApproval(requestingDeviceName: hello.deviceName)
@@ -186,8 +186,8 @@ public struct Authenticator: Equatable, Sendable {
     // REQ-SEC-004: the user's answer to `.needsUserApproval`, settled against the hello held at
     // the moment the question was asked — **not by re-running authentication**. The pairing window
     // may have expired (REQ-SEC-003) or been closed while the user was deciding, and neither
-    // cancels an approval of a code that already verified; re-authenticating here is what used to
-    // turn a pressed "Allow" into "Start pairing on your Mac". Issuing from the held hello also
+    // cancels an approval of a code that already verified; re-authenticating here would turn a
+    // pressed "Allow" into "Start pairing on your Mac". Issuing from the held hello also
     // pins the answer to the request the user actually saw, not to whatever occupies the pending
     // slot by the time the click lands.
     //
@@ -203,11 +203,10 @@ public struct Authenticator: Equatable, Sendable {
         // for the same reason `authenticate` hands it back — `issuedAt` must not move.
         if let token = hello.deviceToken {
             guard let issued = issuedTokens.first(where: { $0.value == token }) else {
-                // POL-146 / REQ-SEC-004: the token was revoked between the question and the
-                // answer. The standing connection is still standing — nothing here closed it —
-                // so it is not forgotten. Clearing `connectedClientName` before this lookup is
-                // what let the next valid hello be accepted without the approval REQ-SEC-004
-                // requires.
+                // REQ-SEC-004: the token was revoked between the question and the answer. The
+                // standing connection is still standing — nothing here closed it — so it is not
+                // forgotten. Clearing `connectedClientName` before this lookup would let the next
+                // valid hello be accepted without the approval REQ-SEC-004 requires.
                 return .reject(.unknownDeviceToken)
             }
             // The approval chose the new connection over the standing one (REQ-SEC-004) —

@@ -41,10 +41,10 @@ public struct ServerIdentityFile: Sendable {
     // What is on file, or a new one — and whether the next launch will see the same answer.
     //
     // REQ-COM-003 (v2.27): **an id that could not be written down is not handed out at all.**
-    // v2.26 handed it out with a warning attached, and a warning is a thing a call site can
-    // ignore: the Mac advertised, paired, and the id was gone at the next launch — every pairing
-    // made under it orphaned. Only the two cases that carry an id can reach the air now, so
-    // forgetting to check is no longer a way to advertise one.
+    // Handing it out with a warning attached is not enough — a warning is a thing a call site can
+    // ignore, and the Mac then advertises, pairs, and finds the id gone at the next launch, with
+    // every pairing made under it orphaned. Only the two cases that carry an id can reach the air,
+    // so forgetting to check is not a way to advertise one.
     public enum Outcome: Equatable, Sendable {
         // On file, and it will be there next launch too.
         case identified(ServerID)

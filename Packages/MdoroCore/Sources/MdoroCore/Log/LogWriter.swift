@@ -9,8 +9,8 @@ public enum LogWriteError: Error, Equatable, Sendable {
     case writeFailed(ErrorCode)
     // A change other than an insertion was about to happen.
     case wouldModifyExistingLines
-    // POL-120: the file on disk stopped being the one the insertion was built on, every time it
-    // was tried. Nothing was written.
+    // REQ-LOG-004: every attempt found the file on disk different from the one the insertion was
+    // built on. Nothing was written.
     case fileChangedWhileWriting
 }
 
@@ -64,8 +64,8 @@ public struct LogWriter: Sendable {
     public let taskFileURL: URL?
     public let options: LogFormatter.Options
 
-    // POL-120: how many times a write is rebuilt when the file turned out to have changed since it
-    // was read. A conflict means someone else saved within the same few milliseconds, and reading
+    // REQ-LOG-004: how many times a write is rebuilt when the file turns out to have changed since
+    // it was read. A conflict means someone else saved within the same few milliseconds, and reading
     // again and inserting into what they wrote is the answer REQ-LOG-004 already gives. The second
     // attempt clears an ordinary collision and the third leaves room for one more coincidence.
     // Beyond that the file is being written continuously by something else, and the queue
@@ -134,8 +134,8 @@ public struct LogWriter: Sendable {
             if try writeAtomically(insertion.contents, replacing: snapshot) { return }
         }
 
-        // POL-120: every attempt found the file different from the one it had read, so the entry
-        // was never written. REQ-LOG-005 keeps it queued and the next flush reads the file again.
+        // REQ-LOG-004: every attempt found the file different from the one it had read, so the
+        // entry was never written. REQ-LOG-005 keeps it queued and the next flush reads the file again.
         throw LogWriteError.fileChangedWhileWriting
     }
 
@@ -155,7 +155,7 @@ public struct LogWriter: Sendable {
     // It goes **in the same directory**, which is one way to satisfy the real constraint: the two
     // paths must be on the same volume (`docs/PLATFORM.md`). Directories do not enter into it.
     //
-    // POL-120 / first principle: the swap replaces the **whole file**, so anything saved to it
+    // First principle: the swap replaces the **whole file**, so anything saved to it
     // since `snapshot` was read is inside what is about to be overwritten. `replaceItemAt` is
     // atomic in itself, and that says nothing about the interval before it. So the bytes are read
     // once more here, with the replacement already staged, and compared against the ones the
@@ -331,8 +331,8 @@ public final class LogWriteQueue: @unchecked Sendable {
     // The caller holds `lock`.
     private func settle(outcome: FlushOutcome?, written: Int, lastError: LogWriteError?) -> FlushResult {
         // Decision 0039: one outcome per attempt, only the last `recentWindow` of them kept.
-        // Letting attempts that wrote nothing in would let idle flushes wash real failures out —
-        // ten of them now, where the old counter only ever lost two.
+        // Letting attempts that wrote nothing in would let idle flushes wash real failures out:
+        // ten idle flushes are enough to empty a window of ten.
         if let outcome {
             recentOutcomes.append(outcome)
             if recentOutcomes.count > Self.recentWindow {

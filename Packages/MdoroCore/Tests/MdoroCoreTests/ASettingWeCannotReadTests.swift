@@ -5,11 +5,11 @@ import Foundation
 // REQ-CFG-018 / REQ-PRT-005: **a setting whose value this version has no case for is out of
 // range, and out of range is answered for.**
 //
-// `updateSettings` carrying `{"appearance":"sepia"}` used to take the whole command down with it:
-// the value threw on the way in, `decodeClient` dropped the message, and the iPhone waited on an
-// answer that REQ-CFG-018 requires. The `clientRequestId` the answer has to name sat inside the
-// very object that failed to read, which is why the two values a command can carry a setting in
-// — `settings` and `preset` — are read apart from the rest of it.
+// `updateSettings` carrying `{"appearance":"sepia"}` must not take the whole command down with
+// it: read as one object, the value throws on the way in, `decodeClient` drops the message, and
+// the iPhone waits on an answer REQ-CFG-018 requires. The `clientRequestId` the answer has to name
+// sits inside the very object that fails to read, which is why the two values a command can carry
+// a setting in — `settings` and `preset` — are read apart from the rest of it.
 //
 // **The value is refused, not stood in for.** REQ-PRT-005 forbids bending an unknown value onto a
 // case it resembles, and REQ-CFG-013 forbids a setting changing without the reader being told; a
@@ -150,10 +150,10 @@ struct ASettingWeCannotReadTests {
 
     // REQ-CFG-018 / REQ-PRT-005: **a number no type here can hold is answered for like any other
     // value this version cannot make sense of.** `4.5` for an hour, a figure past `Int`, `-1` for
-    // a `UInt16`. It used to take the whole command down: the parser gives up on the literal
-    // before any of our types is asked to make a value of it, and what it raises is not a
-    // `DecodingError` (`docs/platform/0012`), so the test for an unknown enum case never saw it —
-    // and the iPhone waited on an answer REQ-CFG-018 requires.
+    // a `UInt16`. It arrives by a route of its own: the parser gives up on the literal before any
+    // of our types is asked to make a value of it, and what it raises is not a `DecodingError`
+    // (`docs/platform/0012`), so a check written for an unknown enum case does not see it — and
+    // the iPhone waits on an answer REQ-CFG-018 requires.
     //
     // **`1e309` is here because the first fix did not reach it.** That fix asked Foundation to read
     // the field a second time as untyped JSON, and the second read gave up on `1e309` for the same
@@ -262,9 +262,9 @@ struct ASettingWeCannotReadTests {
     // **What this measures is whether the grammar is read before any of them is answered for.**
     // `CommandParams.value` asks `JSONWellFormedness` of every throw it is willing to treat as a
     // value, whichever kind it is, so a broken character cannot come back as "the setting is
-    // outside the allowed range" by arriving as one kind rather than the other. It did not always:
-    // the clause for a `DecodingError` used to answer on the error alone, and the test below this
-    // one is the one that caught it (REQ-ERR-009).
+    // outside the allowed range" by arriving as one kind rather than the other. A clause for a
+    // `DecodingError` that answers on the error alone is what breaks this, and the test below this
+    // one is the one that catches it (REQ-ERR-009).
     @Test func anUnpairedSurrogateInASettingIsStillABrokenMessage() {
         for params in [
             // A high surrogate owed a low one that never comes.
@@ -335,11 +335,11 @@ struct ASettingWeCannotReadTests {
     // `"sepia"` is an enum case this version does not have, so it raises `dataCorrupted` while the
     // broken character is still further down the object, unread.
     //
-    // **It used to be answered for.** That clause took `dataCorrupted` as a value on the strength
-    // of the error alone and never read the grammar, so a message carrying bytes that denote no
-    // character came back as "the setting is outside the allowed range" — where REQ-ERR-009 has it
-    // discarded and counted. Measured on 2026-09-14, failing at both forms; the clause now asks
-    // the same question of every throw it is willing to treat as a value.
+    // **It must not be answered for.** A clause that takes `dataCorrupted` as a value on the
+    // strength of the error alone, without reading the grammar, sends a message carrying bytes
+    // that denote no character back as "the setting is outside the allowed range" — where
+    // REQ-ERR-009 has it discarded and counted. Measured on 2026-09-14, failing at both forms; the
+    // clause asks the same question of every throw it is willing to treat as a value.
     //
     // **Nothing about this is particular to characters.** The reading stops at the first field
     // that fails, so a malformed number sitting behind one would have gone the same way. That has
@@ -372,8 +372,9 @@ struct ASettingWeCannotReadTests {
 
     // REQ-PRT-005: **a field this action does not use is spare, and a spare field is ignored** —
     // the same way the clause has an unknown field ignored. Reading `settings` apart from the rest
-    // of the command is what makes that true here: a `pause` used to be thrown away whole because
-    // of a value it was never going to look at. Nothing is applied and nothing is refused.
+    // of the command is what makes that true here: read as one object, a `pause` is thrown away
+    // whole because of a value it was never going to look at. Nothing is applied and nothing is
+    // refused.
     @Test func aValueRidingAnActionThatDoesNotUseItIsSpareRatherThanFatal() throws {
         let paused = try decodeCommand(
             commandJSON(action: "pause", params: #""settings":{"appearance":"sepia"}"#)
@@ -404,10 +405,10 @@ struct ASettingWeCannotReadTests {
         #expect(translate(command) == .success(.updateSettings(settings)))
     }
 
-    // REQ-CFG-018: **the range has to answer, not just refuse.** The value was already kept out —
-    // `didSet` puts the old settings back when the range turns the new ones down — but it did that
-    // with no request in hand, so the iPhone got nothing back at all for the command it sent. The
-    // answer is owed to a `clientRequestId`, and only `apply` still has one.
+    // REQ-CFG-018: **the range has to answer, not just refuse.** Keeping the value out is not
+    // enough — `didSet` puts the old settings back when the range turns the new ones down, but it
+    // does that with no request in hand, so the iPhone gets nothing back at all for the command it
+    // sent. The answer is owed to a `clientRequestId`, and only `apply` still has one.
     @Test func theMacAnswersForANumberOutsideItsRangeBeforeItIsApplied() throws {
         let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
         let block = try #require(appModel.components(separatedBy: "case .updateSettings:").last)

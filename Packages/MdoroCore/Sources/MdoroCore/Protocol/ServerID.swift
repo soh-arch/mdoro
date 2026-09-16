@@ -2,12 +2,11 @@ import Foundation
 
 // REQ-COM-003 / REQ-SEC-002 / Decision 0040: **what identifies a Mac is this, and never its name.**
 //
-// Three names used to stand in for one identity: the Bonjour instance name, which mDNSResponder
+// Three names sit near it and none of them is it: the Bonjour instance name, which mDNSResponder
 // rewrites to `Mdoro (2)` on a collision (`docs/PLATFORM.md`); `welcome.serverName`, which the
 // user sets and two Macs can share; and `hello.deviceName`, which belongs to the other end
-// entirely. All three were `String`, all three were called some form of "server name", and the
-// iPhone keyed its Keychain on one of them — so the OS renaming a registration read as an
-// unknown Mac.
+// entirely. All three are `String` and all three read as some form of "server name", so keying the
+// iPhone's Keychain on any of them makes the OS renaming a registration read as an unknown Mac.
 //
 // A type of its own is the point. `TokenKeychain.load(serverId:)` cannot be handed a display
 // name any more, because a display name is a `String` and this is not.

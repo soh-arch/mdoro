@@ -26,13 +26,13 @@ public enum LineFrame: Sendable, Equatable {
 // REQ-COM-004: **what one read off an open line means, decided apart from the reading itself.**
 //
 // **It is separated so it can be answered without a LAN.** An `NWConnection` dials the moment it is
-// started, so while this decision lived inside a read callback there was nowhere to stand and ask
-// it — the same reason `MessageLink` exists at all.
+// started, so this decision cannot live inside a read callback and still be asked from a test —
+// the same reason `MessageLink` exists at all.
 //
 // REQ-PRT-001: **and it is shared so that the two ends cannot drift into answering it differently.**
-// The iPhone's half was written first, in `WebSocketLink`; the Mac's read loop had no such decision
-// at all and let every ending through, and the Mac's own test harness had a third answer again. A
-// read is one fact, and a fact the two ends read by different rules is what this clause is for.
+// Left to each end, this becomes the iPhone's rule in `WebSocketLink`, a Mac read loop that lets
+// every ending through, and a third answer again in the Mac's test harness. A read is one fact,
+// and a fact the two ends read by different rules is what this clause is for.
 public enum LineRead: Sendable, Equatable {
     // A protocol message arrived. Hand it up, then read again.
     case message(Data)

@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
-// POL-114 / REQ-COM-002 / REQ-COM-003: **the Mac advertised itself several times over.**
+// REQ-COM-002 / REQ-COM-003: **the Mac advertises itself exactly once.**
 //
 // Measured on the reader's machine: two `MdoroMac` processes, five `_mdoro._tcp` registrations
 // (`Lychee`, then `Lychee (2)` through `(5)`). Pairing did not complete, three attempts running —
@@ -110,7 +110,7 @@ struct StartingTwiceTests {
         }
     }
 
-    // POL-140: `advertisedWebsocketPort` is how `readvertise()` knows the Mac is on the air, and
+    // REQ-COM-003: `advertisedWebsocketPort` is how `readvertise()` knows the Mac is on the air, and
     // `stop()` is reachable from production now (the pairing screen closing folds the server). A
     // fold that leaves the old port on record lets a later rename advertise a listener that no
     // longer exists — a TXT record on the LAN pointing at a dead port.

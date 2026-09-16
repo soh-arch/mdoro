@@ -23,7 +23,7 @@ enum JSONWellFormedness {
     //
     // Strings are held to what Foundation will actually accept rather than to the grammar alone:
     // an unpaired `\uD800` and a byte that is not UTF-8 both parse as syntax and neither denotes a
-    // string, and both were discarded before this existed.
+    // string, so both are refused here rather than handed on as well-formed.
     static func holds(for data: Data) -> Bool {
         guard String(data: data, encoding: .utf8) != nil else { return false }
         var reader = Reader(Array(data))

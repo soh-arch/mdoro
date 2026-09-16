@@ -276,7 +276,7 @@ struct ErrorReportingTests {
     //
     // The case name says what went wrong with a field and the code says which field, so the
     // pair has to stay unique across both: folding two fields onto one number would read as
-    // the same failure in an issue. That is what the payload used to spell out in words.
+    // the same failure in an issue. The pair carries what no sentence in the payload may.
     @Test func aMalformedCommandCarriesADomainAndACodeToo() {
         var seen = Set<String>()
         for parameter in CommandTranslation.Parameter.allCases {
@@ -306,7 +306,7 @@ struct ErrorReportingTests {
 
     // A refused connection goes out over the wire too, and 10.2 keeps `authFailed.message`
     // diagnostic just as it keeps `error.message` diagnostic — so it is held to the same
-    // shape. Six hand-written sentences used to sit in that field instead (POL-050).
+    // shape. Nothing hand-written belongs in that field.
     @Test func aRefusedConnectionCarriesADomainAndACodeToo() {
         let fromTheOS = LogWriteError.writeFailed(ErrorCode(domain: NSCocoaErrorDomain, code: 513))
         var seen = Set<String>()
@@ -333,7 +333,7 @@ struct ErrorReportingTests {
     }
 
     // Decision 0034: a reader must not be able to tell where a failure came from by its shape.
-    // Walk `allCases`, not a list — the payload is what used to break this.
+    // Walk `allCases`, not a list — a payload added later is what a written-out list misses.
     @Test func aMalformedCommandIsSpelledLikeAFailureFromTheOS() {
         let fromTheOS = LogWriteError.writeFailed(ErrorCode(domain: NSCocoaErrorDomain, code: 513))
         for parameter in CommandTranslation.Parameter.allCases {

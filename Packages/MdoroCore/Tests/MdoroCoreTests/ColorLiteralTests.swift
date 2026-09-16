@@ -5,9 +5,8 @@ import Foundation
 // REQ-COL-001 / 002 / Decision 0007: a view names a role and the palette answers with a
 // colour. A hue written into a view leaves that route entirely — nothing checks its contrast,
 // nothing swaps it between light and dark, and REQ-COL-020 measures a value the screen no
-// longer shows. The audit (POL-041) found six of them still in the Mac's views, two of which
-// sat in a file where the same kind of line had already been converted, so this is the sort
-// of thing that comes back one line at a time.
+// longer shows. This is the sort of thing that comes back one line at a time: a hue reappears
+// in a file where the same kind of line has already been converted, one view at a time.
 //
 // The palette cannot catch this on its own: a view that never calls it is exactly the case.
 // So the check reads the app's source, which is also how `MenuBarMarkTests` reaches the
@@ -28,7 +27,7 @@ private let drawingSources = [
     "PomodoroMac/PomodoroWidget",
 ]
 
-// POL-049: `.primary` / `.secondary` are not hues, which is why they were left out above —
+// REQ-COL-001: `.primary` / `.secondary` are not hues, which is why they are left out above —
 // but they are the OS choosing the text colour, and the app draws its own ground. Two
 // palettes on one surface do not agree; 8.5's text tokens are the ones REQ-COL-020 measures
 // against that ground, and the OS's are measured against nothing the app controls.
@@ -127,7 +126,7 @@ struct ColorLiteralTests {
         }
     }
 
-    // POL-049: the OS's text colours are a second palette on a ground the app painted.
+    // REQ-COL-001: the OS's text colours are a second palette on a ground the app painted.
     @Test func noViewLetsTheOSChooseItsTextColour() throws {
         for directory in paletteOnlySources {
             for (name, text) in try swiftFiles(under: directory, recursive: true) {
@@ -174,8 +173,8 @@ struct ColorLiteralTests {
     }
 
     // The same trap as REQ-COL-011 / 012. Handing `-line` to a text colour trips a `precondition`,
-    // so the pairs of role and hue role chosen in POL-041 are looked up for real, to confirm they
-    // pass at run time.
+    // so every pair of role and hue role a view asks for is looked up for real, to confirm it
+    // passes at run time.
     @Test func theRolesTheViewsNowAskForAreAllowed() {
         for mode in ColorMode.allCases {
             let palette = ColorPalette.palette(for: mode)

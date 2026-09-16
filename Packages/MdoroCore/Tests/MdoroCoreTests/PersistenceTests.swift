@@ -440,9 +440,9 @@ struct HotKeyBindingTests {
     }
 
     // REQ-CFG-018 / REQ-UIX-033 / REQ-UIX-037: **9.3 states "contains at least one modifier" in
-    // the range column**, and a range is what `isWithinValidRanges()` answers for. Before this,
-    // `hasModifier` was asked only at registration time, where a bare key is dropped without a
-    // word: the value was still applied, still saved, and still shown in the settings window.
+    // the range column**, and a range is what `isWithinValidRanges()` answers for. Asked only at
+    // registration time, `hasModifier` drops a bare key without a word: the value is applied all
+    // the same, saved, and shown in the settings window.
     @Test func aShortcutWithNoModifierIsOutOfRange() {
         for (name, keyPath) in HotKeyBindingTests.allShortcuts {
             var settings = AppSettings.default

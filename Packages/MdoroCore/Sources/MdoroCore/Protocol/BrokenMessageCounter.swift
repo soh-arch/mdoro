@@ -4,8 +4,8 @@
 // connection again (REQ-COM-004), and the Mac — which never dials, so has no "again" of its own —
 // hangs up, which is what sets that reconnect going.
 //
-// REQ-PRT-001: **one counter, shared.** It sat inside the iPhone's client while that end was the
-// only one counting; the clause naming the Mac as the other counter is what moved it here.
+// REQ-PRT-001: **one counter, shared.** REQ-ERR-009 names both ends as counters, so neither end
+// keeps a count of its own inside its client.
 public struct BrokenMessageCounter: Sendable, Equatable {
     // REQ-ERR-009: "ten in a row". The number the requirement names, in one place.
     public static let limit = 10

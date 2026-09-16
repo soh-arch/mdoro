@@ -3,8 +3,8 @@ import Foundation
 // REQ-UIX-004: only the distinctions the connection display needs are shared.
 //
 // **The cases and their roles are shared; the words are not** (Decision 0022). The words each platform shows live
-// in its own `Format`, so they reach a String Catalog; a package has no catalogue to reach,
-// and the three words here were already written a second time on the iPhone.
+// in its own `Format`, so they reach a String Catalog; a package has no catalogue to reach, so
+// wording kept here would have to be written a second time on the iPhone anyway.
 public enum ConnectionStatus: String, Equatable, Sendable, Codable, CaseIterable {
     case connected
     case reconnecting

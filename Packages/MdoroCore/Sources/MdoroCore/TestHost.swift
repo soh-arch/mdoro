@@ -20,7 +20,7 @@ public enum TestHost {
     /// True when this process was launched as the host application for a test bundle.
     public static var isRunning: Bool { isRunning(in: ProcessInfo.processInfo.environment) }
 
-    // POL-111: **the launcher writes these, not XCTest.** Xcode and `xcodebuild` put them into
+    // **The launcher writes these, not XCTest.** Xcode and `xcodebuild` put them into
     // the host process's environment before the bundle is loaded; XCTestCore is the side that
     // reads them. Neither name appears anywhere in Apple's documentation, so neither is a
     // promise (`docs/PLATFORM.md`).
