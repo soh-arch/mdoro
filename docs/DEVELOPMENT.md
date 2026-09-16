@@ -206,6 +206,36 @@ xcrun simctl list devices available
 2. **`xcodebuild` がビルドのたびに `project.pbxproj` を書き換えていた**（`DEVELOPMENT_TEAM` を `""` に）。
    ターゲット側に行が無くなったことで起きなくなった。ビルド前後で差分が出ないことを確認済み
 
+### 署名が無いと、黙って変わるもの
+
+**`Config/Signing.local.xcconfig` が無いと `DEVELOPMENT_TEAM` は空になり、macOS は
+「Sign to Run Locally」= アドホック署名でアプリを建てる。****ビルドは通る。**
+**変わるのは、OS がそのアプリを「誰」として扱うかである。**
+
+⚠ **アドホック署名の identity は、ビルドのたびに変わる。**
+
+| 何が | どうなる |
+| :---- | :---- |
+| **Keychain** | 項目の ACL は**作成したアプリの署名 identity** に結びつく。別人が読みに来た扱いになり、**起動のたびに login キーチェーンのパスワードを訊かれる**（`DeviceTokenStore` は起動時に読む） |
+| **ローカルネットワーク許可** | 許可の同一性が保たれない（下記・REQ-PLT-009） |
+| **通知** | 実署名が要る。`AGENTS.md` に、届かないときの見分け方がある |
+
+**2026-09-16 に実測**: clone を作り直したあと、`MdoroMac` が
+`com.sohta.Mdoro.issuedDeviceTokens` を読もうとしてダイアログを出した。
+**`Always Allow` は押さなくてよい** —— **二度と存在しないバイナリを ACL に書き足すだけである。**
+
+### ⚠ clone を作り直したら、git が持っていないものを持ってくる
+
+**`git clone` は `.gitignore` の中身を運ばない。** 作り直したら、古いほうから:
+
+```bash
+cp ../<古いディレクトリ>/Config/Signing.local.xcconfig Config/
+cp ../<古いディレクトリ>/docs/PRIVATE-LINKS.md docs/
+xcode-build-server config -project PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroMac  # 任意
+```
+
+**`xcuserdata/`（Xcode の画面の状態）は、持ってこなくてよい。**
+
 ## ローカルネットワーク許可の検証
 
 **macOS には、許可状態を未決定へ戻す手段がない**（REQ-PLT-009）。一度許可または拒否すると、
