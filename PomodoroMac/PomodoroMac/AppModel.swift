@@ -85,14 +85,14 @@ final class AppModel {
     // MARK: - Dependencies
 
     private let store: any StateStore
-    // POL-047: the notification centre belongs to the OS, so a test needs somewhere else to
-    // send to. **The default is the same as production.**
+    // The notification centre belongs to the OS, so a test needs somewhere else to send to
+    // (`SessionNotifying`). **The default is the same as production.**
     private let notifications: any SessionNotifying
-    // POL-053: holding off idle sleep reaches the whole machine, not this process, so a test
-    // needs somewhere else to say it. **The default is the same as production.**
+    // Holding off idle sleep reaches the whole machine, not this process, so a test needs
+    // somewhere else to say it (`IdleSleepGuarding`). **The default is the same as production.**
     private let idleSleep: any IdleSleepGuarding
     private let hotKeys = HotKeyCenter()
-    // POL-054: built here rather than at the declaration so it can be handed the diagnostic log.
+    // REQ-ERR-010: built here rather than at the declaration so it can be handed the diagnostic log.
     private let server: MdoroServer
     // REQ-ERR-010 / Decision 0018: a diagnostic log that carries neither task names nor paths.
     let diagnostics: DiagnosticLog
@@ -101,7 +101,7 @@ final class AppModel {
     // REQ-COM-003 (v2.25): whether the pairing screen (Settings > Connection) is on screen. While
     // it is, the server is up even with nothing paired — it is the one place a pairing can be made.
     private var pairingScreenIsOpen = false
-    // REQ-SEC-002 / POL-047: the Keychain is outside this process, so it is a seam like the
+    // REQ-SEC-002: the Keychain is outside this process, so it is a seam like the
     // notification centre and the hold on idle sleep. **The default is the same as production.**
     private let deviceTokens: any DeviceTokenStoring
     // REQ-SEC-002 / Decision 0040: why what is on file must not be written over. **A read that
@@ -113,7 +113,7 @@ final class AppModel {
     // process. **Resolved there and not in `init`** — creating it writes a file into Application
     // Support, and this type is built by every test in the Mac target.
     private var serverId: ServerID?
-    // POL-047 / REQ-COM-003: where the `id` is kept. **The default is the same as production.**
+    // REQ-COM-003: where the `id` is kept. **The default is the same as production.**
     // A seam for the same reason the Keychain, the notification centre and the hold on idle sleep
     // are: the suite runs inside MdoroMac.app under its bundle identifier, so `inApplicationSupport()`
     // resolves inside the reader's own container. **It is a closure and not a file** because
@@ -126,10 +126,11 @@ final class AppModel {
     private var watcher: FileWatcher?
     private var watchedTaskURL: URL?
     private var tickTask: Task<Void, Never>?
-    // POL-114: whether the app has been started. **`start()` is called from a view's `.task`, and a
-    // view appears as often as its window is opened** — the reader reopened the main window and got a
-    // second server, a second Bonjour registration and a second of everything else `start()` raises.
-    // `stop()` puts it back, so a deliberate restart still works; only repetition is refused.
+    // Whether the app has been started. **`start()` is called from a view's `.task`, and a view
+    // appears as often as its window is opened** — reopen the main window and that is a second server,
+    // a second Bonjour registration and a second of everything else `start()` raises, with the first
+    // left standing. `stop()` puts this back, so a deliberate restart still works (REQ-COM-003: the
+    // server goes up again whenever a pairing screen is opened); only repetition is refused.
     private var hasStarted = false
 
     // The place to save to could not be created at all. Every save from here on is lost, so this never resolves.
@@ -153,10 +154,10 @@ final class AppModel {
     // The diagnostic log, the bookmarks, the destination for notifications and the hold on idle sleep
     // are arguments so that this can be verified. **The defaults are the same as production**, and only
     // when they are replaced does this run outside the user's Vault, outside the log the user collects,
-    // outside the user's notification centre and off their power settings. The last two are POL-047 and
-    // POL-053: the suite runs inside this app, under its bundle identifier, so a request it hands the
-    // centre is delivered to the person at the machine — and an activity it begins keeps that machine
-    // awake for as long as the run lasts.
+    // outside the user's notification centre and off their power settings. The last two matter because
+    // the suite runs inside this app, under its bundle identifier: a request it hands the centre is
+    // delivered to the person at the machine, and an activity it begins keeps that machine awake for as
+    // long as the run lasts.
     init(
         store: any StateStore,
         now: Date = Date(),
@@ -178,7 +179,7 @@ final class AppModel {
         self.diagnostics = diagnosticLog
         self.notifications = notifications ?? NotificationScheduler()
         self.idleSleep = idleSleep ?? IdleSleepGuard()
-        // POL-054: the server writes its refusals to the same log the rest of the app writes to.
+        // REQ-ERR-010: the server writes its refusals to the same log the rest of the app writes to.
         self.server = MdoroServer(diagnostics: diagnosticLog)
         self.bookmarks = bookmarks
 
@@ -236,14 +237,15 @@ final class AppModel {
 
     // MARK: - Lifecycle
 
-    // POL-114 / REQ-COM-002 / 003: **starting is something the app does once.** The call comes from a
-    // view's `.task`, which runs again every time that view appears, and most of what follows had no
-    // objection to being run twice: another listener on another port, another Bonjour registration,
-    // another `app.start` in the diagnostic log, another request for notification permission.
+    // **Starting is something the app does once.** The call comes from a view's `.task`,
+    // which runs again every time that view appears, and most of what follows has no objection of its
+    // own to being run twice: another listener on another port, another Bonjour registration, another
+    // `app.start` in the diagnostic log, another request for notification permission.
     //
     // Each step is made safe on its own account as well (the watcher stops before it watches, the tick
-    // cancels before it ticks, a hot key unregisters before it registers, and both listeners now fold
-    // the previous one). The flag is here because none of that can close the gap the last line opens:
+    // cancels before it ticks, a hot key unregisters before it registers, and the listener folds
+    // whatever stood before it). The flag is here because none of that can close the gap the last line
+    // opens:
     // `startServer()` is awaited, so two calls arriving in the same turn would both be past every
     // guarded step before either had a listener to guard. This one is decided before anything suspends.
     func start() {
@@ -339,12 +341,12 @@ final class AppModel {
     // **Kept out of `start()` so that it can be exercised on its own** — the same reason
     // `writeStartupDiagnostics()` is, and `start()` is its only other caller.
     func adoptStoredDeviceTokens() {
-        // The tokens live in the Keychain now, and the plist they used to sit in is emptied rather
-        // than read. See `LeftoverPlaintextTokens`.
+        // The tokens live in the Keychain, and the plist older versions kept them in is emptied
+        // rather than read. See `LeftoverPlaintextTokens`.
         deviceTokens.eraseLeftoverPlaintext()
         let records = deviceTokens.load()
-        // REQ-ERR-010 / Decision 0034: the log gets a code. Losing every pairing on the machine
-        // used to leave no trace anywhere.
+        // REQ-ERR-010 / Decision 0034: the log gets a code. Losing every pairing on the machine is
+        // not something that may happen with no trace anywhere.
         if let summary = records.diagnosticSummary {
             diagnostics.write("tokens.load", level: .error, [DiagnosticField("why", summary)])
         }
@@ -354,10 +356,10 @@ final class AppModel {
 
     // REQ-SEC-002 / Decision 0040: **the records go back only when what was there was read.**
     //
-    // Both halves of the old route were silent. The save threw its `OSStatus` away after emptying
-    // the item, and the load answered `[]` for a Keychain that merely refused to answer — so one
-    // pairing made after a bad read replaced every record on file, and the next launch turned
-    // every paired iPhone into an unknown one.
+    // Both halves have to speak. A save that throws its `OSStatus` away after emptying the item, and
+    // a load that answers `[]` for a Keychain which merely refused to answer, are between them enough
+    // for one pairing made after a bad read to replace every record on file — and the next launch
+    // turns every paired iPhone into an unknown one.
     // Returns what kept the records from being written, or nil for a save that landed —
     // the revocation path puts the answer on the screen (Decision 0040 judgement 4).
     @discardableResult
@@ -385,7 +387,7 @@ final class AppModel {
     // REQ-ERR-010: the screen gets the sentence; the code went to the diagnostic log.
     private(set) var revocationProblem: String?
 
-    // Decision 0040 (judgement 4) / POL-123: the revocation the screen asks for. The record
+    // REQ-SEC-002 / Decision 0040 (judgement 4): the revocation the screen asks for. The record
     // goes, the Keychain is told, the connection it authenticated does not stay up — and if it
     // was the last record, the server has nothing left to run for (REQ-COM-003; the fold asks
     // `stopServerIfNotNeeded`, so while the pairing screen this button lives on stays open, the
@@ -436,7 +438,8 @@ final class AppModel {
     }
 
     func stop() {
-        // POL-114: what has been taken down may be raised again. Only repetition is refused, not restart.
+        // REQ-COM-003: what has been taken down may be raised again. Only repetition is refused,
+        // not restart.
         hasStarted = false
         diagnostics.write("app.stop", [DiagnosticField("state", timer.runState.rawValue)])
         tickTask?.cancel()
@@ -447,7 +450,7 @@ final class AppModel {
         stopServer()
     }
 
-    // `now` is an argument so that reaching the end can be reproduced without waiting for it (POL-034).
+    // `now` is an argument so that reaching the end can be reproduced without waiting for it.
     // The only call site is `startTicking()`, and that one uses the default `Date()`.
     func tick(now: Date = Date()) {
         // The display moves on even when the state does not change.
@@ -731,8 +734,8 @@ final class AppModel {
     // The deliberate way down. Folding the listener withdraws the Bonjour registration with it.
     private func stopServer() {
         server.stop()
-        // POL-140: the port is what `readvertise()` reads to know the Mac is on the air. Left
-        // standing, a rename after this fold would re-advertise a listener that no longer exists.
+        // REQ-COM-003: the port is what `readvertise()` reads to know the Mac is on the air. Left
+        // standing, a rename after this fold re-advertises a listener that no longer exists.
         advertisedWebsocketPort = 0
         // `stop()` cancels the connection without a state callback, so the model's view of it is
         // put right here rather than waited for.
@@ -757,9 +760,9 @@ final class AppModel {
         // The fold at the top of `server.start` drops whatever was connected, without a callback —
         // and it runs whether or not the bind that follows succeeds. Noted before the call, so a
         // start that throws (a rename's restart, say) does not leave "Connected" standing over a
-        // listener that no longer exists. POL-145 (fold variant): the fold also cancels a
-        // connection request kept waiting, so the banner asking about it comes down with it — an
-        // Allow pressed on it would answer nothing.
+        // listener that no longer exists. The fold also cancels a connection request kept waiting,
+        // so the banner asking about it comes down with it: the request went with the listener it
+        // arrived on, and an Allow pressed on it would answer nothing.
         connection = .disconnected
         authenticator.connectedClientName = nil
         pendingConnectionRequest = nil
@@ -775,9 +778,9 @@ final class AppModel {
                 return
             }
             advertisedWebsocketPort = websocketPort
-            // REQ-COM-002 (v2.25): the registration rides the WebSocket listener itself — the
-            // `/info` listener that used to carry it is gone. POL-140: with one listener, the
-            // fold-before-bind above means a start that throws leaves nothing advertised.
+            // REQ-COM-002 (v2.25): the registration rides the WebSocket listener itself; there is no
+            // second listener to carry it. REQ-COM-003: with one listener, the fold-before-bind above
+            // means a start that throws leaves nothing advertised.
             server.advertise(displayName: settings.displayName, serverId: identity)
             serverStartError = nil
             serverStartHint = nil
@@ -843,9 +846,9 @@ final class AppModel {
     // on its own (REQ-COM-004), and a rename is a settled act, not something done mid-session.
     // **One at a time.** `startServer` suspends while the new listener comes up, and two of these
     // overlapping would each fold what stood before *they* started: the loser's registration is
-    // never cancelled and stays on the network beside the winner's — POL-114 again, from the other
-    // direction. The settings screen commits a name once rather than per keystroke, so this is the
-    // second guard and not the first.
+    // never cancelled and stays on the network beside the winner's — the same two registrations for
+    // one Mac, reached from the other direction. The settings screen commits a name once rather than
+    // per keystroke, so this is the second guard and not the first.
     private var advertising: Task<Void, Never>?
 
     private func readvertise() {
@@ -927,7 +930,7 @@ final class AppModel {
         }
     }
 
-    // POL-047 / REQ-COM-003: **whether a port was ever bound.** Readable from the test target so
+    // REQ-COM-003: **whether a port was ever bound.** Readable from the test target so
     // that the guard at the top of `startServer()` can be shown to stop the listener and not only
     // the Bonjour name; nothing outside this file writes it.
     private(set) var advertisedWebsocketPort: UInt16 = 0
@@ -956,10 +959,10 @@ final class AppModel {
             },
             resolveApproval: { [weak self] approved in
                 guard let self else { return nil }
-                // POL-145: however the question was settled — the user's click already cleared
-                // this, the 60-second timeout arrives here as a denial and had nothing else to
-                // clear it — the banner asking it comes down. Left standing, it kept offering an
-                // Allow that answered nothing.
+                // REQ-SEC-004: however the question is settled — the user's click has already
+                // cleared this, and the 60-second timeout arrives here as a denial with nothing else
+                // to clear it — the banner asking it comes down. Left standing, it goes on offering
+                // an Allow that answers nothing.
                 pendingConnectionRequest = nil
                 let decision = authenticator.resolveApproval(approved: approved, now: Date())
                 if case .accept = decision {
@@ -1219,8 +1222,9 @@ final class AppModel {
     func flushLogQueue() {
         // REQ-LOG-002 / Decision 0033: **with no folder chosen there is nothing here to write.**
         // Nothing was queued while it was unset, and nothing was carried over from before, so this
-        // returns quietly rather than reporting — an unset destination is not a failed write. It
-        // used to raise `logWriteFailed`, keep the entry and count towards REQ-ERR-004's threshold.
+        // returns quietly rather than reporting — an unset destination is not a failed write.
+        // Raising `logWriteFailed` here would keep the entry and count it towards REQ-ERR-004's
+        // threshold.
         guard let bookmark = bookmarks.logFolder else { return }
         guard logQueue.pendingCount > 0 else { return }
         let options = LogFormatter.Options(taskAsLink: settings.logTaskAsLink)

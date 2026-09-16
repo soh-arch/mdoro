@@ -51,8 +51,8 @@ final class MdoroClient {
     private var callbacks: Callbacks?
     private var backoff = ReconnectPolicy()
     // The Mac being dialled. Readable so the model does not have to guess which of the
-    // discovered rows a pairing code belongs to — it used to match on names from two different
-    // name spaces and fall through to `servers.first`.
+    // discovered rows a pairing code belongs to. Without it the model matches on names from two
+    // different name spaces and falls through to `servers.first`.
     private(set) var target: DiscoveredServer?
     private var pairingCode: String?
     private var keepaliveTask: Task<Void, Never>?
@@ -78,7 +78,7 @@ final class MdoroClient {
     private(set) var beats = 0
 
     private let deviceName = "iPhone"
-    // POL-047 / Decision 0040: the Keychain is outside this process, and the suite runs inside
+    // REQ-SEC-002 / Decision 0040: the Keychain is outside this process, and the suite runs inside
     // this app. **The default is the same as production.**
     private let tokens: any TokenStoring
     // REQ-ERR-009 / REQ-COM-004: the same seam, for the line itself. **The default is the same as

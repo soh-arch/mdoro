@@ -185,9 +185,10 @@ final class LiveActivityController {
         } catch {
             // REQ-ERR-010 / Decision 0034: **never put the OS's own text straight on the screen.** Its
             // language follows the locale, and it can carry file names and identifiers. This string
-            // reaches the iPhone's screen through `ClientModel` (POL-037 of Decision 0035).
+            // reaches the iPhone's screen through `ClientModel`, so the same rule holds on this side.
             // The diagnostic log is a Mac-only arrangement (Decision 0018), so a code has nowhere to go here.
-            // Decision 0035 allowed a code on screen in one place only, the Mac's diagnostic log, so it is dropped.
+            // Decision 0035 allows a code on screen in one place only — the failure of the diagnostic
+            // log's own write (REQ-ERR-010) — so the code is dropped.
             diagnostic = String(localized: "Could not start. Check that Live Activities are allowed for Mdoro in iOS Settings")
             isHealthy = false
         }

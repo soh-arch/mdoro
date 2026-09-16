@@ -66,7 +66,7 @@ struct PairingSection: View {
     }
 }
 
-// REQ-SEC-002 / Decision 0040 (judgement 4) / POL-123: the pairings this Mac has issued, each with
+// REQ-SEC-002 / Decision 0040 (judgement 4): the pairings this Mac has issued, each with
 // a way to end it. The record — value, device name, issue date — is what makes this screen
 // possible; the value stays off it, because it is the secret. Removing the last one takes the
 // connection display with it (REQ-UIX-004) and, once this screen closes, the server too

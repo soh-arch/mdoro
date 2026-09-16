@@ -8,13 +8,13 @@ import MdoroCore
 // **The same seam as `SessionNotifying` and `IdleSleepGuarding` on the Mac side:** a protocol, a
 // real implementation that is the default, and a substitute chosen where the model is built. The
 // suite runs inside MdoroiOS.app, under its bundle identifier, so an item a test writes lands in
-// the reader's own Keychain and outlives the run (POL-047 is the same shape).
+// the reader's own Keychain and outlives the run.
 //
-// **Every entry point takes a `ServerID`.** That is the whole of the fix: the account name used to
-// be a `String` that callers filled with whatever "server name" was nearest — the Bonjour instance
-// name at the saving end, `welcome.serverName` at the reading end — and mDNSResponder renaming a
-// registration to `Mdoro (2)` turned a paired Mac into an unknown one. A display name cannot be
-// passed here any more, because it is a `String` and this is not.
+// **Every entry point takes a `ServerID`.** An account name of type `String` is one callers fill
+// with whatever "server name" is nearest — the Bonjour instance name at the saving end,
+// `welcome.serverName` at the reading end — and mDNSResponder renaming a registration to
+// `Mdoro (2)` then turns a paired Mac into an unknown one. A display name cannot be passed here,
+// because it is a `String` and this is not.
 protocol TokenStoring: Sendable {
     func load(serverId: ServerID) -> String?
     func save(_ token: String, serverId: ServerID)

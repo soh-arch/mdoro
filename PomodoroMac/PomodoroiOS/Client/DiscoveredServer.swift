@@ -10,9 +10,9 @@ struct DiscoveredServer: Identifiable, Equatable, Sendable {
     let id: String
     let name: String
     let endpoint: NWEndpoint
-    // The ws port carried in the TXT record (REQ-COM-002). **Kept on the wire for protocol
-    // compatibility, and no longer used to dial** (POL-143): the connection goes to the
-    // `.service` endpoint, which resolves to the port the advertisement rides on.
+    // The ws port the TXT record carries (REQ-COM-003). **On the wire because the record has to
+    // carry it, and not what the connection is made to**: the connection goes to the `.service`
+    // endpoint, which resolves to the port the advertisement rides on.
     let websocketPort: UInt16?
     // REQ-COM-003 / Decision 0040: **what identifies the Mac.** nil when the advertisement carries
     // no `id`, which means a version that predates this one — such a Mac is still listed, and

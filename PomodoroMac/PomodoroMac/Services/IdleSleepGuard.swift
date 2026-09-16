@@ -1,14 +1,13 @@
 import Foundation
 
-// POL-053: everything `AppModel` asks of the power-management API, so a test can stand where
-// the OS does.
+// Everything `AppModel` asks of the power-management API, so a test can stand where the OS does.
 //
 // This is a boundary the reader's Mac is on the other side of. `ProcessInfo.beginActivity`
 // does not stay inside the process: it raises a system assertion that keeps the whole machine
 // from going to sleep, and it holds until the token is released. The suite runs inside
-// MdoroMac.app (`TestHost`) and drives real sessions through `AppModel`, so every test that
-// reached RUNNING was holding a contributor's Mac awake — the same shape as POL-047, where the
-// notifications a test asked for arrived on the product owner's screen.
+// MdoroMac.app (`TestHost`) and drives real sessions through `AppModel`, so without this seam every
+// test that reaches RUNNING holds a contributor's Mac awake — the same shape as the notification
+// centre, where the notifications a test asked for arrived on the product owner's screen.
 //
 // **The same seam as `SessionNotifying`, deliberately.** One pattern to learn: a protocol, a
 // real implementation that is the default, and an inert one chosen where the model is built.
@@ -54,7 +53,7 @@ final class IdleSleepGuard: IdleSleepGuarding {
     }
 }
 
-// POL-053: where the power-management API would be, when this process is hosting a test bundle.
+// Where the power-management API would be, when this process is hosting a test bundle.
 //
 // The app builds its model before any view exists, so the guard in `.task` is too late to stop
 // what that model holds — the same reason `SilentNotifications` exists. Unlike the notification
