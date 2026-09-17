@@ -23,7 +23,7 @@ private let entryPoints = [
 
 private let guardClause = "guard !TestHost.isRunning else { return }"
 
-@Suite("Tests do not start the app (POL-047)")
+@Suite("Tests do not start the app")
 struct TestHostTests {
 
     @Test func bothEntryPointsRefuseToStartUnderTest() throws {
@@ -31,7 +31,7 @@ struct TestHostTests {
             let text = withoutComments(try source(path))
             #expect(
                 text.contains(guardClause),
-                "POL-047: \(path) no longer carries `\(guardClause)` — running the suite will start the app for real"
+                "\(path) no longer carries `\(guardClause)` — running the suite will start the app for real"
             )
         }
     }
@@ -53,7 +53,7 @@ struct TestHostTests {
                 .first { !$0.isEmpty }
             #expect(
                 firstStatement == guardClause,
-                "POL-047: \(path) does `\(firstStatement ?? "nothing")` before asking whether this is a test run"
+                "\(path) does `\(firstStatement ?? "nothing")` before asking whether this is a test run"
             )
             // What is being watched has not disappeared. **A check that swings at nothing cannot
             // be told apart from a check that passes.**
@@ -73,10 +73,10 @@ struct TestHostTests {
         // value runs before an init body ever does.
         let construction = try #require(app.range(of: "_model = State(initialValue:"))
         let statement = app[construction.upperBound...].prefix(200)
-        #expect(statement.contains("TestHost.isRunning"), "POL-047: the model is built the same way under test")
+        #expect(statement.contains("TestHost.isRunning"), "the model is built the same way under test")
         #expect(
             statement.contains("InMemoryStateStore"),
-            "POL-047: a test run restores the reader's saved session and acts on it"
+            "a test run restores the reader's saved session and acts on it"
         )
     }
 
@@ -103,7 +103,7 @@ struct TestHostTests {
                     guard !construction.hasPrefix(")") else { continue }
                     #expect(
                         construction.prefix(400).contains("notifications:"),
-                        "POL-047: \(name) builds an AppModel that delivers to the reader's notification centre"
+                        "\(name) builds an AppModel that delivers to the reader's notification centre"
                     )
                 }
             }
@@ -127,7 +127,7 @@ struct TestHostTests {
                     guard !construction.hasPrefix(")") else { continue }
                     #expect(
                         construction.prefix(400).contains("idleSleep:"),
-                        "POL-053: \(name) builds an AppModel that holds the reader's Mac awake"
+                        "\(name) builds an AppModel that holds the reader's Mac awake"
                     )
                 }
             }
@@ -166,17 +166,17 @@ struct TestHostTests {
         let app = withoutComments(try source("PomodoroMac/PomodoroMac/MdoroMacApp.swift"))
         #expect(
             app.contains("defaultLaunchBehavior(TestHost.isRunning ? .suppressed : .presented)"),
-            "POL-047: the main window opens itself during the suite"
+            "the main window opens itself during the suite"
         )
         // Look as far as the parenthesis of `MenuBarExtra(`. `showsMenuBarExtra` comes before it.
         let extra = try #require(app.range(of: "MenuBarExtra("), "REQ-UIX-030: the menu bar mark is gone")
         #expect(
             app[extra.upperBound...].prefix(20).contains("isInserted:"),
-            "POL-047: the menu bar mark is inserted during the suite"
+            "the menu bar mark is inserted during the suite"
         )
         #expect(
             app.contains("_showsMenuBarExtra = State(initialValue: !TestHost.isRunning)"),
-            "POL-047: whether the mark is inserted no longer depends on the test run"
+            "whether the mark is inserted no longer depends on the test run"
         )
     }
 

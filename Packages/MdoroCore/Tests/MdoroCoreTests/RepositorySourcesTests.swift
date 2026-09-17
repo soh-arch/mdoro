@@ -14,7 +14,7 @@ import Foundation
 // This is not hypothetical maintenance. `project.pbxproj` belongs to Xcode and to the human
 // working in it (Decision 0013), and the folders under `PomodoroMac/` still carry their
 // pre-Mdoro names with a rename outstanding. **They are going to move.**
-@Suite("A scan whose target has moved says so (POL-047)")
+@Suite("A scan whose target has moved says so")
 struct RepositorySourcesTests {
 
     @Test func aDirectoryThatIsNotThereThrowsRatherThanReadingNothing() {

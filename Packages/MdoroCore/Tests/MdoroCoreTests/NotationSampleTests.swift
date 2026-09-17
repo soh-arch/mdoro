@@ -30,7 +30,7 @@ private func resolvedLiterals(in text: String) -> [String] {
     return found
 }
 
-@Suite("A notation sample reaches the screen as Markdown (POL-052 / REQ-TSK-016)")
+@Suite("A notation sample reaches the screen as Markdown (REQ-TSK-016)")
 struct NotationSampleTests {
 
     @Test func nothingThatDrawsResolvesAStringWithNotationInIt() throws {
@@ -39,7 +39,7 @@ struct NotationSampleTests {
                 for literal in resolvedLiterals(in: text) where literal.contains("`") {
                     Issue.record(
                         """
-                        POL-052: \(name) resolves `\(literal)` before drawing it, so the \
+                        \(name) resolves `\(literal)` before drawing it, so the \
                         backticks print as themselves. Pass the key to Text instead.
                         """
                     )

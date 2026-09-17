@@ -66,7 +66,7 @@ private func firstStatement(_ path: String, _ signature: String) throws -> Strin
         .first { !$0.isEmpty } ?? ""
 }
 
-@Suite("Starting twice leaves one of everything (POL-114)")
+@Suite("Starting twice leaves one of everything")
 struct StartingTwiceTests {
 
     // **Overwriting `self.listener` does not take the old one down.** Network.framework holds a
@@ -78,7 +78,7 @@ struct StartingTwiceTests {
         let prelude = try beforeItBinds(macServer, "func start(callbacks: Callbacks) async throws -> UInt16 {")
         #expect(
             prelude.contains("stop()"),
-            "POL-114: \(macServer) binds a listener without folding the one already up, so the old port stays bound and its Bonjour registration stays on the network"
+            "\(macServer) binds a listener without folding the one already up, so the old port stays bound and its Bonjour registration stays on the network"
         )
     }
 
@@ -95,7 +95,7 @@ struct StartingTwiceTests {
             .sorted()
         #expect(
             binding == ["MdoroServer.swift"],
-            "POL-114: the listeners the Mac raises are now \(binding) — a new one has to fold its predecessor too, or the reader gets another Bonjour registration"
+            "the listeners the Mac raises are now \(binding) — a new one has to fold its predecessor too, or the reader gets another Bonjour registration"
         )
     }
 
@@ -123,7 +123,7 @@ struct StartingTwiceTests {
         )
         #expect(
             body[opening.upperBound...].prefix(600).contains("advertisedWebsocketPort = 0"),
-            "POL-140: \(appModel) folds the server and keeps the advertised port on record, so a rename after the fold re-advertises a dead port"
+            "\(appModel) folds the server and keeps the advertised port on record, so a rename after the fold re-advertises a dead port"
         )
     }
 
@@ -136,12 +136,12 @@ struct StartingTwiceTests {
         let opening = try firstStatement(appModel, "func start() {")
         #expect(
             opening == "guard !hasStarted else { return }",
-            "POL-114: \(appModel) does `\(opening)` before asking whether it has already started"
+            "\(appModel) does `\(opening)` before asking whether it has already started"
         )
         let body = try text(of: appModel)
         #expect(
             body.contains("hasStarted = true"),
-            "POL-114: nothing ever sets the flag, so the guard above never closes"
+            "nothing ever sets the flag, so the guard above never closes"
         )
     }
 
@@ -152,7 +152,7 @@ struct StartingTwiceTests {
         let opening = try #require(body.range(of: "func stop() {"), "\(appModel) no longer has stop()")
         #expect(
             body[opening.upperBound...].prefix(400).contains("hasStarted = false"),
-            "POL-114: \(appModel) stops without clearing the flag, so nothing can start it again"
+            "\(appModel) stops without clearing the flag, so nothing can start it again"
         )
     }
 }

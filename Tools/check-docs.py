@@ -107,6 +107,14 @@ def check_inline_paths() -> None:
                 note("path", f"{md.relative_to(ROOT)}:{line} names {target}, which is not in the repository")
 
 
+def swift_files() -> list[Path]:
+    """Every Swift file this repository wrote. Build products are somebody else's."""
+    return [
+        f for f in sorted(ROOT.glob("**/*.swift"))
+        if ".build" not in f.parts and "DerivedData" not in f.parts
+    ]
+
+
 # --- requirement ids ---------------------------------------------------------
 def defined_requirements() -> set[str]:
     return set(re.findall(r"^\| \*\*(REQ-[A-Z]{3}-\d{3})\*\*", read(SPEC), re.M))
@@ -165,6 +173,36 @@ def check_pols() -> None:
             if int(m.group(1)) not in filed:
                 line = text[: m.start()].count("\n") + 1
                 note("pol", f"{source.relative_to(ROOT)}:{line} cites POL-{m.group(1)}, which is not filed")
+
+
+# --- the punch list stays out of the code -------------------------------------
+# CLAUDE.md: コメントの根拠に POL-nnn を使わない. The ledger is an operational document that
+# moves -- rows are renumbered, closed and folded into one another -- and the anchors meant to
+# last are a requirement id or a record in docs/decisions/. A citation of it inside the product
+# sends whoever reads the code next to a document they may not have, and outside contributors
+# read AGENTS.md rather than the ledger at all.
+#
+# Everywhere in a .swift file, not only its comments. The four passes that cleared this out
+# ended in the string literals on purpose: a `@Suite` name and an `#expect` message are printed
+# by a failing test, so they are read *more* than comments are, and a reader who follows one
+# gets a POL number and no document.
+#
+# The other tools and the workflow still cite the ledger, and are meant to: they are the side
+# that writes the discipline down, not the side it binds. Their citations are held to existing
+# by check_pols above, which is a different question from this one.
+POL_CITATION = re.compile(r"POL-\d+")
+
+
+def check_pol_free_swift() -> None:
+    for f in swift_files():
+        text = read(f)
+        for m in POL_CITATION.finditer(text):
+            line = text[: m.start()].count("\n") + 1
+            note(
+                "pol in swift",
+                f"{f.relative_to(ROOT)}:{line} cites {m.group(0)} — "
+                "the anchor has to be a requirement id or a decision record",
+            )
 
 
 # --- a row in progress names its work -----------------------------------------
@@ -294,6 +332,7 @@ CHECKS = (
     ("inline paths", check_inline_paths),
     ("requirement ids", check_requirement_ids),
     ("POL numbers", check_pols),
+    ("POL-free Swift", check_pol_free_swift),
     ("rows in progress", check_in_progress_rows),
     ("decision records", check_decisions),
     ("spec header", check_spec_header),
@@ -489,6 +528,33 @@ CASES = (
     (check_pols, "a punch list with no rows at all", {
         "docs/PUNCHLIST.md": "nothing is filed here\n",
     }, True),
+
+    (check_pol_free_swift, "a comment in Swift citing the ledger", {
+        "Packages/MdoroCore/Sources/A.swift": "// POL-001: why this line is here\n",
+    }, True),
+    # The half three passes of comment work would have left standing, and the reason this check
+    # is not written against comments: a citation here is printed by the failing test.
+    (check_pol_free_swift, "a string literal in Swift citing the ledger", {
+        "PomodoroMac/PomodoroMacTests/A.swift":
+            '@Suite("it folds the first listener (POL-114)")\n'
+            '#expect(second !== first, "POL-114: the second start kept the first")\n',
+    }, True),
+    (check_pol_free_swift, "Swift anchored to a requirement and a record", {
+        "Packages/MdoroCore/Sources/A.swift":
+            "// REQ-ABC-001 / Decision 0040: why this line is here\n"
+            '@Suite("a name with no ledger in it")\n',
+    }, False),
+    # The boundary, stated: the tools and the documents write the discipline down and go on
+    # citing the ledger. Only .swift is bound by it, so a sound tree holding both must pass.
+    (check_pol_free_swift, "a tool and a document citing the ledger beside clean Swift", {
+        "Tools/a-tool.py": "# POL-001: why this line is here\n",
+        "docs/a.md": "as POL-001 found\n",
+        "Packages/MdoroCore/Sources/A.swift": "// REQ-ABC-001: why this line is here\n",
+    }, False),
+    # Checkouts under .build are somebody else's Swift, and this must not speak for them.
+    (check_pol_free_swift, "a build product's Swift citing the ledger", {
+        "Packages/MdoroCore/.build/checkouts/other/A.swift": "// POL-001: not ours to hold\n",
+    }, False),
 
     (check_decisions, "a gap in the numbering", {
         "docs/decisions/0001-a.md": SOUND_DECISION,

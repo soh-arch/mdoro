@@ -130,7 +130,7 @@ struct DialEndpointTests {
 
         #expect(dialled == discovered.endpoint)
         guard case let .service(name, type, _, _)? = dialled else {
-            Issue.record("the dial is not a `.service` endpoint — POL-143 is back")
+            Issue.record("the dial is not a `.service` endpoint — a host name is being dialled again")
             return
         }
         #expect(name == "Mdoro")

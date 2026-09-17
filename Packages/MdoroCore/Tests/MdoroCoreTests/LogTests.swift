@@ -765,7 +765,7 @@ struct LogTaskSnapshotTests {
 //
 // Every test here puts a save in exactly that gap. The hook fires after the read and before the
 // swap, which is where the window is.
-@Suite("A save that lands between the read and the swap (POL-120 / REQ-LOG-004)")
+@Suite("A save that lands between the read and the swap (REQ-LOG-004)")
 struct LogWriterConcurrentEditTests {
 
     private func temporaryDirectory() -> URL {

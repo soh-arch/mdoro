@@ -66,7 +66,7 @@ private func unopenedLog() -> DiagnosticLog {
         .appendingPathComponent("MdoroListenerFolding-\(UUID().uuidString)", isDirectory: true))
 }
 
-@Suite("A second start folds the first listener (POL-114 / REQ-COM-003)")
+@Suite("A second start folds the first listener")
 @MainActor
 struct ListenerFoldingTests {
 
@@ -80,10 +80,10 @@ struct ListenerFoldingTests {
         let secondPort = try await server.start(callbacks: callbacksNothingReaches())
         let second = try #require(server.listener, "the second start raised no listener")
 
-        #expect(second !== first, "POL-114: the second start kept the first listener")
+        #expect(second !== first, "the second start kept the first listener")
         #expect(
             await settlesAsCancelled(first),
-            "POL-114: the listener the first start raised is still up — the port it holds is never given back"
+            "the listener the first start raised is still up — the port it holds is never given back"
         )
         #expect(server.listenPort == secondPort, "the port on record is not the one that was returned")
     }
@@ -99,6 +99,6 @@ struct ListenerFoldingTests {
 
         #expect(server.listener == nil, "stop() left the listener on record")
         #expect(server.listenPort == nil, "stop() left the port on record")
-        #expect(await settlesAsCancelled(listener), "POL-114: stop() does not cancel the listener")
+        #expect(await settlesAsCancelled(listener), "stop() does not cancel the listener")
     }
 }

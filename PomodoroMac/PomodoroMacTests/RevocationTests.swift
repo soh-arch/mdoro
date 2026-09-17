@@ -68,7 +68,7 @@ private func settles(_ condition: @MainActor () -> Bool) async -> Bool {
     return false
 }
 
-@Suite("Revoking a pairing (REQ-SEC-002 / Decision 0040 / POL-123)")
+@Suite("Revoking a pairing (Decision 0040)")
 @MainActor
 struct RevocationTests {
 
@@ -150,7 +150,7 @@ struct RevocationTests {
     }
 }
 
-@Suite("The approval banner falls with its question (POL-145 / REQ-SEC-004)")
+@Suite("The approval banner falls with its question (REQ-SEC-004)")
 @MainActor
 struct ApprovalBannerTests {
 
@@ -176,6 +176,6 @@ struct ApprovalBannerTests {
         _ = callbacks.resolveApproval(false)
 
         #expect(model.pendingConnectionRequest == nil,
-                "POL-145: the request was denied and the banner kept standing")
+                "the request was denied and the banner kept standing")
     }
 }

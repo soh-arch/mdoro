@@ -63,7 +63,7 @@ private func hello(deviceName: String = "iPhone") -> HelloPayload {
     HelloPayload(deviceName: deviceName)
 }
 
-@Suite("A refused connection leaves a line (POL-054 / REQ-ERR-010 / Decision 0018)")
+@Suite("A refused connection leaves a line, and nothing of the device in it")
 @MainActor
 struct ServerRefusalLogTests {
 
