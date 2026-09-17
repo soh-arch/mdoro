@@ -279,11 +279,12 @@ def check_in_progress_rows() -> None:
 # are the short ones the marks arm answers for. 48 sits in that gap, near enough to 32 to stay
 # useful and clear enough of 103 to have caught every one of them.
 #
-# The other three declared columns are asked the same question, by check_declared_columns
+# The four other declared columns are asked the same question, by check_declared_columns
 # below. They were measured on the same day and were not sound either -- POL-077 carried 269
-# characters of prose in レーン, POL-106 carried 1,992 in 重大度 -- and were repaired in the
-# same pass. Their vocabularies live there because they are vocabularies; 軸 has none worth
-# writing down, since 206 of its rows hold a path.
+# characters of prose in レーン, POL-106 carried 1,992 in 重大度, and fifteen rows carried a
+# ruling in PR -- and were repaired in the same pass. レーン, 重大度 and 状態 hold vocabularies
+# because they are vocabularies; 軸 and PR have none worth writing down, since 206 of the one
+# holds a path and 180 of the other a branch name.
 AXIS_COLUMN = 4
 AXIS_NOTE_MARKS = ("▶", "⚠")
 AXIS_PROSE_BUDGET = 48
@@ -331,11 +332,11 @@ def check_axis_column() -> None:
             )
 
 
-# --- the other three declared columns hold what they declare ------------------
-# The same question as 軸, asked of レーン, 重大度 and 状態, and it had the same answer:
-# POL-077 carried 269 characters of a progress note in レーン behind the role name, and
-# POL-106 carried 1,992 in 重大度 behind `minor`. Both are repaired; this is what keeps
-# them repaired.
+# --- the other declared columns hold what they declare ------------------------
+# The same question as 軸, asked of レーン, 重大度 and 状態 here and of PR further down, and it
+# had the same answer: POL-077 carried 269 characters of a progress note in レーン behind the
+# role name, and POL-106 carried 1,992 in 重大度 behind `minor`. Both are repaired; this is
+# what keeps them repaired.
 #
 # The vocabularies are measured off the ledger, not copied off the legend -- the legend was
 # behind the practice on every one of them. レーン really holds two roles by name, two
@@ -363,6 +364,58 @@ DECLARED_COLUMNS = (
 # A trailing qualifier, in the ledger's own brackets. The ASCII pair is left out of the class
 # on purpose: the qualifiers that exist carry a markdown link, whose own brackets are ASCII.
 QUALIFIER = re.compile(r"（[^（）]*）$")
+
+# --- and the PR column says where the work is ---------------------------------
+# The fifth declared column, asked the same question. The legend says ブランチ名か PR 番号; it
+# held fifteen rows of ruling and implementation note instead, the longest 636 characters. None
+# of them were reachable by anything: check_in_progress_rows reads only the `doing` and
+# `review` rows, and all fifteen are `done`. Fourteen were repaired on 2026-09-17 by moving the
+# cell into 症状 and leaving behind the name that was inside it.
+#
+# Measured over the repaired ledger, 287 rows: 180 hold a branch name in backticks, 84 an em
+# dash, 8 a bare #N, and 15 hold something else that is still only naming where the work went
+# -- `SPEC v2.16`, a record named as a link, `PR #38 `3e87a73` → PR #39 `c23d331`（replay 廃止）
+# で解消`. Those fifteen are why this is not a vocabulary check the way レーン is: there is no
+# vocabulary here, there are 180 branch names. So it is the two arms 軸 is held to.
+#
+# THE BUDGET IS MEASURED, NOT CHOSEN. Take out the backticked names, the records written as
+# links, the #N, the bare word PR, the spec versions and the separators, and count what is
+# left. Across the repaired ledger the widest sound cell leaves 47 characters (POL-142,
+# `PR #38 で前提が消えた —— …`). Of the fourteen repaired cells the narrowest left 77 (POL-154)
+# and the widest 390. 64 sits in that gap, far enough above 47 that a row may still say in a
+# clause where its work went, and clear of every one of the fourteen but the one named next.
+#
+# ONE OF THE FOURTEEN IS BELOW THE FLOOR, and this does not claim it. POL-123 held
+# `[0040](…)。PR #39 の失効 UI で解消` and leaves 9 characters -- less prose than POL-143, which
+# was looked at and kept. It was repaired by eye, and no budget that lets POL-142 through can
+# tell it from the rows that stayed. Thirteen of the fourteen are what this arm answers for.
+#
+# Own budget, own references, shared marks. The reference vocabulary is this column's (#N, the
+# bare PR, SPEC vN.NN) and the number is this column's measurement, so neither is shared with
+# 軸 -- loosening one must not loosen the other. Every SHA in this column is already inside
+# backticks, so no bare-hex pattern is invented for one that does not exist. The marks are not
+# a tuning knob: `▶` and `⚠` open a note anywhere in this ledger, and AXIS_NOTE_MARKS already
+# serves the other three columns here. Only one repaired row carried one (POL-156, `⚠`) and its
+# prose alone was 390, so no row that existed needed the marks arm -- it is here for the shape
+# 軸 actually filled up with, a name with `**▶ 入った**` stacked behind it, which is short
+# enough that no budget worth having would see it.
+PR_COLUMN = 8
+PR_PROSE_BUDGET = 64
+PR_REFERENCE = (
+    re.compile(r"`[^`]*`"),
+    re.compile(r"\[[^\]]*\]\([^)]*\)"),
+    re.compile(r"#\d+"),
+    re.compile(r"\bPR\b"),
+    re.compile(r"SPEC v\d+(\.\d+)?"),
+    re.compile(r"[—/・、→\s]"),
+)
+
+
+def pr_prose(pr: str) -> str:
+    """What is left of a PR cell once every reference and separator is taken out."""
+    for pattern in PR_REFERENCE:
+        pr = pattern.sub("", pr)
+    return pr
 
 
 def check_declared_columns() -> None:
@@ -400,6 +453,25 @@ def check_declared_columns() -> None:
                     f"docs/PUNCHLIST.md:{line_no} POL-{pol} has {word[:40]!r} in its {name}, "
                     f"which is not one of {' / '.join(sorted(vocabulary))}",
                 )
+
+    for line_no, pol, cells in rows:
+        pr = cells[PR_COLUMN]
+        mark = next((m for m in AXIS_NOTE_MARKS if m in pr), None)
+        if mark:
+            note(
+                "column",
+                f"docs/PUNCHLIST.md:{line_no} POL-{pol} has `{mark}` in its PR — a note belongs "
+                f"at the end of 症状, not in the column that says where the work is",
+            )
+            continue
+        left = pr_prose(pr)
+        if len(left) > PR_PROSE_BUDGET:
+            note(
+                "column",
+                f"docs/PUNCHLIST.md:{line_no} POL-{pol} has {len(left)} characters in its PR that "
+                f"are neither a reference nor a separator (the budget is {PR_PROSE_BUDGET}): "
+                f"{left[:60]}…",
+            )
 
 
 # --- a record's 状態 and its replacement agree --------------------------------
@@ -628,12 +700,37 @@ why.
 # that is what punch_rows() reads.
 AXIS_ROW = "| **POL-001** | a symptom | REQ-ABC-001 | AXIS | agent | minor | done | #1 |\n"
 
-# The same row with the other three declared columns left open instead.
+# The same row with the three columns that hold a vocabulary left open instead.
 DECLARED_ROW = "| **POL-001** | a symptom | REQ-ABC-001 | K | LANE | SEV | STATE | #1 |\n"
 
 
 def a_declared_row(lane="agent", severity="minor", state="done") -> str:
     return DECLARED_ROW.replace("LANE", lane).replace("SEV", severity).replace("STATE", state)
+
+# The same row once more with the PR column left open. WHERE rather than PR, so that replacing
+# it cannot touch the word PR anywhere else in the row.
+PR_ROW = "| **POL-001** | a symptom | REQ-ABC-001 | K | agent | minor | done | WHERE |\n"
+
+# The fifteen cells that are NOT a bare branch name, an em dash or a bare #N -- copied out of
+# the ledger on 2026-09-17, not composed here. Every one of them is sound: each names where the
+# work went and stops. Four rows (POL-113 / 125 / 127 / 131) hold the same record link, so
+# twelve strings cover the fifteen rows. If the budget is ever lowered to catch one more of the
+# repaired cells, this is the case that says what it would cost.
+PR_CELLS_THAT_ARE_NOT_A_NAME = (
+    "SPEC v2.16",
+    "`fix/axis-k-round-two`（SPEC v2.20）",
+    "[0040](decisions/0040-identity-is-not-a-name.md)",
+    "3本の PR（#37 / #38 / #39）で完了",
+    "PR #38 `3e87a73` → PR #39 `c23d331`（replay 廃止）で解消",
+    "PR #38 で2穴とも解消（リスナー1本化・ポートリセット）",
+    "PR #38 で前提が消えた —— 改名の再広告は本当にリスナーを畳んで立て直すため、"
+    "文言は事実と一致するようになった",
+    "PR #38 `3e84ab5`（サービス直結ダイヤル）で解消。実機で接続確認済み（2026-09-02）",
+    "PR #39（callback 冒頭の1行 + fold 変種）で解消",
+    "PR #39 `8206457`（accept 確定後へ移動）で解消。検証役が4経路の遷移表で確認",
+    "`docs/the-readme-must-not-teach-the-forbidden-move`（PR #63 で merge）",
+    "裁定のみ",
+)
 
 # (check, what the tree is asking, the tree, whether the check must complain)
 CASES = (
@@ -968,6 +1065,40 @@ CASES = (
     (check_declared_columns, "a punch list with no eight-column rows at all", {
         "docs/PUNCHLIST.md": "nothing is filed here\n",
     }, True),
+
+    # PR. The fourteen cells repaired on 2026-09-17 are the rows this was written for. The
+    # first case is POL-179's opening, shortened the way the 重大度 case above shortens
+    # POL-106's; the second is POL-154 entire, which is the one that decides the budget.
+    (check_declared_columns, "a ruling stacked in the column that should name a branch", {
+        "docs/PUNCHLIST.md": PR_ROW.replace(
+            "WHERE", "裁定（2026-09-02）: A —— 現状を条文にする。** 前方互換の免除は**値には及ばない**。"
+                     "ただし**分類ではなく順序で決める** —— 応答を定めた条文があるならそれに従い"
+                     "（REQ-TSK-036 / REQ-CFG-018 / 10.2）、定めが無い値だけを破棄する"),
+    }, True),
+    # POL-154 whole, the narrowest of the fourteen: 77 characters of prose once its date, its
+    # arrow and its backticked path come out. The budget has to reach this far down or it
+    # answers for the long ones only.
+    (check_declared_columns, "the narrowest of the fourteen, which is what 64 has to reach", {
+        "docs/PUNCHLIST.md": PR_ROW.replace(
+            "WHERE", "決定的テスト実施（2026-09-02）: 許可 OFF + Mac 再起動 → 不可視・無表示。"
+                     "**欠陥として POL-164 に引き継ぎ**、プラットフォームの事実は `platform/0009` に記録"),
+    }, True),
+    # The arm the budget cannot reach. No repaired PR cell had this shape -- it is the shape 軸
+    # filled up with, three rows of a path and `**▶ #121 で入った**`, and the PR column is the
+    # next place that habit would land.
+    (check_declared_columns, "a name with a note stacked behind it, too short for the budget", {
+        "docs/PUNCHLIST.md": PR_ROW.replace("WHERE", "`fix/single-instance` **▶ 入った（2026-09-17）**"),
+    }, True),
+    (check_declared_columns, "a branch name in backticks, as 180 rows write it", {
+        "docs/PUNCHLIST.md": PR_ROW.replace("WHERE", "`docs/the-column-that-says-where-the-work-is`"),
+    }, False),
+    (check_declared_columns, "an em dash and a bare number, which 92 rows hold between them", {
+        "docs/PUNCHLIST.md": PR_ROW.replace("WHERE", "—") + PR_ROW.replace("WHERE", "#39"),
+    }, False),
+    (check_declared_columns, "the fifteen that say where the work went in their own words", {
+        "docs/PUNCHLIST.md": "".join(
+            PR_ROW.replace("WHERE", cell) for cell in PR_CELLS_THAT_ARE_NOT_A_NAME),
+    }, False),
 
     # 状態 and its replacement. Nothing in the real tree fires any of these; the cases are the
     # whole of what holds the check up.
