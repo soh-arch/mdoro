@@ -5,11 +5,11 @@ import MdoroCore
 
 // REQ-COM-003 (v2.26): **a Mac that cannot read who it is does not go on the air.**
 //
-// Decision 0040 settled that the `id` is made once and never again, and said nothing about the
-// launch that could not read it. What the code did was make a new one — which is the very symptom
-// 0040 exists to remove, arriving through a different door: the Mac is a stranger, every paired
-// iPhone is asked for a six-digit code, and the token issued in reply is filed under an id that is
-// gone at the next launch. Orphans on both ends.
+// Decision 0040 settles that the `id` is made once and never again. Make a new one on the launch
+// that could not read the old one and the very symptom 0040 exists to remove arrives through a
+// different door: the Mac is a stranger, every paired iPhone is asked for a six-digit code, and
+// the token issued in reply is filed under an id that is gone at the next launch. Orphans on both
+// ends.
 //
 // The record of issued tokens is the same story from the other side. A launch that could not read
 // it holds nothing, so every returning iPhone is refused with `unknownDeviceToken` — and the
@@ -37,9 +37,9 @@ private final class FixedTokenStore: DeviceTokenStoring, @unchecked Sendable {
 
 private let keychainRefused = ErrorCode(domain: NSOSStatusErrorDomain, code: -25308)
 
-// A scratch folder of the reader's own, and the identity file inside it. POL-047: the suite is
-// hosted by MdoroMac.app under its bundle identifier, so `ServerIdentityFile.inApplicationSupport()`
-// would resolve to the container the reader's own Mdoro uses.
+// A scratch folder of the reader's own, and the identity file inside it. The suite is hosted by
+// MdoroMac.app under its bundle identifier, so `ServerIdentityFile.inApplicationSupport()` would
+// resolve to the container the reader's own Mdoro uses.
 private func scratchDirectory() throws -> URL {
     let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("MdoroOffTheAir-\(UUID().uuidString)", isDirectory: true)
@@ -180,7 +180,7 @@ struct StayingOffTheAirTests {
     //
     // **This is the only test in the suite that calls `startServer()`, and it calls it in the one
     // state where `startServer()` raises nothing.** Everything that would otherwise bind a port or
-    // put a name on the reader's LAN is on the far side of the line being checked (POL-047).
+    // put a name on the reader's LAN is on the far side of the line being checked.
     @Test func startingTheServerAsksBeforeItRaisesAnything() async throws {
         // **Both answers are withheld, not one.** Either guard on its own is enough to keep this
         // launch off the air, and a mutation that drops one of them has to leave a suite that

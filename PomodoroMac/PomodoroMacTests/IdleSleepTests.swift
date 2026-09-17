@@ -3,16 +3,17 @@ import Foundation
 import MdoroCore
 @testable import MdoroMac
 
-// POL-053: REQ-PER-006 holds idle sleep off for as long as a session is RUNNING, and
+// REQ-PER-006 holds idle sleep off for as long as a session is RUNNING, and
 // `ProcessInfo.beginActivity` is not a thing the app keeps to itself — it raises a system
 // assertion that keeps the whole machine awake until the token is released.
 //
-// This target runs inside MdoroMac.app and drives real sessions through `AppModel`, so every
-// test that reached RUNNING was holding the machine of whoever ran the suite awake. It is
-// POL-047 again with the power settings standing in for the notification centre: the app is
+// This target runs inside MdoroMac.app and drives real sessions through `AppModel`, so without a
+// stand-in every test that reaches RUNNING holds the machine of whoever ran the suite awake. It
+// is the same shape as the notification centre, with the power settings in its place: the app
 // doing exactly what it should, at a moment when nobody asked it to.
 //
-// The rule itself is still checked. What changed is only where the ask arrives.
+// The rule itself is checked here all the same. Only the destination of the ask belongs to the
+// stand-in.
 
 @MainActor
 private func modelHolding(_ idleSleep: RecordedSleepGuard) -> AppModel {
@@ -45,8 +46,8 @@ private func modelHolding(_ idleSleep: RecordedSleepGuard) -> AppModel {
 @MainActor
 struct IdleSleepTests {
 
-    // The ask is still made — that is REQ-PER-006 and it has not changed. It just stops at an
-    // object with no way to reach `ProcessInfo`.
+    // The ask is made — that is REQ-PER-006 — and it stops at an object with no way to reach
+    // `ProcessInfo`.
     @Test func aRunningSessionAsksAndTheAskGoesNoFurther() {
         let idleSleep = RecordedSleepGuard()
         let model = modelHolding(idleSleep)

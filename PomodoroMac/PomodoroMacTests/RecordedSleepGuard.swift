@@ -1,12 +1,12 @@
 import Foundation
 @testable import MdoroMac
 
-// POL-053: where the power-management API would be.
+// Where the power-management API would be.
 //
 // `ProcessInfo.beginActivity` does not stay inside the process. It raises a system assertion
 // that keeps the machine from going to sleep, and this target's tests drive real sessions
-// through `AppModel` — every one that reached RUNNING was holding the machine of whoever ran
-// the suite awake, for as long as the run lasted.
+// through `AppModel` — so without this stand-in every test that reaches RUNNING holds the machine
+// of whoever ran the suite awake, for as long as the run lasts.
 //
 // The calls are kept rather than dropped, the same way `RecordedNotifications` keeps them: what
 // `AppModel` does at RUNNING and at every other state is a rule of its own (REQ-PER-006), and a

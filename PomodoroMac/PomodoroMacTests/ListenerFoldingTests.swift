@@ -4,14 +4,15 @@ import Network
 import MdoroCore
 @testable import MdoroMac
 
-// POL-114 / REQ-COM-003: **a second start left the first listener up.**
+// **A second start folds the listener the first one raised.**
 //
-// `self.listener = listener` replaced the property and nothing else. Network.framework keeps a
-// started listener alive for its queue, so the old one went on holding its port and — once
-// `advertise` had set `.service`, which rides this listener now that `/info` is gone
-// (REQ-COM-002 v2.25) — its Bonjour registration. mDNSResponder renames a colliding registration
-// instead of refusing it, so the reader saw one name `(2)` through `(5)` for two processes, and
-// pairing kept landing on a registration whose process was not the one holding the code.
+// Let `self.listener = listener` replace the property and nothing else and the old listener stays
+// up: Network.framework keeps a started listener alive for its queue, so it goes on holding its
+// port and — once `advertise` has set `.service`, which rides this listener now that `/info` is
+// gone (REQ-COM-002 v2.25) — its Bonjour registration. mDNSResponder renames a colliding
+// registration instead of refusing it, so the reader saw one name `(2)` through `(5)` for two
+// processes, and pairing kept landing on a registration whose process was not the one holding
+// the code.
 //
 // `MdoroCoreTests` reads the file and checks the fold is written down, which is what CI runs.
 // **This is the half that raises a listener and watches the previous one go**, and it is the only
@@ -20,7 +21,8 @@ import MdoroCore
 // What this puts on the machine, and what it does not: ephemeral TCP listeners, for a few
 // hundred milliseconds each, all cancelled before the test returns. **`advertise` is never
 // called**, so nothing is registered with Bonjour and no name of the reader's goes on the LAN —
-// which is the part POL-047 is about, and the reason `ServerRefusalLogTests` starts nothing at all.
+// which is what a suite running inside the real app owes whoever runs it, and the reason
+// `ServerRefusalLogTests` starts nothing at all.
 
 // The connection callbacks. Nothing connects here — no client is pointed at these ports — so none
 // of these is reached; they exist because `start` will not take fewer.

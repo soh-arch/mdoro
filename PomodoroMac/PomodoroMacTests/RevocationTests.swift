@@ -3,9 +3,9 @@ import Foundation
 import MdoroCore
 @testable import MdoroMac
 
-// Decision 0040 (judgement 4) / POL-123: the Mac can end a pairing it made. What is watched here
-// is the wiring — the record leaving, the Keychain being told, the displays and the server
-// noticing — never a listener: **nothing in this file goes on the air** (POL-047). The fold
+// Decision 0040 (judgement 4): the Mac can end a pairing it made. What is watched here is the
+// wiring — the record leaving, the Keychain being told, the displays and the server noticing —
+// never a listener: **nothing in this file goes on the air**. The fold
 // decisions are read from the diagnostic log (`server.stop`), the same trace
 // `ServerPresenceWiringTests` reads, and the "server up" halves run against an identity that
 // refuses to load, so the attempt is real and the LAN is never touched.
@@ -44,7 +44,7 @@ private func model(
         notifications: RecordedNotifications(),
         idleSleep: RecordedSleepGuard(),
         deviceTokens: ScriptedTokenStore(.onRecord(tokens), saveFails: saveFails),
-        // Refuses to load, so no attempt to go on the air can raise a listener (POL-047).
+        // Refuses to load, so no attempt to go on the air can raise a listener.
         identityFile: { throw NSError(domain: NSCocoaErrorDomain, code: 257) }
     )
     model.diagnostics.open(preset: Preset.standard(), settings: .default)
@@ -154,9 +154,11 @@ struct RevocationTests {
 @MainActor
 struct ApprovalBannerTests {
 
-    // POL-145: the 60-second timeout resolves the approval as a denial through the same callback
-    // the user's click uses — and the banner comes down with it. It used to stand, saying
-    // "Denied automatically after 60 seconds" over an Allow button that answered nothing.
+    // REQ-SEC-004: the confirmation the clause asks the Mac to show is this banner, and the clause
+    // gives it a 60-second timeout that resolves as a denial through the same callback the user's
+    // click uses. A confirmation that has timed out is no longer one — that step is a reading, not
+    // the letter. Leave it standing and it says "Denied automatically after 60 seconds" over an
+    // Allow button that answers nothing.
     @Test func aTimedOutApprovalTakesItsBannerDown() throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }

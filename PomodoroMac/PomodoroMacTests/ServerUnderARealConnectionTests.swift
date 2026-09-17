@@ -487,14 +487,14 @@ private final class Probe: @unchecked Sendable {
     // this stops on the read that says the stream is over, and on a count no test comes near.
     //
     // **The ending is read by `LineRead`, the same function the server under test reads it with.**
-    // It did not used to be: this probe asked `isComplete, context?.isFinal == true, data?.isEmpty
-    // ?? true`, where `LineRead` asks for no frame on the read rather than for a context that says
-    // it is the last one. **Those are different properties** — a read arriving with no context at
-    // all satisfies the second and not the first, because `nil?.isFinal == true` is false — so the
-    // probe could go on reading past an ending the server had stopped at, or stop at one the server
-    // had read through, and either way a test would be watching a line the two ends disagreed
-    // about. **The count below is what keeps this bounded if that judgement is ever wrong**; it is
-    // not what decides the ending.
+    // Ask instead for `isComplete, context?.isFinal == true, data?.isEmpty ?? true`, where
+    // `LineRead` asks for no frame on the read rather than for a context that says it is the last
+    // one, and **those are different properties** — a read arriving with no context at all
+    // satisfies the second and not the first, because `nil?.isFinal == true` is false — so the
+    // probe goes on reading past an ending the server stopped at, or stops at one the server read
+    // through, and either way a test is watching a line the two ends disagree about. **The count
+    // below is what keeps this bounded if that judgement is ever wrong**; it is not what decides
+    // the ending.
     private func receive() {
         guard claimRead() else { return }
         connection.receiveMessage { [weak self] data, context, isComplete, error in
@@ -863,11 +863,11 @@ struct ServerUnderARealConnectionTests {
         }
         let pong = try #require(stranger.seen.pongs.first)
         // REQ-COM-007: t1 comes back so the asker can pair the answer with its question, and
-        // **carried back is not "about the same time"**. This was a one-second tolerance, and one
-        // second is far more than a loopback round trip: a Mac answering with its own receipt time
-        // — `TimeSyncPayload(t1: t2, ...)` — would have passed it every single time, which is
-        // exactly the value this line exists to catch. Exact equality is what bites, and the
-        // instant chosen above is what makes exact equality available.
+        // **carried back is not "about the same time"**. A one-second tolerance is far more than a
+        // loopback round trip: a Mac answering with its own receipt time —
+        // `TimeSyncPayload(t1: t2, ...)` — passes it every single time, which is exactly the value
+        // this line exists to catch. Exact equality is what bites, and the instant chosen above is
+        // what makes exact equality available.
         holds(pong.t1 == t1,
               "REQ-COM-007: the answer does not carry back the t1 it was asked about (sent \(t1), got \(pong.t1)) — an answer carrying the Mac's own clock instead cannot be paired with the question that asked for it")
         holds(pong.t2 != nil && pong.t3 != nil,

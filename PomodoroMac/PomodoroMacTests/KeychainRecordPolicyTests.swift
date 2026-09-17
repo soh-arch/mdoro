@@ -5,15 +5,15 @@ import MdoroCore
 
 // REQ-SEC-002 / Decision 0040: what `AppModel` does with the answer the Keychain gave.
 //
-// The move from a plist to the Keychain brought a failure the plist never had: a read can be
-// refused while the records are sitting there intact. `load()` folded every such refusal into
-// `[]`, and the save that followed the next pairing wrote one record over all of them — every
-// paired iPhone refused with `unknownDeviceToken` on the next launch, throwing away its own token
-// in reply, with nothing on the screen or in the log to say why.
+// The Keychain carries a failure the plist never had: a read can be refused while the records are
+// sitting there intact. Fold every such refusal into `[]` and the save that follows the next
+// pairing writes one record over all of them — every paired iPhone refused with
+// `unknownDeviceToken` on the next launch, throwing away its own token in reply, with nothing on
+// the screen or in the log to say why.
 //
 // **The Keychain itself is not exercised here.** This suite runs inside MdoroMac.app under its
 // bundle identifier, so an item it wrote would land in the reader's own login keychain and stay
-// there (POL-047). The store is the seam; what is checked is the policy built on top of it.
+// there. The store is the seam; what is checked is the policy built on top of it.
 // `DeviceTokenStorageTests` in MdoroCore holds the shape of the calls themselves.
 
 // A store that answers what the case tells it to, and keeps what it was asked to keep.
@@ -92,7 +92,7 @@ struct KeychainRecordPolicyTests {
         #expect(store.saved.first?.map(\.value) == ["a", "b"])
     }
 
-    // **The one that used to destroy them.** A refusal is not an empty Keychain.
+    // **The one that destroys them when this is got wrong.** A refusal is not an empty Keychain.
     @Test func aKeychainThatWouldNotAnswerIsNeverWrittenOver() throws {
         let store = RecordedTokenStore(.unreadable(keychainRefused))
         let lines = try recording(store) { model in
@@ -126,8 +126,8 @@ struct KeychainRecordPolicyTests {
         #expect(read.contains("why=unintelligible(NSCocoaErrorDomain:4864)"))
     }
 
-    // REQ-ERR-010: `SecItemAdd`'s `OSStatus` used to be thrown away, so a write that failed after
-    // the delete that preceded it left no records and no line.
+    // REQ-ERR-010: throw `SecItemAdd`'s `OSStatus` away and a write that fails after the delete
+    // preceding it leaves no records and no line.
     @Test func aWriteThatFailedSaysSo() throws {
         let store = RecordedTokenStore(.onRecord([token("a")]), refusing: keychainWriteFailed)
         let lines = try recording(store) { model in
@@ -149,8 +149,8 @@ struct KeychainRecordPolicyTests {
         #expect(line(lines, code: "tokens.load") == nil, "an unpaired Mac reports a failure at every launch")
     }
 
-    // POL-047 / Decision 0040: the plist is emptied through the store, so a test run empties a
-    // store that is not the reader's. `UserDefaults.standard` here is their own settings.
+    // The plist is emptied through the store, so a test run empties a store that is not the
+    // reader's. `UserDefaults.standard` here is their own settings.
     @Test func theLeftoverPlistIsEmptiedThroughTheStore() throws {
         let store = RecordedTokenStore(.onRecord([]))
         _ = try recording(store) { model in

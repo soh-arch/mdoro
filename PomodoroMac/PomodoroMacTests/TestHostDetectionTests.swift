@@ -2,10 +2,10 @@ import Testing
 import MdoroCore
 @testable import MdoroMac
 
-// POL-047: this test target runs inside MdoroMac.app, and the app skips its whole startup
-// when `TestHost.isRunning` says so. If the detection ever stops firing, the guard in
-// `MdoroMacApp` is still there, `MdoroCoreTests` still passes — and the suite goes back to
-// advertising on the LAN and watching the reader's Task.md.
+// This test target runs inside MdoroMac.app, and the app skips its whole startup when
+// `TestHost.isRunning` says so. Let the detection stop firing and the guard in `MdoroMacApp` is
+// still there and `MdoroCoreTests` still passes, while the suite advertises on the LAN and
+// watches the reader's Task.md.
 //
 // `MdoroCoreTests` checks that the guard exists; only a test hosted by the app can check
 // that it triggers.
