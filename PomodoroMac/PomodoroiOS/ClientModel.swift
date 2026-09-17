@@ -54,6 +54,24 @@ final class ClientModel {
     private var hasLiveSnapshot = false
     private let browser = ServerBrowser()
     private var ticker: Task<Void, Never>?
+    // Whether the app has been started. **`start()` was not idempotent**: `browser.start()` and
+    // `startTicking()` fold whatever stood before them, and nothing above them does. A second pass
+    // would ask for notification permission again, open a second ten-second sweep for a leftover
+    // Live Activity, and — the one that could be seen — read the stored snapshot back over what
+    // the screen is already showing.
+    //
+    // **Whether a second pass happens is not established here.** The one call site is the `.task`
+    // on `MdoroiOSApp`'s root view; how often SwiftUI runs it is not written down anywhere in
+    // `docs/platform/`, and nothing in this repository has measured it. The guard does not rest on
+    // that: **an entrance that folds its own repetition is right whatever the count turns out to
+    // be**, and the count is the part that could change under us.
+    //
+    // The Mac carries the same guard on `AppModel.start()`, where the repetition *was* measured —
+    // a second listener and a second Bonjour registration on the user's machine. A hole found on
+    // one platform is looked for on the other.
+    //
+    // `stop()` puts this back, so a deliberate restart still works; only repetition is refused.
+    private var hasStarted = false
 
     init(tokens: any TokenStoring = TokenKeychain()) {
         self.tokens = tokens
@@ -63,6 +81,8 @@ final class ClientModel {
     // MARK: - Launch
 
     func start() {
+        guard !hasStarted else { return }
+        hasStarted = true
         Task { await notifications.requestAuthorization() }
         // A Live Activity the previous process left behind is folded away if no connection can be made.
         liveActivity.discardOrphansIfUnconfirmed()
@@ -79,6 +99,8 @@ final class ClientModel {
     }
 
     func stop() {
+        // What has been taken down may be raised again. Only repetition is refused, not restart.
+        hasStarted = false
         ticker?.cancel(); ticker = nil
         browser.stop()
         client.disconnect()

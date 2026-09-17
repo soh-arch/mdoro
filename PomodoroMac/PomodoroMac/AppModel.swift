@@ -733,6 +733,9 @@ final class AppModel {
 
     // The deliberate way down. Folding the listener withdraws the Bonjour registration with it.
     private func stopServer() {
+        // **Taken before the fold, because after `server.stop()` there is nothing left to ask.**
+        // `startServerIfNeeded()` asks the same question on the way up.
+        let wasOnTheAir = server.listenPort != nil
         server.stop()
         // REQ-COM-003: the port is what `readvertise()` reads to know the Mac is on the air. Left
         // standing, a rename after this fold re-advertises a listener that no longer exists.
@@ -747,7 +750,15 @@ final class AppModel {
         // A deliberate fold is not a failure to listen; whatever failure line was showing is over.
         serverStartError = nil
         serverStartHint = nil
-        diagnostics.write("server.stop")
+        // **None of the clean-up above depends on there having been a listener.** A Mac whose bind
+        // was refused, or that could not read who it is, comes down this route with a failure line
+        // standing and nothing listening, and putting that away is this route's work.
+        //
+        // Which is why the line carries the answer rather than being withheld: that this route was
+        // taken is a fact worth having in a log that gets pasted into an issue, and on its own it
+        // reads as though something had been on the air. `listening=no` is the half that says
+        // otherwise. Decision 0018: a yes or a no, nothing of the user's.
+        diagnostics.write("server.stop", [DiagnosticField("listening", wasOnTheAir)])
     }
 
     // **Internal so that the one decision below can be exercised without raising a listener**, the
