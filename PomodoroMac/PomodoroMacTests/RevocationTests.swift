@@ -9,6 +9,10 @@ import MdoroCore
 // decisions are read from the diagnostic log (`server.stop`), the same trace
 // `ServerPresenceWiringTests` reads, and the "server up" halves run against an identity that
 // refuses to load, so the attempt is real and the LAN is never touched.
+//
+// **That is also why every fold below is written down as `listening=no`.** The attempt got as far
+// as being refused and no further, so the route was taken with nothing on the air — and the line
+// saying so is what keeps a reader of the pasted log from hunting for the listener that stopped.
 
 // The Keychain seam, answering what it is told to. `save` failing is the one seam failure the
 // revocation screen has to say something about.
@@ -112,7 +116,7 @@ struct RevocationTests {
                 "REQ-COM-003: the fold did not wait for the pairing screen to close")
 
         model.pairingScreenClosed()
-        #expect(logText(in: directory).contains("server.stop"),
+        #expect(logText(in: directory).contains("server.stop listening=no"),
                 "REQ-COM-003: the last pairing is gone and the closed screen folded nothing")
     }
 
@@ -126,7 +130,7 @@ struct RevocationTests {
 
         model.revokeDeviceToken(record)
 
-        #expect(logText(in: directory).contains("server.stop"),
+        #expect(logText(in: directory).contains("server.stop listening=no"),
                 "REQ-COM-003: the last pairing was deleted and nothing folded")
     }
 

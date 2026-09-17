@@ -14,6 +14,11 @@ import MdoroCore
 // is refused before any listener is built — so what is observed is the *attempt* (the refusal it
 // ends in), never the server. The "it does not start" halves observe that not even the identity
 // file was touched.
+//
+// **`server.stop` carries whether anything was listening when the fold ran**, and in this file the
+// answer is always no — nothing here raises a listener. That half of the line is asserted where
+// the fold happens, because it is the only place in the suite where a listener's absence is
+// written down rather than merely true.
 
 private final class FixedTokenStore: DeviceTokenStoring, @unchecked Sendable {
     private let answer: DeviceTokenRecords
@@ -119,7 +124,10 @@ struct ServerPresenceWiringTests {
 
     // REQ-COM-003: closing the screen takes down what nothing needs, and ends the pairing window
     // whose code has no screen to be read from (REQ-SEC-001). The fold is visible in the log and
-    // in the failure line being over.
+    // in the failure line being over — and the line says the fold found nothing listening, which
+    // is the truth about this fixture: the identity refuses to load, so no listener was ever
+    // built. The failure line has to be standing first, or its absence afterwards would be the
+    // absence of something that was never there.
     @Test func closingTheScreenUnpairedFoldsTheServerAndThePairingWindow() async throws {
         let directory = try scratchDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -130,7 +138,8 @@ struct ServerPresenceWiringTests {
         )
 
         model.pairingScreenOpened()
-        _ = await settles { model.serverStartError != nil }
+        let tried = await settles { model.serverStartError != nil }
+        #expect(tried, "nothing was standing to be folded, so the fold below is unobservable")
         model.beginPairing()
         #expect(model.pairingCode != nil)
 
@@ -139,6 +148,10 @@ struct ServerPresenceWiringTests {
         #expect(model.serverStartError == nil, "a deliberate fold left a failure line standing")
         #expect(model.advertisedWebsocketPort == 0)
         #expect(logText(in: directory).contains("server.stop"), "the fold left no trace in the log")
+        #expect(
+            logText(in: directory).contains("server.stop listening=no"),
+            "a fold that found nothing listening was written down as though a listener had stopped"
+        )
     }
 
     // REQ-COM-003: with a pairing on record the closed screen changes nothing — the fold asks
