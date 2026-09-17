@@ -55,8 +55,8 @@ public struct PairingSession: Equatable, Sendable {
 // with nothing for the user to do.
 //
 // **All three fields are kept, and the Mac keeps them.** A bare `Set<String>` of values throws the
-// name and the date away at the moment of saving, and the revocation screen (9.x) has nothing left
-// to put on it: what cannot be identified cannot be revoked.
+// name and the date away at the moment of saving, and the revocation screen has nothing left to
+// put on it: what cannot be identified cannot be revoked.
 public struct DeviceToken: Equatable, Sendable, Codable, Hashable {
     public let value: String
     public let deviceName: String
@@ -77,7 +77,7 @@ public struct DeviceToken: Equatable, Sendable, Codable, Hashable {
 // Whether a connection is accepted is decided here alone; the transport layer only follows the answer.
 public struct Authenticator: Equatable, Sendable {
     // Decision 0040: records, not values. **A token cannot be held here without saying whose it
-    // is and when it was handed out** — the revocation screen (9.x) reads exactly this.
+    // is and when it was handed out** — the revocation screen reads exactly this.
     public private(set) var issuedTokens: [DeviceToken] = []
     public private(set) var pairing: PairingSession?
     // REQ-SEC-004: whether another client is already connected.

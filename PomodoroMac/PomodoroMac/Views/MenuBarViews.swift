@@ -93,7 +93,11 @@ struct MenuBarMenuContent: View {
 
         Divider()
 
-        // REQ-UIX-007: the switcher appears only when there are two presets or more.
+        // REQ-UIX-007: with two presets or more, another one must be reachable within two taps,
+        // so the switcher is here. **The clause that governs the other side is REQ-PRS-013**:
+        // with only one preset, no switch list is shown, and the switching UI becomes the way
+        // through to adding one. That way through lives in `PresetBarView` in the main window,
+        // which is why nothing takes its place here.
         if model.presets.presets.count >= 2 {
             Menu("Preset") {
                 ForEach(model.presets.presets) { candidate in

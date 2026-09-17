@@ -1,6 +1,7 @@
 import Foundation
 
-// REQ-LOG-010 to 017 / 023: formatting a log line and a day heading. No file I/O here.
+// REQ-LOG-010 / 011 / 012 / 013 / 016 / 023: the log line. REQ-LOG-003 / 022: the day heading,
+// and whether one already in the file is that day's. No file I/O here.
 public enum LogFormatter {
     public struct Options: Equatable, Sendable {
         // REQ-LOG-013: plain text by default. A setting turns the task name into a link.
@@ -56,7 +57,7 @@ public enum LogFormatter {
         Int((Double(seconds) / 60).rounded())
     }
 
-    // REQ-LOG-010〜016 / 023
+    // REQ-LOG-010 / 011 / 012 / 013 / 016 / 023
     public static func line(for entry: LogEntry, options: Options = .default, calendar: Calendar = .current) -> String {
         var parts: [String] = []
         parts.append("-")
