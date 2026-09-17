@@ -252,6 +252,218 @@ def check_in_progress_rows() -> None:
             )
 
 
+# --- the 軸 column holds an axis -----------------------------------------------
+# The header over the table declares column four as 軸 (A-K). Nobody was asked whether it
+# holds one. Measured on 2026-09-17, over 283 eight-column rows: 57 held an axis letter, 206
+# held a path or an em dash -- not what the header says, but what the ledger has settled into
+# and no one's mistake -- and 20 ran past 120 characters, the longest of them 5,458. What had
+# happened is that `▶` progress notes were being appended to whichever cell the writer's eye
+# landed on, and column four is narrow on screen, so the note went there instead of into 症状.
+# Seven rows were repaired on 2026-09-16; POL-152 and POL-165 were missed, and four pull
+# requests then went on appending to the two that were missed.
+#
+# So this asks the column the question the header already answers for it. Two arms, because
+# the twenty-two rows split on which one reaches them:
+#
+#   marks    `▶` and `⚠` open a note in this ledger. A note is 症状. All twenty-two carried
+#            one, including three whose whole cell was `` `.gitignore` **▶ #121 で入った** `` --
+#            far too short for any budget to notice.
+#
+#   budget   what is left after the references are taken out. A row could pile prose here
+#            without ever writing a mark, and the length is then the only tell.
+#
+# THE BUDGET IS MEASURED, NOT CHOSEN. Take out the backticked paths, the records named as
+# links, the axis letters and the separators, and count what remains. Across the repaired
+# ledger the widest sound cell leaves 32 characters (`10章（REQ-PRT-005）/ 12章（REQ-ERR-009）`,
+# three rows). Of the twenty-two that were broken, nineteen left 103 or more; the other three
+# are the short ones the marks arm answers for. 48 sits in that gap, near enough to 32 to stay
+# useful and clear enough of 103 to have caught every one of them.
+#
+# The other three declared columns are asked the same question, by check_declared_columns
+# below. They were measured on the same day and were not sound either -- POL-077 carried 269
+# characters of prose in レーン, POL-106 carried 1,992 in 重大度 -- and were repaired in the
+# same pass. Their vocabularies live there because they are vocabularies; 軸 has none worth
+# writing down, since 206 of its rows hold a path.
+AXIS_COLUMN = 4
+AXIS_NOTE_MARKS = ("▶", "⚠")
+AXIS_PROSE_BUDGET = 48
+# What a reference looks like in this column, measured from the rows that are sound: a path in
+# backticks, a decision record written as a link, an axis letter, and the separators actually in
+# use. `ほか` and `および` are here because the punch list writes them; nothing invented.
+AXIS_REFERENCE = (
+    re.compile(r"`[^`]*`"),
+    re.compile(r"\[[^\]]*\]\([^)]*\)"),
+    re.compile(r"\b[A-K]\b"),
+    re.compile(r"[—/・、\s]|ほか|および"),
+)
+
+
+def axis_prose(axis: str) -> str:
+    """What is left of a 軸 cell once every reference and separator is taken out."""
+    for pattern in AXIS_REFERENCE:
+        axis = pattern.sub("", axis)
+    return axis
+
+
+def check_axis_column() -> None:
+    rows = [r for r in punch_rows() if len(r[2]) == 10]
+    if not rows:
+        # A sound ledger gives this check nothing to fire on, so silence has to mean silence
+        # and not "the table moved and I read no rows at all".
+        note("axis", "no eight-column POL rows found in docs/PUNCHLIST.md — the table changed?")
+        return
+    for line_no, pol, cells in rows:
+        axis = cells[AXIS_COLUMN]
+        mark = next((m for m in AXIS_NOTE_MARKS if m in axis), None)
+        if mark:
+            note(
+                "axis",
+                f"docs/PUNCHLIST.md:{line_no} POL-{pol} has `{mark}` in its 軸 — "
+                f"a note belongs at the end of 症状, not in the column the header declares as 軸",
+            )
+            continue
+        left = axis_prose(axis)
+        if len(left) > AXIS_PROSE_BUDGET:
+            note(
+                "axis",
+                f"docs/PUNCHLIST.md:{line_no} POL-{pol} has {len(left)} characters in its 軸 that are "
+                f"neither a reference nor a separator (the budget is {AXIS_PROSE_BUDGET}): {left[:60]}…",
+            )
+
+
+# --- the other three declared columns hold what they declare ------------------
+# The same question as 軸, asked of レーン, 重大度 and 状態, and it had the same answer:
+# POL-077 carried 269 characters of a progress note in レーン behind the role name, and
+# POL-106 carried 1,992 in 重大度 behind `minor`. Both are repaired; this is what keeps
+# them repaired.
+#
+# The vocabularies are measured off the ledger, not copied off the legend -- the legend was
+# behind the practice on every one of them. レーン really holds two roles by name, two
+# combined lanes, and an em dash; 重大度 really holds an em dash; 状態 really holds 不要 and
+# 現状維持. A check written from the legend alone would have failed on the tree it was added
+# to. The legend is being brought up to this list, not the other way round.
+#
+# A word may carry a parenthetical qualifier -- `human（Xcode）`, and four rows say which Xcode
+# work and link the record that says why. So the qualifier is allowed, and then held to the
+# same two arms 軸 is held to: no note mark in it, and no more prose in it than the measured
+# budget. The widest real qualifier leaves nine characters once its link and its backticked
+# path come out.
+LANE_COLUMN, SEVERITY_COLUMN, STATE_COLUMN = 5, 6, 7
+DECLARED_COLUMNS = (
+    ("レーン", LANE_COLUMN, {
+        "agent", "human", "agent+human", "human+agent",
+        "platform-researcher", "repo-auditor", "—",
+    }),
+    ("重大度", SEVERITY_COLUMN, {"blocker", "major", "minor", "cosmetic", "—"}),
+    ("状態", STATE_COLUMN, {
+        "open", "doing", "review", "done", "rejected", "deferred",
+        "決定済み", "不要", "現状維持",
+    }),
+)
+# A trailing qualifier, in the ledger's own brackets. The ASCII pair is left out of the class
+# on purpose: the qualifiers that exist carry a markdown link, whose own brackets are ASCII.
+QUALIFIER = re.compile(r"（[^（）]*）$")
+
+
+def check_declared_columns() -> None:
+    rows = [r for r in punch_rows() if len(r[2]) == 10]
+    if not rows:
+        note("column", "no eight-column POL rows found in docs/PUNCHLIST.md — the table changed?")
+        return
+    for line_no, pol, cells in rows:
+        for name, index, vocabulary in DECLARED_COLUMNS:
+            cell = cells[index]
+            mark = next((m for m in AXIS_NOTE_MARKS if m in cell), None)
+            if mark:
+                note(
+                    "column",
+                    f"docs/PUNCHLIST.md:{line_no} POL-{pol} has `{mark}` in its {name} — "
+                    f"a note belongs at the end of 症状",
+                )
+                continue
+            word = cell
+            qualifier = QUALIFIER.search(word)
+            if qualifier:
+                word = word[: qualifier.start()]
+                left = axis_prose(qualifier.group(0))
+                if len(left) > AXIS_PROSE_BUDGET:
+                    note(
+                        "column",
+                        f"docs/PUNCHLIST.md:{line_no} POL-{pol} qualifies its {name} with "
+                        f"{len(left)} characters of prose (the budget is {AXIS_PROSE_BUDGET})",
+                    )
+                    continue
+            word = word.replace("**", "").replace("`", "").strip()
+            if word not in vocabulary:
+                note(
+                    "column",
+                    f"docs/PUNCHLIST.md:{line_no} POL-{pol} has {word[:40]!r} in its {name}, "
+                    f"which is not one of {' / '.join(sorted(vocabulary))}",
+                )
+
+
+# --- a record's 状態 and its replacement agree --------------------------------
+# docs/decisions/README.md binds the two together and nothing was watching that they stayed
+# bound. `superseded` means 置換先: NNNN is written; a 置換先 with any other 状態 is a record
+# that says it was replaced while claiming to be live. `一部置換` is the opposite case and is
+# written ON PURPOSE beside `accepted` -- only part of the record was overturned, and marking
+# the whole thing superseded would make its living judgements look dead -- so that pair has to
+# pass, not fail.
+#
+# Nothing in this tree fires it: all 43 records are `accepted`, none is `superseded`, and the
+# two `一部置換` records (0011, 0022) are exactly the shape README asks for. It is here for the
+# first supersession, which is when getting it wrong costs something and when nobody will
+# remember the rule.
+#
+# The third arm answers the hole filed beside POL-268. check_decisions above can only read a
+# replacement whose number opens the value -- `0009` or `[0009](...)`. Write it as
+# `[README](0009-gone.md)` and the declaration is not read AS a declaration at all: the number
+# exists, the link is fine, check_links is happy, and the record silently stops being held to
+# naming a replacement that exists. So the shape is required here rather than merely hoped for.
+# Asked literally -- "no four-digit number anywhere on the line" -- that form would pass, since
+# its number sits in the filename; requiring the value to OPEN on the number catches both it
+# and the no-number case, and is what makes check_decisions' own arms reachable.
+SUPERSEDED = "superseded"
+REPLACEMENT_KEYS = ("置換先", "一部置換")
+OPENS_ON_A_NUMBER = re.compile(r"\[?\d{4}")
+
+
+def check_record_states() -> None:
+    records = [p for p in sorted(DECISIONS.glob("*.md")) if p.name != "README.md"]
+    if not records:
+        note("state", "no decision records found")
+        return
+    for record in records:
+        head = read(record).split("## ", 1)[0]
+        found = re.search(r"^- \*\*状態\*\*: *(\S+)", head, re.M)
+        state = found.group(1) if found else None
+        declared = {
+            key: re.findall(rf"^- \*\*{key}\*\*: *(.*)$", head, re.M)
+            for key in REPLACEMENT_KEYS
+        }
+        for key, values in declared.items():
+            for value in values:
+                if not OPENS_ON_A_NUMBER.match(value.strip()):
+                    note(
+                        "state",
+                        f"{record.name} declares {key} but does not open it on a four-digit "
+                        f"number, so nothing reads it as a replacement: {value.strip()[:60]!r}",
+                    )
+        if state == SUPERSEDED and not declared["置換先"]:
+            note(
+                "state",
+                f"{record.name} is {SUPERSEDED} and names no 置換先 — "
+                "README: 別のレコードに置き換えられた。置換先: NNNN を明記する",
+            )
+        if declared["置換先"] and state != SUPERSEDED:
+            note(
+                "state",
+                f"{record.name} names a 置換先 but its 状態 is {state} — "
+                f"a record that was replaced is {SUPERSEDED}, and one that was only partly "
+                "overturned uses 一部置換 and stays accepted",
+            )
+
+
 # --- decision records --------------------------------------------------------
 def decision_numbers() -> set[int]:
     return {int(p.name[:4]) for p in DECISIONS.glob("[0-9][0-9][0-9][0-9]-*.md")}
@@ -336,6 +548,9 @@ CHECKS = (
     ("rows in progress", check_in_progress_rows),
     ("decision records", check_decisions),
     ("spec header", check_spec_header),
+    ("axis column", check_axis_column),
+    ("declared columns", check_declared_columns),
+    ("record states", check_record_states),
 )
 
 
@@ -407,6 +622,18 @@ SOUND_DECISION = """# 0001. a decision
 
 why.
 """
+
+# One eight-column row with its 軸 left open, so each case above changes exactly that cell and
+# nothing else. It is written in the ledger's own shape -- bold id, eight columns -- because
+# that is what punch_rows() reads.
+AXIS_ROW = "| **POL-001** | a symptom | REQ-ABC-001 | AXIS | agent | minor | done | #1 |\n"
+
+# The same row with the other three declared columns left open instead.
+DECLARED_ROW = "| **POL-001** | a symptom | REQ-ABC-001 | K | LANE | SEV | STATE | #1 |\n"
+
+
+def a_declared_row(lane="agent", severity="minor", state="done") -> str:
+    return DECLARED_ROW.replace("LANE", lane).replace("SEV", severity).replace("STATE", state)
 
 # (check, what the tree is asking, the tree, whether the check must complain)
 CASES = (
@@ -635,7 +862,154 @@ CASES = (
     (check_spec_header, "a spec that agrees with itself, stale older counts and all", {
         "docs/SPEC.md": SOUND_SPEC,
     }, False),
+
+    # 軸. Every case is an eight-column row, because that is the only shape the column count
+    # makes the question meaningful for.
+    (check_axis_column, "a ▶ progress note stacked in the 軸 column", {
+        "docs/PUNCHLIST.md": AXIS_ROW.replace("AXIS", "`a.swift` **▶ 直した（2026-09-17）。**"),
+    }, True),
+    (check_axis_column, "a ⚠ note stacked in the 軸 column", {
+        "docs/PUNCHLIST.md": AXIS_ROW.replace("AXIS", "E ⚠ **境界が立った** —— 別の話が続く"),
+    }, True),
+    # The arm the marks cannot reach: prose that never writes one. Without it, a note worded
+    # plainly would sit in the column forever.
+    (check_axis_column, "prose in the 軸 column that carries no mark at all", {
+        "docs/PUNCHLIST.md": AXIS_ROW.replace(
+            "AXIS", "`a.swift` 直したが、条文が定めていないことを根拠に挙げていたので碇を落として"
+                    "制約だけを書かせた。実測はそのまま残した。裁定は済んでいる"),
+    }, True),
+    # And the arm the budget cannot reach: three real rows held nothing but a path and
+    # `**▶ #121 で入った（2026-09-16）。**`, which is 24 characters -- under any budget worth
+    # having. Dropping either arm leaves one of these two cases unanswered.
+    (check_axis_column, "a note too short for the budget to notice", {
+        "docs/PUNCHLIST.md": AXIS_ROW.replace("AXIS", "`.gitignore` **▶ #121 で入った（2026-09-16）。**"),
+    }, True),
+    (check_axis_column, "an axis letter, which is what the header declares", {
+        "docs/PUNCHLIST.md": AXIS_ROW.replace("AXIS", "K"),
+    }, False),
+    (check_axis_column, "an axis letter in bold, and two of them", {
+        "docs/PUNCHLIST.md": AXIS_ROW.replace("AXIS", "**K**") + AXIS_ROW.replace("AXIS", "K / J"),
+    }, False),
+    (check_axis_column, "an em dash, which 72 rows hold", {
+        "docs/PUNCHLIST.md": AXIS_ROW.replace("AXIS", "—"),
+    }, False),
+    (check_axis_column, "the paths 206 rows actually hold, separators and all", {
+        "docs/PUNCHLIST.md": AXIS_ROW.replace(
+            "AXIS", "`MdoroiOSTests.swift` / `ListenerFoldingTests.swift` / `StartingTwiceTests.swift`"),
+    }, False),
+    (check_axis_column, "the short ways of naming a range that are in use", {
+        "docs/PUNCHLIST.md": "".join(
+            AXIS_ROW.replace("AXIS", a)
+            for a in ("全 Swift", "docs 全域", "テスト各所", "全テストターゲット",
+                      "9章・10章", "10章（REQ-PRT-005）/ 12章（REQ-ERR-009）")),
+    }, False),
+    # POL-192's shape: records named as links, beside paths, with a parenthetical qualifying the
+    # last of them. 193 characters of cell, 24 of prose -- long, and none of it a note.
+    (check_axis_column, "records named as links, with a parenthetical on one of them", {
+        "docs/PUNCHLIST.md": AXIS_ROW.replace(
+            "AXIS", "`CLAUDE.md` / [0041](decisions/0041-a.md) / [0011](decisions/0011-b.md) / "
+                    "`docs/CONTEXT.md`（記録番号の写しを参照に。POL-183 の一部）"),
+    }, False),
+    # The ledger holds smaller tables with columns of their own, and column four means nothing
+    # there. Reading them would report rows nobody declared anything about.
+    (check_axis_column, "a row from one of the narrower tables is not this table's row", {
+        "docs/PUNCHLIST.md": AXIS_ROW.replace("AXIS", "K")
+                             + "| **POL-002** | 条文へ入れた。**▶ 実装した（2026-09-17）** | done |\n",
+    }, False),
+    (check_axis_column, "a punch list with no eight-column rows at all", {
+        "docs/PUNCHLIST.md": "nothing is filed here\n",
+    }, True),
+
+    # レーン / 重大度 / 状態. POL-077 and POL-106 are the rows these were written for.
+    (check_declared_columns, "a ▶ note stacked behind the role name in レーン", {
+        "docs/PUNCHLIST.md": a_declared_row(lane="`platform-researcher` **▶ 調査完了**（…）"),
+    }, True),
+    (check_declared_columns, "1,992 characters of a note behind `minor` in 重大度", {
+        "docs/PUNCHLIST.md": a_declared_row(severity="minor  **実装した（2026-09-14）。前提条件は"
+                                                     "満たされていた** —— 数える部品を移した。裁定は済んでいる"),
+    }, True),
+    (check_declared_columns, "a 状態 nobody declared", {
+        "docs/PUNCHLIST.md": a_declared_row(state="完了"),
+    }, True),
+    # The qualifier is allowed, so it is the obvious way to smuggle a note back in.
+    (check_declared_columns, "a qualifier that is really a note", {
+        "docs/PUNCHLIST.md": a_declared_row(
+            lane="human（Xcode の操作が要るが、いつやるかは決まっていないので、"
+                 "順序待ちのまま置いてある。決まったら書き足す）"),
+    }, True),
+    (check_declared_columns, "a severity that is a lane, and a lane that is a severity", {
+        "docs/PUNCHLIST.md": a_declared_row(lane="minor", severity="agent"),
+    }, True),
+    (check_declared_columns, "the three plain words, as 157 rows write them", {
+        "docs/PUNCHLIST.md": a_declared_row(),
+    }, False),
+    (check_declared_columns, "the same words in bold, as the ledger also writes them", {
+        "docs/PUNCHLIST.md": a_declared_row(lane="**human**", severity="**major**", state="**done**"),
+    }, False),
+    (check_declared_columns, "the lanes that are shared, and the roles named by name", {
+        "docs/PUNCHLIST.md": (a_declared_row(lane="agent+human") + a_declared_row(lane="human+agent")
+                              + a_declared_row(lane="`platform-researcher`")
+                              + a_declared_row(lane="`repo-auditor`")),
+    }, False),
+    (check_declared_columns, "an em dash, which レーン and 重大度 both hold", {
+        "docs/PUNCHLIST.md": a_declared_row(lane="—") + a_declared_row(severity="—"),
+    }, False),
+    (check_declared_columns, "the four qualified lanes that are really there", {
+        "docs/PUNCHLIST.md": (a_declared_row(lane="**human**（Xcode）")
+                              + a_declared_row(lane="**human**（何をどう出すか）")
+                              + a_declared_row(lane="**human**（Xcode。[0013](decisions/0013-a.md)）")
+                              + a_declared_row(lane="**human**（`TEST_HOST` はビルド設定。"
+                                                    "[0013](decisions/0013-a.md)）")),
+    }, False),
+    (check_declared_columns, "the states the legend added after the fact", {
+        "docs/PUNCHLIST.md": (a_declared_row(state="**不要**") + a_declared_row(state="**現状維持**")
+                              + a_declared_row(state="決定済み") + a_declared_row(state="deferred")),
+    }, False),
+    (check_declared_columns, "a punch list with no eight-column rows at all", {
+        "docs/PUNCHLIST.md": "nothing is filed here\n",
+    }, True),
+
+    # 状態 and its replacement. Nothing in the real tree fires any of these; the cases are the
+    # whole of what holds the check up.
+    (check_record_states, "superseded, naming no replacement", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace("- **状態**: accepted", "- **状態**: superseded"),
+    }, True),
+    (check_record_states, "a 置換先 on a record that still calls itself accepted", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted", "- **状態**: accepted\n- **置換先**: [0002](0002-b.md)"),
+    }, True),
+    (check_record_states, "superseded with the 置換先 README asks for", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted", "- **状態**: superseded\n- **置換先**: [0002](0002-b.md)"),
+    }, False),
+    # README writes this pair on purpose: only part of the record was overturned, so it stays
+    # accepted. A check that fired here would be arguing with the document it checks for.
+    (check_record_states, "一部置換 beside accepted, which is the form README prescribes", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted", "- **状態**: accepted\n- **一部置換**: [0002](0002-b.md)（覆された範囲）"),
+    }, False),
+    (check_record_states, "一部置換 written as the bare number README also allows", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted", "- **状態**: accepted\n- **一部置換**: 0002（覆された範囲）"),
+    }, False),
+    # The hole filed beside POL-268. The number is on the line -- in the filename -- so asking
+    # "is there a four-digit number anywhere" passes it, and check_decisions never reads the
+    # declaration at all. Requiring the value to open on the number is what closes it.
+    (check_record_states, "a 置換先 whose link text is a word, with the number only in the filename", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted", "- **状態**: superseded\n- **置換先**: [README](0002-b.md)"),
+    }, True),
+    (check_record_states, "a 置換先 naming no number at all", {
+        "docs/decisions/0001-a.md": SOUND_DECISION.replace(
+            "- **状態**: accepted", "- **状態**: superseded\n- **置換先**: 次のレコード"),
+    }, True),
+    (check_record_states, "a plain accepted record, and a README that declares nothing", {
+        "docs/decisions/0001-a.md": SOUND_DECISION,
+        "docs/decisions/README.md": "the index over the records\n",
+    }, False),
+    (check_record_states, "no records at all", {}, True),
 )
+
 
 
 # Rows for check_in_progress_rows, kept in the shape they are read in. Every mutation the
