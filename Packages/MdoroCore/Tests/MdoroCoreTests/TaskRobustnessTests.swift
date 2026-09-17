@@ -119,6 +119,91 @@ struct TaskParsingEdgeTests {
     @Test func asciiDigitsAndHashesSurviveNormalization() {
         #expect(TaskParser.parse("- [ ] 第1章と第2章").items[0].normalizedText == "第1章と第2章")
     }
+
+    // REQ-TSK-022: one emoji is often several scalars joined together. All of it goes -- the
+    // joiners, the skin tone, the variation selector -- or the leftover changes the hash that
+    // REQ-TSK-021 takes of this text.
+    @Test func emojiJoinedIntoOneLeaveNothingBehind() {
+        let plain = TaskParser.parse("- [ ] Aktualizovat rozvrh").items[0].normalizedText
+        for decorated in ["- [ ] Aktualizovat rozvrh \u{1F469}\u{200D}\u{1F469}\u{200D}\u{1F466}",
+                          "- [ ] Aktualizovat rozvrh \u{1F469}\u{1F3FD}\u{200D}\u{1F4BB}",
+                          "- [ ] Aktualizovat rozvrh \u{1F3F3}\u{FE0F}\u{200D}\u{1F308}",
+                          "- [ ] Aktualizovat rozvrh \u{1F44B}\u{1F3FF}"] {
+            #expect(TaskParser.parse(decorated).items[0].normalizedText == plain,
+                    "part of a joined emoji stayed in the text")
+        }
+    }
+
+    // REQ-TSK-022: the tag letters that spell out a subdivision flag are not emoji themselves.
+    // Taken away scalar by scalar, the flag left six invisible characters behind, and two task
+    // names that read the same on screen got different stableIds under REQ-TSK-021.
+    @Test func aFlagSpelledOutInTagCharactersLeavesNothingInvisibleBehind() {
+        // U+1F3F4 followed by the tag letters g b s c t and the cancel tag: one emoji, seven scalars.
+        let flag = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"
+        let plain = TaskParser.parse("- [ ] Rendez-vous avec l'équipe").items[0].normalizedText
+        let decorated = TaskParser.parse("- [ ] Rendez-vous avec l'équipe \(flag)").items[0].normalizedText
+        #expect(decorated == plain, "the flag left something behind")
+        let tagCharacters = decorated.unicodeScalars.filter { (0xE0000...0xE007F).contains($0.value) }
+        #expect(tagCharacters.isEmpty, "no tag character may survive into the hashed text")
+    }
+
+    // REQ-TSK-022: a combining mark that follows an emoji belongs to that emoji. Removed scalar by
+    // scalar, the emoji went and the mark stayed, and step (6) folded it onto the letter before:
+    // "fase" became "fasé". A name the user never wrote would go into MdoroLog.md under it.
+    @Test func aMarkThatFollowedAnEmojiDoesNotLandOnTheLetterBefore() {
+        let decorated = "- [ ] Corrigir a fase\u{1F600}\u{0301}"
+        #expect(TaskParser.parse(decorated).items[0].normalizedText == "Corrigir a fase")
+    }
+
+    // REQ-TSK-022 (4) then (6): a word written in decomposed form keeps every letter and every
+    // mark, and the NFKC step puts them back together. Removing an emoji beside it must not reach
+    // inside those clusters.
+    @Test func aDecomposedWordSurvivesTheEmojiNextToIt() {
+        let plain = TaskParser.parse("- [ ] Man\u{0303}ana: revisar el informe").items[0].normalizedText
+        #expect(plain == "Ma\u{00F1}ana: revisar el informe", "step (6) composes what step (4) left alone")
+        let decorated = TaskParser.parse("- [ ] \u{1F4C5} Man\u{0303}ana: revisar el informe").items[0].normalizedText
+        #expect(decorated == plain, "the emoji goes, the decomposed word stays whole")
+    }
+
+    // Removing an emoji must not swallow text that merely carries an invisible scalar.
+    // A digit under a keycap goes with the sequence (emojiAreRemovedRegardlessOfPresentation), but
+    // a letter under the same mark is text and stays. So is a consonant carrying a ZWJ: a joiner
+    // attaches to the cluster in front of it, so U+0915 U+200D U+0937 is two clusters and not one
+    // conjunct -- a Devanagari conjunct is written with the virama U+094D between the consonants,
+    // and a ZWJ after that virama only asks for a half form. Either way the consonants are text
+    // and only the joiner comes off.
+    @Test func aClusterIsKeptForTheVisibleCharacterItStandsOn() {
+        #expect(TaskParser.parse("- [ ] Ticket A\u{20E3} reabrir").items[0].normalizedText == "Ticket A reabrir")
+        #expect(TaskParser.parse("- [ ] \u{0915}\u{200D}\u{0937} suchi").items[0].normalizedText == "\u{0915}\u{0937} suchi")
+    }
+
+    // REQ-TSK-022 (4) says to remove the emoji, not whatever was standing next to one. A sign that
+    // can stand on its own is a character in its own right, and it stays even when the grapheme
+    // cluster around it is an emoji's: U+1F600 U+200D U+00A9 is one cluster, and the copyright sign
+    // in it is still a copyright sign. Only what cannot stand without the emoji -- a combining
+    // mark, a tag letter -- goes with it, which is what the other tests here pin down.
+    @Test func aSignThatStandsOnItsOwnIsNotSweptAwayWithTheEmoji() {
+        #expect(TaskParser.parse("- [ ] Revisar\u{1F600}\u{200D}\u{00A9}").items[0].normalizedText == "Revisar\u{00A9}")
+        #expect(TaskParser.parse("- [ ] Revisar\u{1F600}\u{200D}\u{00AE}").items[0].normalizedText == "Revisar\u{00AE}")
+        // U+2605 is not Extended_Pictographic, so a ZWJ does not even draw it into the emoji's
+        // cluster -- it is text standing apart, and it stays whichever way the removal goes.
+        #expect(TaskParser.parse("- [ ] Revisar\u{1F600}\u{200D}\u{2605}").items[0].normalizedText == "Revisar\u{2605}")
+        #expect(TaskParser.parse("- [ ] Revisar \u{1F600}\u{2605}").items[0].normalizedText == "Revisar \u{2605}",
+                "a star beside an emoji is a separate character and is not an emoji")
+    }
+
+    // The non-joiner is the one invisible scalar that is text. It holds two parts of a word apart
+    // in Persian and other scripts -- take it out and the word says something else -- so it stays
+    // wherever it lands, including inside the cluster of an emoji that was typed in front of it.
+    // `isEmojiScalar` and `standsOnItsOwn` both have to leave it alone, or one of them undoes what
+    // the other promises.
+    @Test func theNonJoinerIsTextAndSurvivesAnEmojiInFrontOfIt() {
+        let plain = TaskParser.parse("- [ ] کتاب\u{200C}ها را برگردان").items[0].normalizedText
+        let joiners = plain.unicodeScalars.filter { $0.value == 0x200C }
+        #expect(joiners.count == 1, "the non-joiner is part of the word")
+        let withEmoji = TaskParser.parse("- [ ] کتاب\u{1F4DA}\u{200C}ها را برگردان").items[0].normalizedText
+        #expect(withEmoji == plain, "the emoji goes and the non-joiner stays where it was")
+    }
 }
 
 @Suite("File watching (REQ-TSK-002 / REQ-PLT-006)")

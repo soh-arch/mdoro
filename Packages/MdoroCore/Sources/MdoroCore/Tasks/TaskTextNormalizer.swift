@@ -99,44 +99,81 @@ public enum TaskTextNormalizer {
         return text.precomposedStringWithCompatibilityMapping
     }
 
+    // REQ-TSK-022 (4): emoji come off the text. REQ-TSK-021 hashes what is left into the stableId.
+    // **Neither clause says what the unit of removal is, and it cannot be the scalar.** One emoji
+    // is often several scalars and not all of them are emoji themselves: the tag letters that
+    // spell out a subdivision flag are not, and neither is a combining mark typed after one.
+    // Taken away scalar by scalar, those stay behind with nothing to stand on and attach to
+    // whatever now precedes them -- step (6) folds an orphaned accent onto the letter before, and
+    // an orphan nobody can see is still enough to give two identical names two different hashes.
+    //
+    // **What the clause says to remove is the emoji, not what was standing next to one.** So the
+    // cluster is walked, not the string: the emoji scalars go, and when the scalar the cluster
+    // stands on is one of them, whatever is left that cannot stand on its own goes with it.
+    // Anything that can stand on its own is a character in its own right and stays.
     static func removingEmoji(_ text: String) -> String {
-        let scalars = Array(text.unicodeScalars)
         var result = String.UnicodeScalarView()
-        var index = 0
-        while index < scalars.count {
-            let scalar = scalars[index]
-            // A keycap sequence (1️⃣ = "1" + VS16 + U+20E3). Digits belong in the text, so only the
-            // sequence is dropped.
-            if isKeycapBase(scalar), let end = keycapSequenceEnd(scalars, from: index) {
-                index = end
-                continue
+        for cluster in text {
+            let scalars = Array(cluster.unicodeScalars)
+            // A keycap sequence (1️⃣ = "1" + VS16 + U+20E3) is one cluster standing on an
+            // ordinary digit. Digits belong in the text, so what is dropped is the sequence itself,
+            // never a bare digit -- and the cluster is then treated like any other an emoji stands
+            // on, so that anything else caught in it is judged the same way.
+            guard let base = scalars.first else { continue }
+            let keycap = isKeycapCluster(scalars)
+            let standsOnAnEmoji = keycap || isEmojiScalar(base)
+            for (index, scalar) in scalars.enumerated() {
+                // The digit a keycap is built on. The rest of the sequence, the variation selector
+                // and U+20E3, `isEmojiScalar` takes below.
+                if keycap, index == 0 { continue }
+                if isEmojiScalar(scalar) { continue }
+                if standsOnAnEmoji, !standsOnItsOwn(scalar) { continue }
+                result.append(scalar)
             }
-            if isEmojiScalar(scalar) {
-                index += 1
-                continue
-            }
-            result.append(scalar)
-            index += 1
         }
         return String(result)
     }
 
-    private static func isKeycapBase(_ scalar: Unicode.Scalar) -> Bool {
-        scalar.value == 0x23 || scalar.value == 0x2A || (0x30...0x39).contains(scalar.value)
+    // Whether a scalar is a character in its own right, or something that only exists attached to
+    // the one before it. The second kind is whatever Unicode marks Grapheme_Extend -- every
+    // combining mark, the tag letters that spell out a flag, and oddities like the halfwidth
+    // katakana voiced mark, which its category calls a letter and which still cannot stand alone --
+    // and, on top of that, a spacing mark, an invisible format character, a control, a lone
+    // surrogate, an unassigned code point. None of them can be left behind when what they were
+    // sitting on is taken away; they would fasten themselves to the text in front instead.
+    private static func standsOnItsOwn(_ scalar: Unicode.Scalar) -> Bool {
+        // U+200C, the non-joiner, is Grapheme_Extend, so the test below would sweep it away with
+        // the emoji it happened to sit behind. It is named here for the reason `isEmojiScalar`
+        // leaves it alone: it changes what a word says in Persian and other scripts, so it is text
+        // wherever it lands, and the two tests must not say opposite things about it.
+        if scalar.value == 0x200C { return true }
+        let properties = scalar.properties
+        if properties.isGraphemeExtend { return false }
+        switch properties.generalCategory {
+        case .nonspacingMark, .spacingMark, .enclosingMark, .format, .control, .surrogate, .unassigned:
+            return false
+        default:
+            return true
+        }
     }
 
-    // If U+20E3 follows the base (possibly across a variation selector), return where that sequence ends.
-    private static func keycapSequenceEnd(_ scalars: [Unicode.Scalar], from index: Int) -> Int? {
-        var cursor = index + 1
+    // A base of "#", "*" or a digit, then U+20E3, possibly across a variation selector.
+    private static func isKeycapCluster(_ scalars: [Unicode.Scalar]) -> Bool {
+        guard let base = scalars.first,
+              base.value == 0x23 || base.value == 0x2A || (0x30...0x39).contains(base.value) else {
+            return false
+        }
+        var cursor = 1
         while cursor < scalars.count, (0xFE00...0xFE0F).contains(scalars[cursor].value) {
             cursor += 1
         }
-        guard cursor < scalars.count, scalars[cursor].value == 0x20E3 else { return nil }
-        return cursor + 1
+        return cursor < scalars.count && scalars[cursor].value == 0x20E3
     }
 
     static func isEmojiScalar(_ scalar: Unicode.Scalar) -> Bool {
         // Variation selectors, ZWJ, the combining mark. Invisible on their own, but left in they make the text waver.
+        // U+200C, the non-joiner, is deliberately not among them: it changes what a word says in
+        // Persian and other scripts, so it is text and stays.
         if (0xFE00...0xFE0F).contains(scalar.value) || scalar.value == 0x200D || scalar.value == 0x20E3 {
             return true
         }
@@ -144,7 +181,11 @@ public enum TaskTextNormalizer {
         if properties.isEmojiModifier || properties.isEmojiModifierBase || properties.isEmojiPresentation {
             return true
         }
-        // `isEmoji` is true for ASCII digits, # and * as well, so only the symbol range is taken.
+        // `isEmoji` is true below U+2000 as well -- for the ASCII digits, for # and *, and for
+        // © and ®. The threshold leaves every one of them to the text. It is a threshold and not a
+        // list of them because `isEmoji` moves with the Unicode version, and a list would freeze
+        // this one. (A © that a ZWJ has joined onto an emoji stays as well: `removingEmoji` takes
+        // the emoji scalars and whatever cannot stand without them, and a © stands on its own.)
         return properties.isEmoji && scalar.value >= 0x2000
     }
 
