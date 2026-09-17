@@ -490,14 +490,14 @@ struct DeviceTokenStorageTests {
     @Test func theLeftoverPlistIsErasedThroughTheSeamAndNowhereElse() throws {
         #expect(
             withoutComments(try store).contains("func eraseLeftoverPlaintext()"),
-            "POL-047: the seam no longer covers the plist the tokens used to sit in"
+            "the seam no longer covers the plist the tokens used to sit in"
         )
         for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
             for (name, text) in try swiftFiles(under: directory, recursive: true)
             where name != "DeviceTokenStore.swift" {
                 #expect(
                     !text.contains("LeftoverPlaintextTokens"),
-                    "POL-047: \(name) empties the reader's own UserDefaults from outside the seam"
+                    "\(name) empties the reader's own UserDefaults from outside the seam"
                 )
             }
         }
@@ -559,7 +559,7 @@ struct DisplayNameTravelTests {
         )
         #expect(
             firstStatement?.contains("infoServer") == false,
-            "POL-114: a rename is refused because the last advertisement failed: \(firstStatement ?? "nothing")"
+            "a rename is refused because the last advertisement failed: \(firstStatement ?? "nothing")"
         )
     }
 }

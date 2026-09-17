@@ -6,13 +6,13 @@ import MdoroCore
 // schedules real notifications and opens a Live Activity on the reader's own device.
 // `MdoroCoreTests` checks that the guard in `MdoroiOSApp` exists; only a test hosted by the app
 // can check that it triggers.
-@Suite("The app knows it is hosting a test run (POL-047)")
+@Suite("The app knows it is hosting a test run")
 struct TestHostDetectionTests {
 
     @Test func theHostAppSeesThatThisIsATestRun() {
         #expect(
             TestHost.isRunning,
-            "POL-111: neither variable the launcher writes is set in the host process"
+            "neither variable the launcher writes is set in the host process"
         )
     }
 }

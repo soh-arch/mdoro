@@ -133,7 +133,7 @@ struct ColorLiteralTests {
                 let found = osTextColours(in: text)
                 #expect(
                     found.isEmpty,
-                    "POL-049: \(name) writes \(found.joined(separator: ", ")) — ask the theme for textPrimary / textSecondary"
+                    "\(name) writes \(found.joined(separator: ", ")) — ask the theme for textPrimary / textSecondary"
                 )
             }
         }
@@ -167,7 +167,7 @@ struct ColorLiteralTests {
         for (name, text) in widget {
             #expect(
                 !text.contains("theme."),
-                "REQ-UIX-027: \(name) now has a palette to ask, so POL-049's exclusion needs revisiting"
+                "REQ-UIX-027: \(name) now has a palette to ask, so the widget's exclusion from the palette-only scan needs revisiting"
             )
         }
     }

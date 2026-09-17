@@ -673,19 +673,19 @@ struct FailuresThatReachSomeoneTests {
             let enclosingFunction = text.components(separatedBy: "func ").last ?? ""
             #expect(
                 enclosingFunction.hasPrefix("refuse("),
-                "POL-054: a refusal is sent from somewhere other than `refuse`, so it is never written down"
+                "a refusal is sent from somewhere other than `refuse`, so it is never written down"
             )
         }
         // And `refuse` writes one. Both halves, because either alone passes with the other gone.
         let refuseBody = try #require(server.components(separatedBy: "func refuse(").last)
         #expect(
             refuseBody.prefix(300).contains("record(refusal:"),
-            "POL-054: `refuse` no longer records anything, so every refusal is silent again"
+            "`refuse` no longer records anything, so every refusal is silent again"
         )
         let recordBody = try #require(server.components(separatedBy: "func record(refusal").last)
         #expect(
             recordBody.prefix(300).contains("conn.refused"),
-            "POL-054: the refusal no longer reaches the diagnostic log"
+            "the refusal no longer reaches the diagnostic log"
         )
         // Decision 0018: the code, never the name of the device that was turned away.
         #expect(

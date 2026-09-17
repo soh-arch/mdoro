@@ -156,6 +156,6 @@ struct KeychainRecordPolicyTests {
         _ = try recording(store) { model in
             model.adoptStoredDeviceTokens()
         }
-        #expect(store.erasures == 1, "POL-047: the leftover plist is erased somewhere outside the seam")
+        #expect(store.erasures == 1, "the leftover plist is erased somewhere outside the seam")
     }
 }

@@ -42,7 +42,7 @@ private func modelHolding(_ idleSleep: RecordedSleepGuard) -> AppModel {
     )
 }
 
-@Suite("A test run leaves the Mac's sleep alone (POL-053 / REQ-PER-006)")
+@Suite("A test run leaves the Mac's sleep alone (REQ-PER-006)")
 @MainActor
 struct IdleSleepTests {
 
@@ -91,7 +91,7 @@ struct IdleSleepTests {
     @Test func theStandInHoldsNothingAtAll() {
         let leftAlone = SleepLeftAlone()
         leftAlone.begin()
-        #expect(leftAlone.isActive == false, "POL-053: the stand-in is holding a sleep assertion")
+        #expect(leftAlone.isActive == false, "the stand-in is holding a sleep assertion")
         leftAlone.end()
         #expect(leftAlone.isActive == false)
     }

@@ -144,10 +144,10 @@ struct AuthenticatorTests {
 
         let first = auth.authenticate(hello(code: "123456", name: "iPhone (2)"), now: t0)
         #expect(first == .needsUserApproval(requestingDeviceName: "iPhone (2)"))
-        #expect(auth.issuedTokens.isEmpty, "POL-139: a token was issued before the user answered")
+        #expect(auth.issuedTokens.isEmpty, "a token was issued before the user answered")
 
         guard case let .some(.accept(token)) = auth.resolveApproval(approved: true, now: t0.addingTimeInterval(30)) else {
-            Issue.record("POL-139: the approved pairing was refused — the user's report, exactly")
+            Issue.record("the approved pairing was refused — the user's report, exactly")
             return
         }
         #expect(auth.issuedTokens == [token], "exactly one token, issued by the approval alone")
@@ -222,7 +222,7 @@ struct AuthenticatorTests {
             let decision = auth.authenticate(hello(code: "123456", name: "iPhone (2)"), now: t0)
             #expect(decision == .needsUserApproval(requestingDeviceName: "iPhone (2)"), "attempt \(attempt)")
         }
-        #expect(auth.issuedTokens.isEmpty, "POL-139: refused attempts piled up tokens — three tries, three orphans")
+        #expect(auth.issuedTokens.isEmpty, "refused attempts piled up tokens — three tries, three orphans")
 
         let denied = auth.resolveApproval(approved: false, now: t0)
         #expect(denied == .reject(.connectionRejectedByUser))
@@ -257,7 +257,7 @@ struct AuthenticatorTests {
         let answer = auth.resolveApproval(approved: true, now: t0)
         #expect(answer == .reject(.unknownDeviceToken))
         #expect(auth.connectedClientName == "A",
-                "POL-146: the refusal forgot the standing connection, which nothing closed")
+                "the refusal forgot the standing connection, which nothing closed")
 
         // The proof it matters: the next valid hello still has to ask.
         let next = auth.authenticate(hello(token: "tok1", name: "C"), now: t0)
@@ -286,7 +286,7 @@ struct AuthenticatorTests {
         #expect(decision == .rejectWithProtocolError(.protocolVersionMismatch),
                 "REQ-PRT-004: an incompatible version was not refused as one")
         #expect(decision != .reject(.unknownDeviceToken),
-                "POL-182: the iPhone reads this as a revoked pairing and deletes the token it holds")
+                "the iPhone reads this as a revoked pairing and deletes the token it holds")
         #expect(auth.issuedTokens == [issued("tok")], "the refusal took the record with it")
     }
 
@@ -324,7 +324,7 @@ struct AuthenticatorTests {
 //
 // REQ-PRT-004 says to refuse and to tell both ends to update, but not which message says so. 10.2
 // does, and nothing in the implementation itself holds it there. These are that anchor.
-@Suite("A version the Mac cannot speak to (REQ-PRT-004 / 10.2 / POL-182)")
+@Suite("A version the Mac cannot speak to (REQ-PRT-004 / 10.2)")
 struct ProtocolRefusalTests {
 
     // 10.2 lists five `authFailed.code` values and not one of them is about a version. **That
@@ -368,12 +368,12 @@ struct ProtocolRefusalTests {
 
         // Two `refuse`s now, one per message 10.2 carries a reason in — and each records first.
         let refusals = server.components(separatedBy: "private func refuse(").dropFirst()
-        #expect(refusals.count == 2, "POL-054 / 10.2: one refusal for `authFailed`, one for `error`")
+        #expect(refusals.count == 2, "10.2: one refusal for `authFailed`, one for `error`")
         for refusal in refusals {
             let body = refusal.prefix(400)
-            let recorded = try #require(body.range(of: "record(refusal:"), "POL-054: a refusal that leaves no line")
+            let recorded = try #require(body.range(of: "record(refusal:"), "a refusal that leaves no line")
             let sent = try #require(body.range(of: "sendThenClose("), "a refusal that is recorded but never sent")
-            #expect(recorded.upperBound < sent.lowerBound, "POL-054: the line is written after the refusal is sent")
+            #expect(recorded.upperBound < sent.lowerBound, "the line is written after the refusal is sent")
         }
         // 10.2 / REQ-PRT-004: and the one on `error` carries the code the refusal itself names,
         // rather than one written out here — the enum is what keeps it to a value every version knows.
