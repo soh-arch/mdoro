@@ -273,29 +273,129 @@ struct DiagnosticHeaderPerLaunchTests {
         #expect(occurrences(of: "# opened=", in: text) == 2)
     }
 
-    // When a launch's first line is also the one that rotates the file, the header belongs at the top
-    // of the new file — once, not twice. The limit here is deliberately smaller than a single header,
-    // so the rotation is certain rather than a matter of counting bytes.
-    @Test func aLaunchThatRotatesOnItsFirstLineWritesOneHeader() throws {
+    // The header of a launch that has already been written must not stop a rotation from heading the
+    // new generation. That is the path this walks: one instance, its header paid for by the first
+    // line, and a second line that has to rotate.
+    //
+    // The limit is **measured, not guessed** — exactly the size the file has after the first write.
+    // The first write cannot rotate (an empty file never does) and the second cannot avoid it
+    // (anything at all added to a file already at the limit exceeds it).
+    @Test func aRotationAfterTheHeaderIsPaidForStillHeadsTheNewFile() throws {
         let directory = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let first = DiagnosticLogFile(directory: directory, header: header, maxBytes: 100)
-        first.write(DiagnosticEvent(code: "tick", fields: [DiagnosticField("n", 0)]))
+        let firstEvent = DiagnosticEvent(
+            timestamp: Date(timeIntervalSince1970: 1_756_000_000),
+            code: "tick",
+            fields: [DiagnosticField("n", 0)]
+        )
+        let secondEvent = DiagnosticEvent(
+            timestamp: Date(timeIntervalSince1970: 1_756_000_001),
+            code: "tick",
+            fields: [DiagnosticField("n", 1)]
+        )
+        let limit = Data(DiagnosticLogFormat.header(header).utf8).count
+            + Data((DiagnosticLogFormat.line(firstEvent) + "\n").utf8).count
+
+        let file = DiagnosticLogFile(directory: directory, header: header, maxBytes: limit)
+        file.write(firstEvent)
+
+        let afterFirst = try Data(contentsOf: file.currentURL)
+        #expect(afterFirst.count == limit, "the limit has to be the size the file now has, or the rest proves nothing")
+        #expect(
+            !FileManager.default.fileExists(atPath: file.previousURL.path),
+            "the first write must not rotate: the second one is the one under test"
+        )
+
+        // Same instance, so the header is already written. This line rotates.
+        file.write(secondEvent)
+
+        #expect(file.lastFailure == nil)
+        let current = try String(contentsOf: file.currentURL, encoding: .utf8)
+        #expect(current.hasPrefix("# Mdoro diagnostic log"), "the new generation was started without a header")
+        #expect(occurrences(of: "# opened=", in: current) == 1)
+        #expect(current.contains("n=1"))
+        let previous = try String(contentsOf: file.previousURL, encoding: .utf8)
+        #expect(previous.hasPrefix("# Mdoro diagnostic log"))
+        #expect(previous.contains("n=0"))
+    }
+
+    // And the other order: a launch whose very first line rotates the file owes a header and gets
+    // exactly one — from the rotation, not one from the rotation and one of its own.
+    @Test func aLaunchWhoseFirstLineRotatesGetsExactlyOneHeader() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let event = DiagnosticEvent(
+            timestamp: Date(timeIntervalSince1970: 1_756_000_000),
+            code: "tick",
+            fields: [DiagnosticField("n", 0)]
+        )
+        let limit = Data(DiagnosticLogFormat.header(header).utf8).count
+            + Data((DiagnosticLogFormat.line(event) + "\n").utf8).count
+
+        let first = DiagnosticLogFile(directory: directory, header: header, maxBytes: limit)
+        first.write(event)
+        let afterFirst = try Data(contentsOf: first.currentURL)
+        #expect(afterFirst.count == limit, "the limit has to be the size the file now has")
 
         var later = header
         later.osVersion = "macOS 26.7.0"
-        let second = DiagnosticLogFile(directory: directory, header: later, maxBytes: 100)
-        second.write(DiagnosticEvent(code: "tick", fields: [DiagnosticField("n", 1)]))
+        let second = DiagnosticLogFile(directory: directory, header: later, maxBytes: limit)
+        second.write(DiagnosticEvent(
+            timestamp: Date(timeIntervalSince1970: 1_756_000_001),
+            code: "tick",
+            fields: [DiagnosticField("n", 1)]
+        ))
 
         #expect(second.lastFailure == nil)
         let current = try String(contentsOf: second.currentURL, encoding: .utf8)
-        #expect(current.hasPrefix("# Mdoro diagnostic log"))
-        #expect(occurrences(of: "# opened=", in: current) == 1)
-        #expect(current.contains("os=macOS 26.7.0"))
+        #expect(occurrences(of: "# opened=", in: current) == 1, "this launch's header went in twice")
+        #expect(current.contains("os=macOS 26.7.0"), "the header at the top is the older launch's")
         #expect(current.contains("n=1"))
-        // The older generation is still there, with the line it had.
         let previous = try String(contentsOf: second.previousURL, encoding: .utf8)
+        #expect(occurrences(of: "os=macOS 26.0", in: previous) == 1)
         #expect(previous.contains("n=0"))
+    }
+
+    // A refused write leaves the header still owed — and does not leave half of one behind. The
+    // header and the line go to the file in one call, so there is no state in between.
+    @Test func aRefusedWriteLeavesTheHeaderOwedAndNothingHalfWritten() throws {
+        let directory = temporaryDirectory()
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o644],
+                ofItemAtPath: directory.appendingPathComponent(DiagnosticLogFormat.currentFileName).path
+            )
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        let first = DiagnosticLogFile(directory: directory, header: header)
+        first.write(DiagnosticEvent(code: "app.start"))
+        let afterFirst = try Data(contentsOf: first.currentURL)
+
+        // A second launch that cannot write: the file itself is refused.
+        let second = DiagnosticLogFile(directory: directory, header: header)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o444],
+            ofItemAtPath: second.currentURL.path
+        )
+        second.write(DiagnosticEvent(code: "app.start"))
+
+        #expect(second.lastFailure != nil, "the file system must actually refuse, or this proves nothing")
+        let afterRefusal = try Data(contentsOf: second.currentURL)
+        #expect(afterRefusal == afterFirst, "a refused write left something behind")
+
+        // Allowed again: the header this launch still owes goes in, once, with the line.
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o644],
+            ofItemAtPath: second.currentURL.path
+        )
+        second.write(DiagnosticEvent(code: "app.stop"))
+
+        #expect(second.lastFailure == nil)
+        let text = try String(contentsOf: second.currentURL, encoding: .utf8)
+        #expect(occurrences(of: "# opened=", in: text) == 2, "the second launch is owed exactly one header")
+        #expect(text.contains("app.stop"))
     }
 }
