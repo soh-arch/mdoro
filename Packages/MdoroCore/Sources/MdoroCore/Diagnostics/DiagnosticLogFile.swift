@@ -79,13 +79,16 @@ public final class DiagnosticLogFile: @unchecked Sendable {
             try open(with: data)
             return
         }
+        // REQ-ERR-010: one call, the way `open(with:)` does it. Written as two calls, a header that
+        // succeeded and a line that threw would leave the header on disk with the debt still
+        // standing, and the next event would add a second one for the same launch.
+        var payload = pendingHeader
+        payload.append(data)
         let handle = try FileHandle(forWritingTo: currentURL)
         defer { try? handle.close() }
         try handle.seekToEnd()
-        if !pendingHeader.isEmpty {
-            try handle.write(contentsOf: pendingHeader)
-        }
-        try handle.write(contentsOf: data)
+        try handle.write(contentsOf: payload)
+        // Only once it is on disk, again as in `open(with:)`.
         hasWrittenHeader = true
     }
 
