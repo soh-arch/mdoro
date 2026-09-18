@@ -78,7 +78,7 @@ WWDC21 セッション 10022「Demystify SwiftUI」
 | :---- | :---- | :---- |
 | `openWindow(id:)` | **新しいウィンドウを作る** | **既に開いていれば前面に出す** |
 | ウィンドウごとの状態 | 文書に明記あり —— 「the system allocates new storage for any `State` … for each window that it creates」 | **記述が無い** |
-| 主シーンを閉じたとき | アプリは動き続ける | **アプリが終了する**（文書に明記） |
+| 主シーンを閉じたとき | アプリは動き続ける | ⚠ **条件つきの記述がある**（下） |
 
 出典: `OpenWindowAction` <https://developer.apple.com/documentation/swiftui/openwindowaction> /
 `Window` <https://developer.apple.com/documentation/swiftui/window> /
@@ -87,6 +87,29 @@ WWDC21 セッション 10022「Demystify SwiftUI」
 ⚠ **したがって「新しいウィンドウは `State` の記憶域を新しく取る」は、`WindowGroup` についての記述であり、
 このアプリの Mac 側には直接当たらない。** Mac 側で効いているのは
 **`SceneStorage` の「閉じる＝ Scene の破棄」**のほうである。
+
+### 「閉じるとアプリが終了する」には条件が付いている
+
+`Window` の文書は次のように述べる。
+
+> **If your app uses a single window as its primary scene**, the app quits when the window closes.
+> This behavior differs from an app that uses a `WindowGroup` as its primary scene, where the app
+> continues to run even after closing all of its windows.
+
+⚠ **「唯一の主シーンが単一の `Window` である場合」という条件が付いている。**
+**このアプリはその条件に当たらない可能性が高い** —— `MdoroMacApp.swift` の `body` には
+`Window` のほかに **`MenuBarExtra` と `Settings` が同居している**（`MdoroMacApp.swift:95` / `101`）。
+`CLAUDE.md` は「メニューバー常駐」をこのアプリの前提として定めている。
+
+**そして、この記録が説明している仕組みそのものが、プロセスの存続を前提にしている。**
+`AppModel.start()` の冪等性（`hasStarted`）が意味を持つのは、**ウィンドウを閉じても同じプロセスが
+生き続け、`openWindow(id:)` で開き直せる場合だけ**である。プロセスごと終われば次の起動は新しい
+`AppModel` を作り、`hasStarted` は `false` に戻るので、ガードは何も防がない。
+**POL-114 が記録している症状**（`MdoroMac` のプロセス2つに対し `_mdoro._tcp` の登録が5つ）**は、
+プロセスが生き続けたことの実測である。**
+
+**`MenuBarExtra` が同居するとき Apple の言う "primary scene" の条件が成立するのかは、
+一次情報が触れていない。**（検証役の指摘・2026-09-18）
 
 ## 確かめられなかったこと
 
@@ -102,6 +125,9 @@ WWDC21 セッション 10022「Demystify SwiftUI」
   **SwiftUI の `WindowGroup` の1ウィンドウが1つの `UIScene` であるとは明文化されていない**
 - **状態復元**（`restorationBehavior(_:)`、macOS 15.0 / iOS 18.0 以降）で起動時に開き直された
   ウィンドウの `.task` が走るか。文書は「サイズと位置を保存して起動時に開き直す」としか述べていない
+- **`MenuBarExtra` と `Settings` が同居するアプリが、`Window` の文書の言う
+  「a single window as its primary scene」に当たるのか。** 一次情報が触れていない。
+  **実測では、メインウィンドウを閉じてもアプリは終わっていない**（POL-114 の症状がそれを前提にしている）
 - **SDK のヘッダ（`SwiftUI.swiftinterface`）は参照していない** —— 調査を行った環境は Linux で、macOS SDK が無い
 - **「The task is created by `Task.immediate`」という一文が現行の文書にあるが、macOS 26.0 の時点で
   そうだったのか 26.x のどこかで変わったのかは、リリースノートにも `updates/swiftui` にも書かれていない**
