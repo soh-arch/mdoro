@@ -382,6 +382,27 @@ REQ-UIX-026 の「不可能」「サンドボックス上」は Apple の原文�
 記録しているが、**あれは iPhone の更新の観察である。**
 **片側で測った結果を、もう片側に一般化できない。**
 
+## 集中モードを貫く通知に、何が要るか
+
+**調査**: [0016](platform/0016-what-a-focus-breaking-notification-needs.md) / **確認日**: 2026-09-18 / **対象**: UserNotifications（iOS 15.0 / macOS 12.0 以降）。利用者側の設定は macOS Tahoe 26
+
+| 事実 | 確度 |
+| :---- | :---- |
+| **`.timeSensitive` には capability「Time Sensitive Notifications」が要る。** `UNAuthorizationOptions.timeSensitive` は**導入と同じ版**（iOS 15.0 / macOS 12.0）で非推奨になっており、理由として書かれているのは **"Use time-sensitive entitlement"** の1文だけである。WWDC21-10091 も「enable the associated capability via Xcode」と述べる | **文書化** |
+| **その capability は無償の Apple Account では取得できない。** Supported capabilities 表で ✓ が付くのは ADP / ADEP（iOS）・ADP / Developer ID（macOS）で、**無償の `Apple Developer` 列は空欄**である。`* Development only` の注記も付かない。**Push notifications も同じ列で空欄** | **文書化** |
+| **Personal Team では、候補そのものが出ないと読める。** Xcode の文書は「capability ライブラリは **program membership に応じて**表示を絞る」と述べるだけで、この capability について個別には書いていない | **帰結** |
+| **利用者側の門は2つある。** macOS は通知設定の **Allow time sensitive alerts** と、集中モード側の **Time Sensitive Notifications** の**両方**が要る（Apple のサポートページ2本が互いに「もう片方も設定せよ」と明記）。iOS も2つあり、アプリ側には **"If the app supports it"** という条件節が付く | **文書化** |
+| **初回は自動で有効になる。** 「許可しますか」は出ず、**システムが説明と OFF の導線を出す**（HIG）。opt-in ではない | **文書化** |
+| ⚠ **entitlement が無いまま `.timeSensitive` を指定したときに何が起きるかは、Apple のどこにも書かれていない。** 代入時にエラーになる経路だけは無い（`var` であり `throws` でない） | **不明** |
+| ⚠ **entitlement のキー文字列は Apple の一次情報に無い。** Entitlements リファレンスの 168 件に当該ページが存在しない（**404**）。**この文字列を根拠に条文を書かない** | **不明** |
+
+⚠ **HIG の割り込み段階の表は、Time Sensitive を無条件に「Breaks through Focus: Yes」と書く。**
+**これを配送の保証として読まない。** API の Discussion と WWDC21-10091 は
+"The user can turn off…" / "**if allowed to do so**" と条件付きで書いている。
+**表は「その段階に何ができるか」の記述である。**
+
+---
+
 ---
 
 ## 未検証（軸 K で確認する）
@@ -394,7 +415,8 @@ REQ-UIX-026 の「不可能」「サンドボックス上」は Apple の原文�
 | :---- | :---- |
 | **エディタは保存時に一時ファイル経由で置き換える**（記述子ではなく親ディレクトリを監視する、は**これへの対処**であって事実ではない） | 実測（Obsidian で確認。**日付と手順の記録なし**） |
 | `MenuBarExtra` のラベルを毎秒更新しても安定する | **実測** — 2026-08-26、Debug ビルド、3時間のセッション進行中に CPU 0.1〜0.4%、RSS は約2.5分間で増加なし。**対象**: macOS 26 |
-| 署名は無償の Personal Team。iPhone 実機のアプリは7日で失効する。Push 通知と iCloud は使えない | 未検証 |
+| 署名は無償の Personal Team。iPhone 実機のアプリは7日で失効する。**iCloud** は使えない | 未検証 |
+| ~~Push 通知は使えない~~ → **上の「集中モードを貫く通知に、何が要るか」へ移した。**Supported capabilities 表の無償列が空欄であることを [0016](platform/0016-what-a-focus-breaking-notification-needs.md) で確認した | **文書化** |
 
 **この表から3項目を外した**（2026-08-29・POL-069）。
 
