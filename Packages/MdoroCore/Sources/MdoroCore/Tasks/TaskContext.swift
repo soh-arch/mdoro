@@ -230,6 +230,14 @@ public enum TaskReloader {
                     bestIsAmbiguous = false
                 } else if distance == current.distance {
                     // With the texts identical, whichever is chosen, the text recorded is the same.
+                    // ⚠ **Only the text.** Two lines can carry one text and differ in whether they
+                    // are done, and the restore path can reach that pair where a reread could not:
+                    // with no previous list every line is a candidate, so a selection that was the
+                    // completed one of a duplicated pair can come back as the open one. What is
+                    // persisted is an id and the text, never the state, so there is nothing here to
+                    // tell them apart with — and the name that reaches the log is right either way,
+                    // which is the whole of what this rule ever claimed (found by the reviewer,
+                    // 2026-09-19).
                     if distance > 0 { bestIsAmbiguous = true }
                 }
             } else {
