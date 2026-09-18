@@ -254,6 +254,9 @@ struct ErrorReportingTests {
     }
 
     // Numbers are handed out once, so a code pasted into an issue always means the same thing.
+    // This asks only that no two meanings share a number, which a table where every number
+    // moved at once also satisfies. Which number means what is held in
+    // `ACodeKeepsItsMeaningTests`, together with the numbers that were withdrawn.
     @Test func everyCodeInOurOwnDomainMeansOneThing() {
         let table: [ErrorCode] = [
             .logInvalidFilePath, .logWouldModifyExistingLines, .logFolderNotSet,
