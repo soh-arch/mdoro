@@ -128,4 +128,135 @@ struct TaskReloadTests {
         #expect(outcome.context.selectedTaskState == .none)
         #expect(!outcome.didFollow)
     }
+
+    // The gate on the restore path, seen from this side: **with items in hand, the snapshot is not
+    // consulted.** A selection missing from a list that was really read stays missing (REQ-TSK-030),
+    // even when the snapshot would have matched something in the new parse.
+    @Test func aMissingSelectionDoesNotFollowFromTheSnapshotWhenTheListWasRead() {
+        let previous = TaskContext(
+            items: load("- [ ] Compra do supermercado").items,
+            selectedTaskId: "um ID que desapareceu",
+            selectedTaskSnapshot: "Revisão da especificação"
+        )
+        let outcome = TaskReloader.reload(previous: previous, parsed: load("- [ ] Revisão das especificações"))
+        #expect(!outcome.didFollow, "the previous list is evidence, and it did not hold this selection")
+        #expect(outcome.context.selectedTaskState == .missing)
+    }
+}
+
+// What `AppModel.init` hands the first reread after launch (REQ-PER-001 / 002): the persisted
+// `stableId` and snapshot, and **no list** — `TaskContext.init` defaults `items` to empty, and the
+// file has not been read yet at that point.
+private func restoredAtLaunch(selectedTaskId: String, snapshot: String?) -> TaskContext {
+    TaskContext(selectedTaskId: selectedTaskId, selectedTaskSnapshot: snapshot)
+}
+
+@Suite("Follow-through on the restore path (REQ-TSK-032 / 035 · REQ-PER-002)")
+struct RestoredSelectionFollowTests {
+
+    // The ordinary launch: the persisted id is still in the file, so nothing is followed and only
+    // the snapshot catches up. **This must stay the quiet case** — no follow notice at every launch.
+    @Test func aPersistedIdStillInTheFileIsNotAFollow() {
+        let parsed = load("- [ ] 仕様書のレビュー")
+        let restored = restoredAtLaunch(selectedTaskId: parsed.items[0].stableId, snapshot: "古い本文")
+        let outcome = TaskReloader.reload(previous: restored, parsed: parsed)
+        #expect(!outcome.didFollow)
+        #expect(outcome.context.selectedTaskState == .present)
+        #expect(outcome.context.selectedTaskSnapshot == "仕様書のレビュー", "the text catches up")
+    }
+
+    // REQ-TSK-032 across a launch. The id is the hash of the normalised text (REQ-TSK-021), so it
+    // changes when the wording does — and it changes with no edit at all when normalisation itself
+    // changes. Either way the restore has only the snapshot to go on, and it is enough.
+    @Test func aRestoredSelectionFollowsTheRewording() {
+        let restored = restoredAtLaunch(
+            selectedTaskId: "o ID guardado, que já não existe",
+            snapshot: "Revisão da especificação"
+        )
+        let outcome = TaskReloader.reload(previous: restored, parsed: load("- [ ] Revisão das especificações"))
+        #expect(outcome.didFollow)
+        #expect(outcome.context.selectedTaskState == .present)
+        #expect(outcome.context.selectedTaskSnapshot == "Revisão das especificações")
+        // REQ-TSK-032: the UI is told, and `AppModel` reads exactly these two fields.
+        #expect(outcome.followedFrom == "o ID guardado, que já não existe")
+        #expect(outcome.followedTo == outcome.context.selectedTaskId)
+    }
+
+    // The other pole. **Nothing about an empty previous list loosens the match.** Every line in the
+    // file is a candidate there, so this is the only check left standing, and it refuses a tie.
+    @Test func anAmbiguousRestoreFollowsNothing() {
+        let restored = restoredAtLaunch(selectedTaskId: "사라진 ID", snapshot: "작업A1")
+        let outcome = TaskReloader.reload(previous: restored, parsed: load("- [ ] 작업A2\n- [ ] 작업A3"))
+        #expect(!outcome.didFollow, "two candidates at the same distance: a wrong link is worse than none")
+        #expect(outcome.context.selectedTaskState == .missing)
+        #expect(outcome.context.selectedTaskSnapshot == "작업A1", "REQ-TSK-031: the last known text is kept")
+    }
+
+    @Test func aRestoreBeyondTheThresholdFollowsNothing() {
+        let restored = restoredAtLaunch(selectedTaskId: "消えたID", snapshot: "仕様書のレビュー")
+        let outcome = TaskReloader.reload(previous: restored, parsed: load("- [ ] 買い物に行く"))
+        #expect(!outcome.didFollow)
+        #expect(outcome.context.selectedTaskState == .missing)
+    }
+
+    // REQ-TSK-030 / 031: a task deleted while the app was closed. There is nothing to follow to, and
+    // the selection is still not cleared on its own.
+    @Test func aRestoreWithNoCandidateAtAllFollowsNothing() {
+        let restored = restoredAtLaunch(selectedTaskId: "已删除的ID", snapshot: "写规格说明")
+        let outcome = TaskReloader.reload(previous: restored, parsed: load("# 空的\n"))
+        #expect(!outcome.didFollow)
+        #expect(outcome.context.selectedTaskState == .missing)
+        #expect(outcome.context.selectedTaskId == "已删除的ID")
+    }
+
+    // An id with no snapshot beside it — an older persisted file, or a write that got half of the
+    // pair. There is no text to match on, so nothing is followed and nothing goes wrong.
+    @Test func aRestoreWithNoSnapshotFollowsNothing() {
+        let restored = restoredAtLaunch(selectedTaskId: "ID בלי טקסט", snapshot: nil)
+        let outcome = TaskReloader.reload(previous: restored, parsed: load("- [ ] משימה אחרת"))
+        #expect(!outcome.didFollow)
+        #expect(outcome.context.selectedTaskState == .missing)
+    }
+
+    // **The snapshot is `displayText`, not `normalizedText`.** Emoji are in the one and not the
+    // other, so the snapshot has to be normalised before the distance to a normalised line means
+    // anything.
+    //
+    // **The pair below is chosen so that the step decides the answer**, which most pairs do not:
+    // leaving the emoji in lengthens the source, and a longer source buys a larger allowance, so a
+    // short task is where the two emoji characters outweigh what they buy. Here the reworded line is
+    // 2 away from the normalised snapshot against an allowance of 2, and 4 away from the raw one
+    // against an allowance of 3 — so a regression that stopped normalising would show up as this
+    // test's follow no longer happening, not merely as a number moving.
+    @Test func theSnapshotIsNormalizedBeforeItIsMatched() {
+        #expect(TaskTextNormalizer.normalize(body: "📝 仕様書のレビュー") == "仕様書のレビュー")
+
+        let restored = restoredAtLaunch(selectedTaskId: "前の版のハッシュ", snapshot: "📝 仕様書のレビュー")
+        let outcome = TaskReloader.reload(previous: restored, parsed: load("- [ ] 📝 仕様書の最終レビュー"))
+        #expect(outcome.didFollow)
+        #expect(outcome.context.selectedTaskState == .present)
+        // REQ-TSK-015: what the follow records is the new line's display text, emoji and all.
+        #expect(outcome.context.selectedTaskSnapshot == "📝 仕様書の最終レビュー")
+    }
+
+    // A snapshot that normalises to nothing — a line that was only an emoji. An empty text is
+    // within 30% of every text, so it must not be matched at all.
+    @Test func aSnapshotThatNormalizesToNothingFollowsNothing() {
+        #expect(TaskTextNormalizer.normalize(body: "🔥").isEmpty)
+
+        let restored = restoredAtLaunch(selectedTaskId: "옛날 ID", snapshot: "🔥")
+        let outcome = TaskReloader.reload(previous: restored, parsed: load("- [ ] 🔥\n- [ ] 다른 일"))
+        #expect(!outcome.didFollow)
+        #expect(outcome.context.selectedTaskState == .missing)
+    }
+
+    // Two identical lines and a changed hash. The candidates tie at distance 0, and a tie at 0 is
+    // not ambiguity: whichever is taken, the text that reaches the log is the same one.
+    @Test func identicalCandidatesAreNotAmbiguityOnRestoreEither() {
+        let restored = restoredAtLaunch(selectedTaskId: "前の版のハッシュ", snapshot: "同じ本文")
+        let outcome = TaskReloader.reload(previous: restored, parsed: load("- [ ] 同じ本文\n- [ ] 同じ本文"))
+        #expect(outcome.didFollow)
+        #expect(outcome.context.selectedTaskState == .present)
+        #expect(outcome.context.selectedTaskSnapshot == "同じ本文")
+    }
 }

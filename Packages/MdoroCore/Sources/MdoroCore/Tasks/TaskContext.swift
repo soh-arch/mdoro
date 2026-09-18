@@ -83,6 +83,10 @@ public enum TaskReloader {
     // **The selection is never dropped on its own.** A task that looks gone may only have been
     // reworded, changing its stableId. The selection follows only when one destination is
     // unambiguous; otherwise it stays missing.
+    //
+    // REQ-PER-001 / 002: **the first reread after launch is one of these.** What is restored is an
+    // id and a snapshot with no list behind them, and `referenceText` is what keeps the follow
+    // working there rather than only for a file changing under a running app.
     // REQ-ERR-002: a failed parse keeps the previous list. **Never overwrite it with an empty one.**
     public static func reload(
         previous: TaskContext,
@@ -121,7 +125,7 @@ public enum TaskReloader {
         }
 
         // It is gone. See whether the selection can follow it.
-        guard let reference = previous.item(id: selectedId) else {
+        guard let reference = referenceText(in: previous, selectedId: selectedId) else {
             return TaskReloadOutcome(context: context, followedFrom: nil, followedTo: nil)
         }
 
@@ -129,11 +133,17 @@ public enum TaskReloader {
         // When the earlier of two identical texts disappears, the ids after it shift — but those ids are
         // already known, so they do not count as newly appeared. A line whose text matches is therefore
         // a candidate even when its id is known.
+        //
+        // **With no previous list, every line is newly appeared and this filter lets all of them
+        // through** (the restore path — see `referenceText`). What stands between the snapshot and a
+        // wrong line is then `uniqueMatch` alone, and that is the check that was meant to carry the
+        // weight: it refuses a tie, so an ambiguous restore follows nothing and the selection stays
+        // missing (REQ-TSK-030).
         let previousIds = Set(previous.items.map(\.stableId))
         let candidates = parsed.items.filter {
-            !previousIds.contains($0.stableId) || $0.normalizedText == reference.normalizedText
+            !previousIds.contains($0.stableId) || $0.normalizedText == reference
         }
-        guard let followed = uniqueMatch(for: reference, among: candidates) else {
+        guard let followed = uniqueMatch(forNormalizedText: reference, among: candidates) else {
             // REQ-TSK-030 / 031: the selection is not cleared automatically. It stays missing.
             return TaskReloadOutcome(context: context, followedFrom: nil, followedTo: nil)
         }
@@ -143,9 +153,35 @@ public enum TaskReloader {
         return TaskReloadOutcome(context: context, followedFrom: selectedId, followedTo: followed.stableId)
     }
 
+    // REQ-TSK-032 / 035: the text the selection is followed from. **The previous list is not always
+    // there to hold it.** At launch the selection is restored from what was persisted (REQ-PER-001 /
+    // 002), and that is the selected `stableId` and the snapshot of its text — not the list those
+    // were read out of. The reread that follows therefore starts from a context with no items, so
+    // asking it for the selected item answers nothing and the selection would be dropped on the
+    // floor whenever the id had changed in the meantime. **An id changes without the user touching
+    // the line**: it is the hash of the normalised text (REQ-TSK-021), so any change to what
+    // normalisation does to that text gives the same line a different id on the next parse.
+    //
+    // So with no list to consult, the snapshot stands in for the item. It is `displayText`, which is
+    // not the same text as `normalizedText`: it keeps emoji and has not been through NFKC, so those
+    // two steps do their work here for the first time, while the rest of normalisation it has
+    // already been through. **Normalising it back is therefore an approximation, not a recovery.**
+    // It is good enough because what it feeds is itself an approximation — a match within 30% of the
+    // length — and because it errs in the safe direction: where the two texts drift apart the
+    // distance only grows, and too great a distance means no following, which is what happened
+    // before this path existed.
+    //
+    // **Only an empty list falls back.** With items in hand, a selection missing from them stays
+    // missing (REQ-TSK-030), exactly as it did: that list is evidence, and the item it does not
+    // contain is a task the reread really did not find.
+    static func referenceText(in previous: TaskContext, selectedId: String) -> String? {
+        if let item = previous.item(id: selectedId) { return item.normalizedText }
+        guard previous.items.isEmpty, let snapshot = previous.selectedTaskSnapshot else { return nil }
+        return TaskTextNormalizer.normalize(body: snapshot)
+    }
+
     // Returns a candidate within the threshold **only when it is the only one.** Ambiguity means no following.
-    static func uniqueMatch(for reference: TaskItem, among candidates: [TaskItem]) -> TaskItem? {
-        let source = reference.normalizedText
+    static func uniqueMatch(forNormalizedText source: String, among candidates: [TaskItem]) -> TaskItem? {
         guard !source.isEmpty else { return nil }
         let allowed = Int((Double(source.count) * similarityThreshold).rounded())
 
