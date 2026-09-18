@@ -679,6 +679,29 @@ struct PreNotificationTests {
     }
 }
 
+// MARK: - What a preset starts out asking for (REQ-NTF-005)
+
+@Suite("A preset asks for Time Sensitive notifications unless told otherwise (REQ-NTF-005)")
+struct TimeSensitiveDefaultTests {
+
+    // REQ-NTF-005 says to send notifications as Time Sensitive and to let the user turn that off,
+    // so off is a choice the user makes and not the one they start from.
+    //
+    // ⚠ **This is what the preset asks for, not what the OS delivers.** `.timeSensitive` needs the
+    // "Time Sensitive Notifications" capability, which this signature does not have and cannot get
+    // on a free Apple Account (`docs/platform/0016`). The schedulers carry that note; this suite
+    // only pins the value the app starts from.
+    @Test func theStandardPresetStartsWithItOn() {
+        #expect(Preset.standard().timeSensitiveNotifications)
+    }
+
+    // The initialiser's default is the single place this is decided: `standard()`, the settings
+    // screen's "new preset" and `restoreDefaultPreset` all reach it by not passing the argument.
+    @Test func aPresetMadeWithoutNamingTheSettingStartsWithItOn() {
+        #expect(makePreset().timeSensitiveNotifications)
+    }
+}
+
 private final class NameResultBox: @unchecked Sendable {
     var value: String?
 }
