@@ -38,7 +38,7 @@
 | 対象 | **Markdown でタスクを管理する人。** Obsidian か Logseq かは問わない |
 | 立ち位置 | **特定ツール専用ではない。** Obsidian を標準であるかのように書かない。Obsidian 固有の記法（ブロック ID・内部リンク）は任意の互換機能として維持する |
 | 言語 | **アプリが生成する文字列は英語のみ。** 外部ファイル由来の文字列と利用者の入力はそのまま扱う。**コードコメントと commit メッセージも英語**（[0032](decisions/0032-code-comments-are-english.md)）。日本語で書くのは `docs/` と運用規律の文書だけ |
-| 収益 | **広告・課金・計測なし**（REQ-NFR-008）。支援リンクは設定の About に1つだけ、テキストで、URL を示して置く。集中を切る場所には出さない |
+| 収益 | **広告・課金・計測なし**（REQ-NFR-008）。支援リンクは **Mac の設定の About にだけ**1つ、テキストで、URL を示して置く。**iPhone の設定には置かない**（[0044](decisions/0044-the-support-link-lives-in-one-place.md)）。集中を切る場所には出さない |
 | ライセンス | **MIT** |
 | 改名 | **全範囲**（表示名・bundle ID・ターゲット名・モジュール名・Bonjour サービス型まで。[0024](decisions/0024-rename-everything-to-mdoro.md)） |
 | 読む記法 | **標準のチェックボックス記法のみ**（[0025](decisions/0025-standard-checkbox-syntax-only.md)）。Obsidian のブロック ID は維持 |
