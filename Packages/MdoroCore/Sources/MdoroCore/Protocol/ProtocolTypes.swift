@@ -228,8 +228,10 @@ public enum AuthFailureCode: String, Error, Equatable, Sendable, Codable, CaseIt
 // in a shape nothing else in the app uses.
 //
 // 60–69 belong to this enum. Read the table in `ErrorCode.swift` before taking a number.
-// Decision 0034: the numbers are allocated, not counted off. A gap in them stays a gap —
-// closing it up would move a meaning onto a number an issue already names.
+// The numbers are allocated, not counted off. A gap in them stays a gap — closing it up would
+// move a meaning onto a number an issue already names. 64 is such a gap, and
+// `ACodeKeepsItsMeaningTests` records what it meant and refuses to let anything take it.
+// Neither REQ-ERR-010 nor 0034 says that much; the suite is what holds it.
 extension AuthFailureCode: DiagnosableError {
 
     public var errorCode: ErrorCode {
