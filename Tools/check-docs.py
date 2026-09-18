@@ -1310,7 +1310,15 @@ def self_test() -> int:
         # The cases are not run: they write their fixtures under ROOT and read through SPEC,
         # PUNCH and DECISIONS, so with those wrong they would damage the real tree or raise
         # rather than report, and this list would never be printed at all.
-        print(f"a_repository is wrong in {len(harness_wrong)} place(s); the cases were not run:\n")
+        #
+        # So this is also the only printing anything META found gets: the run ends here, and
+        # the count below has to cover every line printed, not just the harness's share of
+        # them. Counting only the harness while printing `wrong` is a discrepancy that
+        # appears exactly when something else is already broken -- found by the reviewer with
+        # a mutation that broke one META claim and the harness together, where the heading
+        # said eight and nine lines followed.
+        print(f"the self-test is wrong in {len(wrong)} place(s), "
+              f"{len(harness_wrong)} of them in a_repository; the cases were not run:\n")
         print("\n".join(wrong))
         return 1
 
