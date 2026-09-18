@@ -38,7 +38,8 @@ Xcode **26.6（17F113）据え置き** / iPhone 17 は **iOS 26.6.2 据え置き
 | **通知の許可。** `Allow notifications` が ON、Desktop / Notification Center / Lock Screen の3つともチェックのまま | **実測** |
 | **ペアリング。** Mac 側の一覧に `Paired Sep 2, 2026 at 17:24` が残り、**コード入力なしで再接続した** | **実測** |
 | **iPhone の開発者信頼。** アプリは起動した。**7日の時計が 0 なので、7日失効ではありえない** —— **Mac だけの更新は iPhone 側の信頼を落とさない** | **実測** |
-| **`xcode-select -p`** は `/Applications/Xcode.app/Contents/Developer` のまま。**Xcode 26.6 のまま起動し、ライセンス同意も要求されなかった** | **実測** |
+| **`xcode-select -p`** は `/Applications/Xcode.app/Contents/Developer` のまま。`xcodebuild -version` も Xcode 26.6（17F113）を返した | **実測** |
+| ⚠ **ライセンス同意は要求される。** 更新の当日、Xcode.app を開いたところ `Xcode and Apple SDKs Agreement` が出た。**`xcodebuild -version` が通ることは、同意が生きている証拠にならない** —— あれは同意を確かめずに答える。`sudo xcodebuild -license accept` でも通せる | **実測** |
 | **永続化した状態。** ループ数 `3 / 4` が再起動をまたいで残っていた | **実測** |
 | **`POL-164` の常設案内。** Connection タブの「macOS does not tell Mdoro when that permission is off」の文言は macOS 26.7 でも出ている | **実測** |
 
@@ -90,6 +91,7 @@ Apple が「戻せない」と述べているのは**未決定の状態**であ�
 - **Mac の Mdoro が、更新の再起動後に自分で起動した。** ログイン項目なのか
   「再ログイン時にウインドウを再度開く」なのかを切り分けていない
 - **有償の Apple Developer Program でも同じか。** 観察は Personal Team のみ
+- **同意を取り直させたのが更新そのものかは切り分けていない。** 観察されたのは更新の当日に出たという時間的な一致である
 
 ## この観察の途中で見つかった、別の2件
 
