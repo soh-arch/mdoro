@@ -1192,16 +1192,99 @@ META = (
 )
 
 
+# What --self-test asks of a_repository, the one piece of machinery every case above runs
+# through. It rebinds this module's ROOT, SPEC, PUNCH and DECISIONS, so a tool whose job is to
+# answer about *this* tree answers about another one for the length of the self-test. The
+# rebinding is put back, but a rebinding that stopped being put back would say nothing: the
+# cases would still pass, and the next check in the same process would read a tree that has
+# already been deleted. Tools/check-ledger-against-git.py copies this script's column shape
+# rather than importing it so as not to inherit that state, which makes the rebinding
+# load-bearing for a second tool as well -- so it is asked about here rather than assumed.
+#
+# Both polarities, as above: the throwaway tree really is what the checks see while inside,
+# and the real one really is back once outside. Restoration is asked twice, on the normal
+# return and on an exception passing through, because those are separate paths -- dropping the
+# `finally` loses the second one alone (POL-293).
+#
+# ⚠ These are asked before the cases, and a failure stops the run there. a_repository writes the
+# files it is handed under ROOT, so a rebinding that did not take makes every case write its
+# fixtures over the real SPEC, ledger and records -- which is what happened when this was tried
+# by mutation on 2026-09-18. That is also why the rebinding is asked about with no files handed
+# in, and the file that was handed in is only asked about once the rebinding has answered.
+def _paths() -> tuple[Path, Path, Path, Path]:
+    return (ROOT, SPEC, PUNCH, DECISIONS)
+
+
+def _not_put_back(before: tuple[Path, ...], when: str) -> list[str]:
+    return [
+        f"  a_repository left {name} on the throwaway tree {when}: {now} (was {was})"
+        for name, was, now in zip(("ROOT", "SPEC", "PUNCH", "DECISIONS"), before, _paths())
+        if now != was
+    ]
+
+
+class _DeliberateError(Exception):
+    """Raised inside a_repository by the claim below, and caught by it. Nothing else throws it."""
+
+
+def _asks_the_throwaway_tree_is_in_force() -> list[str]:
+    real = _paths()
+    wrong: list[str] = []
+    with a_repository({}):
+        if ROOT == real[0]:
+            wrong.append("  a_repository left ROOT on the real tree, which every case would write into")
+        for name, path in (("SPEC", SPEC), ("PUNCH", PUNCH), ("DECISIONS", DECISIONS)):
+            if ROOT not in path.parents:
+                wrong.append(f"  a_repository left {name} outside the throwaway tree: {path}")
+    if wrong:
+        # Handing a file in now would write it into the real tree. Say what is wrong instead.
+        return wrong
+    ledger = "a throwaway ledger\n"
+    with a_repository({"docs/PUNCHLIST.md": ledger}):
+        try:
+            written = PUNCH.read_text(encoding="utf-8")
+        except OSError as exc:
+            written = f"<unreadable: {exc}>"
+        if written != ledger:
+            wrong.append("  a_repository did not put the files it was handed where PUNCH points")
+    return wrong
+
+
+def _asks_the_real_tree_is_back_on_return() -> list[str]:
+    real = _paths()
+    with a_repository({}):
+        pass
+    return _not_put_back(real, "after it returned")
+
+
+def _asks_the_real_tree_is_back_after_a_raise() -> list[str]:
+    real = _paths()
+    try:
+        with a_repository({}):
+            raise _DeliberateError
+    except _DeliberateError:
+        pass
+    return _not_put_back(real, "after an exception passed through it")
+
+
+HARNESS = (
+    ("the throwaway tree is what the checks see", _asks_the_throwaway_tree_is_in_force),
+    ("the real tree is back on return", _asks_the_real_tree_is_back_on_return),
+    ("the real tree is back after a raise", _asks_the_real_tree_is_back_after_a_raise),
+)
+
+
 def self_test() -> int:
     """Ask every check whether it still works, and the case table whether it still asks.
 
     ⚠ The regress does not close here, and is not meant to. A check needs a test; the test
-    needs something over it; that needs one too. Nothing guards the loops below. So the claim
-    this makes -- every check has a case it catches and a sound one it lets through -- is true
-    only while META and the loops are here. What is closed is the *quiet* failure: both lists
-    below are counted as they are walked, so deleting either an entry or the walk itself
-    changes what the ok line says. Somebody still has to read it (found by the reviewer,
-    2026-09-15).
+    needs something over it; that needs one too. Nothing guards the loops below. So the claims
+    this makes -- every check has a case it catches and a sound one it lets through, and
+    a_repository hands the cases a throwaway tree and hands the real one back -- are true only
+    while META, HARNESS and the loops are here. What is closed is the *quiet* failure: every
+    list below is counted or named as it is walked, so deleting either an entry or the walk
+    itself changes what the ok line says. Somebody still has to read it (found by the
+    reviewer, 2026-09-15).
     """
     cases = [
         (check_in_progress_rows, row, {"docs/PUNCHLIST.md": row + "\n"}, must_complain)
@@ -1214,6 +1297,30 @@ def self_test() -> int:
     for name, ask in META:
         wrong += ask(cases)
         asked.append(name)
+
+    # Asked before the cases run, because every one of them goes through a_repository, and
+    # asked by name for the same reason META is: a deleted claim must leave the ok line (POL-293).
+    asked_of_the_harness = []
+    harness_wrong: list[str] = []
+    for name, ask_harness in HARNESS:
+        harness_wrong += ask_harness()
+        asked_of_the_harness.append(name)
+    wrong += harness_wrong
+    if harness_wrong:
+        # The cases are not run: they write their fixtures under ROOT and read through SPEC,
+        # PUNCH and DECISIONS, so with those wrong they would damage the real tree or raise
+        # rather than report, and this list would never be printed at all.
+        #
+        # So this is also the only printing anything META found gets: the run ends here, and
+        # the count below has to cover every line printed, not just the harness's share of
+        # them. Counting only the harness while printing `wrong` is a discrepancy that
+        # appears exactly when something else is already broken -- found by the reviewer with
+        # a mutation that broke one META claim and the harness together, where the heading
+        # said eight and nine lines followed.
+        print(f"the self-test is wrong in {len(wrong)} place(s), "
+              f"{len(harness_wrong)} of them in a_repository; the cases were not run:\n")
+        print("\n".join(wrong))
+        return 1
 
     counts: Counter = Counter()
     for check, asking, files, must_complain in cases:
@@ -1232,6 +1339,8 @@ def self_test() -> int:
         return 1
     print("ok — " + ", ".join(f"{name} ({counts[check]})" for name, check in CHECKS))
     print("     of the table itself: " + (", ".join(asked) if asked else "nothing was asked"))
+    print("     of a_repository: "
+          + (", ".join(asked_of_the_harness) if asked_of_the_harness else "nothing was asked"))
     return 0
 
 
