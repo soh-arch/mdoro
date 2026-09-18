@@ -1,7 +1,8 @@
 import Foundation
 
-// REQ-UIX-047 / REQ-PRT-001: the one source both platforms' About sections read, so they show
-// the same words in the same order.
+// REQ-UIX-047 / REQ-PRT-001: the one source both platforms' About sections read, so what both of
+// them show, they show with the same words in the same order. The exception is the support link
+// below, which the Mac's About carries alone.
 public enum AppInfo {
     public static let name = "Mdoro"
     public static let tagline = "A focus timer for Markdown task files. Mac and iPhone, over your LAN only."
