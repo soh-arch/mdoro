@@ -1312,12 +1312,13 @@ ESCAPED_FIXTURE = "check-docs-self-test-must-never-be-written.md"
 def _asks_a_write_outside_the_throwaway_tree_is_refused() -> list[str]:
     """POL-299: the guard in _under_the_throwaway_tree fires, and nothing reaches the disk.
 
-    Asked two ways. End to end, with a name that climbs out of the tree, because that goes
+    Asked three ways. End to end, with a name that climbs out of the tree, because that goes
     through a_repository's own write and so answers whether the guard is actually wired into
-    it. And of the guard alone, handed this repository's real SPEC, ledger and CLAUDE.md
+    it. Of the guard alone, handed this repository's real SPEC, ledger and CLAUDE.md
     against a throwaway tree, because that is the shape the accident took -- ROOT still on the
     real tree while tempfile had made another one -- and reproducing *that* through
-    a_repository would mean breaking the rebinding, which is the accident itself.
+    a_repository would mean breaking the rebinding, which is the accident itself. And at the
+    boundary: the tree's own directory, which is the edge the comparison is written on.
     """
     real = _paths()
     wrong: list[str] = []
@@ -1339,6 +1340,22 @@ def _asks_a_write_outside_the_throwaway_tree_is_refused() -> list[str]:
                 _under_the_throwaway_tree(path, Path(tree))
                 wrong.append(
                     f"  the guard let a write through to the real {name} at {path}")
+            except OutsideTheThrowawayTree:
+                pass
+        # The edge itself: a path that IS the tree. `parents` does not contain the path it was
+        # taken from, so the tree is not under the tree -- which is the wanted answer and not
+        # merely what Path happens to do. Every fixture has a name; a write aimed at the tree's
+        # own directory is therefore not a fixture, and letting it by buys an IsADirectoryError
+        # out of write_text instead of a sentence naming the tree. Asked here because the two
+        # claims otherwise stand well clear of the boundary on both sides, and a comparison
+        # moved either way -- to admit the tree, or to admit only its immediate children --
+        # would go unheard (found by the reviewer, 2026-09-18).
+        for asking, path in (("the throwaway tree itself", Path(tree)),
+                             ("a name walking back to the tree", Path(tree) / "docs" / "..")):
+            try:
+                _under_the_throwaway_tree(path, Path(tree))
+                wrong.append(f"  the guard let a write through to {asking}, which names no "
+                             f"fixture: {path}")
             except OutsideTheThrowawayTree:
                 pass
     return wrong
