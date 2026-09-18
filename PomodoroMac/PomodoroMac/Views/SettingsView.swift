@@ -429,8 +429,9 @@ struct SettingsView: View {
 
     // MARK: - About
 
-    // decisions/0021: one support link, here and nowhere else. It never appears where it would break
-    // concentration.
+    // decisions/0044: one support link, here and nowhere else. The iPhone's About carried a second
+    // one until 0044, so "nowhere else" now counts the same however it is read. It never appears
+    // where it would break concentration.
     private var aboutTab: some View {
         Form {
             Section(AppInfo.name) {

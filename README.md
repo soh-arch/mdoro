@@ -207,7 +207,8 @@ Mdoro is free, carries no ads and asks for nothing. If it earns a place in your 
 
 <https://buymeacoffee.com/soh.arch>
 
-The same link sits in the app under Settings → About, once, and nowhere else.
+Inside the app it sits in the Mac's Settings → About — once, and nowhere else.
+The iPhone does not carry it, and it never appears where it would break a session.
 
 ## License
 
