@@ -113,7 +113,8 @@ final class NotificationScheduler {
     }
 
     // REQ-NTF-005: sent as Time Sensitive, and the user can turn that off in the settings.
-    // REQ-NTF-006: the sound the preset names, silence included.
+    // REQ-NTF-006: the sound. ⚠ **On the iPhone that is the OS default or nothing** — the preset
+    // may name chime, bell or wood, and `sound(for:)` below collapses all three (Decision 0020).
     //
     // ⚠ **Setting the level asks for a Focus to be broken; it does not make it happen.**
     // `.timeSensitive` is gated by the "Time Sensitive Notifications" capability, and **this
