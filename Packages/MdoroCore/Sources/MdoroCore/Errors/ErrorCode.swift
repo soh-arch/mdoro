@@ -49,8 +49,9 @@ public struct ErrorCode: Equatable, Hashable, Sendable, CustomStringConvertible 
     public func summary(_ caseName: String) -> String { "\(caseName)(\(self))" }
 }
 
-// Decision 0034: fixed codes for the `Mdoro` domain. Allocated once, never reused, so a
-// number found in an issue always means the same thing. This is not the whole domain:
+// Decision 0034: fixed codes for the `Mdoro` domain. Allocated once and never reused, so a
+// number found in an issue always means the same thing — 0034 fixes the code per case, and
+// `ACodeKeepsItsMeaningTests` is what holds the second half. This is not the whole domain:
 // 40–49 are allocated with `TimerError` instead, at the bottom of this table.
 public extension ErrorCode {
     // 1–9: writing the session log.

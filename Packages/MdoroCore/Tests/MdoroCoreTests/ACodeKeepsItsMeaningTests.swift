@@ -1,10 +1,15 @@
 import Testing
 @testable import MdoroCore
 
-// REQ-ERR-010 / Decision 0034: a number in the `Mdoro` domain is handed out once and keeps the
-// meaning it was handed out for. The number leaves the app — it is written into the diagnostic
-// log and the user pastes it into an issue — so moving a number does not break anything that
-// runs, it breaks every report filed before the move.
+// REQ-ERR-010 / Decision 0034: a failure is recorded as a domain and a code, and our own
+// failures carry the `Mdoro` domain with a code fixed per case. That much is written down.
+//
+// This suite rests on one step past it, which neither the requirement nor the record states: a
+// number that has been handed out keeps the meaning it was handed out for, and a number
+// withdrawn is never handed out again. The reason is not in the code but in where the code
+// goes — it is written into the diagnostic log and the user pastes it into an issue — so
+// moving a number does not break anything that runs, it breaks every report filed before the
+// move. Until a record says it, the ledger below is where that rule lives.
 //
 // `ErrorReportingTests.everyCodeInOurOwnDomainMeansOneThing` asks only that no two meanings
 // share a number today, which a table where every number moved at once still satisfies. What
@@ -180,8 +185,8 @@ struct ACodeKeepsItsMeaningTests {
             #expect(
                 entry.code.code == number,
                 """
-                \(entry.label) is now \(entry.code.code), recorded as \(number). Decision 0034: \
-                the recorded number is already in reports the user filed.
+                \(entry.label) is now \(entry.code.code), recorded as \(number). The recorded \
+                number is already in reports the user filed.
                 """
             )
         }
@@ -202,8 +207,9 @@ struct ACodeKeepsItsMeaningTests {
         )
     }
 
-    // Decision 0034: the numbers are allocated, not counted off. A hole in them is not a free
-    // number — it is a number some issue already names, and the meaning it named is gone.
+    // The numbers are allocated, not counted off — the half of the rule no record states, held
+    // here (see the note at the top of this file). A hole in them is not a free number: it is a
+    // number some issue already names, and the meaning it named is gone.
     @Test func aNumberOnceWithdrawnIsNeverHandedOutAgain() {
         let inUse = numbersInUse()
         let ledger = ledgerByLabel()
