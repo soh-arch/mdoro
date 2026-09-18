@@ -641,6 +641,35 @@ CHECKS = (
 # passed by a check that complains about everything, which is the same silence in a louder form.
 
 
+class OutsideTheThrowawayTree(Exception):
+    """A fixture was about to be written somewhere other than the tree tempfile just made."""
+
+
+def _under_the_throwaway_tree(path: Path, tree: Path) -> Path:
+    """Return `path` when it lies under `tree`, and raise OutsideTheThrowawayTree when it does not.
+
+    POL-299: a_repository writes each fixture to ROOT / name, and the only thing keeping that
+    off the real repository is the rebinding of ROOT three lines above the write. On 2026-09-18
+    a mutation of that rebinding wrote fixtures over CLAUDE.md, docs/SPEC.md, the ledger and two
+    READMEs -- 2920 lines gone -- and CI runs --self-test, so the same mutation arriving in a
+    pull request would do it on a runner. The early stop in HARNESS below refuses to run the
+    *cases* when the rebinding did not take; this refuses the *write* itself, anchored to the
+    path tempfile returned rather than to ROOT, which is what the accident moved. Two layers,
+    because the write is where the damage happens.
+    """
+    try:
+        resolved, tree = path.resolve(), tree.resolve()
+    except OSError as exc:  # An unresolvable target is not a demonstrated-safe one.
+        raise OutsideTheThrowawayTree(f"cannot place {path}: {exc}") from exc
+    if tree not in resolved.parents:
+        raise OutsideTheThrowawayTree(
+            f"the self-test was about to write {resolved}, which is not under the throwaway "
+            f"tree {tree} that tempfile made. Refusing: what lies outside that tree includes "
+            f"this repository's own documents (POL-299)"
+        )
+    return path
+
+
 @contextlib.contextmanager
 def a_repository(files: dict[str, str]):
     """Point this module at a throwaway tree holding exactly `files`, then put it back."""
@@ -649,11 +678,14 @@ def a_repository(files: dict[str, str]):
     with tempfile.TemporaryDirectory() as tmp:
         ROOT = Path(tmp)
         SPEC, PUNCH, DECISIONS = ROOT / "docs/SPEC.md", ROOT / "docs/PUNCHLIST.md", ROOT / "docs/decisions"
-        for name, body in files.items():
-            path = ROOT / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(body, encoding="utf-8")
         try:
+            # Inside the try, so that a refused write puts the rebinding back on its way out
+            # (POL-299). Outside it, a raise here would leave ROOT on a tree about to be
+            # deleted, and every later read in the same process would follow it there.
+            for name, body in files.items():
+                path = _under_the_throwaway_tree(ROOT / name, Path(tmp))
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(body, encoding="utf-8")
             yield
         finally:
             ROOT, SPEC, PUNCH, DECISIONS = kept
@@ -1211,6 +1243,12 @@ META = (
 # fixtures over the real SPEC, ledger and records -- which is what happened when this was tried
 # by mutation on 2026-09-18. That is also why the rebinding is asked about with no files handed
 # in, and the file that was handed in is only asked about once the rebinding has answered.
+#
+# Stopping early is not the whole answer, though: it only runs once something already calls it,
+# and the mutation that caused the accident was in a_repository itself. So the write is guarded
+# where it happens, by _under_the_throwaway_tree, and the last two claims below are about that
+# guard -- that it refuses a write landing outside the tree tempfile made, and that it lets a
+# sound throwaway tree through (POL-299).
 def _paths() -> tuple[Path, Path, Path, Path]:
     return (ROOT, SPEC, PUNCH, DECISIONS)
 
@@ -1267,10 +1305,83 @@ def _asks_the_real_tree_is_back_after_a_raise() -> list[str]:
     return _not_put_back(real, "after an exception passed through it")
 
 
+# A name no fixture uses, so that finding it on disk can only mean the write below got through.
+ESCAPED_FIXTURE = "check-docs-self-test-must-never-be-written.md"
+
+
+def _asks_a_write_outside_the_throwaway_tree_is_refused() -> list[str]:
+    """POL-299: the guard in _under_the_throwaway_tree fires, and nothing reaches the disk.
+
+    Asked two ways. End to end, with a name that climbs out of the tree, because that goes
+    through a_repository's own write and so answers whether the guard is actually wired into
+    it. And of the guard alone, handed this repository's real SPEC, ledger and CLAUDE.md
+    against a throwaway tree, because that is the shape the accident took -- ROOT still on the
+    real tree while tempfile had made another one -- and reproducing *that* through
+    a_repository would mean breaking the rebinding, which is the accident itself.
+    """
+    real = _paths()
+    wrong: list[str] = []
+    try:
+        with a_repository({f"../{ESCAPED_FIXTURE}": "this must never reach a disk\n"}):
+            wrong.append(
+                "  a_repository wrote a fixture whose path climbs out of the throwaway tree")
+    except OutsideTheThrowawayTree:
+        pass
+    # The refusal has to come before write_text, not after it: a guard that reports a write it
+    # already made is POL-299 with a log line. The climb lands in tempfile's own directory.
+    escaped = Path(tempfile.gettempdir()).resolve() / ESCAPED_FIXTURE
+    if escaped.exists():
+        wrong.append(f"  the refused fixture was written anyway, and is at {escaped}")
+    wrong += _not_put_back(real, "after refusing a write outside it")
+    with tempfile.TemporaryDirectory() as tree:
+        for name, path in (("SPEC", real[1]), ("PUNCH", real[2]), ("CLAUDE.md", real[0] / "CLAUDE.md")):
+            try:
+                _under_the_throwaway_tree(path, Path(tree))
+                wrong.append(
+                    f"  the guard let a write through to the real {name} at {path}")
+            except OutsideTheThrowawayTree:
+                pass
+    return wrong
+
+
+def _asks_a_sound_throwaway_tree_is_let_through() -> list[str]:
+    """The other polarity (POL-299): a guard that refuses everything is the same silence, louder.
+
+    Three depths -- the root of the tree, one level down and two -- because the guard compares a
+    resolved path against a resolved tree, and the directories under it are made by the same
+    write it stands in front of.
+    """
+    files = {
+        "CLAUDE.md": "at the root of the throwaway tree\n",
+        "docs/PUNCHLIST.md": "one level down\n",
+        "docs/decisions/0001-a-decision.md": SOUND_DECISION,
+    }
+    wrong: list[str] = []
+    try:
+        with a_repository(files):
+            for name, body in files.items():
+                try:
+                    written = (ROOT / name).read_text(encoding="utf-8")
+                except OSError as exc:
+                    written = f"<unreadable: {exc}>"
+                if written != body:
+                    wrong.append(f"  a sound fixture did not land at {name}: {written!r}")
+    except OutsideTheThrowawayTree as exc:
+        # Two things reach here, and the exception says which: a guard stricter than it should
+        # be, or a rebinding that did not take, leaving sound relative names pointing at the
+        # real tree. The second is the accident, caught at the write rather than by the claims.
+        wrong.append(
+            "  a sound throwaway tree was refused, so either the guard is stricter than it "
+            f"should be or the rebinding above it did not take: {exc}")
+    return wrong
+
+
 HARNESS = (
     ("the throwaway tree is what the checks see", _asks_the_throwaway_tree_is_in_force),
     ("the real tree is back on return", _asks_the_real_tree_is_back_on_return),
     ("the real tree is back after a raise", _asks_the_real_tree_is_back_after_a_raise),
+    ("a write outside the throwaway tree is refused", _asks_a_write_outside_the_throwaway_tree_is_refused),
+    ("a sound throwaway tree is let through", _asks_a_sound_throwaway_tree_is_let_through),
 )
 
 
@@ -1303,7 +1414,14 @@ def self_test() -> int:
     asked_of_the_harness = []
     harness_wrong: list[str] = []
     for name, ask_harness in HARNESS:
-        harness_wrong += ask_harness()
+        try:
+            harness_wrong += ask_harness()
+        except Exception as exc:
+            # A claim that raised answered nothing, and saying so beats a traceback that names
+            # no claim. The guard added for POL-299 raises through the three claims written
+            # before it -- an over-strict guard refuses their fixtures -- and either way the
+            # run stops here without touching the real tree.
+            harness_wrong.append(f"  {name} raised instead of answering: {exc!r}")
         asked_of_the_harness.append(name)
     wrong += harness_wrong
     if harness_wrong:
