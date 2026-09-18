@@ -1253,63 +1253,104 @@ def _paths() -> tuple[Path, Path, Path, Path]:
     return (ROOT, SPEC, PUNCH, DECISIONS)
 
 
-def _not_put_back(before: tuple[Path, ...], when: str) -> list[str]:
-    return [
-        f"  a_repository left {name} on the throwaway tree {when}: {now} (was {was})"
-        for name, was, now in zip(("ROOT", "SPEC", "PUNCH", "DECISIONS"), before, _paths())
-        if now != was
-    ]
+class Asking:
+    """The points one HARNESS claim put, counted where each one is put.
+
+    POL-302: HARNESS made a deleted *claim* visible -- the name drops out of the ok line -- and
+    said nothing about a point deleted from inside one. `a write outside the throwaway tree is
+    refused` asks about eleven separate things; before this, deleting ten of them left the ok
+    line identical, which is the shape CLAUDE.md names: a check can be broken and the screen
+    still reads like success. So each claim now reports how many points it asked, and the ok
+    line prints it beside the name, the way CHECKS already prints `links (8)`.
+
+    The count is taken where the question is asked rather than written down beside it. A number
+    kept alongside the claims is a second thing to maintain, and it goes on being printed after
+    the point it counted is gone -- counting without counting, which POL-269, POL-273 and
+    POL-280 are each a record of. Here there is nothing to update: a deleted `that(...)` or
+    `refuses(...)`, or an entry dropped from a tuple one of them loops over, lowers the number
+    because the number is only ever the calls that happened.
+    """
+
+    def __init__(self) -> None:
+        self.asked = 0
+        self.wrong: list[str] = []
+
+    def that(self, held: bool, complaint: str) -> None:
+        """One point: `held` is what must be true, `complaint` what to say when it is not."""
+        self.asked += 1
+        if not held:
+            self.wrong.append(f"  {complaint}")
+
+    @contextlib.contextmanager
+    def refuses(self, complaint: str):
+        """One point: the block must raise OutsideTheThrowawayTree, and the raise is swallowed."""
+        self.asked += 1
+        try:
+            yield
+        except OutsideTheThrowawayTree:
+            return
+        self.wrong.append(f"  {complaint}")
+
+    def could_not_ask(self, complaint: str) -> None:
+        """Something went wrong that is not a point of its own, so nothing is counted for it."""
+        self.wrong.append(f"  {complaint}")
+
+
+def _asks_put_back(asking: Asking, before: tuple[Path, ...], when: str) -> None:
+    for name, was, now in zip(("ROOT", "SPEC", "PUNCH", "DECISIONS"), before, _paths()):
+        asking.that(now == was,
+                    f"a_repository left {name} on the throwaway tree {when}: {now} (was {was})")
 
 
 class _DeliberateError(Exception):
     """Raised inside a_repository by the claim below, and caught by it. Nothing else throws it."""
 
 
-def _asks_the_throwaway_tree_is_in_force() -> list[str]:
+def _asks_the_throwaway_tree_is_in_force(asking: Asking) -> None:
     real = _paths()
-    wrong: list[str] = []
     with a_repository({}):
-        if ROOT == real[0]:
-            wrong.append("  a_repository left ROOT on the real tree, which every case would write into")
+        asking.that(ROOT != real[0],
+                    "a_repository left ROOT on the real tree, which every case would write into")
         for name, path in (("SPEC", SPEC), ("PUNCH", PUNCH), ("DECISIONS", DECISIONS)):
-            if ROOT not in path.parents:
-                wrong.append(f"  a_repository left {name} outside the throwaway tree: {path}")
-    if wrong:
-        # Handing a file in now would write it into the real tree. Say what is wrong instead.
-        return wrong
+            asking.that(ROOT in path.parents,
+                        f"a_repository left {name} outside the throwaway tree: {path}")
+    if asking.wrong:
+        # Handing a file in now would write it into the real tree. Say what is wrong instead --
+        # and the count stops here too, which is the honest answer: the last point below was
+        # never put.
+        return
     ledger = "a throwaway ledger\n"
     with a_repository({"docs/PUNCHLIST.md": ledger}):
         try:
             written = PUNCH.read_text(encoding="utf-8")
         except OSError as exc:
             written = f"<unreadable: {exc}>"
-        if written != ledger:
-            wrong.append("  a_repository did not put the files it was handed where PUNCH points")
-    return wrong
+        asking.that(written == ledger,
+                    "a_repository did not put the files it was handed where PUNCH points")
 
 
-def _asks_the_real_tree_is_back_on_return() -> list[str]:
+def _asks_the_real_tree_is_back_on_return(asking: Asking) -> None:
     real = _paths()
     with a_repository({}):
         pass
-    return _not_put_back(real, "after it returned")
+    _asks_put_back(asking, real, "after it returned")
 
 
-def _asks_the_real_tree_is_back_after_a_raise() -> list[str]:
+def _asks_the_real_tree_is_back_after_a_raise(asking: Asking) -> None:
     real = _paths()
     try:
         with a_repository({}):
             raise _DeliberateError
     except _DeliberateError:
         pass
-    return _not_put_back(real, "after an exception passed through it")
+    _asks_put_back(asking, real, "after an exception passed through it")
 
 
 # A name no fixture uses, so that finding it on disk can only mean the write below got through.
 ESCAPED_FIXTURE = "check-docs-self-test-must-never-be-written.md"
 
 
-def _asks_a_write_outside_the_throwaway_tree_is_refused() -> list[str]:
+def _asks_a_write_outside_the_throwaway_tree_is_refused(asking: Asking) -> None:
     """POL-299: the guard in _under_the_throwaway_tree fires, and nothing reaches the disk.
 
     Asked three ways. End to end, with a name that climbs out of the tree, because that goes
@@ -1321,27 +1362,18 @@ def _asks_a_write_outside_the_throwaway_tree_is_refused() -> list[str]:
     boundary: the tree's own directory, which is the edge the comparison is written on.
     """
     real = _paths()
-    wrong: list[str] = []
-    try:
+    with asking.refuses("a_repository wrote a fixture whose path climbs out of the throwaway tree"):
         with a_repository({f"../{ESCAPED_FIXTURE}": "this must never reach a disk\n"}):
-            wrong.append(
-                "  a_repository wrote a fixture whose path climbs out of the throwaway tree")
-    except OutsideTheThrowawayTree:
-        pass
+            pass
     # The refusal has to come before write_text, not after it: a guard that reports a write it
     # already made is POL-299 with a log line. The climb lands in tempfile's own directory.
     escaped = Path(tempfile.gettempdir()).resolve() / ESCAPED_FIXTURE
-    if escaped.exists():
-        wrong.append(f"  the refused fixture was written anyway, and is at {escaped}")
-    wrong += _not_put_back(real, "after refusing a write outside it")
+    asking.that(not escaped.exists(), f"the refused fixture was written anyway, and is at {escaped}")
+    _asks_put_back(asking, real, "after refusing a write outside it")
     with tempfile.TemporaryDirectory() as tree:
         for name, path in (("SPEC", real[1]), ("PUNCH", real[2]), ("CLAUDE.md", real[0] / "CLAUDE.md")):
-            try:
+            with asking.refuses(f"the guard let a write through to the real {name} at {path}"):
                 _under_the_throwaway_tree(path, Path(tree))
-                wrong.append(
-                    f"  the guard let a write through to the real {name} at {path}")
-            except OutsideTheThrowawayTree:
-                pass
         # The edge itself: a path that IS the tree. `parents` does not contain the path it was
         # taken from, so the tree is not under the tree -- which is the wanted answer and not
         # merely what Path happens to do. Every fixture has a name; a write aimed at the tree's
@@ -1350,18 +1382,14 @@ def _asks_a_write_outside_the_throwaway_tree_is_refused() -> list[str]:
         # claims otherwise stand well clear of the boundary on both sides, and a comparison
         # moved either way -- to admit the tree, or to admit only its immediate children --
         # would go unheard (found by the reviewer, 2026-09-18).
-        for asking, path in (("the throwaway tree itself", Path(tree)),
-                             ("a name walking back to the tree", Path(tree) / "docs" / "..")):
-            try:
+        for about, path in (("the throwaway tree itself", Path(tree)),
+                            ("a name walking back to the tree", Path(tree) / "docs" / "..")):
+            with asking.refuses(f"the guard let a write through to {about}, which names no "
+                                f"fixture: {path}"):
                 _under_the_throwaway_tree(path, Path(tree))
-                wrong.append(f"  the guard let a write through to {asking}, which names no "
-                             f"fixture: {path}")
-            except OutsideTheThrowawayTree:
-                pass
-    return wrong
 
 
-def _asks_a_sound_throwaway_tree_is_let_through() -> list[str]:
+def _asks_a_sound_throwaway_tree_is_let_through(asking: Asking) -> None:
     """The other polarity (POL-299): a guard that refuses everything is the same silence, louder.
 
     Three depths -- the root of the tree, one level down and two -- because the guard compares a
@@ -1373,7 +1401,6 @@ def _asks_a_sound_throwaway_tree_is_let_through() -> list[str]:
         "docs/PUNCHLIST.md": "one level down\n",
         "docs/decisions/0001-a-decision.md": SOUND_DECISION,
     }
-    wrong: list[str] = []
     try:
         with a_repository(files):
             for name, body in files.items():
@@ -1381,16 +1408,17 @@ def _asks_a_sound_throwaway_tree_is_let_through() -> list[str]:
                     written = (ROOT / name).read_text(encoding="utf-8")
                 except OSError as exc:
                     written = f"<unreadable: {exc}>"
-                if written != body:
-                    wrong.append(f"  a sound fixture did not land at {name}: {written!r}")
+                asking.that(written == body,
+                            f"a sound fixture did not land at {name}: {written!r}")
     except OutsideTheThrowawayTree as exc:
         # Two things reach here, and the exception says which: a guard stricter than it should
         # be, or a rebinding that did not take, leaving sound relative names pointing at the
         # real tree. The second is the accident, caught at the write rather than by the claims.
-        wrong.append(
-            "  a sound throwaway tree was refused, so either the guard is stricter than it "
+        # Not a point of its own: the depths after the refused one went unasked, and the count
+        # says so.
+        asking.could_not_ask(
+            "a sound throwaway tree was refused, so either the guard is stricter than it "
             f"should be or the rebinding above it did not take: {exc}")
-    return wrong
 
 
 HARNESS = (
@@ -1413,6 +1441,12 @@ def self_test() -> int:
     list below is counted or named as it is walked, so deleting either an entry or the walk
     itself changes what the ok line says. Somebody still has to read it (found by the
     reviewer, 2026-09-15).
+
+    A HARNESS claim is counted a second time, from within: the points it puts are counted where
+    it puts them, and the ok line prints that number beside the name, so deleting one of the
+    eleven things `a write outside the throwaway tree is refused` asks about is no quieter than
+    deleting the claim itself was (POL-302). META's claims are not counted this way -- each is
+    one comprehension over CHECKS, and deleting it deletes the claim.
     """
     cases = [
         (check_in_progress_rows, row, {"docs/PUNCHLIST.md": row + "\n"}, must_complain)
@@ -1428,18 +1462,31 @@ def self_test() -> int:
 
     # Asked before the cases run, because every one of them goes through a_repository, and
     # asked by name for the same reason META is: a deleted claim must leave the ok line (POL-293).
-    asked_of_the_harness = []
+    # Each claim is handed the Asking it counts its points into, rather than making its own, so
+    # that a claim which raises part way through still says how far it got (POL-302).
+    asked_of_the_harness: list[tuple[str, int]] = []
     harness_wrong: list[str] = []
     for name, ask_harness in HARNESS:
+        asking = Asking()
         try:
-            harness_wrong += ask_harness()
+            ask_harness(asking)
         except Exception as exc:
             # A claim that raised answered nothing, and saying so beats a traceback that names
             # no claim. The guard added for POL-299 raises through the three claims written
             # before it -- an over-strict guard refuses their fixtures -- and either way the
             # run stops here without touching the real tree.
-            harness_wrong.append(f"  {name} raised instead of answering: {exc!r}")
-        asked_of_the_harness.append(name)
+            asking.could_not_ask(f"{name} raised instead of answering: {exc!r}")
+        else:
+            # An empty result is not a pass: a claim whose points were all deleted would
+            # otherwise print `(0)` in the ok line and leave the noticing to whoever reads it.
+            # Only when it said nothing at all -- a claim cut short by a refusal it reported
+            # itself has already named the trouble, and a second line guessing at deletion
+            # would misdescribe it.
+            if not asking.asked and not asking.wrong:
+                asking.could_not_ask(
+                    f"{name} asked nothing, so nothing is left of it but its name")
+        harness_wrong += asking.wrong
+        asked_of_the_harness.append((name, asking.asked))
     wrong += harness_wrong
     if harness_wrong:
         # The cases are not run: they write their fixtures under ROOT and read through SPEC,
@@ -1474,8 +1521,11 @@ def self_test() -> int:
         return 1
     print("ok — " + ", ".join(f"{name} ({counts[check]})" for name, check in CHECKS))
     print("     of the table itself: " + (", ".join(asked) if asked else "nothing was asked"))
+    # With the count beside each name, as CHECKS prints it: a point deleted from inside a claim
+    # shows up here as a smaller number (POL-302).
     print("     of a_repository: "
-          + (", ".join(asked_of_the_harness) if asked_of_the_harness else "nothing was asked"))
+          + (", ".join(f"{name} ({n})" for name, n in asked_of_the_harness)
+             if asked_of_the_harness else "nothing was asked"))
     return 0
 
 
