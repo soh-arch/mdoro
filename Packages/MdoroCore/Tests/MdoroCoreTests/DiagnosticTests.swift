@@ -181,3 +181,118 @@ struct DiagnosticRotationTests {
         #expect(file.lastFailure != nil)
     }
 }
+
+// How many times a string occurs. The count is what separates "a header per launch" from
+// "a header per line" and from "a header once, in August".
+private func occurrences(of needle: String, in text: String) -> Int {
+    text.components(separatedBy: needle).count - 1
+}
+
+@Suite("Diagnostic log header per launch (REQ-ERR-010)")
+struct DiagnosticHeaderPerLaunchTests {
+
+    // The header is the only place the OS version and the settings appear. A file that was created
+    // weeks ago must not go on describing the machine of the day it was created.
+    @Test func aLaterLaunchWritesItsOwnHeaderIntoTheFileThatIsAlreadyThere() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let first = DiagnosticLogFile(directory: directory, header: header)
+        first.write(DiagnosticEvent(code: "app.start"))
+        first.write(DiagnosticEvent(code: "session.start"))
+
+        // The machine moved on between the two launches: a newer OS, and a task file now chosen.
+        var later = header
+        later.osVersion = "macOS 26.7.0"
+        later.openedAt = Date(timeIntervalSince1970: 1_758_000_000)
+        later.settings = [DiagnosticField("vault", "#3f9a")]
+        let second = DiagnosticLogFile(directory: directory, header: later)
+        second.write(DiagnosticEvent(code: "app.start"))
+        second.write(DiagnosticEvent(code: "session.start"))
+
+        #expect(second.lastFailure == nil)
+        let text = try String(contentsOf: second.currentURL, encoding: .utf8)
+        #expect(text.contains("os=macOS 26.7.0"), "the OS this launch is running on never reached the file")
+        #expect(text.contains("vault=#3f9a"), "the settings this launch is running under never reached the file")
+        // One header per launch: not one per line, and not one per file.
+        #expect(occurrences(of: "# opened=", in: text) == 2)
+        #expect(occurrences(of: "os=macOS 26.0", in: text) == 1)
+
+        // The new header stands ahead of the lines it accounts for.
+        let lines = text.split(separator: "\n").map(String.init)
+        let newestHeader = try #require(lines.lastIndex { $0.hasPrefix("# opened=") })
+        let newestEvent = try #require(lines.lastIndex { !$0.hasPrefix("#") })
+        #expect(newestHeader < newestEvent)
+        #expect(lines.filter { !$0.hasPrefix("#") }.count == 4, "every event written is still one line")
+    }
+
+    // Decision 0018: nothing here deletes old lines. The header of a new launch is one more append,
+    // so what was on disk stays on disk, byte for byte, in the place it already had.
+    @Test func theLinesOfEarlierLaunchesAreKeptByteForByte() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let first = DiagnosticLogFile(directory: directory, header: header)
+        for index in 0..<5 {
+            first.write(DiagnosticEvent(code: "tick", fields: [DiagnosticField("n", index)]))
+        }
+        let before = try String(contentsOf: first.currentURL, encoding: .utf8)
+
+        var later = header
+        later.osVersion = "macOS 26.7.0"
+        let second = DiagnosticLogFile(directory: directory, header: later)
+        second.write(DiagnosticEvent(code: "tick", fields: [DiagnosticField("n", 5)]))
+
+        let after = try String(contentsOf: second.currentURL, encoding: .utf8)
+        #expect(after.hasPrefix(before), "an earlier launch's lines were rewritten rather than appended to")
+        #expect(after.count > before.count)
+        #expect(after.contains("n=0"))
+        #expect(after.contains("n=5"))
+        // The file still opens with the header of the launch that created it. The new one is below.
+        #expect(after.hasPrefix("# Mdoro diagnostic log"))
+        #expect(occurrences(of: "os=macOS 26.0", in: after) == 1)
+        #expect(occurrences(of: "os=macOS 26.7.0", in: after) == 1)
+    }
+
+    // A launch that never writes an event leaves no header behind: the header rides on the first line.
+    @Test func aLaunchThatWritesNothingLeavesNoHeader() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let first = DiagnosticLogFile(directory: directory, header: header)
+        first.write(DiagnosticEvent(code: "app.start"))
+        _ = DiagnosticLogFile(directory: directory, header: header)
+        let third = DiagnosticLogFile(directory: directory, header: header)
+        third.write(DiagnosticEvent(code: "app.start"))
+        third.write(DiagnosticEvent(code: "app.stop"))
+
+        let text = try String(contentsOf: third.currentURL, encoding: .utf8)
+        #expect(occurrences(of: "# opened=", in: text) == 2)
+    }
+
+    // When a launch's first line is also the one that rotates the file, the header belongs at the top
+    // of the new file — once, not twice. The limit here is deliberately smaller than a single header,
+    // so the rotation is certain rather than a matter of counting bytes.
+    @Test func aLaunchThatRotatesOnItsFirstLineWritesOneHeader() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let first = DiagnosticLogFile(directory: directory, header: header, maxBytes: 100)
+        first.write(DiagnosticEvent(code: "tick", fields: [DiagnosticField("n", 0)]))
+
+        var later = header
+        later.osVersion = "macOS 26.7.0"
+        let second = DiagnosticLogFile(directory: directory, header: later, maxBytes: 100)
+        second.write(DiagnosticEvent(code: "tick", fields: [DiagnosticField("n", 1)]))
+
+        #expect(second.lastFailure == nil)
+        let current = try String(contentsOf: second.currentURL, encoding: .utf8)
+        #expect(current.hasPrefix("# Mdoro diagnostic log"))
+        #expect(occurrences(of: "# opened=", in: current) == 1)
+        #expect(current.contains("os=macOS 26.7.0"))
+        #expect(current.contains("n=1"))
+        // The older generation is still there, with the line it had.
+        let previous = try String(contentsOf: second.previousURL, encoding: .utf8)
+        #expect(previous.contains("n=0"))
+    }
+}

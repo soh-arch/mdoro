@@ -9,6 +9,8 @@ public struct DiagnosticHeader: Sendable, Equatable {
     public var build: String
     public var osVersion: String
     public var architecture: String
+    // REQ-ERR-010: when this header was written — the launch it describes, not the day the file was
+    // first created. A long-lived file carries one `# opened=` per launch.
     public var openedAt: Date
     // Only settings that change behaviour. No paths, no file names.
     public var settings: [DiagnosticField]
@@ -68,6 +70,9 @@ public enum DiagnosticLogFormat {
     }
 
     // What was decided not to record is stated **in the file itself.**
+    // REQ-ERR-010: one of these per launch, not one per file — the same block whether it opens a new
+    // file or is appended to one that was already there, so a reader learns the environment the same
+    // way wherever they enter the log.
     public static func header(_ header: DiagnosticHeader) -> String {
         var lines = [
             "# Mdoro diagnostic log",

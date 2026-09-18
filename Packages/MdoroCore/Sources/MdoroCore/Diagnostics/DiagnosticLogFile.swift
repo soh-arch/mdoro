@@ -15,6 +15,13 @@ public final class DiagnosticLogFile: @unchecked Sendable {
     public private(set) var lastFailure: ErrorCode?
 
     private let header: DiagnosticHeader
+    // REQ-ERR-010 / Decision 0018: the header is the only place the OS version, the app version and
+    // the settings appear at all. A file that already exists carries the header of whichever launch
+    // created it, so a record attached to a bug report would describe the machine as it was then —
+    // before an OS update, before a task file was chosen. **Each launch writes its own header, once,
+    // ahead of its first line.** Nothing already in the file is read, rewritten or removed: this is
+    // one more append. Guarded by the same lock as `lastFailure`.
+    private var hasWrittenHeader = false
     private let maxBytes: Int
     private let fileManager: FileManager
     private let lock = NSLock()
@@ -60,7 +67,14 @@ public final class DiagnosticLogFile: @unchecked Sendable {
             try open(with: data)
             return
         }
-        if DiagnosticLogFormat.shouldRotate(currentBytes: size, incomingBytes: data.count, maxBytes: maxBytes) {
+        // REQ-ERR-010: this launch's header goes in ahead of its first line. A rotation writes the
+        // header itself, so it is counted here only to keep the size limit honest either way.
+        let pendingHeader = hasWrittenHeader ? Data() : Data(DiagnosticLogFormat.header(header).utf8)
+        if DiagnosticLogFormat.shouldRotate(
+            currentBytes: size,
+            incomingBytes: pendingHeader.count + data.count,
+            maxBytes: maxBytes
+        ) {
             try rotate()
             try open(with: data)
             return
@@ -68,13 +82,20 @@ public final class DiagnosticLogFile: @unchecked Sendable {
         let handle = try FileHandle(forWritingTo: currentURL)
         defer { try? handle.close() }
         try handle.seekToEnd()
+        if !pendingHeader.isEmpty {
+            try handle.write(contentsOf: pendingHeader)
+        }
         try handle.write(contentsOf: data)
+        hasWrittenHeader = true
     }
 
     private func open(with data: Data) throws {
         var contents = Data(DiagnosticLogFormat.header(header).utf8)
         contents.append(data)
         try contents.write(to: currentURL, options: .atomic)
+        // Only once it is on disk. A write that failed leaves the header still owed, and the next
+        // event tries again.
+        hasWrittenHeader = true
     }
 
     private func rotate() throws {
