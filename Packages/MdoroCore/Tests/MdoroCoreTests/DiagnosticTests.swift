@@ -236,16 +236,19 @@ struct DiagnosticHeaderPerLaunchTests {
         for index in 0..<5 {
             first.write(DiagnosticEvent(code: "tick", fields: [DiagnosticField("n", index)]))
         }
-        let before = try String(contentsOf: first.currentURL, encoding: .utf8)
+        // Read as bytes: what has to hold is that the file grows at its end and nowhere else.
+        let before = try Data(contentsOf: first.currentURL)
 
         var later = header
         later.osVersion = "macOS 26.7.0"
         let second = DiagnosticLogFile(directory: directory, header: later)
         second.write(DiagnosticEvent(code: "tick", fields: [DiagnosticField("n", 5)]))
 
+        let afterBytes = try Data(contentsOf: second.currentURL)
+        #expect(afterBytes.starts(with: before), "an earlier launch's bytes were rewritten rather than appended to")
+        #expect(afterBytes.count > before.count)
+        #expect(before.count > 0, "the comparison above proves nothing against an empty file")
         let after = try String(contentsOf: second.currentURL, encoding: .utf8)
-        #expect(after.hasPrefix(before), "an earlier launch's lines were rewritten rather than appended to")
-        #expect(after.count > before.count)
         #expect(after.contains("n=0"))
         #expect(after.contains("n=5"))
         // The file still opens with the header of the launch that created it. The new one is below.
