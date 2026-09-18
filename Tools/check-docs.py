@@ -1258,7 +1258,8 @@ class Asking:
 
     POL-302: HARNESS made a deleted *claim* visible -- the name drops out of the ok line -- and
     said nothing about a point deleted from inside one. `a write outside the throwaway tree is
-    refused` asks about eleven separate things; before this, deleting ten of them left the ok
+    refused` asks about a dozen-odd separate things -- the ok line carries the figure, so it is
+    not written down here as well -- and before this, deleting all but one of them left the ok
     line identical, which is the shape CLAUDE.md names: a check can be broken and the screen
     still reads like success. So each claim now reports how many points it asked, and the ok
     line prints it beside the name, the way CHECKS already prints `links (8)`.
@@ -1444,7 +1445,7 @@ def self_test() -> int:
 
     A HARNESS claim is counted a second time, from within: the points it puts are counted where
     it puts them, and the ok line prints that number beside the name, so deleting one of the
-    eleven things `a write outside the throwaway tree is refused` asks about is no quieter than
+    things `a write outside the throwaway tree is refused` asks about is no quieter than
     deleting the claim itself was (POL-302). META's claims are not counted this way -- each is
     one comprehension over CHECKS, and deleting it deletes the claim.
     """
@@ -1463,30 +1464,35 @@ def self_test() -> int:
     # Asked before the cases run, because every one of them goes through a_repository, and
     # asked by name for the same reason META is: a deleted claim must leave the ok line (POL-293).
     # Each claim is handed the Asking it counts its points into, rather than making its own, so
-    # that a claim which raises part way through still says how far it got (POL-302).
+    # that a claim which raises part way through still holds how far it got (POL-302).
+    # ⚠ That figure does not reach the screen on this path: a wrong harness returns below
+    # without printing the ok line, so what is read is the reason, not the count. The count is
+    # for the run that passes (found by the reviewer, 2026-09-18).
     asked_of_the_harness: list[tuple[str, int]] = []
     harness_wrong: list[str] = []
     for name, ask_harness in HARNESS:
-        asking = Asking()
+        # Not `asking`: the cases loop below already uses that name for what a fixture asks,
+        # and one function should not spell two things the same (the reviewer, 2026-09-18).
+        claim = Asking()
         try:
-            ask_harness(asking)
+            ask_harness(claim)
         except Exception as exc:
             # A claim that raised answered nothing, and saying so beats a traceback that names
             # no claim. The guard added for POL-299 raises through the three claims written
             # before it -- an over-strict guard refuses their fixtures -- and either way the
             # run stops here without touching the real tree.
-            asking.could_not_ask(f"{name} raised instead of answering: {exc!r}")
+            claim.could_not_ask(f"{name} raised instead of answering: {exc!r}")
         else:
             # An empty result is not a pass: a claim whose points were all deleted would
             # otherwise print `(0)` in the ok line and leave the noticing to whoever reads it.
             # Only when it said nothing at all -- a claim cut short by a refusal it reported
             # itself has already named the trouble, and a second line guessing at deletion
             # would misdescribe it.
-            if not asking.asked and not asking.wrong:
-                asking.could_not_ask(
+            if not claim.asked and not claim.wrong:
+                claim.could_not_ask(
                     f"{name} asked nothing, so nothing is left of it but its name")
-        harness_wrong += asking.wrong
-        asked_of_the_harness.append((name, asking.asked))
+        harness_wrong += claim.wrong
+        asked_of_the_harness.append((name, claim.asked))
     wrong += harness_wrong
     if harness_wrong:
         # The cases are not run: they write their fixtures under ROOT and read through SPEC,
