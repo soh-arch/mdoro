@@ -298,10 +298,12 @@ struct DeviceSettingsSheet: View {
                     Text("Applies to this iPhone only. The Mac keeps its own.")
                 }
 
-                // decisions/0021: exactly one support link, here. The same order as the Mac's About (REQ-UIX-047).
+                // The same order as the Mac's About (REQ-UIX-047). Decision 0044: no support link
+                // here. REQ-NFR-008 allows one in About, and the Mac's settings is where it sits.
                 Section {
                     LabeledContent("Version", value: AppInfo.version())
                     LabeledContent("License", value: AppInfo.license)
+                    // Show where the link goes before it opens. REQ-COL-002: paint the label ourselves and make it a plain button.
                     Button { openURL(AppInfo.sourceURL) } label: {
                         LabeledContent("Source") {
                             Text(AppInfo.sourceLabel)
@@ -310,13 +312,6 @@ struct DeviceSettingsSheet: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Open \(AppInfo.sourceLabel) in Safari")
-                    // Show where the link goes before it opens. REQ-COL-002: paint the label ourselves and make it a plain button.
-                    Button { openURL(AppInfo.supportURL) } label: {
-                        Text(AppInfo.supportLabel)
-                            .foregroundStyle(theme.color(.accentPrimary, .text))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Open \(AppInfo.supportLabel) in Safari")
                 } header: {
                     Text(AppInfo.name)
                 } footer: {
