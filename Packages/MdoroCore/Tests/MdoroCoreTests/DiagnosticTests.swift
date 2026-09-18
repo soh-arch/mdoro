@@ -220,10 +220,10 @@ struct DiagnosticHeaderPerLaunchTests {
 
         // The new header stands ahead of the lines it accounts for.
         let lines = text.split(separator: "\n").map(String.init)
-        let newestHeader = try #require(lines.lastIndex { $0.hasPrefix("# opened=") })
-        let newestEvent = try #require(lines.lastIndex { !$0.hasPrefix("#") })
+        let newestHeader = try #require(lines.lastIndex(where: { $0.hasPrefix("# opened=") }))
+        let newestEvent = try #require(lines.lastIndex(where: { !$0.hasPrefix("#") }))
         #expect(newestHeader < newestEvent)
-        #expect(lines.filter { !$0.hasPrefix("#") }.count == 4, "every event written is still one line")
+        #expect(lines.filter({ !$0.hasPrefix("#") }).count == 4, "every event written is still one line")
     }
 
     // Decision 0018: nothing here deletes old lines. The header of a new launch is one more append,
