@@ -28,6 +28,10 @@ public struct ErrorCode: Equatable, Hashable, Sendable, CustomStringConvertible 
     // in ProtocolTypes.swift, which owns 60–69, and `ProtocolRefusal.errorCode` beside it,
     // which owns 70–79. Read all five before taking a number —
     // `everyCodeInOurOwnDomainMeansOneThing` walks the union.
+    //
+    // A number taken here is also written into the ledger in
+    // `ACodeKeepsItsMeaningTests.swift`, which holds each number against its meaning and keeps
+    // a withdrawn number withdrawn. Taking one without recording it there fails that suite.
     public init(own code: Int) {
         self.init(domain: Self.ownDomain, code: code)
     }
@@ -45,8 +49,9 @@ public struct ErrorCode: Equatable, Hashable, Sendable, CustomStringConvertible 
     public func summary(_ caseName: String) -> String { "\(caseName)(\(self))" }
 }
 
-// Decision 0034: fixed codes for the `Mdoro` domain. Allocated once, never reused, so a
-// number found in an issue always means the same thing. This is not the whole domain:
+// Decision 0034: fixed codes for the `Mdoro` domain. Allocated once and never reused, so a
+// number found in an issue always means the same thing — 0034 fixes the code per case, and
+// `ACodeKeepsItsMeaningTests` is what holds the second half. This is not the whole domain:
 // 40–49 are allocated with `TimerError` instead, at the bottom of this table.
 public extension ErrorCode {
     // 1–9: writing the session log.
