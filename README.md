@@ -124,7 +124,7 @@ negotiable with a server somewhere — there is no server anywhere but your Mac.
 ## Requirements
 
 - macOS 26 or later, iOS 26 or later
-- Xcode 26 to build
+- Xcode 26 or later to build
 
 ## Building
 

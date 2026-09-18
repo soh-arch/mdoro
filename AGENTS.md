@@ -105,7 +105,9 @@ at all, so the permission prompt this app depends on never appears and never den
 own guidance is to test that behaviour on a real device (`docs/PLATFORM.md`). The Simulator
 builds and runs the UI; **pairing a Mac and an iPhone has to happen on hardware.**
 
-Xcode 26.6 / Swift 6.3. To build the apps, put your signing team in
+Xcode 26 or later. It is built with Xcode 27.0 and Swift 6.4 today, and every
+target compiled under 26.6 and Swift 6.3 before that. To build the apps, put your
+signing team in
 `Config/Signing.local.xcconfig`, which git ignores:
 
 ```
