@@ -126,8 +126,9 @@ final class AppModel {
     private var watcher: FileWatcher?
     private var watchedTaskURL: URL?
     private var tickTask: Task<Void, Never>?
-    // Whether the app has been started. **`start()` is called from a view's `.task`, and a view
-    // appears as often as its window is opened** — reopen the main window and that is a second server,
+    // Whether the app has been started. **`start()` is called from a view's `.task`, which runs once
+    // per view identity, and closing this window destroys the scene** (`docs/platform/0015`) —
+    // reopen the main window and that is a second server,
     // a second Bonjour registration and a second of everything else `start()` raises, with the first
     // left standing. `stop()` puts this back, so a deliberate restart still works (REQ-COM-003: the
     // server goes up again whenever a pairing screen is opened); only repetition is refused.

@@ -59,10 +59,11 @@ struct MdoroMacApp: App {
         Window("Mdoro", id: Self.mainWindowId) {
             MainWindowView()
                 .environment(model)
-                // **This is a view's lifecycle, not the app's.** `.task` runs again every time this
-                // view appears, so closing the main window and reopening it runs the app's whole
+                // **This is a view's lifecycle, not the app's.** `.task` runs once per view identity,
+                // and closing this window destroys the scene, so reopening it runs the app's whole
                 // startup a second time — several Bonjour registrations for one Mac, with the iPhone
-                // meeting the one that is not in pairing mode (seen on the reader's own Mac, 2026-08-30).
+                // meeting the one that is not in pairing mode (seen on the reader's own Mac,
+                // 2026-08-30; `docs/platform/0015` has what Apple states and what it does not).
                 //
                 // It stays here because of the two things this block does that only a view can:
                 // `openWindow` comes out of the Environment, and the test-host guard has to sit in front
