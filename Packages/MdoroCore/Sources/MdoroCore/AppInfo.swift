@@ -7,8 +7,8 @@ public enum AppInfo {
     public static let tagline = "A focus timer for Markdown task files. Mac and iPhone, over your LAN only."
     public static let license = "MIT"
 
-    // REQ-NFR-008 / Decision 0021: one support link, in About, and nowhere else. The label to show
-    // is held separately from the URL.
+    // REQ-NFR-008 / Decision 0044: one support link, in the Mac's About, and nowhere else in the
+    // app. The label to show is held separately from the URL.
     public static let supportURL = URL(string: "https://buymeacoffee.com/soh.arch")!
     public static let supportLabel = "buymeacoffee.com/soh.arch"
 
