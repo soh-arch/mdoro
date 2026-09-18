@@ -1,7 +1,7 @@
 # システム要件定義・仕様書：Mdoro（Mac–iPhone 連携の集中セッションタイマー）
 
-**バージョン:** 2.36
-**最終更新:** 2026-09-12
+**バージョン:** 2.37
+**最終更新:** 2026-09-19
 **ステータス:** 実装着手可
 
 ---
@@ -437,6 +437,21 @@ v2.19 が直したのは 8.3 冒頭の1箇所だけだった。
 
 **あわせて `SECURITY.md` と `README.md` に、LAN 上の通信が平文であることを書いた**（POL-122。
 人間の決定: **いま書く。TLS は公開後**）。**流れているのはトークンそのもの・絶対パス2本・タスク一覧すべてである。**
+
+### 0.42 v2.36 からの変更点（v2.37）
+
+**`OPEN-007` を閉じた**（2026-09-18・一次情報の調査。POL-270）。要件数は変わらない（**243要件**）。
+
+**v2.23 は、この件の断定をいったん取り下げていた。** 「無償枠では Time Sensitive が利用できない」と書いていたが、
+**確かめたのは配信の側だけ**だったからである（POL-070）。**今回は capability の側を文書で確かめた。**
+
+| 分類 | 内容 |
+| :---- | :---- |
+| **解決** | **`OPEN-007`: 無償の Personal Team では取得できない。** Apple の Supported capabilities 表で `Time Sensitive Notifications` に ✓ が付くのは ADP / ADEP（iOS）・ADP / Developer ID（macOS）で、**無償の `Apple Developer` 列は空欄**である（[platform/0016](platform/0016-what-a-focus-breaking-notification-needs.md)） |
+| **追記** | **REQ-NTF-005**: 届かない**理由**を書いた。`.timeSensitive` には capability が要り、それが取得できない。**「確かめたのは配信の側だけ」という留保は、確かめたので外す** |
+| **追記** | **REQ-NTF-005**: ⚠ **capability があっても、利用者側に門が2つある** —— macOS は通知設定の `Allow time sensitive alerts` と、集中モード側の `Time Sensitive Notifications` の**両方**が要る。**条文はそこまでは縛らない**（利用者の設定であって、アプリの義務にできない） |
+| **追記** | **第14章の配布上の制約**: 同じ理由を1行で。`OPEN-007` への参照を、閉じた旨に差し替えた |
+| **変えていない** | **義務は1文字も動かしていない。** REQ-NTF-005 は SHOULD のままであり、送出する側の定めも同じである。**動いたのは限定の理由づけだけである** |
 
 ### 0.41 v2.35 からの変更点（v2.36）
 
@@ -910,7 +925,7 @@ v2.25 の条文は「画面を開いたら立てる」と「最後の削除で�
 | **REQ-NTF-002** | **MUST** | iPhone 側の通知は、**WebSocket 経由のメッセージに依存してはならない**。`sessionEndAt` に対する絶対時刻トリガー（`UNCalendarNotificationTrigger`）のローカル通知として**事前にスケジュール**すること。 |
 | **REQ-NTF-003** | **MUST** | 次の**いずれか**が変化した場合、既存のスケジュール済み通知を必ず取り消し、再スケジュールすること。<br>**(a) 発火時刻**: `sessionEndAt` の変化（開始・再開・一時停止・延長・スキップ・中断）<br>**(b) 通知内容**: `nextSessionType`、選択中タスク名、および 9.5 B 群の通知関連設定（`notificationSound` / `timeSensitiveNotifications` / `preNotifications`）の変化。**プリセット切替は (b) を通じて再スケジュールを引き起こす。** |
 | **REQ-NTF-004** | **MUST** | 通知には、終了したセッション種別・選択中タスク名・次に行うべきセッション種別を含めること。 |
-| **REQ-NTF-005** | **SHOULD** | 通知は「時間指定重要（Time Sensitive）」として送出し、集中モード（Focus）中でも届くようにすること。利用者が設定で無効化できること。**無償の Personal Team では成立しない**（2026-08-27 実機確認: `interruptionLevel = .timeSensitive` を指定しても集中モード中は届かない）。**確かめたのは配信の側だけである** —— capability を有効化できるかは別の事象であり、**OPEN-007 として未決のまま残す**（v2.23）。SHOULD に留めている理由がこれである。 |
+| **REQ-NTF-005** | **SHOULD** | 通知は「時間指定重要（Time Sensitive）」として送出し、集中モード（Focus）中でも届くようにすること。利用者が設定で無効化できること。**無償の Personal Team では成立しない**（2026-08-27 実機確認: `interruptionLevel = .timeSensitive` を指定しても集中モード中は届かない）。**理由も分かった** —— **`.timeSensitive` には capability「Time Sensitive Notifications」が要り、それは無償の Apple Account では取得できない**（`docs/PLATFORM.md`／[platform/0016](platform/0016-what-a-focus-breaking-notification-needs.md)）。**OPEN-007 はこれで閉じる**（v2.37）。SHOULD に留めている理由がこれである。⚠ **capability があっても、利用者側に2つの門がある** —— macOS は通知設定と集中モード設定の両方が要る。**条文はそこまでは縛らない。** |
 | **REQ-NTF-006** | **SHOULD** | 通知音を数種類から選択でき、無音（触覚のみ）も選べること。**音色の選択が適用されるのは macOS のみとし、iPhone は OS の既定通知音を用いること。無音の選択は両端末で有効とすること**（iOS にはシステムサウンドを名前で指す手段が無い。`decisions/0020-ios-uses-the-default-notification-sound.md`）。**この非対称を macOS の設定画面に明示すること**（iPhone の画面には出さない。`decisions/0028-explanations-live-on-the-mac.md`）。 **音源は macOS のシステムサウンドを流用し、独自音源を同梱しないこと**（`decisions/0017-system-notification-sounds.md`）。設定画面から、**選択中の設定のまま実際の通知を1件送って確認できること**（音源の直接再生ではなく本番と同じ経路を通すこと。`decisions/0019-sound-preview-is-a-real-notification.md`）。 |
 | **REQ-NTF-007** | **SHOULD** | `WORK` セッションの終了前に「予告通知」を出せること。触覚のみの提示はロック中に実現できないため、ロック中は通知として送出すること。 |
 | **REQ-NTF-020** | **SHOULD** | 予告通知のトリガをプリセットごとに **0〜2 個**設定できること。各トリガは次のいずれかとする。<br>・**残り時間指定**（`beforeEnd`）: 終了の n 秒前。n は 1〜15 分の範囲を 1 分単位で指定<br>・**経過割合指定**（`atElapsedPercent`）: セッション長の n% が経過した時点。n は 50〜95 の範囲を 5 刻みで指定 |
@@ -1769,7 +1784,7 @@ JSON では判別子 `type` を持つオブジェクトとして表現する。
 - **タスクファイルへの書き込み制限（MUST）:** `Task.md` への書き込みは全面的に禁止する。タスクの追加・編集・完了チェックはすべて**利用者の Markdown エディタ側**で行う運用とする。実績ログファイルへの書き込みのみを例外として許可する。**既存行の改変・削除は行わず、行の挿入のみを行う**（論理日境界の都合上、必ずしもファイル末尾とは限らない）。
 - **完全ローカル駆動（MUST）:** 外部クラウドサーバー（Firebase、AWS、APNs 等）への依存を排除し、LAN 環境だけで完結すること。ネットワークアクセスはローカルネットワークに限定する。**この制約の帰結として、Live Activity の push-to-start は採用できず、8.3 の制約を受け入れる。**
 - **同一ネットワーク前提（MUST）:** Mac と iPhone が同一の LAN セグメントに存在することを前提とする。VPN 経由やインターネット越しの接続は対象外とする。
-- **配布上の制約（MUST）:** iPhone アプリの実機インストールには Apple Developer Program（有償）または無料プロビジョニングプロファイル（7日ごとの再署名）が必要である。無償枠では Time Sensitive 通知（REQ-NTF-005）が**届かない**（2026-08-27 実機確認）。**capability を有効化できるかは確かめていない**（OPEN-007）。配布がソースからのビルドのみである以上、**ソースからビルドする利用者は既定でこの制約下にある**ため、同要件は SHOULD に留める。
+- **配布上の制約（MUST）:** iPhone アプリの実機インストールには Apple Developer Program（有償）または無料プロビジョニングプロファイル（7日ごとの再署名）が必要である。無償枠では Time Sensitive 通知（REQ-NTF-005）が**届かない**（2026-08-27 実機確認）。**capability そのものを取得できないためである**（[platform/0016](platform/0016-what-a-focus-breaking-notification-needs.md)。OPEN-007 は v2.37 で閉じた）。配布がソースからのビルドのみである以上、**ソースからビルドする利用者は既定でこの制約下にある**ため、同要件は SHOULD に留める。
 
 **背景・理由:** ネットワーク遅延や認証の手間、サーバー維持コストを排除し、**データが端末の外へ出ない構成**（REQ-NFR-008 / 本章「完全ローカル駆動」）によって、応答性とプライバシー保護を両立するため。
 
@@ -1847,7 +1862,7 @@ JSON では判別子 `type` を持つオブジェクトとして表現する。
 | **OPEN-003** | ~~診断ログの保持期間とローテーション方針~~（`decisions/0018-diagnostic-log-policy.md` で解決：保持期間を持たず 2MB × 2世代、利用者由来の文字列は記録しない）。 |
 | **OPEN-004** | ~~Live Activity の 8 時間上限~~（REQ-UIX-028 で解決）。無制限モード（REQ-TIM-045）を実装する場合の再開方法のみ未決。 |
 | **OPEN-005** | ~~Mac アプリを App Sandbox 有効で配布するか~~（3.5 節で有効を前提に確定）。 |
-| **OPEN-007** | 無償の Personal Team で Time Sensitive Notifications capability を有効化できるか（REQ-NTF-005 は SHOULD のため着手の障害にはならない）。 |
+| **OPEN-007** | ~~無償の Personal Team で Time Sensitive Notifications capability を有効化できるか~~（解決: **できない。** Supported capabilities 表で無償の `Apple Developer` 列が空欄である。[platform/0016](platform/0016-what-a-focus-breaking-notification-needs.md)。2026-09-18）。 |
 | **OPEN-008** | ~~`MenuBarExtra` の label で残り時間を毎秒更新した場合の安定性~~（実測により解決。`docs/PLATFORM.md`）。 |
 | **OPEN-017** | ~~`Mdoro` への改名の範囲~~（解決: **全範囲で行う。** `decisions/0024-rename-everything-to-mdoro.md`）。 |
 | **OPEN-018** | ~~ツール固有のタスク記法への対応範囲~~（解決: **標準のチェックボックス記法のみを読む。** `decisions/0025-standard-checkbox-syntax-only.md`）。 |
