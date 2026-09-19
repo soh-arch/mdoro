@@ -141,6 +141,11 @@ final class MdoroClient {
         self.pairingCode = pairingCode
         isStopping = false
         backoff.reset()
+        // REQ-COM-004: **and the wait already running is called off.** A retry scheduled before the
+        // user pressed anything is still asleep with its own delay, and waking it after this dial
+        // has opened a line would displace that line for one the user did not ask for. Resetting
+        // the ladder shortens the next wait; it does nothing to the one already counting down.
+        reconnectTask?.cancel(); reconnectTask = nil
         openConnection()
     }
 
