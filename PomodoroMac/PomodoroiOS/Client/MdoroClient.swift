@@ -24,6 +24,11 @@ final class MdoroClient {
         // version. **Nor named after the remedy** (`needsUpdate`), which would leave the next
         // `ProtocolRefusal` case with no state to arrive in.
         case refused(ProtocolRefusal)
+        // REQ-SEC-001: **the Mac is waiting for six digits, and said so.** Reached when a `hello`
+        // that carried no pairing code is refused as `invalidPairingCode` — the only shape that
+        // answer can have when nothing was sent to be wrong (`handle`). **No longer a decision this
+        // client makes without asking**: it used to be set in place of sending the hello at all,
+        // which put a pairing field in front of a user whose trouble was a version (REQ-PRT-004).
         case needsPairing
     }
 
@@ -55,6 +60,12 @@ final class MdoroClient {
     // different name spaces and falls through to `servers.first`.
     private(set) var target: DiscoveredServer?
     private var pairingCode: String?
+    // REQ-SEC-001: whether the last `hello` to go out carried a pairing code. **Written where the
+    // hello is built, because it cannot be read back afterwards**: `stopDialling` lets the code go
+    // on every refusal (REQ-COM-004), so by the time an `authFailed` is being read `pairingCode` is
+    // nil whatever it held when the hello left. Recording it at the one place a hello is built also
+    // rests on no ordering of statements in `handle`.
+    private var helloCarriedAPairingCode = false
     private var keepaliveTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
     // **Whether this client is done dialling until it is asked again.** `disconnect()` sets it,
@@ -107,11 +118,34 @@ final class MdoroClient {
 
     // MARK: - Connection
 
+    // REQ-COM-004: **a connection somebody asked for does not inherit a wait.** Every caller of
+    // this is the user, or the discovery that stands in for them the one time it dials by itself:
+    // six digits entered (`ClientModel.submitPairingCode`), "Try again" pressed
+    // (`ClientModel.redial`), a Mac chosen from the list, and the single Mac found at launch
+    // (`ClientModel.start`).
+    //
+    // **Not in `openConnection`**, which is the door the backoff itself comes back in through.
+    // Wound back there, the ladder would never leave its first rung.
+    //
+    // Without this, a dial that gets as far as the network and no further is followed by however
+    // far the last run of failures had climbed — up to thirty seconds of a screen saying nothing is
+    // happening, because the user pressed something and this client kept its place in a queue they
+    // cannot see.
+    //
+    // **This is not that clause being widened.** REQ-COM-004 governs a temporary network outage,
+    // where the doubling is the whole point of it, and says nothing either way about a dial the user
+    // asked for. The ladder is untouched, and every retry the backoff makes still doubles.
     func connect(to server: DiscoveredServer, pairingCode: String? = nil, callbacks: Callbacks) {
         self.callbacks = callbacks
         self.target = server
         self.pairingCode = pairingCode
         isStopping = false
+        backoff.reset()
+        // REQ-COM-004: **and the wait already running is called off.** A retry scheduled before the
+        // user pressed anything is still asleep with its own delay, and waking it after this dial
+        // has opened a line would displace that line for one the user did not ask for. Resetting
+        // the ladder shortens the next wait; it does nothing to the one already counting down.
+        reconnectTask?.cancel(); reconnectTask = nil
         openConnection()
     }
 
@@ -200,11 +234,21 @@ final class MdoroClient {
         // Decision 0040: **the id, not the name.** A Mac advertising without one is a version
         // that cannot be paired with; it gets as far as the version check and is refused there.
         let token = target?.serverId.flatMap { tokens.load(serverId: $0) }
-        // With neither a token nor a code, ask for one to be entered.
-        if token == nil, pairingCode == nil {
-            status = .needsPairing
-            return
-        }
+        // REQ-PRT-004 / REQ-COM-004: **the hello goes out even with nothing to put in it.** What is
+        // wrong may not be the credentials at all — `Authenticator.authenticate` reads the version
+        // before it reads a token or a code, so an empty hello still comes back
+        // `protocolVersionMismatch` when that is the truth of it.
+        //
+        // Deciding here that six digits are what is wanted answers for the Mac without asking it,
+        // and answers wrong for the user who most needs the truth: a first pairing refused over a
+        // version, who presses "Try again" and watches "update both devices" become "enter the
+        // code". **A way forward, for a trouble it is not the way out of.** The code had already
+        // gone with `stopDialling`, so this was the branch they landed in.
+        //
+        // **Which leaves this end reading the answer rather than guessing it**: `pairingModeNotActive`
+        // is the Mac saying to start pairing, and `invalidPairingCode` for a hello that carried no
+        // code is the Mac saying it is waiting for one. Both are sorted in `handle`.
+        helloCarriedAPairingCode = pairingCode != nil
         send(.hello(HelloPayload(deviceToken: token, pairingCode: pairingCode, deviceName: deviceName)))
     }
 
@@ -253,10 +297,21 @@ final class MdoroClient {
 
         case let .authFailed(payload):
             // REQ-COM-004: whatever the reason, this is the Mac's considered answer. Stop dialling
-            // and let the code go — then say which refusal it was, because the state the user is
-            // put in has to carry both the reason and a way out of it.
+            // and let the code go — then put the user in the state that answer means, because the
+            // state they are left in has to carry both the reason and a way out of it.
             stopDialling()
-            status = .failed(payload.code)
+            // REQ-SEC-001: **a code cannot have been wrong when none was sent.** With no token and
+            // no code the hello goes out all the same (`sendHello`), and a Mac whose pairing window
+            // is open answers a hello carrying no code with `invalidPairingCode` —
+            // `Authenticator.authenticate` reaches that without verifying anything, and without
+            // spending one of REQ-ERR-006's five attempts. Shown as `.failed(.invalidPairingCode)`
+            // it reads "That code is not correct" to a user who has not typed a digit.
+            // `.needsPairing` is what the answer actually means: the Mac is waiting for the six.
+            if payload.code == .invalidPairingCode, !helloCarriedAPairingCode {
+                status = .needsPairing
+            } else {
+                status = .failed(payload.code)
+            }
             // A token that cannot be used is thrown away. **Only for this one reason** — a refusal
             // over a version arrives as `error` (REQ-PRT-004), and a token is not what is wrong
             // with it.

@@ -126,6 +126,35 @@ struct AuthenticatorTests {
         #expect(!auth.isPairingActive, "pairing mode ends when the attempt limit is reached")
     }
 
+    // REQ-SEC-001: **a hello with nothing in it at all, while the window is open.** The iPhone
+    // sends one whenever it holds neither a token nor a code (`MdoroClient.sendHello`) — the version
+    // is read before the credentials are, so an empty hello is how it finds out whether a version is
+    // what is wrong. 10.2 has no word for "no code was sent", so the answer is `invalidPairingCode`,
+    // and **the iPhone reads that answer to a codeless hello as "the Mac is waiting for the six"**
+    // rather than putting "that code is not correct" in front of a user who has typed nothing.
+    //
+    // REQ-ERR-006: **and it costs none of the five.** Nothing was verified, so nothing was got
+    // wrong. Counted, a user pressing "Try again" six times would close their own pairing window —
+    // and be told, correctly by then, to start pairing again.
+    @Test func aHelloCarryingNoCodeAtAllIsNotCountedAsAWrongGuess() {
+        var auth = Authenticator()
+        auth.beginPairing(code: "123456", now: t0)
+
+        for attempt in 1...(PairingSession.maxAttempts + 1) {
+            #expect(auth.authenticate(hello(), now: t0) == .reject(.invalidPairingCode), "attempt \(attempt)")
+        }
+        #expect(auth.pairing?.failedAttempts == 0,
+                "REQ-ERR-006: a hello with no code in it spent one of the user's five attempts")
+        #expect(auth.isPairingActive,
+                "REQ-ERR-006: hellos that carried no code at all closed the pairing window")
+
+        // And the window is the one it was: the code the Mac is showing still gets through.
+        guard case .accept = auth.authenticate(hello(code: "123456"), now: t0) else {
+            Issue.record("REQ-SEC-001: the right code was refused after hellos that carried none")
+            return
+        }
+    }
+
     // REQ-SEC-004: with another client already connected, it waits for the user's approval.
     @Test func secondClientNeedsUserApproval() {
         var auth = Authenticator(issuedTokens: [issued("tok")])
