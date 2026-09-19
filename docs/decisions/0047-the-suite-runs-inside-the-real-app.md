@@ -27,7 +27,7 @@
 | 何 | いくつ |
 | :---- | :---- |
 | 継ぎ目（本物の代わりに無害なものを差し込む口） | **5つ** —— `SessionNotifying` / `IdleSleepGuarding` / `DeviceTokenStoring` / `TokenStoring` / `TestHost` の門 |
-| Scene | **2つ** —— `MenuBarExtra` を出さない、ウィンドウを前面に引き出さない |
+| Scene に効くもの | **3つ** —— `MenuBarExtra` を出さない（`showsMenuBarExtra`）／ウィンドウを起動時に出さない（`.defaultLaunchBehavior(.suppressed)`。**シーンは残す。テストバンドルがこのアプリに読み込まれるため**）／起動そのものを止める門 |
 | 守っている検査 | `TestHostDetectionTests`（Mac・iOS の両ターゲット） |
 
 ⚠ **この事実は、条文にも `docs/decisions/` にも無い。**
@@ -87,7 +87,8 @@
 ## 出典と確度
 
 - **事実**: ホストが外せないこと（`@testable import` と `BUNDLE_LOADER`）。`TestHost.swift` に根拠が書かれている。
-- **実測**: 所有者の機械で、テストが出した通知が実際に届いた（POL-047）。
+- **実測**: 所有者が自分の機械で観測した（2026-08-28・POL-047） ——**「数秒おきに通知が飛び交う」「ウィンドウが急に最前面に来る」。**
+- **実測**: テストが本物のスリープ抑止のアサーションを取っていた（POL-053）。`record()` でセッションを走らせると `IdleSleepGuard.begin()` が実機に掛かる。
 - **数え**: 32件（実装役が2便で数え、検証役が3便目で独立に抜き取った。2026-09-16）。
 - ⚠ **未検証**: **2つの環境変数が将来も同じであるかは、Apple が何も約束していない。**
   **検出が外れたときに何が起きるかは、`TestHostDetectionTests` が落ちる形でしか分からない。**
