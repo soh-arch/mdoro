@@ -222,6 +222,17 @@ final class NotificationScheduler: SessionNotifying {
     }
 
     // REQ-NTF-005: sent as Time Sensitive, and the user must be able to turn that off in the settings.
+    //
+    // ⚠ **Setting the level asks for a Focus to be broken; it does not make it happen.**
+    // `.timeSensitive` is gated by the "Time Sensitive Notifications" capability, and **this
+    // signature does not have it** — there is no entitlements file in this project. It is not
+    // available to add either, on a free Apple Account: it takes a paid membership
+    // (`docs/PLATFORM.md` / `docs/platform/0016`). **What the system does with the level when the
+    // entitlement is absent is not documented by Apple** — whether it is demoted or passed through
+    // is unknown, and the assignment itself cannot fail. Beyond that, the user has two gates of
+    // their own (notification settings and the Focus itself), which this clause does not bind.
+    // **So a preset with this on does not mean a notification arrives during a Focus.**
+    //
     // REQ-NTF-006: the notification sound must be choosable, and silence must be one of the choices.
     private func apply(sound: NotificationSound, timeSensitive: Bool, to content: UNMutableNotificationContent) {
         content.sound = Self.sound(for: sound)

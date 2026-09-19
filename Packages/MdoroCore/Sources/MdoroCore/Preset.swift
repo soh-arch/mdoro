@@ -63,7 +63,12 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
         extendSeconds: Int,
         autoAdvance: Bool = false,
         notificationSound: NotificationSound = .default,
-        timeSensitiveNotifications: Bool = false,
+        // REQ-NTF-005: on by default. The clause asks for notifications to be sent as Time Sensitive
+        // and for the user to be able to turn that off, so off is the choice the user makes, not the
+        // one they start from. `standard()`, the settings screen's "new preset" and
+        // `restoreDefaultPreset` all inherit this default, which is why it is decided in one place.
+        // ⚠ **`true` asks; it does not deliver.** See either `NotificationScheduler`.
+        timeSensitiveNotifications: Bool = true,
         preNotifications: [PreNotification] = [],
         isBuiltInDefault: Bool = false
     ) {
