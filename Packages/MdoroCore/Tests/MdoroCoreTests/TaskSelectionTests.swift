@@ -222,7 +222,9 @@ struct RestoredSelectionFollowTests {
         NotTheSameText(what: "a near-duplicate pair, neither of them it",
                        snapshot: "작업A1", file: "- [ ] 작업A2\n- [ ] 작업A3"),
     ])
-    func anythingButTheSameTextIsNotFollowedOnRestore(_ shape: NotTheSameText) {
+    // `fileprivate` because `NotTheSameText` is private to this file: a test whose parameter type is
+    // narrower than itself does not compile. Do not widen it back without widening the type.
+    fileprivate func anythingButTheSameTextIsNotFollowedOnRestore(_ shape: NotTheSameText) {
         let restored = restoredAtLaunch(selectedTaskId: "an id from before", snapshot: shape.snapshot)
         let outcome = TaskReloader.reload(previous: restored, parsed: load(shape.file))
         #expect(!outcome.didFollow, "\(shape.what): the restore path allows no distance at all")
