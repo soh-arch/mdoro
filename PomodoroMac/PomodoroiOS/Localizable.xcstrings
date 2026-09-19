@@ -224,9 +224,6 @@
     "Start Next" : {
 
     },
-    "Start pairing in Settings on your Mac, then enter the six-digit code it shows." : {
-
-    },
     "Start pairing on your Mac" : {
 
     },
@@ -261,6 +258,9 @@
 
     },
     "Your Mac did not approve the connection" : {
+
+    },
+    "Your Mac is waiting for the pairing code. Enter the six digits it is showing." : {
 
     },
     "Your Mac needs a decision" : {

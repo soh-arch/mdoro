@@ -77,7 +77,8 @@ struct BrokenMessageWiringTests {
         let client = MdoroClient(tokens: NoTokenHere(), links: links)
         client.connect(
             to: discoveredMac(),
-            // With neither a token nor a code, the client stops to ask for one (REQ-SEC-001).
+            // REQ-SEC-001: the six digits a first pairing carries. The hello goes out with or
+            // without them now; what is driven below is the line, not the handshake.
             pairingCode: "123456",
             callbacks: MdoroClient.Callbacks(
                 statusChanged: { _ in }, receivedSnapshot: { _ in }, receivedTaskList: { _ in },

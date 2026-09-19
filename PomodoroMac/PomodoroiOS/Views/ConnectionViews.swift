@@ -124,7 +124,13 @@ struct ConnectionBanner: View {
             // each press.
             tryAgain
         } else if model.status == .needsPairing {
-            Text("Start pairing in Settings on your Mac, then enter the six-digit code it shows.")
+            // REQ-SEC-001 / REQ-COM-004: **the Mac said it is waiting for the code.** This state is
+            // reached from that answer and from nothing else now (`MdoroClient.handle`), so the
+            // sentence names what is left to do instead of telling the user to start a pairing that
+            // is already open — a Mac that is *not* pairing refuses with `pairingModeNotActive`, and
+            // that is the wording above. **And it does not say the code was wrong**, which is the
+            // name of the refusal underneath it and what the user used to be told here.
+            Text("Your Mac is waiting for the pairing code. Enter the six digits it is showing.")
                 .font(.footnote)
                 .foregroundStyle(theme.textSecondary)
             pairingField
