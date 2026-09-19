@@ -155,17 +155,11 @@ Mdoro is not distributed as a signed binary. You build it yourself:
 install it again from Xcode. This is Apple's limit on free provisioning, not a
 choice Mdoro makes.
 
-**Do not count on a notification during Focus in a build from this source.** Each
-preset carries a *Notify during Focus modes* switch, on to begin with, and the
-notification that ends a session is sent as time sensitive. Asking is not the whole
-of it: the level is gated by the Time Sensitive Notifications capability, this
-project has never carried it, and a free Apple Account cannot add it — that takes a
-paid Apple Developer Program membership. What Apple does with the level when the
-capability is absent is not documented, so what follows is measurement rather than
-inference: on a device on 2026-08-27, with `interruptionLevel = .timeSensitive` set,
-nothing arrived until Focus ended. Your own settings are a second gate on top of
-that, per app and per Focus. The session ends on time either way; the notification is
-what waits.
+**Every preset asks for its end-of-session notification to break through Focus, and
+asks by default — but asking is not arriving.** Getting through takes the Time
+Sensitive Notifications capability, which a build from this source does not carry and
+a free Apple Account cannot add; on a device on 2026-08-27, nothing arrived until
+Focus ended. The session ends on time either way; the notification is what waits.
 
 **If the app will not launch and a rebuild will not go through either, the phone may
 have stopped trusting your developer account.** Unlike the seven-day case above,
