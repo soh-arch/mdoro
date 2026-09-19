@@ -1,9 +1,9 @@
 # 0046. リスナーは1プロセスに1本
 
-- **状態**: proposed
-- **決定日**: —（人間の承認待ち）
+- **状態**: accepted
+- **決定日**: 2026-09-19
 - **決定者**: 人間
-- **反映**: 未（コードには既に在る。**条文にも記録にも無い、という状態を解く**）
+- **反映**: コードのみ（`MdoroServer.start()` の畳み込みと `AppModel` の `hasStarted`。**どちらも既に在る**）
 - **関連**: [0040](0040-identity-is-not-a-name.md) / [platform/0008](../platform/0008-what-three-tests-rest-on.md) / [platform/0015](../platform/0015-when-a-task-runs-again.md)
 
 ## 文脈
