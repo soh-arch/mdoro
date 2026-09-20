@@ -679,13 +679,19 @@ struct PreNotificationTests {
     }
 }
 
-// MARK: - What a preset starts out asking for (REQ-NTF-005)
+// MARK: - The default the `Standard` preset carries (REQ-PRS-010 / SPEC 9.4)
 
-@Suite("A preset asks for Time Sensitive notifications unless told otherwise (REQ-NTF-005)")
+@Suite("A preset starts with Time Sensitive notifications on (REQ-PRS-010 / SPEC 9.4)")
 struct TimeSensitiveDefaultTests {
 
-    // REQ-NTF-005 says to send notifications as Time Sensitive and to let the user turn that off,
-    // so off is a choice the user makes and not the one they start from.
+    // REQ-PRS-010: the value pinned here is the one the table of the `Standard` preset carries
+    // (SPEC 9.4). REQ-NTF-005 asks for notifications to be sent as Time Sensitive and for the user
+    // to be able to turn that off, and it says nothing about what the user starts from.
+    //
+    // ⚠ **Reading the default out of that clause has been tried, and the three did not agree.**
+    // The table did not carry it, the clause never did, and the implementation started from `false`;
+    // none of the three pointed at another, so no one noticed. SPEC 9.4 records it, and `Preset.swift`
+    // carries the same note at the initialiser where the value is decided.
     //
     // ⚠ **This is what the preset asks for, not what the OS delivers.** `.timeSensitive` needs the
     // "Time Sensitive Notifications" capability, which this signature does not have and cannot get

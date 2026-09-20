@@ -216,7 +216,8 @@ final class NotificationScheduler: SessionNotifying {
         center.removeAllPendingNotificationRequests()
     }
 
-    // REQ-LOG-005 / REQ-ERR-004: tell the user that writing the log has failed three times in a row.
+    // REQ-LOG-005 / REQ-ERR-004: tell the user that writing the log has failed — three in a row,
+    // or three of the last ten attempts (Decision 0039).
     func notifyLogWriteFailure() {
         let content = UNMutableNotificationContent()
         content.title = String(localized: "The session log cannot be written")
