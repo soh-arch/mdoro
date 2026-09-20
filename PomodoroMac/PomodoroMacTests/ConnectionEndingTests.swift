@@ -60,6 +60,26 @@ struct ConnectionEndingTests {
         }
     }
 
+    // REQ-SEC-004 / REQ-ERR-010: **a question taken away from the user is written under a code of
+    // its own**, and that only works if the word is different from the ending line's and reaches the
+    // file unchanged. `DiagnosticEvent` puts a code through the same tidying a field goes through,
+    // so a code with a space in it would arrive disguised rather than refused.
+    //
+    // Why it is not a `conn.end`: that line is written beside `conn up=no` and says how the
+    // connection **the Mac was holding** ended, and it carries `silent`, which is read from the
+    // authenticated connection's stamp. A line the Mac never accepted has neither, so borrowing the
+    // code would show a reader a disconnection that never happened with a number belonging to a
+    // different connection. **Which ending it was is the same vocabulary**, and that is checked over
+    // a real line in `PendingApprovalEndingTests`.
+    @Test func aWithdrawnApprovalIsWrittenUnderACodeOfItsOwn() {
+        let withdrawn = ConnectionEndingLine.approvalWithdrawnCode
+        #expect(withdrawn != ConnectionEndingLine.code,
+                "a banner that came down and a connection that ended would be one word to grep for")
+        #expect(DiagnosticEvent(code: withdrawn).code == withdrawn,
+                "`\(withdrawn)` is rewritten on its way into the line")
+        #expect(!withdrawn.isEmpty, "the withdrawn approval is written under an empty code")
+    }
+
     // REQ-COM-005: the number the heartbeat judgement was made on, to a tenth of a second.
     @Test func theSilenceIsTheSecondsSinceTheLastHeartbeat() {
         let now = Date(timeIntervalSince1970: 1_000_000)

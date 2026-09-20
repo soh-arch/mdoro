@@ -83,6 +83,15 @@ nonisolated enum ConnectionEndingLine {
     // One word that greps well, beside `conn` and `conn.refused`.
     static let code = "conn.end"
 
+    // REQ-SEC-004: **the connection request the user was being asked about ended before they
+    // answered**, so the question was taken away from them (`MdoroServer.foldPendingApproval`).
+    // A code of its own rather than a `conn.end`: the line it is about was never the connection the
+    // Mac held, so counting it as one of those endings would have a reader see a disconnection that
+    // never happened — and `silent` below, which every `conn.end` carries, describes the held
+    // connection and not this one. **The `how` is the same vocabulary**, because how a line ends is
+    // the same question whichever line it was.
+    static let approvalWithdrawnCode = "approval.withdrawn"
+
     static let howKey = "how"
     static let silentKey = "silent"
     static let brokenKey = "broken"
