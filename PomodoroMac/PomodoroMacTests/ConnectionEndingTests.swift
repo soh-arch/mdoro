@@ -22,7 +22,15 @@ struct ConnectionEndingTests {
         let words = ConnectionEnding.allCases.map(\.rawValue)
         #expect(Set(words).count == ConnectionEnding.allCases.count,
                 "two endings are written with the same word, so the log cannot tell them apart")
-        #expect(!words.contains(where: \.isEmpty))
+        // The empty ones are gathered first rather than asked for inside the expectation.
+        // `contains(where:)` is `rethrows`, and `#expect` takes a function call apart to report
+        // its pieces — `__checkFunctionCall(words.self, calling: { $0.contains(where: $1) }, …)` —
+        // where the key path arrives as an opaque argument and its not-throwing is no longer
+        // visible. The compiler then asks for `try` on a call that cannot throw. A closure written
+        // out in full is read differently and compiles, but a value computed on its own line is
+        // the version that does not depend on how a macro chooses to read it.
+        let unwritten = words.filter(\.isEmpty)
+        #expect(unwritten.isEmpty, "\(unwritten.count) ending(s) are written as an empty word")
     }
 
     // One event per line, `key=value` separated by spaces (`DiagnosticLogFormat.line`).
