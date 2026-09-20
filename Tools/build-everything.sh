@@ -61,7 +61,11 @@ cd "$(dirname "$0")/.." || exit 1
 # that was fine is reported in the same words as a suite that never ran. Stopping here says
 # which it is. (python3 can also be present and unable to start, which the Mac stage still has
 # to report on its own; this catches the cheaper half.)
-for tool in swift xcodebuild xcrun python3; do
+# `tee` is on this list for the same reason as the two below: it compiles nothing, but every
+# stage's output goes through it on the way to the log the warnings are counted out of, and a
+# PATH without it turns three working compilers into three that "did not compile" (measured
+# 2026-09-20, against the test harness, which lends the script exactly the tools it names).
+for tool in swift xcodebuild xcrun python3 tee; do
     if ! command -v "$tool" > /dev/null 2>&1; then
         echo "$tool is not here, so nothing was compiled."
         echo "This needs a Mac with Xcode. It is the one step the cloud cannot take (POL-243)."

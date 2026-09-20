@@ -68,7 +68,7 @@ DERIVED = Path("/tmp/mdoro-build-everything")
 # wants it absent: there is no way to hide a real /usr/bin/python3 from `command -v` by adding
 # to PATH, only by not having a PATH that reaches it. Everything the script and the stubs
 # genuinely need is linked in beside them.
-BORROWED = ("dirname", "date", "sed", "head", "rm", "mkdir", "cat", "grep")
+BORROWED = ("dirname", "date", "sed", "head", "rm", "mkdir", "cat", "grep", "tee")
 
 A_PASSING_SUMMARY = {"title": "MdoroMac", "totalTestCount": 58, "passedTests": 58}
 A_FAILING_SUMMARY = {
