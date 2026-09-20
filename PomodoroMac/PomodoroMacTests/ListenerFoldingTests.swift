@@ -18,6 +18,10 @@ import MdoroCore
 // **This is the half that raises a listener and watches the previous one go**, and it is the only
 // half that can tell a `cancel()` that happened from one that was written and never reached.
 //
+// **What it does not check is the port.** The expectation below holds `listenPort` against the
+// value `start` returned — to each other, and to nothing else. That the number is a port at all
+// is held by `AReadyListenerHasAPortTests`.
+//
 // What this puts on the machine, and what it does not: ephemeral TCP listeners, for a few
 // hundred milliseconds each, all cancelled before the test returns. **`advertise` is never
 // called**, so nothing is registered with Bonjour and no name of the reader's goes on the LAN —

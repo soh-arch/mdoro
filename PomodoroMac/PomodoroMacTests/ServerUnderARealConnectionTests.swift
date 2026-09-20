@@ -615,12 +615,13 @@ private struct Bench {
     let port: NWEndpoint.Port
 }
 
-// **The port is checked, not assumed.** `ListenerReadiness.awaitReady` returns
-// `listener.port?.rawValue ?? 0`, and `NWEndpoint.Port(rawValue: 0)` is a perfectly good `Port`
-// — it is `.any`. So a listener that went ready without a port on it would hand back 0, every
-// dial would go to a port nothing listens on, and the only symptom would be silence. Nothing
-// else in this project asserts the port is a port: `ListenerFoldingTests` compares it with
-// itself.
+// **The port is checked, not assumed.** `NWEndpoint.Port(rawValue: 0)` is a perfectly good `Port`
+// — it is `.any` — so a 0 that reached here would be dialled like any other port, every dial
+// would go to a port nothing listens on, and the only symptom would be silence.
+// `ListenerReadiness.awaitReady` no longer answers with one: it throws for a listener that went
+// ready with no port (`settledPort`), which `AReadyListenerHasAPortTests` holds. This guard is
+// what stands between that decision and the dials below, so it stays — `ListenerFoldingTests`
+// compares the port with itself and asserts nothing about it.
 //
 // REQ-COM-004: `reads` is the read loop's one call into the transport (`ServerLineReading`). Every
 // test above leaves it alone and gets the real one; the two at the foot of this file take it, so
@@ -638,7 +639,7 @@ private func raiseServer(
     let raw = try await server.start(callbacks: upstream.callbacks())
     guard raw != 0, let port = NWEndpoint.Port(rawValue: raw) else {
         server.stop()
-        throw Wrong(diagnose("the listener went ready on port \(raw) — ListenerReadiness.awaitReady fell back to 0, so NWListener.port was nil at .ready and nothing can be dialled"))
+        throw Wrong(diagnose("the listener went ready on port \(raw), which nothing can dial — `ListenerReadiness.settledPort` is what refuses a listener with no port, so read that before reading anything below"))
     }
     return Bench(server: server, upstream: upstream, port: port)
 }
