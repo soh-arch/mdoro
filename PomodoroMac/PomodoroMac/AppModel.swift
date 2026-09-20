@@ -70,6 +70,15 @@ final class AppModel {
     // REQ-TSK-032: say quietly that the selection followed on its own.
     private(set) var didFollowTaskSelection = false
 
+    // REQ-CFG-018 / REQ-PER-002 / 9.3: which of the saved settings was outside its range at launch
+    // and has been put back to its default (`StateStore.loadForStartup`).
+    //
+    // **Shown once at launch and cleared only by the reader**, the shape REQ-ERR-017 uses for a
+    // failed restore: it has already happened, so there is nothing for it to stop being true of,
+    // and the value it replaced is gone — `init` saves, so the file no longer holds it either.
+    // **The cases are here; the words are in `Format.settingLabel`** (Decision 0022).
+    private(set) var settingsResetAtLaunch: [AppSettings.RangedField]
+
     // REQ-ERR-017 / Decision 0035: a failed restore is shown **once at launch**.
     // Only the user can clear it. Someone who reopened the window without reading it is shown it again.
     private(set) var stateRestoreProblem: String?
@@ -199,7 +208,13 @@ final class AppModel {
 
         self.timer = startup.reduction.context
         self.presets = startup.reduction.presets
+        // REQ-CFG-018 / 9.3: **already asked.** `didSet` below turns down a change this process
+        // makes, and this assignment is not a change — property observers do not run during `init` —
+        // so for as long as this line was the whole of the reading, nothing ever asked 9.3's ranges
+        // of a value that came off disk. `loadForStartup` asks them now, before the restore that
+        // reads the same settings, and names what it had to put back.
         self.settings = saved?.settings ?? .default
+        self.settingsResetAtLaunch = startup.settingsReset
         self.tasks = TaskContext(
             selectedTaskId: saved?.selectedTaskId,
             selectedTaskSnapshot: saved?.selectedTaskSnapshot
@@ -244,6 +259,11 @@ final class AppModel {
 
     // REQ-ERR-017 / Decision 0035: a failed restore is shown once at launch. Only the user can say it has been read.
     func acknowledgeStateRestoreProblem() { stateRestoreProblem = nil }
+
+    // REQ-CFG-018 / 9.3: the same, for settings that were put back to their defaults at launch.
+    // **Only the reader clears it.** Taking it away on a timer, or when the settings window opens,
+    // would let the one notice that a value moved go by unread.
+    func acknowledgeSettingsResetAtLaunch() { settingsResetAtLaunch = [] }
 
     // MARK: - Lifecycle
 
@@ -336,6 +356,20 @@ final class AppModel {
             diagnostics.write("log.dropped", level: .warn, [
                 DiagnosticField("count", droppedLogEntryCount),
                 DiagnosticField("why", ErrorCode.logFolderNotSet.summary("noFolder")),
+            ])
+        }
+        // REQ-CFG-018 / REQ-ERR-010 / Decision 0018: **which setting, never what was in it.** The
+        // value that did not hold up is the reader's own file name or the name they gave this Mac,
+        // so only the key goes in — and the keys are `RangedField`'s raw values, which are fixed
+        // words that grep well. A warning, because a value the reader had chosen is gone: `init`
+        // saves the repaired record over the file, so this line and the band on screen are the only
+        // places it is written down at all.
+        if !settingsResetAtLaunch.isEmpty {
+            diagnostics.write("settings.reset", level: .warn, [
+                DiagnosticField("count", settingsResetAtLaunch.count),
+                // Joined with a character no key contains and no whitespace, so the event stays on
+                // one line and one field.
+                DiagnosticField("fields", settingsResetAtLaunch.map(\.rawValue).joined(separator: "|")),
             ])
         }
         // The `persist()` in init runs before the log opens. **That one failure was the only one with no record.**

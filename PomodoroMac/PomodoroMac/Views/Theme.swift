@@ -82,6 +82,32 @@ enum Format {
         }
     }
 
+    // REQ-CFG-018 / 9.3: the words for the settings a launch can put back to their defaults.
+    // **The cases and their ranges are `AppSettings.RangedField`; the words are here**, the same
+    // split `connectionLabel` above keeps (Decision 0022: MdoroCore has no catalogue to reach).
+    //
+    // Each is worded as the settings window words it, because that is where the reader is being
+    // sent to look: "File name" under the log, "Name" under the connection, and the four shortcuts
+    // by the action they carry out.
+    static func settingLabel(_ field: AppSettings.RangedField) -> String {
+        switch field {
+        case .logicalDayStartHour: return String(localized: "Day start hour")
+        case .idleResetHours: return String(localized: "Idle reset hours")
+        case .logFileName: return String(localized: "Log file name")
+        case .displayName: return String(localized: "The name your iPhone sees")
+        case .pauseResumeHotKey: return String(localized: "Pause / Resume shortcut")
+        case .showWindowHotKey: return String(localized: "Bring the window to the front shortcut")
+        case .startNextHotKey: return String(localized: "Start the next session shortcut")
+        case .skipHotKey: return String(localized: "Skip shortcut")
+        }
+    }
+
+    // The ones a band lists, in one line. The separator is not localised: the app has one language
+    // (Decision 0022), and a `Text` given a `String` is verbatim, so no key is asked for either.
+    static func settingLabels(_ fields: [AppSettings.RangedField]) -> String {
+        fields.map { settingLabel($0) }.joined(separator: ", ")
+    }
+
     // REQ-UIX-008: the shape of a preset's times is written alongside.
     static func presetShape(_ preset: Preset) -> String {
         "\(preset.workSeconds / 60) / \(preset.shortBreakSeconds / 60) / \(preset.longBreakSeconds / 60)"

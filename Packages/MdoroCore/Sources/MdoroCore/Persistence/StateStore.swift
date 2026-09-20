@@ -100,8 +100,21 @@ public extension StateStore {
 // `Reduction` is not Sendable. It is only ever built on the main actor at launch, so that is fine.
 public struct StateStartup {
     // The saved state, when it read. Both a failed read and no saved file leave this nil.
+    //
+    // ⚠ **`saved.settings` is what this launch reads the file as, which is not always what the file
+    // holds**: REQ-CFG-018 / 9.3 puts a value outside its range back to its default on the way in,
+    // and `settingsReset` below names each one that happened to. Nothing else here is altered.
     public let saved: PersistedState?
     public let reduction: TimerEngine.Reduction
+    // REQ-CFG-018 / REQ-PER-002 / 9.3: which of the saved settings was outside its range and has
+    // been put back to its default. Empty for a file that held up, for a launch with nothing saved,
+    // and for a read that failed.
+    //
+    // **It is separate from `saved` because `saved` no longer shows it.** The repaired value is
+    // indistinguishable from one the reader chose, and the launch saves over the file it came from,
+    // so this list is the only thing left that says a setting moved (REQ-ERR-017's shape: a launch
+    // may not quietly lose what the reader set).
+    public let settingsReset: [AppSettings.RangedField]
     // Why the read failed. nil means it read — or that there was nothing saved.
     public let readFailure: StateStoreError?
     // Why setting aside failed. **While this is not nil, nothing may be saved.**
@@ -138,6 +151,28 @@ public extension StateStore {
             readFailure = .ioFailed(ErrorCode(error))
         }
 
+        // REQ-CFG-018 / REQ-PER-002 / 9.3: **the ranges hold for a value read back from the file,
+        // not only for one the reader has just typed.** Both paths that change a setting in this
+        // process ask `isWithinValidRanges()` before applying it, and the read asked nothing at all
+        // — so a value written by an older version, or edited by hand in Application Support, was
+        // taken exactly as it stood. REQ-LOG-001 is where it told: `logFileName` is half of the path
+        // the next session is written to (`AppSettings.logFilePath`), and an empty name, a leading
+        // dot or a slash would have gone straight through to it.
+        //
+        // **Here rather than at the property the caller assigns it to**, because the restore decision
+        // reads these same settings a few lines below: REQ-TIM-033 measures the pause this launch
+        // found against `idleResetHours`, so a value repaired after this call would already have
+        // decided whether a PAUSED session comes back or falls through to PENDING_DECISION.
+        //
+        // **Nothing is written back from here.** Decision 0036 keeps this read from writing anything;
+        // the caller's own save is what puts the repair on disk.
+        var settingsReset: [AppSettings.RangedField] = []
+        if let savedSettings = saved?.settings {
+            let asRead = savedSettings.resettingFieldsOutsideValidRanges()
+            saved?.settings = asRead.settings
+            settingsReset = asRead.reset
+        }
+
         // Decision 0036: **only a file whose content cannot be read** is set aside before going on.
         var setAsideAt: URL?
         var setAsideFailure: StateStoreError?
@@ -153,7 +188,9 @@ public extension StateStore {
 
         return StateStartup(
             saved: saved,
+            // The reduction reads `saved.settings`, which the repair above has already put right.
             reduction: StateRestoration.reduction(from: saved, now: now, settings: settings),
+            settingsReset: settingsReset,
             readFailure: readFailure,
             setAsideFailure: setAsideFailure,
             setAsideAt: setAsideAt
