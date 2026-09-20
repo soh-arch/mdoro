@@ -398,6 +398,23 @@ located = re.compile(r"^(?P<path>\S.*?):(?P<line>\d+):(?P<col>\d+): warning: (?P
 elsewhere = re.compile(r"^(\S+: )?(warning|WARNING): ")
 
 root = os.getcwd() + os.sep
+
+# **A diagnostic names the file the way the compiler was standing when it saw it.** xcodebuild
+# is run from the root here and names files absolutely; `swift build` is run inside
+# Packages/MdoroCore, and what it prints has not been seen from here, where there is no swift
+# to ask. So the name is resolved against what is actually on disk rather than assumed: the
+# root first, then the directory that stage ran in, and a name that matches neither is printed
+# exactly as it came. ⚠ **Nothing here guesses** — a path is only rewritten when the file it
+# would then name exists.
+where_a_stage_runs = {"MdoroCore": "Packages/MdoroCore"}
+
+def readable(raw, stage):
+    if raw.startswith(root):
+        return raw[len(root):]
+    if os.path.isabs(raw) or os.path.exists(raw):
+        return raw
+    inside = os.path.join(where_a_stage_runs.get(stage, ""), raw)
+    return inside if stage in where_a_stage_runs and os.path.exists(inside) else raw
 total_occurrences = 0
 total_distinct = 0
 
@@ -419,9 +436,7 @@ for argument in sys.argv[1:]:
     for line in lines:
         hit = located.match(line)
         if hit:
-            place = hit.group("path")
-            if place.startswith(root):
-                place = place[len(root):]
+            place = readable(hit.group("path"), stage)
             one = (place, int(hit.group("line")), int(hit.group("col")), hit.group("text"))
             counts[place] = counts.get(place, 0) + 1
             if one not in seen:
