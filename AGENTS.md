@@ -129,12 +129,14 @@ the bundle ID is this and nothing else.
 **A free Apple ID stops the app on the phone after seven days.** Build and install it again
 from Xcode. That is Apple's limit on free provisioning, not a choice Mdoro makes.
 
-**A notification that does not arrive during Focus is not always a bug.** The switch that sends
-it as time sensitive is per preset (*Notify during Focus modes*) and starts off, so a build
-straight out of the box delivers at `.active` and waits for Focus to end. With the switch on and
-a free Personal Team it still waits — measured on a device on 2026-08-27, `interruptionLevel =
-.timeSensitive` set and nothing delivered until Focus ended (REQ-NTF-005). Check both before
-chasing it.
+**A notification that does not arrive during Focus is not a bug.** The switch that sends it as
+time sensitive is per preset (*Notify during Focus modes*) and is **on** by default, so asking
+is not the thing that is missing. **This project carries no entitlements file**, and without the
+Time Sensitive Notifications capability the request is only a request: measured on a device on
+2026-08-27, `interruptionLevel = .timeSensitive` set and nothing delivered until Focus ended
+(REQ-NTF-005). The capability is not something a build flag adds — it is an Xcode operation on
+the project, and Apple grants it to paid programme accounts. The session itself still ends on
+time; only the notice waits.
 
 **If the app will not launch and a rebuild will not go through either, the phone may have
 stopped trusting the developer account.** Unlike the seven-day case, rebuilding does not clear

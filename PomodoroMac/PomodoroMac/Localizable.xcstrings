@@ -619,6 +619,9 @@
     "The session log is not being written" : {
 
     },
+    "This build does not carry the Time Sensitive Notifications capability, so end-of-session notifications are not expected to arrive until Focus ends. The session itself ends on time." : {
+
+    },
     "This file is never written to. It is opened read-only." : {
 
     },
