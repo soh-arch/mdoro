@@ -61,7 +61,11 @@ cd "$(dirname "$0")/.." || exit 1
 # that was fine is reported in the same words as a suite that never ran. Stopping here says
 # which it is. (python3 can also be present and unable to start, which the Mac stage still has
 # to report on its own; this catches the cheaper half.)
-for tool in swift xcodebuild xcrun python3; do
+# `tee` is on this list for the same reason as the two below: it compiles nothing, but every
+# stage's output goes through it on the way to the log the warnings are counted out of, and a
+# PATH without it turns three working compilers into three that "did not compile" (measured
+# 2026-09-20, against the test harness, which lends the script exactly the tools it names).
+for tool in swift xcodebuild xcrun python3 tee; do
     if ! command -v "$tool" > /dev/null 2>&1; then
         echo "$tool is not here, so nothing was compiled."
         echo "This needs a Mac with Xcode. It is the one step the cloud cannot take (POL-243)."
@@ -398,6 +402,11 @@ located = re.compile(r"^(?P<path>\S.*?):(?P<line>\d+):(?P<col>\d+): warning: (?P
 elsewhere = re.compile(r"^(\S+: )?(warning|WARNING): ")
 
 root = os.getcwd() + os.sep
+# ⚠ **On macOS /tmp is a link to /private/tmp**, so the place the script is standing and the
+# place the compiler names can be the same directory under two different names, and the string
+# comparison below misses. Measured on the owner's Mac, 2026-09-20: every path came out long.
+# Both names are kept, and a path that matches neither is resolved before being given up on.
+real_root = os.path.realpath(os.getcwd()) + os.sep
 
 # **A diagnostic names the file the way the compiler was standing when it saw it.** xcodebuild
 # is run from the root here and names files absolutely; `swift build` is run inside
@@ -409,14 +418,22 @@ root = os.getcwd() + os.sep
 where_a_stage_runs = {"MdoroCore": "Packages/MdoroCore"}
 
 def readable(raw, stage):
-    if raw.startswith(root):
-        return raw[len(root):]
-    if os.path.isabs(raw) or os.path.exists(raw):
+    for base in (root, real_root):
+        if raw.startswith(base):
+            return raw[len(base):]
+    if os.path.isabs(raw):
+        resolved = os.path.realpath(raw)
+        return resolved[len(real_root):] if resolved.startswith(real_root) else raw
+    if os.path.exists(raw):
         return raw
     inside = os.path.join(where_a_stage_runs.get(stage, ""), raw)
     return inside if stage in where_a_stage_runs and os.path.exists(inside) else raw
 total_occurrences = 0
-total_distinct = 0
+# ⚠ **A file can be compiled by more than one stage**, and on 2026-09-20 one was: the iOS
+# stage's sixteen included all eleven the Mac stage had already reported, and adding the stages
+# up said twenty-seven where there were sixteen. Each stage still counts its own, because a
+# stage's number is about that stage; the total counts each place once.
+everything_distinct = set()
 
 for argument in sys.argv[1:]:
     path, stage, warmth = argument.split(":", 2)
@@ -446,7 +463,7 @@ for argument in sys.argv[1:]:
 
     occurrences = sum(counts.values())
     total_occurrences += occurrences
-    total_distinct += len(seen)
+    everything_distinct.update(seen)
 
     print("%s (%s build): %d occurrence(s), %d distinct, in %d file(s)"
           % (stage, warmth, occurrences, len(seen), len(counts)))
@@ -467,7 +484,9 @@ for argument in sys.argv[1:]:
         print("  (not about the code) %s" % line[:200])
 
 print("")
-print("all stages: %d occurrence(s), %d distinct" % (total_occurrences, total_distinct))
+print("all stages: %d occurrence(s), %d distinct place(s)"
+      % (total_occurrences, len(everything_distinct)))
+print("a place two stages compiled is counted once here, and once in each stage above")
 print("counted, not fixed, and never a reason for this command to fail (POL-236)")
 COUNTING
 
