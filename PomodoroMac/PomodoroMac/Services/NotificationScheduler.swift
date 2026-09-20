@@ -171,16 +171,35 @@ final class NotificationScheduler: SessionNotifying {
             content.body = String(localized: "About \(max(1, remaining)) min left")
             apply(sound: preset.notificationSound, timeSensitive: preset.timeSensitiveNotifications, to: content)
 
-            // Fired at an absolute time. In relative seconds it drifts across a wake from sleep (the
-            // third principle).
-            let components = Calendar.current.dateComponents(
-                [.year, .month, .day, .hour, .minute, .second], from: fireDate
-            )
-            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            let trigger = Self.calendarTrigger(for: fireDate)
             let identifier = "\(Self.preNotificationPrefix)\(index).\(UUID().uuidString)"
             scheduledPreNotificationIds.append(identifier)
             center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
         }
+    }
+
+    // REQ-COM-014: **`DateComponents.timeZone` is given explicitly.** Wall-clock fields on their own
+    // do not name an instant: without the zone, a trip across time zones or a summer-time change
+    // moves the moment the notification fires.
+    //
+    // The zone is the calendar's own, not `TimeZone.current` read a second time — the fields are read
+    // out of that same calendar, so the pair has to come from one place or the two can disagree and
+    // describe a time that never existed. With the default calendar it is the reader's current zone,
+    // which is what the iPhone side attaches (`PomodoroiOS/Client/NotificationScheduler.swift`).
+    //
+    // Fired at an absolute time. In relative seconds it drifts across a wake from sleep (the third
+    // principle).
+    //
+    // A function of its own because the caller hands the trigger straight to
+    // `UNUserNotificationCenter`, which this app's test suite must not reach (see the note on
+    // `SessionNotifying` above). `UNCalendarNotificationTrigger.dateComponents` reads back, so the
+    // check can stand on the trigger itself rather than on a copy of the arithmetic.
+    static func calendarTrigger(for fireDate: Date, calendar: Calendar = .current) -> UNCalendarNotificationTrigger {
+        var components = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second], from: fireDate
+        )
+        components.timeZone = calendar.timeZone
+        return UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
     }
 
     // REQ-NTF-003 / REQ-PER-008: cancel every pre-notification that has been scheduled.
