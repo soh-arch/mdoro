@@ -3,9 +3,15 @@ import Foundation
 import MdoroCore
 @testable import MdoroMac
 
-// REQ-ERR-010 / Decision 0018: **the words and the number an ending is written with.** Nothing here
-// touches a connection — what is checked is that the vocabulary is usable by the reader it was
-// written for, and that the one computed value in the line says what it claims to.
+// **No clause asks for this vocabulary.** The reader Decision 0018 wrote the log for — a stranger
+// seeing it pasted into an issue — is the whole of why the endings are told apart at all, which is
+// the same footing `ServerRefusalLogTests` stands on. Nothing here touches a connection: what is
+// checked is that the words are usable by that reader, and that the one computed value in the line
+// says what it claims to.
+//
+// REQ-ERR-010 / Decision 0018 reach **the form the writing takes** — one event per line, the level
+// column that reader scans, nothing of the user's own words — and that is what the words below are
+// held against.
 //
 // The wiring — which ending each of the seven paths out of a connection hands in — is watched over
 // a real line in `ServerUnderARealConnectionTests`, because reaching those paths takes a connection
@@ -60,10 +66,12 @@ struct ConnectionEndingTests {
         }
     }
 
-    // REQ-SEC-004 / REQ-ERR-010: **a question taken away from the user is written under a code of
-    // its own**, and that only works if the word is different from the ending line's and reaches the
-    // file unchanged. `DiagnosticEvent` puts a code through the same tidying a field goes through,
-    // so a code with a space in it would arrive disguised rather than refused.
+    // **No clause asks for this code.** REQ-SEC-004 is why there is anything to write down here — a
+    // question the user never answered is taken away from them after 60 seconds — and REQ-ERR-010
+    // reaches only the form the writing takes. Giving that moment a code of its own is for the reader
+    // Decision 0018 wrote the log for, and it only works if the word is different from the ending
+    // line's and reaches the file unchanged. `DiagnosticEvent` puts a code through the same tidying a
+    // field goes through, so a code with a space in it would arrive disguised rather than refused.
     //
     // Why it is not a `conn.end`: that line is written beside `conn up=no` and says how the
     // connection **the Mac was holding** ended, and it carries `silent`, which is read from the

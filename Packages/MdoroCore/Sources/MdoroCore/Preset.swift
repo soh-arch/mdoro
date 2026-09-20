@@ -63,10 +63,15 @@ public struct Preset: Equatable, Sendable, Codable, Identifiable {
         extendSeconds: Int,
         autoAdvance: Bool = false,
         notificationSound: NotificationSound = .default,
-        // REQ-NTF-005: on by default. The clause asks for notifications to be sent as Time Sensitive
-        // and for the user to be able to turn that off, so off is the choice the user makes, not the
-        // one they start from. `standard()`, the settings screen's "new preset" and
-        // `restoreDefaultPreset` all inherit this default, which is why it is decided in one place.
+        // REQ-PRS-010: on by default. **The default is the one the table of the `Standard` preset
+        // carries** (SPEC 9.4), not something read out of REQ-NTF-005 — that clause asks for
+        // notifications to be sent as Time Sensitive and for the user to be able to turn that off,
+        // and it says nothing about what the user starts from.
+        // ⚠ **The default has been read out of the clause before, and the three did not agree.**
+        // The table did not carry it, the clause never did, and the implementation started from
+        // `false`; none of the three pointed at another, so no one noticed. SPEC 9.4 records it.
+        // `standard()`, the settings screen's "new preset" and `restoreDefaultPreset` all inherit
+        // this default, which is why it is decided in one place.
         // ⚠ **`true` asks; it does not deliver.** See either `NotificationScheduler`.
         timeSensitiveNotifications: Bool = true,
         preNotifications: [PreNotification] = [],
