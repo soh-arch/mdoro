@@ -46,9 +46,10 @@ final class MdoroServer {
     private(set) var connectedTokenValue: String?
     private(set) var lastHeartbeatAt: Date?
 
-    // Decision 0018: a refused connection is the one thing that happens here and nowhere else, and
-    // the person reporting it cannot see any of it. Without a line, "it will not pair" reaches an
-    // issue with no way to tell five wrong codes from a token the Mac no longer knows.
+    // Decision 0018: what happens here happens nowhere else, and the person reporting it cannot see
+    // any of it. Without a line, "it will not pair" reaches an issue with no way to tell five wrong
+    // codes from a token the Mac no longer knows (`conn.refused`), and "it disconnected" with no way
+    // to tell a phone that went quiet from a line that dropped (`conn.end`, `ConnectionEnding`).
     private let diagnostics: DiagnosticLog
 
     // REQ-COM-004: the read loop's one call into the transport, taken as a seam so that what the
@@ -143,6 +144,13 @@ final class MdoroServer {
         approvalTimeout = nil
         pendingApproval?.connection.cancel()
         pendingApproval = nil
+        // REQ-ERR-010: **this fold is the one ending that makes no callback at all.** The cancel
+        // below reaches `handleDisconnect` only after `connection` has been let go of, so its echo
+        // is refused by the guard and `connectionChanged` is never called — which is why
+        // `stopServer()` puts the model's view of the connection right by hand. The deliberate
+        // route writes `server.stop` next to this line; **the fold at the top of `start()` writes
+        // nothing**, and a rename goes through it, so that ending was silent in every log.
+        if connection != nil { record(ending: .serverStopped) }
         connection?.cancel()
         connection = nil
         listener?.cancel()
@@ -174,7 +182,7 @@ final class MdoroServer {
     func disconnect(tokenValue: String) {
         guard connectedTokenValue == tokenValue, let connection else { return }
         connection.cancel()
-        handleDisconnect(connection)
+        handleDisconnect(connection, ended: .tokenRevoked)
     }
 
     // MARK: - Connections
@@ -185,8 +193,18 @@ final class MdoroServer {
         incoming.stateUpdateHandler = { [weak self] state in
             Task { @MainActor in
                 switch state {
-                case .failed, .cancelled:
-                    self?.handleDisconnect(incoming)
+                // REQ-ERR-010: **the two states are told apart, because they mean different
+                // things.** `.failed` is the transport giving up on a line nobody here touched.
+                // `.cancelled` normally *is* one of this class's own endings coming back as an
+                // echo — every one of them cancels and hands the connection back in the same
+                // breath, so by the time the echo arrives `connection` has already been let go of
+                // and the guard below refuses it. Which means a `.cancelled` that gets past that
+                // guard was asked for by nobody here, and that is worth its own word rather than
+                // being filed under `.failed`.
+                case .failed:
+                    self?.handleDisconnect(incoming, ended: .transportFailed)
+                case .cancelled:
+                    self?.handleDisconnect(incoming, ended: .transportCancelled)
                 default:
                     break
                 }
@@ -261,7 +279,7 @@ final class MdoroServer {
                     // is over was just answered by the read; whether it was the one the Mac
                     // believed in is what the guard is for.
                     connection.cancel()
-                    self.handleDisconnect(connection)
+                    self.handleDisconnect(connection, ended: .lineEnded)
                     return
                 }
                 self.receive(on: connection, counting: counter)
@@ -269,13 +287,47 @@ final class MdoroServer {
         }
     }
 
-    private func handleDisconnect(_ closed: NWConnection) {
+    // REQ-ERR-010: **every ending says which it was**, and it is said here because this is where
+    // they all arrive — a reason handed in at the door cannot be forgotten by a path added later,
+    // the same shape `refuse` uses to keep a refusal from going unrecorded.
+    //
+    // `at` is the moment the ending was judged, and it is a parameter for one reason:
+    // `checkHeartbeat` decides on a `now` of its own, and the `silent` this writes is the very
+    // number that decision was made on. Read the clock again here and a test that ages the clock
+    // gets a line whose reason says fifteen seconds of silence and whose number says none.
+    private func handleDisconnect(
+        _ closed: NWConnection, ended ending: ConnectionEnding, at now: Date = Date(),
+        brokenRun: Int? = nil
+    ) {
         guard closed === connection else { return }
+        // **Written before the clean-up, because the clean-up destroys the evidence.**
+        // `lastHeartbeatAt` is the only value that can say how long the phone had been quiet, and
+        // the line below clears it — at the exact moment an ending needs explaining.
+        record(ending: ending, at: now, brokenRun: brokenRun)
         connection = nil
         connectedDeviceName = nil
         connectedTokenValue = nil
         lastHeartbeatAt = nil
         callbacks?.connectionChanged(ConnectionState(isConnected: false))
+    }
+
+    // REQ-ERR-010 / Decision 0018: one word for how it ended and one number for how quiet the
+    // phone had gone. **Nothing of the device**: not its name, not its address, not its token.
+    //
+    // It sits beside `conn up=no`, which `AppModel` writes from `connectionChanged` — that line
+    // says the connection is over, this one says why. Two of the endings never reach that callback
+    // at all (`serverStopped`, `displacedByNewHello`), which is why they call this directly.
+    private func record(ending: ConnectionEnding, at now: Date = Date(), brokenRun: Int? = nil) {
+        var fields = [
+            DiagnosticField(ConnectionEndingLine.howKey, ending.rawValue),
+            DiagnosticField(
+                ConnectionEndingLine.silentKey,
+                ConnectionEndingLine.silence(since: lastHeartbeatAt, now: now)
+            ),
+        ]
+        // REQ-ERR-009: the length of the run that ended the line, on the one ending that has one.
+        if let brokenRun { fields.append(DiagnosticField(ConnectionEndingLine.brokenKey, brokenRun)) }
+        diagnostics.write(ConnectionEndingLine.code, level: ending.level, fields)
     }
 
     // MARK: - Receiving
@@ -307,7 +359,12 @@ final class MdoroServer {
             // whole of what keeps it from happening.
             if brokenMessages.recordBroken() {
                 source.cancel()
-                handleDisconnect(source)
+                // REQ-ERR-009 / REQ-ERR-010: the run that did it is named from
+                // `BrokenMessageCounter.limit` rather than read off the counter, because the counter
+                // starts over at the tenth by design — by the time this line is reached its count is
+                // zero again. The limit is the one place the number "ten" lives, so a log line and
+                // the requirement cannot come to say different things.
+                handleDisconnect(source, ended: .brokenMessageRun, brokenRun: BrokenMessageCounter.limit)
                 return false
             }
             return true
@@ -364,9 +421,10 @@ final class MdoroServer {
             // REQ-COM-005: **this stamp is the whole of the Mac's watch.** `checkHeartbeat` reads
             // `lastHeartbeatAt` against fifteen seconds, and the only things that carry it forward
             // are this case — for the authenticated connection alone, per the guard above — and the
-            // accept in `settle`; a `timeSyncPing` arriving does not, and `handleDisconnect` only
-            // clears it. It rests on the phone sending a `heartbeat` on every beat, unconditionally
-            // (`MdoroClient.startKeepalive`).
+            // accept in `settle`; a `timeSyncPing` arriving does not, and `handleDisconnect` reads
+            // it once — for the `silent` on the line that says how the connection ended
+            // (REQ-ERR-010) — and then clears it. It rests on the phone sending a `heartbeat` on
+            // every beat, unconditionally (`MdoroClient.startKeepalive`).
             //
             // 10.2 has no Server → Client heartbeat, so nothing is sent back.
             lastHeartbeatAt = Date()
@@ -393,6 +451,17 @@ final class MdoroServer {
     private func settle(_ decision: Authenticator.Decision, of payload: HelloPayload, from source: NWConnection) {
         switch decision {
         case let .accept(token):
+            // REQ-SEC-004 / REQ-ERR-010: **the standing connection is ending here, and this is the
+            // only place that can be said.** The cancel below reaches `handleDisconnect` after
+            // `connection` has become `source`, so the guard refuses it, and `connectionChanged`
+            // reports `isConnected: true` throughout — no `conn up=no` is ever written. Read from
+            // the log alone, a phone that dialled again over a line the Mac was still holding was
+            // indistinguishable from one that had never been away.
+            //
+            // `source` itself is exempt: a second hello on the line already held is not one
+            // connection displacing another, and the cancel below then reaches the very connection
+            // being accepted.
+            if let standing = connection, standing !== source { record(ending: .displacedByNewHello) }
             connection?.cancel()
             connection = source
             connectedDeviceName = payload.deviceName
@@ -555,11 +624,17 @@ final class MdoroServer {
         }
     }
 
-    private func checkHeartbeat() {
+    // **Internal, and it takes its own `now`**, so that the one decision it makes can be exercised
+    // without a test having to sit through fifteen seconds of real silence — the same reason
+    // `AppModel.startServer` is internal. Production passes nothing and reads the clock.
+    //
+    // REQ-ERR-010: the `now` goes on to the record, so the seconds in the line are the seconds this
+    // judgement was made on. `Heartbeat.isStale` already takes its `now` the same way.
+    func checkHeartbeat(now: Date = Date()) {
         guard let connection else { return }
-        if Heartbeat.isStale(lastReceivedAt: lastHeartbeatAt, now: Date()) {
+        if Heartbeat.isStale(lastReceivedAt: lastHeartbeatAt, now: now) {
             connection.cancel()
-            handleDisconnect(connection)
+            handleDisconnect(connection, ended: .heartbeatTimeout, at: now)
         }
     }
 }

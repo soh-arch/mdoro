@@ -625,10 +625,16 @@ private struct Bench {
 // REQ-COM-004: `reads` is the read loop's one call into the transport (`ServerLineReading`). Every
 // test above leaves it alone and gets the real one; the two at the foot of this file take it, so
 // that what the loop does with an ending can be asked without a peer having to produce one.
+//
+// REQ-ERR-010: `diagnostics` is left out by every test that has nothing to read back, and gets a log
+// that was never opened — one that writes nothing, so no file of the reader's is touched. The tests
+// about what an ending is written down as hand in a log over a scratch directory instead.
 @MainActor
-private func raiseServer(reads: any ServerLineReading = WebSocketLineReads()) async throws -> Bench {
+private func raiseServer(
+    reads: any ServerLineReading = WebSocketLineReads(), diagnostics: DiagnosticLog? = nil
+) async throws -> Bench {
     let upstream = Upstream()
-    let server = MdoroServer(diagnostics: unopenedLog(), reads: reads)
+    let server = MdoroServer(diagnostics: diagnostics ?? unopenedLog(), reads: reads)
     let raw = try await server.start(callbacks: upstream.callbacks())
     guard raw != 0, let port = NWEndpoint.Port(rawValue: raw) else {
         server.stop()
@@ -1351,5 +1357,280 @@ struct ServerReadLoopEndingTests {
         if case .cancelled = line.state { stillUp = false }
         holds(stillUp,
               "REQ-COM-004: a ping hung the connection up. `LineRead.of` reads a ping as neither a message nor an ending, and the transport has already answered it — hanging up here would end a healthy line at the first ping the peer sends.")
+    }
+}
+
+// MARK: - Why a connection ended, in the log
+
+// REQ-ERR-010 / Decision 0018: **which ending each way out of a connection is written down as.**
+//
+// The reader of the diagnostic log is a stranger seeing it pasted into an issue, and every ending
+// used to reach them as the one line `conn up=no` — a phone that had gone quiet for fifteen seconds
+// (REQ-COM-005), a line the transport ended (REQ-COM-004), a token the user revoked (REQ-SEC-002),
+// ten unreadable messages in a row (REQ-ERR-009) and a fold of the listener all wrote that same
+// line and nothing else. No clause asks for these lines; the reader Decision 0018 wrote the log for
+// is the whole of why they exist, which is the same footing `ServerRefusalLogTests` stands on.
+//
+// **Why they live in this file.** Every one of them needs a connection the Mac has accepted, and
+// `MdoroServer.connection` is set in one place only — `settle`, reached from a hello that arrived on
+// a real incoming connection. The bench that provides one is here, and so is the seam
+// (`HeldReads`) that can hand the read loop an ending without a peer having to produce one. The
+// words themselves, and the number in `silent`, are checked without any of this in
+// `ConnectionEndingTests`.
+//
+// **What is read is the file, not the fields handed in** — the same way `ServerRefusalLogTests`
+// reads a refusal, because what a reader on an issue gets is the file.
+
+// One event per line: `timestamp LEVEL code key=value ...`. Header lines start with `#`.
+private struct LoggedLine {
+    let level: String
+    let code: String
+    let fields: [String: String]
+
+    init?(_ line: String) {
+        let parts = line.split(separator: " ").map(String.init)
+        guard parts.count >= 3, !line.hasPrefix("#") else { return nil }
+        level = parts[1]
+        code = parts[2]
+        fields = parts.dropFirst(3).reduce(into: [:]) { result, part in
+            guard let separator = part.firstIndex(of: "=") else { return }
+            result[String(part[part.startIndex..<separator])] = String(part[part.index(after: separator)...])
+        }
+    }
+}
+
+// A log of this test's own, over a scratch directory, so the file can be read back without the log
+// the user collects being touched.
+@MainActor
+private struct Recording {
+    let log: DiagnosticLog
+    let directory: URL
+
+    init() {
+        directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("MdoroConnectionEndings-\(UUID().uuidString)", isDirectory: true)
+        log = DiagnosticLog(directory: directory)
+        log.open(preset: Preset.standard(), settings: AppSettings())
+    }
+
+    var text: String {
+        (try? String(
+            contentsOf: directory.appendingPathComponent(DiagnosticLogFormat.currentFileName),
+            encoding: .utf8
+        )) ?? ""
+    }
+
+    var lines: [LoggedLine] { text.split(separator: "\n").compactMap { LoggedLine(String($0)) } }
+
+    var endings: [LoggedLine] { lines.filter { $0.code == ConnectionEndingLine.code } }
+
+    func discard() { try? FileManager.default.removeItem(at: directory) }
+}
+
+// One ending, and the reason it says. Every test below asks the same three questions of it, so a
+// second line nobody expected — two paths writing for one ending — fails rather than being read
+// past.
+@MainActor
+private func theOneEnding(
+    in recording: Recording, is expected: ConnectionEnding, _ context: String
+) throws -> LoggedLine {
+    let endings = recording.endings
+    guard endings.count == 1 else {
+        throw Wrong(diagnose("REQ-ERR-010: \(context) — the log holds \(endings.count) `\(ConnectionEndingLine.code)` line(s), not one. Written: [\(endings.map { $0.fields[ConnectionEndingLine.howKey] ?? "?" }.joined(separator: ", "))]. An ending with no line leaves `conn up=no` as the whole of what a reader gets; two lines for one ending means two paths are writing for it. **A `\(ConnectionEnding.heartbeatTimeout.rawValue)` in that list is this run taking longer than REQ-COM-005's fifteen seconds** — these probes send no `heartbeat`, so the silence watch reaches them in the end — and it says nothing about the path under test."))
+    }
+    let ending = endings[0]
+    holds(ending.fields[ConnectionEndingLine.howKey] == expected.rawValue,
+          "REQ-ERR-010: \(context) — the log says `\(ConnectionEndingLine.howKey)=\(ending.fields[ConnectionEndingLine.howKey] ?? "nothing")`, not `\(expected.rawValue)`. The word is the whole of what tells this ending from the others, so a reader on an issue is now being told the wrong thing rather than nothing.")
+    holds(ending.level == expected.level.rawValue,
+          "REQ-ERR-010: \(context) — written at \(ending.level), not \(expected.level.rawValue). A reader scanning for trouble reads that column; a routine ending marked WARN teaches them to skip it.")
+    return ending
+}
+
+// REQ-COM-005: the seconds in `silent`, read back as a number. A field that is missing, or that
+// holds something that is not a number, is not a smaller fault than a wrong one — it is the field
+// not being there at all.
+@MainActor
+private func silentSeconds(of ending: LoggedLine, _ context: String) throws -> Double {
+    let written = ending.fields[ConnectionEndingLine.silentKey]
+    guard let written, let seconds = Double(written) else {
+        throw Wrong(diagnose("REQ-COM-005 / REQ-ERR-010: \(context) — `\(ConnectionEndingLine.silentKey)` reads `\(written ?? "nothing")`. How long the phone had been quiet is the one thing `lastHeartbeatAt` can say and the only value the clean-up in `handleDisconnect` destroys, so if it is not on this line it is nowhere."))
+    }
+    return seconds
+}
+
+@Suite("What the log says about how a connection ended (REQ-ERR-010)")
+@MainActor
+struct ConnectionEndingLogTests {
+
+    // REQ-COM-005: **the ending the author's own log could not explain.** On 2026-09-19 a
+    // disconnection left one line, `conn up=no`, and a heartbeat that had stopped fifteen seconds
+    // earlier read exactly the same as a line the network had dropped.
+    //
+    // **The seconds are the half that is easy to lose.** `handleDisconnect` clears
+    // `lastHeartbeatAt` — at the moment an ending needs explaining — so a line written a line later
+    // says `unset`, and one that reads the clock afresh says `0.0` while claiming a timeout. The
+    // ageing here is 120 seconds, so either mistake is a failure and not a rounding.
+    @Test func aPhoneThatWentQuietSaysSoAndSaysForHowLong() async throws {
+        let recording = Recording()
+        defer { recording.discard() }
+        let bench = try await raiseServer(diagnostics: recording.log)
+        defer { bench.server.stop() }
+
+        let deviceName = "UNIQUEENDINGDEVICENAME"
+        let phone = try await authenticatedProbe(named: deviceName, on: bench)
+        defer { phone.cancel() }
+
+        // REQ-COM-005: fifteen seconds of silence, without fifteen seconds being spent. `now` is
+        // the judgement's, and the line is supposed to carry that same `now`.
+        let aged: TimeInterval = 120
+        bench.server.checkHeartbeat(now: Date().addingTimeInterval(aged))
+
+        holds(bench.server.connection == nil,
+              "REQ-COM-005: the silence watch was given a `now` \(aged)s past the last beat and did not hang up. Nothing below is about an ending that happened.")
+        let ending = try theOneEnding(in: recording, is: .heartbeatTimeout, "a phone that stopped beating")
+        let seconds = try silentSeconds(of: ending, "a phone that stopped beating")
+        holds(seconds > aged - 5 && seconds < aged + 5,
+              "REQ-COM-005 / REQ-ERR-010: the beat was last heard \(aged)s before the judgement and the line says \(seconds)s. Two things put it here: the record is written after `handleDisconnect` has cleared `lastHeartbeatAt` (which reads as `unset`, so it would not be a number at all), or it measures against a clock of its own instead of the `now` the judgement used — and then the reason says a timeout while the number says the phone had just beaten.")
+
+        // Decision 0018: what is written is a word and a number. The device name is in the
+        // server's hands throughout — `connectedDeviceName` is set from the hello — and must not be
+        // in the file.
+        holds(!recording.text.contains(deviceName),
+              "REQ-ERR-010: `\(deviceName)` appears in the diagnostic log. The endings carry a fixed word and numbers precisely so that nothing of the user's has a route in.")
+    }
+
+    // REQ-COM-004: **the ending a read reports.** A close frame, a read that failed, or a completed
+    // read with neither frame nor bytes on it all mean the line is over, and a peer that closes
+    // politely leaves the connection `.ready` — so this is the only place it is heard, and the log
+    // has to be able to say that is what happened.
+    //
+    // The reads are taken through the seam, so the ending is handed over rather than waited for.
+    // The hello goes in the same way: with `reads` held, nothing off the wire reaches the server.
+    @Test func aLineThatTheReadSaidWasOverIsWrittenDownAsThat() async throws {
+        let recording = Recording()
+        defer { recording.discard() }
+        let reads = HeldReads()
+        let bench = try await raiseServer(reads: reads, diagnostics: recording.log)
+        defer { bench.server.stop() }
+
+        let deviceName = "iPhone that hung up"
+        let phone = try await connectedProbe(to: bench, called: deviceName)
+        defer { phone.cancel() }
+        defer { for opened in reads.lines { opened.cancel() } }
+
+        guard await reads.waitsForReads(1, upTo: arrivalBudget) else {
+            throw Wrong(diagnose("REQ-COM-004: a connection reached the listener and went ready, and the server never asked to read from it inside \(arrivalBudget) — there is no read loop to hand an ending to."))
+        }
+
+        let hello = try MessageCoder.encode(Envelope(body: ClientMessage.hello(HelloPayload(deviceName: deviceName))))
+        holds(reads.deliver(data: hello, frame: .text), "no read was outstanding to hand the hello to")
+        // The loop arms again after it has dispatched, so a second read being asked for is what says
+        // the hello has been through `settle`.
+        guard await reads.waitsForReads(2, upTo: arrivalBudget), bench.server.connection != nil else {
+            throw Wrong(diagnose("REQ-SEC-003: the hello was handed to the read loop and the Mac is holding no connection (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil")). `handleDisconnect` refuses a line the Mac never accepted, so nothing below would be about an ending it writes down."))
+        }
+        holds(recording.endings.isEmpty,
+              "REQ-ERR-010: an ending was written before anything ended. Accepting a hello is not an ending, and a line saying otherwise sends a reader looking for a disconnection that never happened.")
+
+        // REQ-COM-004: a completed read carrying no frame and no bytes. What it means is
+        // `LineRead.of`'s to say; this states the read.
+        holds(reads.deliver(), "no read was outstanding to answer — the loop had stopped asking before it was told anything")
+        guard await bench.upstream.waitsForHangUp(upTo: arrivalBudget) else {
+            throw Wrong(diagnose("REQ-COM-004: the read said the line was over and the Mac is still holding the connection. Nothing below is about an ending that happened."))
+        }
+
+        _ = try theOneEnding(in: recording, is: .lineEnded, "a read that said the line was over")
+    }
+
+    // REQ-ERR-009: **ten unreadable messages in a row, and the log says how long the run was.** The
+    // number is what separates this from every other ending for a reader who is being told the Mac
+    // hung up on their phone: nine of these leave no line at all, by REQ-PRT-005's MUST.
+    @Test func aRunOfBrokenMessagesIsWrittenDownWithTheLengthOfTheRun() async throws {
+        let recording = Recording()
+        defer { recording.discard() }
+        let bench = try await raiseServer(diagnostics: recording.log)
+        defer { bench.server.stop() }
+
+        let phone = try await authenticatedProbe(named: "Probe iPhone", on: bench)
+        defer { phone.cancel() }
+
+        for _ in 1...BrokenMessageCounter.limit {
+            let unreadable = try aValueThisVersionCannotRead()
+            phone.sendRaw(unreadable)
+        }
+        guard await bench.upstream.waitsForHangUp(upTo: arrivalBudget) else {
+            throw Wrong(diagnose("REQ-ERR-009: \(BrokenMessageCounter.limit) unreadable messages in a row and the Mac is still holding the connection (\(bench.upstream.hangUps) hang-up(s) seen). Nothing below is about an ending that happened."))
+        }
+
+        let ending = try theOneEnding(in: recording, is: .brokenMessageRun, "a run of unreadable messages")
+        holds(ending.fields[ConnectionEndingLine.brokenKey] == String(BrokenMessageCounter.limit),
+              "REQ-ERR-009 / REQ-ERR-010: the run that ended the line reads `\(ConnectionEndingLine.brokenKey)=\(ending.fields[ConnectionEndingLine.brokenKey] ?? "nothing")`, and the limit is \(BrokenMessageCounter.limit). **The counter cannot be asked for this after the fact** — it starts over at the tenth by design, so its count is zero by the time the line is written, and the number has to come from the limit itself.")
+    }
+
+    // REQ-SEC-002 / Decision 0040: **a revocation is an ending too, and it is not a failure.** The
+    // user pressed a button; the log saying so is what keeps a reader from hunting for a network
+    // fault at that timestamp.
+    @Test func aRevokedTokenTakesItsConnectionDownAndSaysThatIsWhy() async throws {
+        let recording = Recording()
+        defer { recording.discard() }
+        let bench = try await raiseServer(diagnostics: recording.log)
+        defer { bench.server.stop() }
+
+        let phone = try await authenticatedProbe(named: "Probe iPhone", on: bench)
+        defer { phone.cancel() }
+
+        let token = try #require(bench.server.connectedTokenValue,
+                                 "REQ-SEC-002: the hello was accepted and the server is holding no token for it, so there is nothing a revocation could find")
+        bench.server.disconnect(tokenValue: token)
+
+        holds(bench.server.connection == nil,
+              "REQ-SEC-002: the token this connection authenticated with was revoked and the connection is still up. Nothing below is about an ending that happened.")
+        _ = try theOneEnding(in: recording, is: .tokenRevoked, "a revoked token")
+    }
+
+    // **The two endings that make no `connectionChanged` callback at all**, which is why they are
+    // the two that reached the log as nothing whatsoever rather than as `conn up=no`:
+    //
+    //   - REQ-SEC-004: a second phone's hello is accepted and the standing line is folded to make
+    //     room. The Mac never stops being connected, so nothing is reported upward.
+    //   - `stop()`: the connection goes with the listener. `stopServer()` writes `server.stop`
+    //     beside it, but **the fold at the top of `start()` writes nothing**, and a rename goes
+    //     through that fold.
+    //
+    // Both in one bench, because the first leaves a connection standing for the second to end.
+    @Test func aLineFoldedToMakeRoomAndOneFoldedWithTheListenerBothSayWhichTheyWere() async throws {
+        let recording = Recording()
+        defer { recording.discard() }
+        let bench = try await raiseServer(diagnostics: recording.log)
+        // The folds below are the test's own; this one is for the run that throws before reaching
+        // them, and it holds nothing by the time they have run.
+        defer { bench.server.stop() }
+
+        let first = try await authenticatedProbe(named: "First iPhone", on: bench)
+        defer { first.cancel() }
+        let second = try await authenticatedProbe(named: "Second iPhone", on: bench)
+        defer { second.cancel() }
+
+        let displaced = try theOneEnding(in: recording, is: .displacedByNewHello,
+                                        "a standing line folded to make room for a new hello")
+        _ = try silentSeconds(of: displaced, "a standing line folded to make room for a new hello")
+        holds(bench.upstream.hangUps == 0,
+              "REQ-SEC-004: the Mac reported itself disconnected while accepting a second phone. The accept folds the standing line on its way in and stays connected throughout — this test's reading of the line above rests on that, and so does the `conn up=no` a reader will not find next to it.")
+
+        bench.server.stop()
+
+        let endings = recording.endings
+        guard endings.count == 2 else {
+            throw Wrong(diagnose("REQ-ERR-010: the listener was folded over a live connection and the log holds \(endings.count) ending line(s), not 2. Written: [\(endings.map { $0.fields[ConnectionEndingLine.howKey] ?? "?" }.joined(separator: ", "))]. `stop()` makes no callback, so this line is the only trace the fold leaves — the rename that goes through the fold at the top of `start()` writes nothing else at all."))
+        }
+        holds(endings[1].fields[ConnectionEndingLine.howKey] == ConnectionEnding.serverStopped.rawValue,
+              "REQ-ERR-010: the fold is written as `\(endings[1].fields[ConnectionEndingLine.howKey] ?? "nothing")`, not `\(ConnectionEnding.serverStopped.rawValue)`.")
+
+        // A second fold with nothing connected is silent: there is no ending to explain, and a line
+        // for it would put a disconnection in the log where none happened. `stop()` is reached this
+        // way on every path that raises a listener.
+        bench.server.stop()
+        holds(recording.endings.count == 2,
+              "REQ-ERR-010: folding a server that holds no connection wrote an ending (\(recording.endings.count) in all). Every `start()` folds first, so a line here would report a disconnection at every launch.")
     }
 }
