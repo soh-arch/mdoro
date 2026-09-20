@@ -139,6 +139,9 @@
     "Another program may be holding the port. Quitting Mdoro and opening it again usually clears this." : {
 
     },
+    "Bring the window to the front shortcut" : {
+
+    },
     "Check the destination in Settings. The timer keeps running." : {
 
     },
@@ -188,6 +191,9 @@
 
     },
     "Day and loops" : {
+
+    },
+    "Day start hour" : {
 
     },
     "Deny" : {
@@ -256,6 +262,9 @@
     "Identity" : {
 
     },
+    "Idle reset hours" : {
+
+    },
     "If your iPhone cannot see this Mac, check that Mdoro is allowed in System Settings > Privacy & Security > Local Network. macOS does not tell Mdoro when that permission is off, so it cannot warn you itself." : {
 
     },
@@ -303,6 +312,9 @@
     "Light" : {
 
     },
+    "Log file name" : {
+
+    },
     "Long Break" : {
 
     },
@@ -332,6 +344,12 @@
 
     },
     "Mdoro could not ask for permission to send notifications. Open System Settings > Notifications and allow them there." : {
+
+    },
+    "Mdoro could not remove the temporary files it left there. They end in .tmp and are safe to delete. Writing the session log is unaffected." : {
+
+    },
+    "Mdoro could not use the values its settings file held for these, so they are back at their defaults. Set them again in Settings." : {
 
     },
     "Mdoro could not write the export to that location. Choose another folder and try again." : {
@@ -439,6 +457,9 @@
     "Pause / Resume" : {
 
     },
+    "Pause / Resume shortcut" : {
+
+    },
     "Paused" : {
 
     },
@@ -523,6 +544,15 @@
     "Skip" : {
 
     },
+    "Skip shortcut" : {
+
+    },
+    "Some saved settings were put back to their defaults" : {
+
+    },
+    "Some saved settings were put back to their defaults…" : {
+
+    },
     "Sound is turned off for this app in macOS Settings. No choice made here will play." : {
 
     },
@@ -545,6 +575,9 @@
 
     },
     "Start the next session" : {
+
+    },
+    "Start the next session shortcut" : {
 
     },
     "Startup" : {
@@ -574,6 +607,9 @@
     "Tasks" : {
 
     },
+    "Temporary files are left in your log folder" : {
+
+    },
     "That action was not accepted." : {
 
     },
@@ -595,7 +631,13 @@
     "The last preset cannot be deleted." : {
 
     },
+    "The log file name was one of them, so from now on sessions are written to the default file name in your log folder." : {
+
+    },
     "The menu bar uses shape and text instead of color, because its background brightness changes." : {
+
+    },
+    "The name your iPhone sees" : {
 
     },
     "The name your iPhone sees. It is also the name this Mac shows on your network." : {

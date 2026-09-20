@@ -28,6 +28,7 @@ protocol SessionNotifying {
     func cancelPreNotifications()
     func cancelAll()
     func notifyLogWriteFailure()
+    func notifyLogSweepFailure()
     func deliverSoundTest(preset: Preset)
 }
 
@@ -59,6 +60,7 @@ final class SilentNotifications: SessionNotifying {
     func cancelPreNotifications() {}
     func cancelAll() {}
     func notifyLogWriteFailure() {}
+    func notifyLogSweepFailure() {}
     func deliverSoundTest(preset: Preset) {}
 }
 
@@ -202,6 +204,29 @@ final class NotificationScheduler: SessionNotifying {
         content.body = String(localized: "Check the destination in Settings. The timer keeps running.")
         content.sound = .default
         deliverNow(content, identifier: "log-write-failed")
+    }
+
+    // Decision 0042 / `docs/CONTEXT.md` §2: tell the user that the temporary files this app left in
+    // their folder are still there.
+    //
+    // **The same arrival as a failed write** — a notification, and nothing on the status line. That
+    // is what `docs/CONTEXT.md` §2 asks for ("the screen or a notification"), and it is the one the
+    // status line would be wrong for: `logWriteFailed` says the session log is not being written,
+    // and here it is being written perfectly well. Decision 0042 keeps the tidying from looking like
+    // a broken log, and a banner saying otherwise would undo that.
+    //
+    // **What it can say ends at "there are files that cannot be cleared."** `Sweep` counts them and
+    // does not keep their names (`LogTemporaryFile`), so anything more precise would be invented.
+    // The reader is pointed at the folder and the shape of the name, which they can act on.
+    func notifyLogSweepFailure() {
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "Temporary files are left in your log folder")
+        // On one line, because `StringCatalogTests` reads the catalogue for exactly this shape:
+        // `String(localized: "…")`. Broken across lines it is not checked, and a key that was never
+        // added to the catalogue comes back as itself — which, in English, looks entirely right.
+        content.body = String(localized: "Mdoro could not remove the temporary files it left there. They end in .tmp and are safe to delete. Writing the session log is unaffected.")
+        content.sound = .default
+        deliverNow(content, identifier: "log-sweep-failed")
     }
 
     // REQ-NTF-006 / Decision 0019: the preview goes **down the same path production uses**.

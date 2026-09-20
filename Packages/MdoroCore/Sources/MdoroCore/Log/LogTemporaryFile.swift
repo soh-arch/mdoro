@@ -102,4 +102,84 @@ public enum LogTemporaryFile {
         }
         return Sweep(removed: removed, failed: failed)
     }
+
+    // Decision 0042 / `docs/CONTEXT.md` §2: **how many launches in a row the sweep left something
+    // behind**, and whether the user has been told about the run standing now.
+    //
+    // 0042 keeps the sweep off the screen for a single failure, and that reasoning holds: the user
+    // asked for none of this tidying, and a folder that has really gone away is reported by the
+    // write that follows the sweep. **What it does not cover is a failure that never goes away** —
+    // one file whose owner or permissions are not what they were, refused every launch while every
+    // write succeeds. `CONTEXT.md` §2 asks that an operation touching the outside world fail where
+    // it can be seen, and a line in a diagnostic log nobody opens is not that place. Left as it
+    // was, everything 0042 promises quietly stops being true.
+    //
+    // So this takes the balance REQ-ERR-004 / Decision 0039 already strike for a failed write and
+    // applies it here: **say it once the failure has held, and then not again until it clears.**
+    // The threshold is three because three is the number the write side uses
+    // (`LogWriteQueue.failureThreshold`); nothing about this failure argues for a different one.
+    //
+    // ⚠ **The two threes do not measure the same thing, and being equal hides it.** A write is
+    // attempted whenever a session is recorded, so three of them are minutes or hours apart. **The
+    // sweep runs once per launch** and nowhere else (`AppModel.start()`), so three of these are
+    // three launches of the app — which for someone who leaves it running is days. That is
+    // deliberate, and it is the slow end of the scale on purpose: what this reports is a file that
+    // will not go away on its own, and nothing about it is urgent. It is **not** a way of saying
+    // "three failures" in the sense REQ-ERR-004 says it.
+    public struct FailureRun: Equatable, Sendable, Codable {
+        // Decision 0042: three launches, matching `LogWriteQueue.failureThreshold`. Held here
+        // rather than read from there, because the two are free to move apart — one counts write
+        // attempts and this one counts launches.
+        public static let launchThreshold = 3
+
+        // Launches in a row whose sweep could not remove something. **This has to be persisted**
+        // (REQ-PER-001): the sweep runs once per launch, so a count living in this process could
+        // never reach two.
+        public var launches: Int
+        // Whether the run standing now has already been reported. Persisted for the same reason —
+        // without it the fourth launch, and every launch after it, would report the same trouble
+        // again.
+        public var didNotify: Bool
+
+        public init(launches: Int = 0, didNotify: Bool = false) {
+            self.launches = launches
+            self.didNotify = didNotify
+        }
+
+        // REQ-PER-002: a state file saved before this existed reads as no run at all, the way every
+        // other added field does. A count below zero could only come from a file edited by hand,
+        // and reading it as written would park the run under the threshold for good.
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            let saved = try c.decodeIfPresent(Int.self, forKey: .launches) ?? 0
+            launches = max(0, saved)
+            didNotify = try c.decodeIfPresent(Bool.self, forKey: .didNotify) ?? false
+        }
+
+        // Take in what one sweep did, and answer whether **this launch** is the one that says so.
+        //
+        // A sweep that failed at nothing ends the run, **including one that found nothing to do**:
+        // a file that cannot be removed is listed and refused again, so nothing failing means
+        // nothing is stuck.
+        //
+        // ⚠ **A sweep that never ran must not be handed to this at all.** With no folder chosen, or
+        // the folder out of reach, there is no answer either way — and calling it would clear the
+        // launches before it, which is how a folder that comes and goes would keep the run from ever
+        // reaching three. The caller decides (`AppModel.removeLeftoverLogTemporaryFiles`); an
+        // unreachable folder is already reported by the write that follows it.
+        @discardableResult
+        public mutating func record(_ sweep: Sweep) -> Bool {
+            guard sweep.failed > 0 else {
+                self = FailureRun()
+                return false
+            }
+            launches += 1
+            let reachedThreshold = launches >= Self.launchThreshold
+            // Saying it once is enough while the same trouble stands. A sweep that fails at
+            // nothing is what arms this again, through the reset above.
+            let shouldNotify = reachedThreshold && !didNotify
+            didNotify = reachedThreshold
+            return shouldNotify
+        }
+    }
 }

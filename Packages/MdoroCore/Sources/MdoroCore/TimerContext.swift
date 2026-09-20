@@ -264,19 +264,104 @@ public struct AppSettings: Equatable, Sendable, Codable {
         binding?.hasModifier ?? true
     }
 
+    // REQ-CFG-018 / 9.3: the settings 9.3 puts a range on. **The cases are here; the words for
+    // them belong to each platform's `Format`**, the way `ConnectionStatus` and its wording are
+    // split (Decision 0022 — this package has no String Catalog to reach).
+    //
+    // The eight are exactly the rows of 9.3 that state a range. The others (`appearance`, the two
+    // paths, the booleans, `menuBarDisplayMode`) have none to be outside of: an enumeration either
+    // decodes or does not, and a path is whatever the reader chose in a panel.
+    public enum RangedField: String, Equatable, Hashable, Sendable, Codable, CaseIterable {
+        case logicalDayStartHour
+        case idleResetHours
+        case logFileName
+        case displayName
+        case pauseResumeHotKey
+        case showWindowHotKey
+        case startNextHotKey
+        case skipHotKey
+    }
+
+    // REQ-CFG-018 / 9.3: which of the ranged settings is outside its range.
+    //
+    // **`isWithinValidRanges()` is this list being empty, and not a second copy of the rules.**
+    // The rules were written once, inside that method, and only the two paths where the reader
+    // changes a setting ever asked them — a value already in the saved file went straight through
+    // (`StateStore.loadForStartup`). Putting the reading side right meant knowing *which* field
+    // did not hold up, and a separate answer for that would be a second place to add a rule to.
+    // So the list is the rule and the Bool is derived from it.
+    public func fieldsOutsideValidRanges() -> [RangedField] {
+        var outside: [RangedField] = []
+        if !(0...12).contains(logicalDayStartHour) { outside.append(.logicalDayStartHour) }
+        if !(1...48).contains(idleResetHours) { outside.append(.idleResetHours) }
+        if !AppSettings.isValidLogFileName(logFileName) { outside.append(.logFileName) }
+        if !AppSettings.isValidDisplayName(displayName) { outside.append(.displayName) }
+        // REQ-UIX-033 / REQ-UIX-037: all four, so none is left applied and silent. Asking
+        // `hasModifier` only at registration time let a bare key be saved and shown while
+        // doing nothing (`HotKeyCenter`).
+        if !AppSettings.isValidHotKey(pauseResumeHotKey) { outside.append(.pauseResumeHotKey) }
+        if !AppSettings.isValidHotKey(showWindowHotKey) { outside.append(.showWindowHotKey) }
+        if !AppSettings.isValidHotKey(startNextHotKey) { outside.append(.startNextHotKey) }
+        if !AppSettings.isValidHotKey(skipHotKey) { outside.append(.skipHotKey) }
+        return outside
+    }
+
     // REQ-CFG-018 / 9.3: an out-of-range value is not applied.
-    public func isWithinValidRanges() -> Bool {
-        (0...12).contains(logicalDayStartHour)
-            && (1...48).contains(idleResetHours)
-            && AppSettings.isValidLogFileName(logFileName)
-            && AppSettings.isValidDisplayName(displayName)
-            // REQ-UIX-033 / REQ-UIX-037: all four, so none is left applied and silent. Asking
-            // `hasModifier` only at registration time let a bare key be saved and shown while
-            // doing nothing (`HotKeyCenter`).
-            && AppSettings.isValidHotKey(pauseResumeHotKey)
-            && AppSettings.isValidHotKey(showWindowHotKey)
-            && AppSettings.isValidHotKey(startNextHotKey)
-            && AppSettings.isValidHotKey(skipHotKey)
+    public func isWithinValidRanges() -> Bool { fieldsOutsideValidRanges().isEmpty }
+
+    // REQ-CFG-018 / REQ-PER-002 / 9.3: the same settings with whatever is outside 9.3's ranges put
+    // back to its default, and a list of what that was.
+    //
+    // **Field by field, and not the whole record.** A record is refused as a whole where the reader
+    // is making the change — they still have the old one, and `didSet` hands it back — but at
+    // restore there is nothing to hand back to. Taking the whole record then would throw away the
+    // task file, the log folder and the appearance, none of which 9.3 gives a range at all, to
+    // answer for one number; and every one of those is a thing the reader chose through a file
+    // picker and would have to find again. The minimum that makes the record usable is reset, and
+    // the rest is left exactly as it was saved.
+    //
+    // Each rule in `fieldsOutsideValidRanges()` reads one field and nothing else, and
+    // `AppSettings.default` is within range, so what comes back always is too —
+    // `SettingsAsReadTests` asks that of the repair rather than leaving it to be believed.
+    public func resettingFieldsOutsideValidRanges() -> SettingsAsRead {
+        let outside = fieldsOutsideValidRanges()
+        guard !outside.isEmpty else { return SettingsAsRead(settings: self, reset: []) }
+        let fallback = AppSettings.default
+        var repaired = self
+        // **Exhaustive on purpose.** A case added to `RangedField` without a line here does not
+        // compile, so a rule can never be checked at launch and then left un-repaired.
+        for field in outside {
+            switch field {
+            case .logicalDayStartHour: repaired.logicalDayStartHour = fallback.logicalDayStartHour
+            case .idleResetHours: repaired.idleResetHours = fallback.idleResetHours
+            case .logFileName: repaired.logFileName = fallback.logFileName
+            case .displayName: repaired.displayName = fallback.displayName
+            case .pauseResumeHotKey: repaired.pauseResumeHotKey = fallback.pauseResumeHotKey
+            case .showWindowHotKey: repaired.showWindowHotKey = fallback.showWindowHotKey
+            case .startNextHotKey: repaired.startNextHotKey = fallback.startNextHotKey
+            case .skipHotKey: repaired.skipHotKey = fallback.skipHotKey
+            }
+        }
+        return SettingsAsRead(settings: repaired, reset: outside)
+    }
+}
+
+// REQ-CFG-018 / REQ-PER-002: what a saved settings record is read as.
+//
+// **The two halves travel together because the second is the only record that the first was
+// changed.** Nothing keeps the value that did not hold up: the launch that repairs it saves over
+// the file it came from (`AppModel.init`), so if `reset` is dropped on the way to the screen there
+// is nowhere left to learn that a setting moved. REQ-LOG-001 is why that matters most for
+// `logFileName` — it is half of where the next session is written.
+public struct SettingsAsRead: Equatable, Sendable {
+    public var settings: AppSettings
+    // Empty for a record that held up. Never holds a value, only which setting it was
+    // (Decision 0018: a file name is the reader's own).
+    public var reset: [AppSettings.RangedField]
+
+    public init(settings: AppSettings, reset: [AppSettings.RangedField]) {
+        self.settings = settings
+        self.reset = reset
     }
 }
 

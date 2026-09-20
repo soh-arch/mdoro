@@ -376,4 +376,255 @@ struct LogSweepWiringTests {
                     "Decision 0042: \(name) sweeps the reader's folder somewhere other than at launch")
         }
     }
+
+    // MARK: - Where the failure goes (Decision 0042 / `docs/CONTEXT.md` §2)
+
+    private static let sweepFunction = "func removeLeftoverLogTemporaryFiles() {"
+
+    // The two halves of `removeLeftoverLogTemporaryFiles`: **the launch that swept, and the launch
+    // that could not reach the folder to sweep.** They answer differently, and a scan that read them
+    // as one would pass whichever way round they were written.
+    private static func sweepParts(of body: String) -> (swept: String, couldNotReach: String)? {
+        guard let start = body.range(of: sweepFunction),
+              let end = body.range(of: "func flushLogQueue()", range: start.upperBound..<body.endIndex),
+              let handler = body.range(of: "} catch {", range: start.upperBound..<end.lowerBound)
+        else { return nil }
+        return (
+            String(body[start.upperBound..<handler.lowerBound]),
+            String(body[handler.upperBound..<end.lowerBound])
+        )
+    }
+
+    // `docs/CONTEXT.md` §2: **an operation that touches the outside world does not fail in silence.**
+    // The sweep deletes files in a folder of the reader's, and for one launch a failure stays in the
+    // diagnostic log — but a file that is refused at every launch is reported by nothing else at all,
+    // because the log itself writes perfectly well. The count has to be saved to be a count of
+    // launches, so all three belong to this one path: count it, save it, and say it.
+    @Test func aSweepThatKeepsFailingIsCountedSavedAndTold() throws {
+        let body = withoutComments(try source(Self.appModelPath))
+        let parts = try #require(Self.sweepParts(of: body),
+                                 "\(Self.appModelPath) no longer sweeps in a do/catch of its own")
+
+        let counted = try #require(
+            parts.swept.range(of: "logSweepFailures.record(sweep)"),
+            "Decision 0042 / CONTEXT §2: what the sweep failed at is no longer counted across launches"
+        )
+        let saved = try #require(
+            parts.swept.range(of: "persist()"),
+            "the run is not saved, so it can never reach two — the sweep runs once per launch"
+        )
+        let told = try #require(
+            parts.swept.range(of: "notifications.notifyLogSweepFailure()"),
+            "CONTEXT §2: a sweep that keeps failing reaches nobody but the diagnostic log again"
+        )
+        #expect(counted.lowerBound < saved.lowerBound, "what is saved is the run this launch just added to")
+        #expect(counted.lowerBound < told.lowerBound, "what is told is decided by the count, not by one sweep")
+    }
+
+    // ⚠ **A launch that could not reach the folder swept nothing**, so it neither adds to the run
+    // nor clears it. Counting it would report the folder twice over — the write that follows says it
+    // already — and clearing it would let a folder that comes and goes wipe out the launches that did
+    // fail, so the one file that can never be removed would never reach three.
+    @Test func aLaunchThatCouldNotReachTheFolderNeitherCountsNorClears() throws {
+        let body = withoutComments(try source(Self.appModelPath))
+        let parts = try #require(Self.sweepParts(of: body))
+
+        #expect(!parts.couldNotReach.contains("logSweepFailures"),
+                "Decision 0042: a folder out of reach is not a sweep, and must not touch the run")
+        #expect(!parts.couldNotReach.contains("notifyLogSweepFailure"),
+                "Decision 0042: the write that follows reports a folder gone away; this must not report it too")
+    }
+
+    // REQ-PER-001: the run is carried across launches by the state file, and **a launch that does not
+    // read it back starts from zero every time**, which is the same as never counting at all.
+    @Test func theRunIsReadBackAtLaunchAndSavedWithEverythingElse() throws {
+        let body = withoutComments(try source(Self.appModelPath))
+        #expect(body.contains("saved?.logSweepFailures"),
+                "Decision 0042: the run from the last launches is no longer restored, so it restarts at zero")
+        #expect(body.contains("logSweepFailures: logSweepFailures"),
+                "Decision 0042: the run is no longer written into the state that is saved")
+    }
+
+    // **A scan that cannot see is a scan that passes.** The two above name a notification and a
+    // field; if either stops existing under that name, they would go on asking for a call nobody
+    // could make and finding nothing to object to in the handler.
+    @Test func theScanForTheNotificationIsLookingAtSomething() throws {
+        let files = try swiftFiles(under: "PomodoroMac/PomodoroMac", recursive: true)
+        let scheduler = try #require(files["NotificationScheduler.swift"],
+                                    "PomodoroMac/PomodoroMac no longer holds NotificationScheduler.swift")
+        #expect(scheduler.contains("func notifyLogSweepFailure()"),
+                "nothing is named notifyLogSweepFailure any more, so looking for that call looks for nothing")
+
+        let body = withoutComments(try source(Self.appModelPath))
+        #expect(body.contains("private var logSweepFailures"),
+                "nothing is named logSweepFailures any more, so the checks above check nothing")
+        let parts = try #require(Self.sweepParts(of: body))
+        #expect(!parts.couldNotReach.isEmpty, "the handler half came out empty, so nothing was examined")
+    }
+}
+
+// Decision 0042 / `docs/CONTEXT.md` §2: **when the sweep cannot clear something, and that keeps
+// happening, the user is told.**
+//
+// §2 asks that an operation touching the outside world fail somewhere it can be seen. One failed
+// sweep is not that — the user asked for none of this tidying, and a folder that has gone away is
+// reported by the write that follows. The case nothing else reports is the other one: **a file
+// refused every single launch, while the log writes perfectly well.**
+//
+// The shape is REQ-ERR-004 / Decision 0039's, borrowed: say it once the failure has held for three,
+// then not again until it clears. ⚠ **The three is not the same three.** A write is attempted per
+// session; the sweep runs once per launch, so this one counts launches — far longer, for the same
+// number.
+
+private func failing(_ count: Int = 1) -> LogTemporaryFile.Sweep {
+    LogTemporaryFile.Sweep(removed: 0, failed: count)
+}
+
+// One launch at a time, as the app does it: the sweep goes in and the answer — whether **this**
+// launch is the one that says so — comes out. `record` is mutating, so the run is threaded here
+// rather than inside an assertion.
+private func launches(
+    _ sweeps: [LogTemporaryFile.Sweep],
+    from start: LogTemporaryFile.FailureRun = LogTemporaryFile.FailureRun()
+) -> (said: [Bool], run: LogTemporaryFile.FailureRun) {
+    var run = start
+    let said = sweeps.map { run.record($0) }
+    return (said, run)
+}
+
+@Suite("Saying that the leftovers could not be cleared (Decision 0042)")
+struct LogSweepFailureRunTests {
+
+    // One launch is not worth a notification, and neither are two. **The third is.**
+    @Test func nothingIsSaidUntilTheFailureHasHeldForThreeLaunches() {
+        #expect(LogTemporaryFile.FailureRun().launches == 0, "nothing has failed yet")
+
+        let three = launches([failing(), failing(), failing()])
+        #expect(three.said == [false, false, true],
+                "Decision 0042 / CONTEXT §2: a failure that has held for three launches is told, and not before")
+        #expect(three.run.launches == LogTemporaryFile.FailureRun.launchThreshold)
+        #expect(three.run.didNotify)
+    }
+
+    // The same trouble is told once. Otherwise every launch from the third on says it again — the
+    // reading Decision 0042 turned down ((c) in the ledger), because a notification that arrives at
+    // every launch is read a few times and then never again.
+    @Test func theSameTroubleIsToldOnce() {
+        let ten = launches(Array(repeating: failing(), count: 10))
+        #expect(ten.said == [false, false, true, false, false, false, false, false, false, false])
+        #expect(ten.run.launches == 10, "it is still counted: the diagnostic log says how long it has held")
+    }
+
+    // A sweep that failed at nothing ends the run **and arms it again**. This is the only way back,
+    // and without it one stretch of trouble would silence the next one for good.
+    @Test func aSweepThatFailedAtNothingEndsTheRunAndArmsItAgain() {
+        let told = launches([failing(), failing(), failing()])
+        #expect(told.run.didNotify)
+
+        let cleared = launches([LogTemporaryFile.Sweep(removed: 1, failed: 0)], from: told.run)
+        #expect(cleared.said == [false])
+        #expect(cleared.run == LogTemporaryFile.FailureRun(), "the run is over, and nothing is outstanding")
+
+        let again = launches([failing(), failing(), failing()], from: cleared.run)
+        #expect(again.said == [false, false, true], "trouble that starts again after it cleared is told again")
+    }
+
+    // A sweep with nothing to do ends it too. **A file that cannot be removed is listed and refused
+    // again**, so a sweep that failed at nothing means nothing is stuck — whether it cleared
+    // something, or found the folder with nothing of ours in it at all.
+    @Test func everySweepThatFailedAtNothingEndsTheRunWhateverElseItDid() {
+        let clean = [
+            LogTemporaryFile.Sweep(removed: 0, failed: 0),
+            LogTemporaryFile.Sweep(removed: 1, failed: 0),
+            LogTemporaryFile.Sweep(removed: 9, failed: 0),
+        ]
+        for sweep in clean {
+            let result = launches([sweep], from: LogTemporaryFile.FailureRun(launches: 2))
+            #expect(result.said == [false])
+            #expect(result.run == LogTemporaryFile.FailureRun(),
+                    "\(sweep) failed at nothing, so the run ends: \(result.run)")
+        }
+    }
+
+    // How many files were refused does not decide when it is said. **One file refused at every
+    // launch is the case this exists for**, and it is the quietest one there is.
+    @Test func oneFileRefusedEveryLaunchIsEnough() {
+        let result = launches([
+            LogTemporaryFile.Sweep(removed: 4, failed: 1),
+            LogTemporaryFile.Sweep(removed: 0, failed: 1),
+            LogTemporaryFile.Sweep(removed: 2, failed: 1),
+        ])
+        #expect(result.said == [false, false, true])
+    }
+
+    // REQ-PER-001: **the count is worth nothing unless it crosses launches.** The sweep runs once
+    // per launch, so a count that did not survive a restart could never reach two, and "three
+    // launches in a row" would never arrive at all.
+    @Test func theRunSurvivesARestart() throws {
+        let run = launches([failing(), failing()]).run
+        #expect(run.launches == 2)
+
+        let saved = PersistedState(
+            timer: .idle(now: sweepReference), presets: .initial(),
+            logSweepFailures: run, savedAt: sweepReference
+        )
+        let written = try JSONEncoder.sweepISO.encode(saved)
+        let reloaded = try JSONDecoder.sweepISO.decode(PersistedState.self, from: written)
+
+        #expect(reloaded.logSweepFailures == run)
+        let next = launches([failing()], from: reloaded.logSweepFailures)
+        #expect(next.said == [true], "the third launch after a restart is still the third")
+    }
+
+    // REQ-PER-002: a state file saved before this field existed reads as no run at all. **Every
+    // reader is in that state the first time they update into this**, and a missing field read as
+    // anything else would report on the launch right after the update.
+    @Test func aStateFileFromBeforeThisFieldReadsAsNoRun() throws {
+        let json = """
+        {"schemaVersion":1,
+         "timer":\(String(decoding: try JSONEncoder.sweepISO.encode(TimerContext.idle(now: sweepReference)), as: UTF8.self)),
+         "presets":\(String(decoding: try JSONEncoder.sweepISO.encode(PresetContext.initial()), as: UTF8.self)),
+         "savedAt":"2023-11-14T22:13:20Z"}
+        """
+        let decoded = try JSONDecoder.sweepISO.decode(PersistedState.self, from: Data(json.utf8))
+
+        #expect(decoded.logSweepFailures == LogTemporaryFile.FailureRun())
+        #expect(decoded.logSweepFailures.launches == 0)
+        let first = launches([failing()], from: decoded.logSweepFailures)
+        #expect(first.said == [false], "the first launch after the update says nothing")
+    }
+
+    // A file somebody edited by hand. A count below zero sits under the threshold for good, and a
+    // failure held there by one absurd number is a failure nobody is ever told about.
+    @Test func aCountThatCouldNotHaveBeenWrittenHereReadsAsNone() throws {
+        let bare = try JSONDecoder.sweepISO.decode(LogTemporaryFile.FailureRun.self, from: Data("{}".utf8))
+        #expect(bare == LogTemporaryFile.FailureRun())
+
+        let negative = try JSONDecoder.sweepISO.decode(
+            LogTemporaryFile.FailureRun.self,
+            from: Data(#"{"launches":-40,"didNotify":false}"#.utf8)
+        )
+        #expect(negative.launches == 0)
+        let result = launches([failing(), failing(), failing()], from: negative)
+        #expect(result.said == [false, false, true], "three launches from zero, not from minus forty")
+    }
+}
+
+private let sweepReference = Date(timeIntervalSince1970: 1_700_000_000)
+
+// The coders `FileStateStore` uses, so that what these tests read back is what a restart reads.
+private extension JSONEncoder {
+    static var sweepISO: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+}
+
+private extension JSONDecoder {
+    static var sweepISO: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
 }

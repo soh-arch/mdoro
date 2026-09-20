@@ -167,6 +167,14 @@ struct MenuBarMenuContent: View {
         if model.stateSaveProblem != nil {
             Button("Mdoro is not saving its state…") { openMain() }
         }
+        // REQ-CFG-018 / 9.3: a setting the saved file held outside its range has been put back to
+        // its default. **It belongs here by the same test as the two above: it cannot be taken
+        // back.** The value the reader chose is gone from the file — `AppModel.init` saves the
+        // repaired record over it — so a reader who never opens the main window would have nothing
+        // anywhere to learn it from. Which settings, and the way to dismiss, stay in the window.
+        if !model.settingsResetAtLaunch.isEmpty {
+            Button("Some saved settings were put back to their defaults…") { openMain() }
+        }
     }
 
     // **Only choosing; nothing here touches the outside world.**

@@ -37,6 +37,13 @@ struct MainWindowView: View {
                 StateRestoreBanner(message: problem, setAsidePath: model.stateSetAsidePath)
             }
 
+            // REQ-CFG-018 / 9.3: settings the saved file held outside their range, shown once at
+            // launch. **Putting them back quietly is the failure this answers** — the reader chose
+            // the value, and nothing else anywhere would say it is no longer theirs.
+            if !model.settingsResetAtLaunch.isEmpty {
+                SettingsResetBanner(fields: model.settingsResetAtLaunch)
+            }
+
             // REQ-SEC-004: confirming a connection request. It comes before the timer controls.
             if let requester = model.pendingConnectionRequest {
                 ConnectionRequestBanner(deviceName: requester)
@@ -260,6 +267,57 @@ struct StateRestoreBanner: View {
                     .truncationMode(.head)
             }
             Button("Dismiss") { model.acknowledgeStateRestoreProblem() }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // REQ-UIX-046: a banner (a -subtle ground inside a -line border) is for a state that needs
+        // attention, not for warning alone. REQ-COL-011 keeps session states out of it.
+        .background(theme.color(.warning, .subtle))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(theme.color(.warning, .line)))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+// REQ-CFG-018 / 9.3: settings the saved file held outside 9.3's ranges, put back to their defaults
+// on the way in and said once at launch.
+//
+// **A band, for the same reason a failed restore is one**: it has already happened, so it cannot
+// wait to stop being true, and only the reader can say it has been read. It is not a sheet — the
+// timer still runs, and the settings that were reset are ones the reader can set again whenever
+// they like.
+//
+// **The list is the point.** "Some settings were reset" leaves the reader to go through every tab
+// of the settings window to find out which; and one of the eight is the one the ruling was written
+// about, so it gets a line of its own when it is in the list.
+struct SettingsResetBanner: View {
+    @Environment(\.theme) private var theme
+    @Environment(AppModel.self) private var model
+    let fields: [AppSettings.RangedField]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Some saved settings were put back to their defaults", systemImage: "exclamationmark.triangle")
+                .font(.headline)
+                .foregroundStyle(theme.color(.warning, .text))
+            Text("Mdoro could not use the values its settings file held for these, so they are back at their defaults. Set them again in Settings.")
+                .font(.callout)
+                .foregroundStyle(theme.textSecondary)
+                .textSelection(.enabled)
+            // Not localised, and not meant to be: `Text` given a `String` is verbatim, and the words
+            // inside it came from `Format.settingLabel` one at a time (Decision 0022).
+            Text(Format.settingLabels(fields))
+                .font(.callout.weight(.medium))
+                .foregroundStyle(theme.textPrimary)
+                .textSelection(.enabled)
+            // REQ-LOG-001: of the eight, this is the one that decides where a session is recorded.
+            // **Saying "a setting was reset" would not tell the reader that the log moved.**
+            if fields.contains(.logFileName) {
+                Text("The log file name was one of them, so from now on sessions are written to the default file name in your log folder.")
+                    .font(.footnote)
+                    .foregroundStyle(theme.textTertiary)
+                    .textSelection(.enabled)
+            }
+            Button("Dismiss") { model.acknowledgeSettingsResetAtLaunch() }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

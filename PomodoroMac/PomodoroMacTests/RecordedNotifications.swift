@@ -22,6 +22,8 @@ final class RecordedNotifications: SessionNotifying {
         case preNotificationsCancelled
         case allCancelled
         case logWriteFailure
+        // Decision 0042: the temporary files this app left in the reader's folder are still there.
+        case logSweepFailure
         case soundTest(NotificationSound)
     }
 
@@ -30,7 +32,7 @@ final class RecordedNotifications: SessionNotifying {
     var delivered: [Call] {
         calls.filter {
             switch $0 {
-            case .sessionFinished, .logWriteFailure, .soundTest: return true
+            case .sessionFinished, .logWriteFailure, .logSweepFailure, .soundTest: return true
             case .preNotificationsRescheduled, .preNotificationsCancelled, .allCancelled: return false
             }
         }
@@ -56,5 +58,6 @@ final class RecordedNotifications: SessionNotifying {
     func cancelPreNotifications() { calls.append(.preNotificationsCancelled) }
     func cancelAll() { calls.append(.allCancelled) }
     func notifyLogWriteFailure() { calls.append(.logWriteFailure) }
+    func notifyLogSweepFailure() { calls.append(.logSweepFailure) }
     func deliverSoundTest(preset: Preset) { calls.append(.soundTest(preset.notificationSound)) }
 }
