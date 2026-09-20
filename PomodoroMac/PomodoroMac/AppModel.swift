@@ -61,6 +61,12 @@ final class AppModel {
     private let droppedLogEntryCount: Int
     // When the last successful write happened.
     private(set) var lastLogWriteAt: Date?
+    // Decision 0042 / `docs/CONTEXT.md` §2: how many launches in a row the startup sweep of the log
+    // folder could not remove something. **Restored from the saved state and saved back**, because
+    // the sweep happens once per launch and a count in this process could never reach two.
+    // Not on the screen: it is what decides whether a notification goes out, and the status line
+    // above is about writing, which is not what failed.
+    private var logSweepFailures: LogTemporaryFile.FailureRun
     // REQ-TSK-032: say quietly that the selection followed on its own.
     private(set) var didFollowTaskSelection = false
 
@@ -209,6 +215,9 @@ final class AppModel {
         self.logQueue = LogWriteQueue(entries: carryOver.kept)
         self.pendingLogCount = self.logQueue.pendingCount
         self.droppedLogEntryCount = carryOver.dropped
+        // Decision 0042: a state file from before this existed reads as no run at all, so the first
+        // launch after an update starts counting from zero rather than reporting on its own.
+        self.logSweepFailures = saved?.logSweepFailures ?? LogTemporaryFile.FailureRun()
         self.restoreFailure = startup.readFailure
         self.setAsideFailure = startup.setAsideFailure
         self.persistBlockedBy = startup.persistBlockedBy
@@ -1207,21 +1216,42 @@ final class AppModel {
             let sweep = try VaultFileAccess.withAccess(to: bookmark) { folderURL in
                 LogTemporaryFile.removeLeftovers(inDirectory: folderURL, logFileName: fileName)
             }
+            // Decision 0042 / `docs/CONTEXT.md` §2: **a sweep that keeps failing is told to the
+            // user.** One failure is not worth a notification — the tidying was nobody's request,
+            // and a folder that has gone away is reported by the write that follows. A file that is
+            // refused every launch is another matter: the log writes perfectly well, so nothing
+            // else ever says it, and what Decision 0042 promised has quietly stopped holding.
+            // **The threshold is the one REQ-ERR-004 / Decision 0039 use for a failed write, and it
+            // counts launches rather than write attempts** (`LogTemporaryFile.FailureRun`).
+            let before = logSweepFailures
+            let shouldNotify = logSweepFailures.record(sweep)
+            // The run has to outlive the launch that built it, and only a change is worth a save.
+            if logSweepFailures != before { persist() }
             // Nothing to report when there was nothing to clear. A line saying zero at every launch
             // would bury the launches where it is not zero. Decision 0018: counts, and nothing that
             // came from the user.
-            guard !sweep.isEmpty else { return }
-            diagnostics.write("log.sweep", level: sweep.failed > 0 ? .warn : .info, [
-                DiagnosticField("removed", sweep.removed),
-                DiagnosticField("failed", sweep.failed),
-            ])
+            if !sweep.isEmpty {
+                diagnostics.write("log.sweep", level: sweep.failed > 0 ? .warn : .info, [
+                    DiagnosticField("removed", sweep.removed),
+                    DiagnosticField("failed", sweep.failed),
+                    // Decision 0018: a count of launches, and nothing that came from the user. It
+                    // is what says whether the notification below went out, and why it did not.
+                    DiagnosticField("launches", logSweepFailures.launches),
+                ])
+            }
+            // The same arrival as a failed write (`flushLogQueue`): a notification, and nothing on
+            // the status line, which is about writing — and writing is not what failed.
+            if shouldNotify { notifications.notifyLogSweepFailure() }
         } catch {
-            // Decision 0042: **tidying up stops neither the app nor the recording.** It is kept off
-            // the screen and out of the notifications on that account — the user asked for none of
-            // it, and a session log that writes perfectly well would be reported as broken. It is
-            // not swallowed either: REQ-ERR-010 / Decision 0034 keep the domain and the code here,
-            // never the text the OS wrote. A folder that has really gone away is reported where it
-            // matters, by the write that follows this one.
+            // Decision 0042: **tidying up stops neither the app nor the recording**, and a folder
+            // this could not reach at all stays off the screen and out of the notifications here —
+            // the write that follows is what reports that. It is not swallowed either:
+            // REQ-ERR-010 / Decision 0034 keep the domain and the code, never the text the OS wrote.
+            //
+            // ⚠ **This launch swept nothing, so it neither adds to the run above nor clears it.**
+            // Recording it as a failure would report the folder twice over; clearing it would let a
+            // folder that comes and goes wipe out the evidence of the launches that did fail, and
+            // the one file that can never be removed would never reach three.
             let failure = error as? VaultFileAccess.AccessError
             diagnostics.write("log.sweep", level: .warn, [
                 DiagnosticField("removed", 0),
@@ -1418,6 +1448,7 @@ final class AppModel {
                     selectedTaskId: tasks.selectedTaskId,
                     selectedTaskSnapshot: tasks.selectedTaskSnapshot,
                     pendingLogEntries: logQueue.pendingEntries,
+                    logSweepFailures: logSweepFailures,
                     savedAt: Date()
                 )
             )

@@ -334,6 +334,9 @@
     "Mdoro could not ask for permission to send notifications. Open System Settings > Notifications and allow them there." : {
 
     },
+    "Mdoro could not remove the temporary files it left there. They end in .tmp and are safe to delete. Writing the session log is unaffected." : {
+
+    },
     "Mdoro could not write the export to that location. Choose another folder and try again." : {
 
     },
@@ -572,6 +575,9 @@
 
     },
     "Tasks" : {
+
+    },
+    "Temporary files are left in your log folder" : {
 
     },
     "That action was not accepted." : {

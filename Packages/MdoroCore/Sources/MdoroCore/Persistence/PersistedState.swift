@@ -14,6 +14,9 @@ public struct PersistedState: Equatable, Sendable, Codable {
     public var selectedTaskSnapshot: String?
     // REQ-LOG-005 / REQ-ERR-004: log entries not yet written. They survive a restart.
     public var pendingLogEntries: [LogEntry]
+    // Decision 0042: how many launches in a row the startup sweep of the log folder left something
+    // behind. **The sweep runs once per launch, so "in a row" cannot be counted inside one process.**
+    public var logSweepFailures: LogTemporaryFile.FailureRun
     public var savedAt: Date
 
     public init(
@@ -24,6 +27,7 @@ public struct PersistedState: Equatable, Sendable, Codable {
         selectedTaskId: String? = nil,
         selectedTaskSnapshot: String? = nil,
         pendingLogEntries: [LogEntry] = [],
+        logSweepFailures: LogTemporaryFile.FailureRun = LogTemporaryFile.FailureRun(),
         savedAt: Date
     ) {
         self.schemaVersion = schemaVersion
@@ -33,6 +37,7 @@ public struct PersistedState: Equatable, Sendable, Codable {
         self.selectedTaskId = selectedTaskId
         self.selectedTaskSnapshot = selectedTaskSnapshot
         self.pendingLogEntries = pendingLogEntries
+        self.logSweepFailures = logSweepFailures
         self.savedAt = savedAt
     }
 
@@ -46,6 +51,9 @@ public struct PersistedState: Equatable, Sendable, Codable {
         selectedTaskId = try c.decodeIfPresent(String.self, forKey: .selectedTaskId)
         selectedTaskSnapshot = try c.decodeIfPresent(String.self, forKey: .selectedTaskSnapshot)
         pendingLogEntries = try c.decodeIfPresent([LogEntry].self, forKey: .pendingLogEntries) ?? []
+        logSweepFailures = try c.decodeIfPresent(
+            LogTemporaryFile.FailureRun.self, forKey: .logSweepFailures
+        ) ?? LogTemporaryFile.FailureRun()
         savedAt = try c.decode(Date.self, forKey: .savedAt)
     }
 
