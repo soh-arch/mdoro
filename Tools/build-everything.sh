@@ -25,7 +25,31 @@
 # Every stage runs even if an earlier one fails, so one round trip says everything that is
 # wrong rather than only the first thing. A compile error, a failing test and a suite that
 # never ran are reported as three different things, because they are three different things.
+#
+# **The run also counts the warnings, and says where they are** (POL-236). That row has sat
+# here since 2026-09-12 carrying an inventory nobody could re-count: fourteen warnings in
+# three files, read once off a CI log, and since then two of those files have changed. Nothing
+# on this machine or any other said whether that was still true, and the numbers written into
+# the row from a Linux session with no compiler turned out to be wrong. So this counts.
+#
+# ⚠ **It does not fail the run, and it does not fix anything.** Counting and fixing are two
+# jobs; this is the first one, and the row says so.
+#
+# ⚠ **A warm build recompiles nothing and therefore warns about nothing.** A second run of
+# this command reports zero and means it in a way a reader will misread. Each stage says
+# whether it started cold, and the count says what to delete to make it cold again.
 set -u
+
+# Each compile is now teed to a log so the warnings can be counted out of it, and a pipeline's
+# status is its last command's -- tee's -- which would turn every failed compile green. This is
+# what stops that, and it is why the three `if ! xcodebuild` tests below still mean what they
+# say. (CI does not need this: nothing there is piped, and a red is a red on a throwaway
+# runner. Here the same line has to carry both the live output and the count.)
+#
+# It changes no decision already in this file: every other pipeline here is an assignment or a
+# statement, and none of them is tested. Checked when this was added, because turning an option
+# on globally is the kind of change that is right where it was aimed and wrong somewhere else.
+set -o pipefail
 
 cd "$(dirname "$0")/.." || exit 1
 
@@ -46,6 +70,19 @@ for tool in swift xcodebuild xcrun python3; do
 done
 
 project=./PomodoroMac/PomodoroMac.xcodeproj
+
+# One directory per run, emptied on the way in: a log left over from last time would be counted
+# as this time's. /tmp rather than the tree, because nothing here belongs in a diff.
+logs=/tmp/mdoro-build-everything-logs
+rm -rf "$logs"
+mkdir -p "$logs" || exit 2
+
+# **Warm or cold is part of the answer, not a detail.** The compiler emits a warning when it
+# compiles the file, so a stage that recompiled nothing reports nothing wrong with code that is
+# still exactly as wrong as it was. Asked before each stage runs, because running it is what
+# makes it warm.
+warmth() { [ -e "$1" ] && echo warm || echo cold; }
+core_warmth=$(warmth Packages/MdoroCore/.build)
 
 # Strings, not arrays. macOS still ships bash 3.2 as /bin/bash, and before 4.4 an empty
 # array read under `set -u` is an unbound variable -- so `${#failed[@]}` would have failed
@@ -183,7 +220,7 @@ stage_started=$(date +%s)
 #
 # The listing is only read when `swift test` came back clean. A suite that failed has already
 # proven that a test ran, and that is the only thing the count is for.
-if ! (cd Packages/MdoroCore && swift build --build-tests); then
+if ! (cd Packages/MdoroCore && swift build --build-tests) 2>&1 | tee "$logs/MdoroCore.log"; then
     not_compiled="$not_compiled MdoroCore"
 elif ! (cd Packages/MdoroCore && swift test); then
     tests_failed="$tests_failed MdoroCoreTests"
@@ -243,10 +280,10 @@ stage_started=$(date +%s)
 # The arguments are identical between the two so that the second is certainly looking at what
 # the first built.
 #
-# CI's steps carry `set -o pipefail` and these do not: pipefail rescues an exit status that a
-# pipeline would otherwise throw away, and nothing here is piped anywhere. xcodebuild is run on
-# its own, and the result bundle is read through a file, which is also what keeps the complaints
-# from that read.
+# The build is teed to a log and the run is not, because only a compile emits warnings. `set -o
+# pipefail` at the top is what keeps the teed line's status the compiler's rather than tee's;
+# the result bundle is still read through a file, which is what keeps the complaints from that
+# read.
 #
 # -derivedDataPath, which the iOS stage below does not use, is what makes "identical arguments"
 # true of the products as well: the run finds exactly the build. It also keeps this out of the
@@ -256,6 +293,7 @@ mac_derived=/tmp/mdoro-build-everything
 mac_result=$mac_derived/result.xcresult
 mac_summary=$mac_derived/summary.json
 mac_read_complaints=$mac_derived/reading-the-summary.txt
+mac_warmth=$(warmth "$mac_derived")
 
 if ! xcodebuild build-for-testing \
     -project "$project" \
@@ -263,7 +301,7 @@ if ! xcodebuild build-for-testing \
     -destination 'platform=macOS' \
     -only-testing:MdoroMacTests \
     -derivedDataPath "$mac_derived" \
-    CODE_SIGNING_ALLOWED=NO; then
+    CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$logs/MdoroMac.log"; then
     not_compiled="$not_compiled MdoroMac"
 else
     # xcodebuild stops with `Existing file at -resultBundlePath` rather than overwriting, and
@@ -334,10 +372,104 @@ if ! xcodebuild build-for-testing \
     -project "$project" \
     -scheme MdoroiOS \
     -destination 'generic/platform=iOS Simulator' \
-    -only-testing:MdoroiOSTests; then
+    -only-testing:MdoroiOSTests 2>&1 | tee "$logs/MdoroiOS.log"; then
     not_compiled="$not_compiled MdoroiOS"
 fi
 took "$stage_started" "MdoroiOS"
+
+# POL-236: the warnings, counted here rather than read off a log by hand once a month.
+#
+# ⚠ **The iOS stage's warmth cannot be asked.** It is the one stage with no -derivedDataPath,
+# so it builds into whatever DerivedData the owner's Xcode is using, and whether that already
+# held these objects is not this script's to know. Said as `unknown` rather than guessed at.
+announce "warnings"
+python3 - "$logs/MdoroCore.log:MdoroCore:$core_warmth" \
+          "$logs/MdoroMac.log:MdoroMac:$mac_warmth" \
+          "$logs/MdoroiOS.log:MdoroiOS:unknown" <<'COUNTING'
+import os, re, sys
+
+# A compiler diagnostic names a place: path, line, column. Everything else that says "warning"
+# is kept apart rather than counted with it -- `xcodebuild: WARNING: Using the first of
+# multiple matching destinations` is not a thing wrong with the code, and a number that mixes
+# the two is the number this row already got wrong once.
+located = re.compile(r"^(?P<path>\S.*?):(?P<line>\d+):(?P<col>\d+): warning: (?P<text>.*)$")
+# Anchored at the start of the line, because the compiler echoes the offending source after
+# each diagnostic, and a source line with the word in it would otherwise be counted as one.
+elsewhere = re.compile(r"^(\S+: )?(warning|WARNING): ")
+
+root = os.getcwd() + os.sep
+
+# **A diagnostic names the file the way the compiler was standing when it saw it.** xcodebuild
+# is run from the root here and names files absolutely; `swift build` is run inside
+# Packages/MdoroCore, and what it prints has not been seen from here, where there is no swift
+# to ask. So the name is resolved against what is actually on disk rather than assumed: the
+# root first, then the directory that stage ran in, and a name that matches neither is printed
+# exactly as it came. ⚠ **Nothing here guesses** — a path is only rewritten when the file it
+# would then name exists.
+where_a_stage_runs = {"MdoroCore": "Packages/MdoroCore"}
+
+def readable(raw, stage):
+    if raw.startswith(root):
+        return raw[len(root):]
+    if os.path.isabs(raw) or os.path.exists(raw):
+        return raw
+    inside = os.path.join(where_a_stage_runs.get(stage, ""), raw)
+    return inside if stage in where_a_stage_runs and os.path.exists(inside) else raw
+total_occurrences = 0
+total_distinct = 0
+
+for argument in sys.argv[1:]:
+    path, stage, warmth = argument.split(":", 2)
+    print("")
+    try:
+        with open(path, errors="replace") as log:
+            lines = log.read().splitlines()
+    except OSError:
+        # A stage whose log is missing is not a stage with no warnings, and the difference is
+        # the whole point of this section.
+        print("%s: no log, so nothing here says anything about its warnings" % stage)
+        continue
+
+    seen = []
+    counts = {}
+    others = []
+    for line in lines:
+        hit = located.match(line)
+        if hit:
+            place = readable(hit.group("path"), stage)
+            one = (place, int(hit.group("line")), int(hit.group("col")), hit.group("text"))
+            counts[place] = counts.get(place, 0) + 1
+            if one not in seen:
+                seen.append(one)
+        elif elsewhere.search(line) and line not in others:
+            others.append(line.strip())
+
+    occurrences = sum(counts.values())
+    total_occurrences += occurrences
+    total_distinct += len(seen)
+
+    print("%s (%s build): %d occurrence(s), %d distinct, in %d file(s)"
+          % (stage, warmth, occurrences, len(seen), len(counts)))
+
+    # ⚠ Zero from a build that compiled nothing is not evidence, and it is the easiest number
+    # here to misread. It says so on the line where it would be misread.
+    if occurrences == 0 and warmth != "cold":
+        print("  ⚠ this build was %s, so it may have compiled nothing. Zero proves nothing here."
+              % warmth)
+        print("  to ask again from cold: rm -rf Packages/MdoroCore/.build "
+              "/tmp/mdoro-build-everything, and for the iOS stage, Xcode's own DerivedData")
+
+    for place in sorted(counts, key=lambda k: (-counts[k], k)):
+        print("  %-60s %d" % (place, counts[place]))
+    for place, line, column, text in sorted(seen):
+        print("    %s:%d:%d  %s" % (place, line, column, text))
+    for line in others:
+        print("  (not about the code) %s" % line[:200])
+
+print("")
+print("all stages: %d occurrence(s), %d distinct" % (total_occurrences, total_distinct))
+print("counted, not fixed, and never a reason for this command to fail (POL-236)")
+COUNTING
 
 took "$whole_run_started" "all of it"
 printf '\n'
