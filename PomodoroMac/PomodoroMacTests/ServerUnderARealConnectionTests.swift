@@ -538,8 +538,22 @@ private final class Upstream {
     // on the main actor at the moment it drops the connection, so it is exact and it is early —
     // earlier than the close can travel back down the wire and be noticed there.
     private(set) var hangUps = 0
+    // **The far end of the fault `PendingApprovalEndingTests` is about**: how many times the Mac has
+    // been told it *is* connected. `note` below counted only the noes, so a connection reported for a
+    // line that was already over was observed by nothing.
+    private(set) var connectedReports = 0
+    // REQ-SEC-004: what `resolveApproval` was asked, in order. A `false` in here is the banner coming
+    // down; whether the user or something else put it there is what the test around it says.
+    private(set) var approvalsAsked: [Bool] = []
+
+    // REQ-SEC-004: what `authenticate` answers. **Every test above wants the accept** and says
+    // nothing about this; the ones about a question waiting for the user replace it.
+    var answersHelloWith: (HelloPayload) -> Authenticator.Decision = { hello in
+        .accept(DeviceToken(deviceName: hello.deviceName))
+    }
 
     private var waitingForHangUp: CheckedContinuation<Void, Never>?
+    private var waitingForApproval: CheckedContinuation<Void, Never>?
 
     // Wait until the Mac drops a connection, or give up. **Nothing is polled**: this is resumed
     // from `connectionChanged`, which runs on the main actor — the same actor `MdoroServer` needs
@@ -566,20 +580,63 @@ private final class Upstream {
         waitingForHangUp = nil
     }
 
+    // REQ-SEC-004: wait until the question about a connection request is settled one way or the
+    // other. **Nothing is polled**, for the reason `waitsForHangUp` gives: this is resumed from
+    // `resolveApproval`, on the main actor, which is the actor the settling has to happen on.
+    //
+    // **One waiting slot, and no test here has two of these in flight** — a second waiter would
+    // take it from the first, which would then run out its own budget and blame the server. Should
+    // one ever be needed, take `HeldReads.waitsForReads`'s precondition rather than this comment.
+    func waitsForApprovalSettled(upTo budget: Duration) async -> Bool {
+        if !approvalsAsked.isEmpty { return true }
+        let deadline = Task { [weak self] in
+            try? await Task.sleep(for: budget)
+            guard !Task.isCancelled else { return }
+            self?.giveUpWaitingForApproval()
+        }
+        defer { deadline.cancel() }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            waitingForApproval = continuation
+        }
+        return !approvalsAsked.isEmpty
+    }
+
+    private func giveUpWaitingForApproval() {
+        waitingForApproval?.resume()
+        waitingForApproval = nil
+    }
+
+    private func note(approval approved: Bool) {
+        approvalsAsked.append(approved)
+        waitingForApproval?.resume()
+        waitingForApproval = nil
+    }
+
     private func note(_ state: ConnectionState) {
-        guard !state.isConnected else { return }
+        guard !state.isConnected else {
+            connectedReports += 1
+            return
+        }
         hangUps += 1
         waitingForHangUp?.resume()
         waitingForHangUp = nil
     }
 
-    // Every hello is accepted: REQ-SEC-003's own judgement lives in `Authenticator` and is held
-    // still elsewhere. What the gates below are about is a connection that never said hello at
-    // all, which never reaches this.
+    // Every hello is accepted unless a test says otherwise (`answersHelloWith`): REQ-SEC-003's own
+    // judgement lives in `Authenticator` and is held still elsewhere. What the gates below are about
+    // is a connection that never said hello at all, which never reaches this.
     func callbacks() -> MdoroServer.Callbacks {
         MdoroServer.Callbacks(
-            authenticate: { hello in .accept(DeviceToken(deviceName: hello.deviceName)) },
-            resolveApproval: { _ in nil },
+            authenticate: { [weak self] hello in
+                self?.answersHelloWith(hello) ?? .accept(DeviceToken(deviceName: hello.deviceName))
+            },
+            // REQ-SEC-004: nil is what an upstream with nothing waiting answers, and it is what the
+            // Authenticator itself answers a `resolveApproval` it has no held hello for. That it was
+            // asked at all is the observation; the answer is beside the point here.
+            resolveApproval: { [weak self] approved in
+                self?.note(approval: approved)
+                return nil
+            },
             handleCommand: { [weak self] payload in
                 self?.commands.append(payload)
             },
@@ -1424,6 +1481,12 @@ private struct Recording {
 
     var endings: [LoggedLine] { lines.filter { $0.code == ConnectionEndingLine.code } }
 
+    // REQ-SEC-004: the line written when a connection request's own line ended before the user
+    // answered. A code of its own, so it is counted apart from the endings above.
+    var approvalWithdrawals: [LoggedLine] {
+        lines.filter { $0.code == ConnectionEndingLine.approvalWithdrawnCode }
+    }
+
     func discard() { try? FileManager.default.removeItem(at: directory) }
 }
 
@@ -1632,5 +1695,149 @@ struct ConnectionEndingLogTests {
         bench.server.stop()
         holds(recording.endings.count == 2,
               "REQ-ERR-010: folding a server that holds no connection wrote an ending (\(recording.endings.count) in all). Every `start()` folds first, so a line here would report a disconnection at every launch.")
+    }
+}
+
+// MARK: - A connection request whose line ended before it was answered
+
+// REQ-SEC-004 / REQ-UIX-004: **the phone that was asking went away while the banner was up.**
+//
+// `pendingApproval` holds a connection the Mac has *not* accepted, so `handleDisconnect`'s
+// `closed === connection` refuses its ending — and nothing else releases the question but the
+// user's answer and the 60-second timeout. Before `foldPendingApproval` the record outlived the
+// line, and an "Allow" pressed afterwards ran `settle(.accept)` on a finished connection: it became
+// `self.connection`, the Mac reported itself connected, no read ever came back, and the lie stood
+// until REQ-COM-005's silence watch noticed fifteen seconds later.
+//
+// **Two ways in, and they are separate tests because they are separate code paths.** A read can
+// say the line is over (`.end`, the only place a polite close is heard — the connection stays
+// `.ready`), or the transport can move the connection to `.failed` / `.cancelled` and tell the
+// state handler `accept` installed. A fix that only watched the read loop would leave the second
+// one exactly as it was.
+//
+// **These live in this file for the same reason `ConnectionEndingLogTests` does**: reaching
+// `pendingApproval` at all takes a hello over an incoming connection, and the bench that provides
+// one — with the seam that can hand the read loop bytes and endings without a peer producing them —
+// is here.
+
+// One withdrawal, and the word it carries. Asked the same way `theOneEnding` is, and for the same
+// reason: a second line means two paths are writing for one event, and none at all means the
+// reader of a pasted log is told nothing about a banner that vanished on its own.
+@MainActor
+private func theOneWithdrawal(
+    in recording: Recording, is expected: ConnectionEnding, _ context: String
+) throws -> LoggedLine {
+    let written = recording.approvalWithdrawals
+    guard written.count == 1 else {
+        throw Wrong(diagnose("REQ-SEC-004 / REQ-ERR-010: \(context) — the log holds \(written.count) `\(ConnectionEndingLine.approvalWithdrawnCode)` line(s), not one. Written: [\(written.map { $0.fields[ConnectionEndingLine.howKey] ?? "?" }.joined(separator: ", "))]. The banner coming down without the user touching it leaves no other trace of any kind: the question was never accepted, so no `\(ConnectionEndingLine.code)` and no `conn up=no` is written for it either."))
+    }
+    let line = written[0]
+    holds(line.fields[ConnectionEndingLine.howKey] == expected.rawValue,
+          "REQ-SEC-004 / REQ-ERR-010: \(context) — the log says `\(ConnectionEndingLine.howKey)=\(line.fields[ConnectionEndingLine.howKey] ?? "nothing")`, not `\(expected.rawValue)`. How the line went is the whole of what this line adds to the fact that the question is gone.")
+    holds(line.level == expected.level.rawValue,
+          "REQ-SEC-004 / REQ-ERR-010: \(context) — written at \(line.level), not \(expected.level.rawValue). The level is the ending's own (`ConnectionEnding.level`): a transport that failed under a pending line failed just as it would under a held one, and a reader scanning that column should not have to know which line it was.")
+    holds(recording.endings.isEmpty,
+          "REQ-ERR-010: \(context) — a `\(ConnectionEndingLine.code)` was written for a line the Mac never held (\(recording.endings.count) in all). That line is written beside `conn up=no` and says why the connection *the Mac was holding* ended, and it carries `\(ConnectionEndingLine.silentKey)`, which is read from `lastHeartbeatAt` — the authenticated connection's stamp, not this line's. A reader would count a disconnection that never happened, with a number describing a different connection.")
+    return line
+}
+
+// REQ-SEC-004: a hello that the Mac answers by asking the user, handed to the read loop through the
+// seam. **Both ends of the asking line are returned**: `line` is the server's, which is what the
+// tests below end, and `asking` is this test's own, which the caller hands back — an `NWConnection`
+// nobody cancels goes on holding its endpoint and its path monitor for the rest of the run.
+@MainActor
+private func aQuestionWaitingOn(
+    _ bench: Bench, reads: HeldReads, from deviceName: String
+) async throws -> (asking: Probe, line: NWConnection) {
+    bench.upstream.answersHelloWith = { .needsUserApproval(requestingDeviceName: $0.deviceName) }
+    let asking = try await connectedProbe(to: bench, called: deviceName)
+    guard await reads.waitsForReads(1, upTo: arrivalBudget) else {
+        asking.cancel()
+        throw Wrong(diagnose("REQ-COM-004: a connection reached the listener and went ready, and the server never asked to read from it inside \(arrivalBudget) — there is no read loop to hand a hello to."))
+    }
+    let hello = try MessageCoder.encode(Envelope(body: ClientMessage.hello(HelloPayload(deviceName: deviceName))))
+    holds(reads.deliver(data: hello, frame: .text), "no read was outstanding to hand the hello to")
+    // The loop arms again only after `dispatch` has returned, so a second read being asked for is
+    // what says the hello has been through `settle`.
+    guard await reads.waitsForReads(2, upTo: arrivalBudget), bench.server.hasPendingApproval else {
+        asking.cancel()
+        throw Wrong(diagnose("REQ-SEC-004: the hello was handed to the read loop and no question is waiting (hasPendingApproval=\(bench.server.hasPendingApproval), connection held=\(bench.server.connection != nil)). Nothing below would be about a banner that is up."))
+    }
+    guard bench.server.connection == nil else {
+        asking.cancel()
+        throw Wrong(diagnose("REQ-SEC-004: the hello that was answered with a question was accepted as well — the Mac is holding the connection (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil")). Nothing is issued and nothing is held while the answer is `ask the user`."))
+    }
+    guard let line = reads.lines.first else {
+        asking.cancel()
+        throw Wrong(diagnose("the read loop was armed without a connection — `HeldReads` recorded \(reads.timesArmed) read(s) and no line to go with them"))
+    }
+    return (asking, line)
+}
+
+@Suite("A connection request whose line ends before it is answered (REQ-SEC-004)")
+@MainActor
+struct PendingApprovalEndingTests {
+
+    // **The fault as it was reported, end to end**: the line ends, and then Allow is pressed.
+    @Test func aReadThatSaysTheLineIsOverTakesTheQuestionWithIt() async throws {
+        let recording = Recording()
+        defer { recording.discard() }
+        let reads = HeldReads()
+        let bench = try await raiseServer(reads: reads, diagnostics: recording.log)
+        defer { bench.server.stop() }
+        defer { for opened in reads.lines { opened.cancel() } }
+
+        let question = try await aQuestionWaitingOn(bench, reads: reads, from: "iPhone that asked and left")
+        defer { question.asking.cancel() }
+
+        // REQ-COM-004: a completed read carrying no frame and no bytes — the ending as the transport
+        // reports it when there was no close frame. What it means is `LineRead.of`'s to say.
+        holds(reads.deliver(), "no read was outstanding to answer — the loop had stopped asking before it was told anything")
+        guard await bench.upstream.waitsForApprovalSettled(upTo: arrivalBudget) else {
+            throw Wrong(diagnose("REQ-SEC-004: the read said the asking line was over and the question was never settled (hasPendingApproval=\(bench.server.hasPendingApproval)). **`handleDisconnect` refuses this line — it is not the connection the Mac believed in — so the ending has to be heard somewhere else**, and `foldPendingApproval` is the only place it is. Left standing, the banner offers an Allow that lands on a finished connection."))
+        }
+        holds(bench.upstream.approvalsAsked == [false],
+              "REQ-SEC-004: the question was settled as \(bench.upstream.approvalsAsked) rather than a single refusal. `resolveApproval(false)` is what lowers the banner and drops the hello the Authenticator is holding, and the two have to go together or the next device's hello is settled against this one's.")
+        holds(!bench.server.hasPendingApproval,
+              "REQ-SEC-004: the question is still waiting after the line it arrived on ended.")
+
+        _ = try theOneWithdrawal(in: recording, is: .lineEnded, "a read that said the asking line was over")
+
+        // **And now the press that used to be believed.** Nothing is waiting, so this is the same
+        // no-op as pressing Allow twice; before the fold it reached `settle(.accept)` with a
+        // finished connection and the Mac went on to report itself connected.
+        bench.server.resolvePendingApproval(approved: true)
+        holds(bench.server.connection == nil,
+              "REQ-COM-013 / REQ-UIX-004: Allow was pressed after the asking line had ended and the Mac is now holding that line (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil")). No read will ever come back off it — nobody re-armed the loop — so this stands until REQ-COM-005's silence watch expires fifteen seconds later, with the screen saying `Connected` throughout.")
+        holds(bench.upstream.connectedReports == 0,
+              "REQ-UIX-004: the Mac was told it is connected (\(bench.upstream.connectedReports) time(s)) over a line that had ended. That report is what the screen and the menu bar read, and there is nothing at the other end of it.")
+        holds(bench.upstream.approvalsAsked == [false],
+              "REQ-SEC-004: pressing Allow on a question that is no longer there settled something (\(bench.upstream.approvalsAsked)). The Authenticator's held hello went with the line; issuing against it now would hand a token to a device that is gone.")
+    }
+
+    // **The other way a line ends, and the one a fix aimed at the read loop would miss.** The
+    // transport moves the connection to `.cancelled` and tells the state handler `accept` installed;
+    // no read is ever answered here, so the `.end` arm is not reached at all.
+    @Test func aTransportThatEndsTheLineTakesTheQuestionWithItToo() async throws {
+        let recording = Recording()
+        defer { recording.discard() }
+        let reads = HeldReads()
+        let bench = try await raiseServer(reads: reads, diagnostics: recording.log)
+        defer { bench.server.stop() }
+        defer { for opened in reads.lines { opened.cancel() } }
+
+        let question = try await aQuestionWaitingOn(bench, reads: reads, from: "iPhone the network dropped")
+        defer { question.asking.cancel() }
+
+        // The connection the question is waiting on, ended underneath it. **Nothing is delivered to
+        // the read loop**, so the only account of this ending is the state handler's.
+        question.line.cancel()
+        guard await bench.upstream.waitsForApprovalSettled(upTo: arrivalBudget) else {
+            throw Wrong(diagnose("REQ-SEC-004: the asking line was ended by the transport and the question was never settled (hasPendingApproval=\(bench.server.hasPendingApproval), reads asked for: \(reads.timesArmed)). **The read loop never heard this one** — no read was answered — so a fold that only watches the `.end` arm leaves this route exactly as it was: the banner stays up over a connection that is gone."))
+        }
+        holds(!bench.server.hasPendingApproval,
+              "REQ-SEC-004: the question is still waiting after the transport ended the line it arrived on.")
+        _ = try theOneWithdrawal(in: recording, is: .transportCancelled,
+                                 "a line the transport ended while the question waited")
     }
 }

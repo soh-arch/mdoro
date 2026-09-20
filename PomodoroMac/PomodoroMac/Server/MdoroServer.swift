@@ -299,6 +299,15 @@ final class MdoroServer {
         _ closed: NWConnection, ended ending: ConnectionEnding, at now: Date = Date(),
         brokenRun: Int? = nil
     ) {
+        // REQ-SEC-004: **a line still waiting for an answer is not what the guard below is about,
+        // so its ending is heard just before it.** That guard asks whether this was the connection
+        // the Mac believed in, and a connection held for approval never is one — but it arrives at
+        // this same door, because **every ending in this class comes through here and three of them
+        // can be carrying a pending line**: the read loop's `.end`, the tenth broken message
+        // (`handle` is reached before any `source === connection` gate), and the transport's own
+        // `.failed` / `.cancelled`. Taken at the door rather than at those three sites for the same
+        // reason the ending itself is handed in at the door: a path added later cannot forget it.
+        foldPendingApproval(endedWith: closed, ended: ending)
         guard closed === connection else { return }
         // **Written before the clean-up, because the clean-up destroys the evidence.**
         // `lastHeartbeatAt` is the only value that can say how long the phone had been quiet, and
@@ -309,6 +318,58 @@ final class MdoroServer {
         connectedTokenValue = nil
         lastHeartbeatAt = nil
         callbacks?.connectionChanged(ConnectionState(isConnected: false))
+    }
+
+    // REQ-SEC-004 / REQ-UIX-004: **the phone that was asking went away, so the question goes with
+    // it.** (The user's ruling of 2026-09-19 named REQ-COM-013 — the connection state being visible
+    // at all times. On the Mac that display is REQ-UIX-004's; REQ-COM-013 governs the iPhone's.
+    // Both say the same thing about this: showing connected while holding a line that is over is
+    // the one shape they most want to avoid.)
+    //
+    // **Nothing else lets a pending question go.** `pendingApproval` is released by the user's
+    // answer and by the 60-second timeout (`startApprovalTimeout`) and by nothing else, so before
+    // this the record outlived the line it belonged to. An "Allow" pressed afterwards then ran
+    // `settle(.accept)` on a finished connection: it became `self.connection`, `connectionChanged`
+    // reported `isConnected: true`, no read ever came back because nobody re-armed the loop, and
+    // the Mac showed a phone that had gone until `checkHeartbeat` noticed fifteen seconds later.
+    //
+    // **The banner comes down through `resolveApproval(false)`, which is the same call the denial
+    // and the timeout make** — it is what clears `pendingConnectionRequest` and drops the hello the
+    // Authenticator is holding, and the two must go together or the next hello from a third device
+    // would be settled against this one's. What is deliberately *not* done is `refuse(...)`: there
+    // is nobody left to send an `authFailed` to, and the user did not reject anything, so writing
+    // `conn.refused why=connectionRejectedByUser` would put a reason in the log that never happened.
+    //
+    // The connection is handed back as well as let go of, for the reason the `.end` arm gives: two
+    // of the endings that reach here have had nothing cancelled, and an `NWConnection` nobody
+    // cancels keeps its endpoint and its path monitor. Cancelling one already cancelled does
+    // nothing, and the `.cancelled` echo finds `pendingApproval` already nil.
+    private func foldPendingApproval(endedWith closed: NWConnection, ended ending: ConnectionEnding) {
+        guard let pending = pendingApproval, pending.connection === closed else { return }
+        // Released before anything else here runs, so neither the echo of the cancel below nor
+        // anything the callback does can find the question still standing.
+        pendingApproval = nil
+        approvalTimeout?.cancel()
+        approvalTimeout = nil
+        record(approvalWithdrawnBy: ending)
+        closed.cancel()
+        _ = callbacks?.resolveApproval(false)
+    }
+
+    // REQ-ERR-010 / REQ-SEC-004: **a line of its own, not `conn.end`.** Two things would be wrong
+    // about borrowing that one. It is written beside `conn up=no` and says why the connection the
+    // Mac was holding ended — and this line was never held, so a reader would count a disconnection
+    // that never happened. And it carries `silent`, which is read from `lastHeartbeatAt`: that stamp
+    // belongs to the authenticated connection, which in this case is usually still up and beating
+    // (a standing connection is why approval was being asked for at all), so the number would
+    // describe a different line entirely. **The word for how the line went is the same vocabulary**,
+    // and so is its level — a transport that failed under a pending line failed just as it would
+    // under a held one, and a reader scanning the levels should not have to know which line it was.
+    private func record(approvalWithdrawnBy ending: ConnectionEnding) {
+        diagnostics.write(
+            ConnectionEndingLine.approvalWithdrawnCode, level: ending.level,
+            [DiagnosticField(ConnectionEndingLine.howKey, ending.rawValue)]
+        )
     }
 
     // REQ-ERR-010 / Decision 0018: one word for how it ended and one number for how quiet the
