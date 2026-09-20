@@ -75,8 +75,10 @@ final class MdoroServer {
 
     // MARK: - Starting up
 
-    // **It returns only once the port is settled.** Return before it is settled and the value that goes
-    // into the Bonjour TXT record is 0.
+    // **It returns only once the port is settled, and only with a port.** REQ-COM-002 / 003: the
+    // number that comes back here is the one `advertise` puts on the air as TXT `ws`, and nothing
+    // downstream questions it — so `ListenerReadiness` throws for a listener that went ready with
+    // no port rather than answering 0, which is `.any` and not a refusal.
     //
     // **Whatever is listening now is folded first.** Overwrite `self.listener` and leave the old one
     // running, and a second start is a second port and a second Bonjour registration: mDNSResponder
@@ -643,6 +645,42 @@ final class MdoroServer {
 // Wait until the NWListener is ready, then return the port that was settled on.
 // The state handler runs on its own queue, so a box guards against resuming the continuation twice.
 enum ListenerReadiness {
+
+    // REQ-COM-003: **a listener that is ready with no port on it is a start that failed, and this
+    // is what says so.** Deliberately not an `NWError` like the two arms below: nothing in the
+    // transport reported a failure — it reported `.ready` — so there is no error to pass on, and
+    // minting a POSIX code for one would write a cause into the diagnostic log (REQ-ERR-010) that
+    // nothing observed. **A reader of that log sees this type's own name as the domain rather than
+    // `Mdoro:n`**: Decision 0034 hands out a fixed number per case from the bands in
+    // `ErrorCode.swift`, and none of those bands covers listening, so taking a number here would
+    // mean opening a new one — a decision about that ledger, not about this line.
+    //
+    // `nonisolated` for the same reason `ConnectionEnding` and `WebSocketLineReads` are: this
+    // target's default isolation is the main actor, and this is raised from the listener's own
+    // queue, which is no actor at all.
+    nonisolated struct NoPortOnAReadyListener: Error {}
+
+    // **Nothing is handed back that is not a port.** `NWEndpoint.Port(rawValue: 0)` is not a
+    // refusal — 0 is `.any`, the request to be given whichever port is free — so a 0 returned from
+    // here is taken for a port everywhere a real one would be: `advertise` writes it into the
+    // Bonjour TXT record as `ws` (REQ-COM-002 / 003), `DiscoveredServer.read` parses it back
+    // without complaint, and the iPhone dials a port nothing listens on. **The only symptom is
+    // silence**, which is the shape `docs/CONTEXT.md` ("failures must not be silenced") names.
+    //
+    // **This arm is written from the documented fact, not from a reproduction.** `NWListener.port`
+    // states that "The listener's port is available once the listener is in the ready state"
+    // (developer.apple.com/documentation/network/nwlistener/port, read 2026-09-19), and its one
+    // caller reads it inside the `.ready` arm — so nothing should ever reach the throw. What it
+    // must not do if something does is answer with a number.
+    //
+    // Kept apart from `awaitReady` because an `NWListener` cannot be made to go ready without a
+    // port, so this is the only place the decision can be exercised at all
+    // (`AReadyListenerHasAPortTests`).
+    nonisolated static func settledPort(_ raw: UInt16?) throws -> UInt16 {
+        guard let raw, raw != 0 else { throw NoPortOnAReadyListener() }
+        return raw
+    }
+
     private final class Once: @unchecked Sendable {
         private let lock = NSLock()
         private var done = false
@@ -661,7 +699,12 @@ enum ListenerReadiness {
                 switch state {
                 case .ready:
                     guard once.claim() else { return }
-                    continuation.resume(returning: listener.port?.rawValue ?? 0)
+                    do {
+                        let port = try ListenerReadiness.settledPort(listener.port?.rawValue)
+                        continuation.resume(returning: port)
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
                 case let .failed(error):
                     guard once.claim() else { return }
                     continuation.resume(throwing: error)
