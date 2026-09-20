@@ -141,6 +141,23 @@ struct PresetEditorView: View {
                     Text(error).font(.footnote).foregroundStyle(theme.color(.warning, .text))
                 }
                 Toggle("Notify during Focus modes", isOn: binding(preset, \.timeSensitiveNotifications))
+                // REQ-NTF-005: asking for Time Sensitive is not the same as getting it.
+                // `.timeSensitive` needs the Time Sensitive Notifications capability, and this
+                // project carries no entitlements file at all, so the toggle above changes what is
+                // sent and nothing about what arrives (`docs/platform/0016-what-a-focus-breaking-notification-needs.md`).
+                // **Fixed text, and deliberately not a reading of
+                // `UNNotificationSettings.timeSensitiveSetting`:** what that returns with no
+                // entitlement is undocumented, and the capability is settled when the app is built
+                // — adding one is an Xcode operation (Decision 0013) — so there is nothing here to
+                // decide at run time.
+                // **It says what this project is missing, not how the build was signed.** Without
+                // the capability the notification stays behind Focus whatever the signature is.
+                // REQ-COL-001 / 002: the role, not the hue. The same role as the two lines above,
+                // which say the same kind of thing — the notification may not reach you and the fix
+                // is outside this app. `warning`: the timer itself runs either way.
+                Text("This build does not carry the Time Sensitive Notifications capability, so end-of-session notifications are not expected to arrive until Focus ends. The session itself ends on time.")
+                    .font(.footnote)
+                    .foregroundStyle(theme.color(.warning, .text))
                 preNotificationEditor(preset)
             } header: {
                 Text("Notifications")
