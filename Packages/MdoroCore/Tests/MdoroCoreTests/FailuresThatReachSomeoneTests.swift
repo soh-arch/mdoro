@@ -656,10 +656,11 @@ struct FailuresThatReachSomeoneTests {
         }
     }
 
-    // REQ-ERR-010 / Decision 0018: the refusal reaches the iPhone, and it has to reach the log
-    // too. "It will not pair" is the report; five wrong codes, a pairing window that has closed
-    // and a token this Mac does not know otherwise leave the same silence in the log the reader
-    // pastes into an issue.
+    // The refusal reaches the iPhone, and it has to reach the log too. **No clause asks for that
+    // line** — the reader Decision 0018 wrote the log for is the whole of why it exists. "It will
+    // not pair" is the report; five wrong codes, a pairing window that has closed and a token this
+    // Mac does not know otherwise leave the same silence in the log that reader pastes into an
+    // issue.
     //
     // **A line that has to be remembered is a line that gets forgotten**, so the record and the
     // send are one call, and this holds it that way: every `AuthFailedPayload` the file builds

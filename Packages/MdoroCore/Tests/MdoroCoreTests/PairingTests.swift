@@ -389,9 +389,11 @@ struct ProtocolRefusalTests {
         }
     }
 
-    // REQ-ERR-010 / Decision 0018: **a refusal is recorded before it leaves, on every path.** The
-    // Mac target is not reachable from here, so the wiring is read: every case `settle` answers
-    // must go through a `refuse` that records, not straight to the wire.
+    // **A refusal is recorded before it leaves, on every path.** No clause asks for that record —
+    // the reader Decision 0018 wrote the log for is the whole of why it is written, and
+    // `MdoroServer` says so beside `refuse`. The Mac target is not reachable from here, so the
+    // wiring is read: every case `settle` answers must go through a `refuse` that records, not
+    // straight to the wire.
     @Test func theServerRecordsThisRefusalBeforeSendingIt() throws {
         let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
 

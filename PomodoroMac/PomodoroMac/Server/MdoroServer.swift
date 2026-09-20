@@ -46,10 +46,12 @@ final class MdoroServer {
     private(set) var connectedTokenValue: String?
     private(set) var lastHeartbeatAt: Date?
 
-    // Decision 0018: what happens here happens nowhere else, and the person reporting it cannot see
-    // any of it. Without a line, "it will not pair" reaches an issue with no way to tell five wrong
-    // codes from a token the Mac no longer knows (`conn.refused`), and "it disconnected" with no way
-    // to tell a phone that went quiet from a line that dropped (`conn.end`, `ConnectionEnding`).
+    // **No clause asks for these lines.** The reader Decision 0018 wrote the log for — a stranger
+    // on an issue — is the whole of why they exist: what happens here happens nowhere else, and the
+    // person reporting it cannot see any of it. Without a line, "it will not pair" reaches an issue
+    // with no way to tell five wrong codes from a token the Mac no longer knows (`conn.refused`),
+    // and "it disconnected" with no way to tell a phone that went quiet from a line that dropped
+    // (`conn.end`, `ConnectionEnding`).
     private let diagnostics: DiagnosticLog
 
     // REQ-COM-004: the read loop's one call into the transport, taken as a seam so that what the
@@ -561,9 +563,10 @@ final class MdoroServer {
         }
     }
 
-    // Decision 0018: **the only ways a refusal leaves this process**, so the record cannot be
-    // forgotten on a path someone adds later. Two of them, because 10.2 carries the two kinds of
-    // reason in two different messages — and both of them write the line first.
+    // **The only ways a refusal leaves this process**, so the record cannot be forgotten on a path
+    // someone adds later. **No clause asks for that record either** — the reason it is written is
+    // beside `diagnostics`, where the log is taken in. Two of them, because 10.2 carries the two
+    // kinds of reason in two different messages — and both of them write the line first.
     private func refuse(_ code: AuthFailureCode, of hello: HelloPayload, to connection: NWConnection) {
         record(refusal: code, of: hello)
         sendThenClose(.authFailed(AuthFailedPayload(code: code)), to: connection)
