@@ -99,13 +99,17 @@ struct TestHostTests {
     @Test func noModelBuiltForATestCanReachTheNotificationCentre() throws {
         // **`AppModel(` cannot be looked up through `afterEachAnchor` here.** Most of these files
         // do not build one at all, and that is the ordinary case rather than a renamed anchor — so
-        // the absence is counted across the whole scan instead of refused file by file. Renamed,
-        // every loop below runs over nothing and every check in it passes, which is what the count
-        // at the end is watching for.
-        var constructionsRead = 0
+        // the absence is refused per directory instead of file by file. Renamed in one directory,
+        // every loop over its files runs over nothing and every check in it passes, which is what
+        // that directory's own count is watching for.
+        //
+        // **A total across both would not be.** The host app's construction is the only one in
+        // `PomodoroMac/PomodoroMac` — the one this check was written for, having sat in neither the
+        // seam nor here — and the nine in `PomodoroMacTests` keep a sum above zero after it goes.
         for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
             let files = try swiftFiles(under: directory, recursive: true)
             #expect(!files.isEmpty, "\(directory) could not be read; it moved, or its name changed")
+            var constructionsRead = 0
             for (name, text) in files {
                 for construction in text.components(separatedBy: "AppModel(").dropFirst() {
                     // `AppModel()` — the production one. Nothing substituted, nothing to check.
@@ -123,8 +127,11 @@ struct TestHostTests {
                     )
                 }
             }
+            #expect(
+                constructionsRead > 0,
+                "no `AppModel(` is built with arguments under \(directory), so this read nothing there"
+            )
         }
-        #expect(constructionsRead > 0, "no `AppModel(` is built in either directory, so this read nothing")
     }
 
     // REQ-PER-006: the same hole, one dependency along. The requirement tells the OS to keep the
@@ -138,13 +145,17 @@ struct TestHostTests {
     @Test func noModelBuiltForATestCanHoldTheMacAwake() throws {
         // **`AppModel(` cannot be looked up through `afterEachAnchor` here.** Most of these files
         // do not build one at all, and that is the ordinary case rather than a renamed anchor — so
-        // the absence is counted across the whole scan instead of refused file by file. Renamed,
-        // every loop below runs over nothing and every check in it passes, which is what the count
-        // at the end is watching for.
-        var constructionsRead = 0
+        // the absence is refused per directory instead of file by file. Renamed in one directory,
+        // every loop over its files runs over nothing and every check in it passes, which is what
+        // that directory's own count is watching for.
+        //
+        // **A total across both would not be.** The host app's construction is the only one in
+        // `PomodoroMac/PomodoroMac` — the one this check was written for, having sat in neither the
+        // seam nor here — and the nine in `PomodoroMacTests` keep a sum above zero after it goes.
         for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
             let files = try swiftFiles(under: directory, recursive: true)
             #expect(!files.isEmpty, "\(directory) could not be read; it moved, or its name changed")
+            var constructionsRead = 0
             for (name, text) in files {
                 for construction in text.components(separatedBy: "AppModel(").dropFirst() {
                     guard !construction.hasPrefix(")") else { continue }
@@ -157,8 +168,11 @@ struct TestHostTests {
                     )
                 }
             }
+            #expect(
+                constructionsRead > 0,
+                "no `AppModel(` is built with arguments under \(directory), so this read nothing there"
+            )
         }
-        #expect(constructionsRead > 0, "no `AppModel(` is built in either directory, so this read nothing")
     }
 
     // Decision 0040: the same hole, one dependency further along. The tokens live in the Keychain
@@ -171,13 +185,17 @@ struct TestHostTests {
     @Test func noModelBuiltForATestCanWriteToTheReadersKeychain() throws {
         // **`AppModel(` cannot be looked up through `afterEachAnchor` here.** Most of these files
         // do not build one at all, and that is the ordinary case rather than a renamed anchor — so
-        // the absence is counted across the whole scan instead of refused file by file. Renamed,
-        // every loop below runs over nothing and every check in it passes, which is what the count
-        // at the end is watching for.
-        var constructionsRead = 0
+        // the absence is refused per directory instead of file by file. Renamed in one directory,
+        // every loop over its files runs over nothing and every check in it passes, which is what
+        // that directory's own count is watching for.
+        //
+        // **A total across both would not be.** The host app's construction is the only one in
+        // `PomodoroMac/PomodoroMac` — the one this check was written for, having sat in neither the
+        // seam nor here — and the nine in `PomodoroMacTests` keep a sum above zero after it goes.
         for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
             let files = try swiftFiles(under: directory, recursive: true)
             #expect(!files.isEmpty, "\(directory) could not be read; it moved, or its name changed")
+            var constructionsRead = 0
             for (name, text) in files {
                 for construction in text.components(separatedBy: "AppModel(").dropFirst() {
                     guard !construction.hasPrefix(")") else { continue }
@@ -193,8 +211,11 @@ struct TestHostTests {
                     )
                 }
             }
+            #expect(
+                constructionsRead > 0,
+                "no `AppModel(` is built with arguments under \(directory), so this read nothing there"
+            )
         }
-        #expect(constructionsRead > 0, "no `AppModel(` is built in either directory, so this read nothing")
     }
 
     // REQ-UIX-030: a scene is placed before any view of it appears, so `.task`
