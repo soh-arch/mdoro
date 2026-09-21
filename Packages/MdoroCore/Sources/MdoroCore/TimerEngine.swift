@@ -27,7 +27,12 @@ public enum TimerEngine {
             guard let endAt = context.sessionEndAt else { return false }
             return endAt.timeIntervalSince(now) <= extensionWindowSeconds
         case .paused:
-            return TimeInterval(context.remainingSeconds ?? 0) <= extensionWindowSeconds
+            // REQ-TIM-002: a pause holds the remainder of the session in remainingSeconds, so that is
+            // what the window is measured against. With no remainder to measure, the window cannot be
+            // decided — and this falls to the same side as the two branches around it: closed.
+            // A default of 0 would put the widest possible answer on the accepting side.
+            guard let remaining = context.remainingSeconds else { return false }
+            return TimeInterval(remaining) <= extensionWindowSeconds
         case .finished:
             guard let finishedAt = context.finishedAt else { return false }
             return now.timeIntervalSince(finishedAt) <= extensionGraceSeconds
@@ -269,8 +274,16 @@ public enum TimerEngine {
                 ctx = enterPendingDecision(ctx, reason: .pausedTooLong, endedAt: pausedAt, now: now)
                 effects.append(contentsOf: pendingDecisionEffects)
             } else {
+                // REQ-TIM-002: the end time is recalculated from "now + the remainder the pause held".
+                // Nothing stands in for a missing remainder: now + 0 is the same shape as a session that
+                // has just ended, so the very next tick() finishes it with nobody having touched
+                // anything — work raises the loop count there and commits once the extension grace is
+                // out, a break commits at once — and the session reaches `MdoroLog.md` as completed. The
+                // long-pause branch above never reads the remainder, so it is left alone; only this one
+                // refuses.
+                guard let remaining = ctx.remainingSeconds else { return fail(.invalidStateForAction) }
                 ctx.accumulatedPausedSeconds += Int(idleSeconds)
-                ctx.sessionEndAt = now.addingTimeInterval(TimeInterval(ctx.remainingSeconds ?? 0))
+                ctx.sessionEndAt = now.addingTimeInterval(TimeInterval(remaining))
                 ctx.remainingSeconds = nil
                 ctx.pausedAt = nil
                 ctx.runState = .running
@@ -305,7 +318,12 @@ public enum TimerEngine {
             case .running:
                 ctx.sessionEndAt = (ctx.sessionEndAt ?? now).addingTimeInterval(TimeInterval(extendSeconds))
             case .paused:
-                ctx.remainingSeconds = (ctx.remainingSeconds ?? 0) + extendSeconds
+                // REQ-TIM-002: while PAUSED the extension is added to the remainder the pause holds.
+                // The window check above already turns a missing remainder away, so this is the second
+                // door rather than the first. It stays shut anyway: a default that is only safe because
+                // nothing can reach it comes back quietly the day the check upstream changes.
+                guard let remaining = ctx.remainingSeconds else { return fail(.invalidStateForAction) }
+                ctx.remainingSeconds = remaining + extendSeconds
             case .finished:
                 // REQ-TIM-042: take back the loop count already added, then return to RUNNING.
                 ctx.loopCount = max(0, ctx.loopCount - 1)
@@ -338,11 +356,17 @@ public enum TimerEngine {
             guard let pending = ctx.pendingDecision else { return fail(.invalidStateForAction) }
             switch decision {
             case .continueSession:
-                guard pending.reason == .pausedTooLong, let pausedAt = ctx.pausedAt else {
+                // REQ-TIM-033 raises this question from PAUSED, and nowhere else; PAUSED holds both the
+                // moment the pause began and the remainder at that moment (REQ-TIM-002), and entering
+                // PENDING_DECISION changes neither. Both are required here for the same reason as in
+                // .resume — now + 0 is the same shape as a session that has just ended.
+                guard pending.reason == .pausedTooLong,
+                      let pausedAt = ctx.pausedAt,
+                      let remaining = ctx.remainingSeconds else {
                     return fail(.invalidStateForAction)
                 }
                 ctx.accumulatedPausedSeconds += Int(now.timeIntervalSince(pausedAt))
-                ctx.sessionEndAt = now.addingTimeInterval(TimeInterval(ctx.remainingSeconds ?? 0))
+                ctx.sessionEndAt = now.addingTimeInterval(TimeInterval(remaining))
                 ctx.remainingSeconds = nil
                 ctx.pausedAt = nil
                 ctx.pendingDecision = nil
