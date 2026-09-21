@@ -517,17 +517,32 @@ final class MdoroServer {
         switch decision {
         case let .accept(token):
             // REQ-SEC-004 / REQ-ERR-010: **the standing connection is ending here, and this is the
-            // only place that can be said.** The cancel below reaches `handleDisconnect` after
+            // only place that can be said.** The cancel reaches `handleDisconnect` after
             // `connection` has become `source`, so the guard refuses it, and `connectionChanged`
             // reports `isConnected: true` throughout — no `conn up=no` is ever written. Read from
             // the log alone, a phone that dialled again over a line the Mac was still holding was
             // indistinguishable from one that had never been away.
             //
-            // `source` itself is exempt: a second hello on the line already held is not one
-            // connection displacing another, and the cancel below then reaches the very connection
-            // being accepted.
-            if let standing = connection, standing !== source { record(ending: .displacedByNewHello) }
-            connection?.cancel()
+            // **`source` itself is exempt, and the exemption covers the hang-up as much as the line
+            // written about it.** A second hello on the line the Mac is already holding is not one
+            // connection displacing another: there is no other connection. What the cancel would
+            // reach is the very connection this branch is in the middle of accepting.
+            //
+            // **And it would not merely be a wasted call.** `connection` is `source` by the time the
+            // `.cancelled` echo arrives, so `handleDisconnect`'s `closed === connection` — the gate
+            // that refuses the ending of every line but the one the Mac believes in — lets it
+            // through. The echo would be read as the held connection ending: a `conn.end` written,
+            // the connection let go of, and `connectionChanged(isConnected: false)` reported
+            // upward. **The accept would hang up on the line it had just accepted**, one hop of the
+            // main actor after telling the screen it was connected.
+            //
+            // `connection = source` stays outside the exemption. A hello from a line that is not the
+            // held one is what this branch is mostly for, and where the two are the same line the
+            // assignment writes the object that is already there.
+            if let standing = connection, standing !== source {
+                record(ending: .displacedByNewHello)
+                standing.cancel()
+            }
             connection = source
             connectedDeviceName = payload.deviceName
             connectedTokenValue = token.value
@@ -557,9 +572,11 @@ final class MdoroServer {
             // and folds it — so the question put up on the line here would come straight back down,
             // and the phone would be waiting behind a banner that had already withdrawn itself.
             //
-            // The accept above draws the same line, **but only around its log line**: the cancel
-            // that follows it is unconditional. Whatever that costs there is its own to answer for;
-            // it is not the reason this branch exempts `source`.
+            // **The accept above draws the same line, around its cancel as well as its log line.**
+            // The two branches answer to different gates — that one's is `handleDisconnect`'s
+            // `closed === connection`, this one's is `foldPendingApproval`'s
+            // `pending.connection === closed` — and in both the gate is holding the very connection
+            // the echo would be about, so in both it lets the echo through.
             if let standing = pendingApproval?.connection, standing !== source { standing.cancel() }
             pendingApproval = (source, payload)
             startApprovalTimeout()
