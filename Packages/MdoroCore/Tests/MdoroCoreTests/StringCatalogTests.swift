@@ -39,36 +39,13 @@ private func sourceLanguage(_ path: String) throws -> String? {
     return (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["sourceLanguage"] as? String
 }
 
-// Every `String(localized: "…")` in a file, as written. Interpolated ones are left out: the
-// key Xcode extracts for those depends on the type of each interpolation (`%@` / `%lld` / …),
-// which is not in the text. A literal with no interpolation is its own key exactly.
+// Every `String(localized: "…")` in a file, as written — the scan itself is in
+// `RepositorySources.swift`, so the same blind spot cannot open up in one copy of it.
+// Interpolated ones are left out: the key Xcode extracts for those depends on the type of each
+// interpolation (`%@` / `%lld` / …), which is not in the text. A literal with no interpolation is
+// its own key exactly.
 private func plainLocalizedLiterals(in text: String) -> [String] {
-    var found: [String] = []
-    var rest = Substring(text)
-    while let call = rest.range(of: "String(localized: \"") {
-        rest = rest[call.upperBound...]
-        var literal = ""
-        var index = rest.startIndex
-        var escaped = false
-        while index < rest.endIndex {
-            let character = rest[index]
-            if escaped {
-                literal.append(character)
-                escaped = false
-            } else if character == "\\" {
-                literal.append(character)
-                escaped = true
-            } else if character == "\"" {
-                break
-            } else {
-                literal.append(character)
-            }
-            index = rest.index(after: index)
-        }
-        if !literal.contains("\\(") { found.append(literal) }
-        rest = rest[index...]
-    }
-    return found
+    localizedStringLiterals(in: text).filter { !$0.contains("\\(") }
 }
 
 @Suite("The words the app shows live in a String Catalog (Decision 0022)")
@@ -79,8 +56,11 @@ struct StringCatalogTests {
     // screen looked right and the strings were invisible to anyone adding a language.
     @Test func aTargetThatLocalisesAStringHasSomewhereToLocaliseItInto() throws {
         for target in appTargets {
+            // Asked across whitespace, not as a spelling: a target whose only localised strings
+            // are wrapped ones localises just as much, and skipping it here would let it keep no
+            // catalogue at all.
             let localises = try swiftFiles(under: target.folder, recursive: true)
-                .filter { $0.value.contains("String(localized:") || $0.value.contains("LocalizedStringKey") }
+                .filter { !localizedCalls(in: $0.value).isEmpty || $0.value.contains("LocalizedStringKey") }
             guard !localises.isEmpty else { continue }
             let exists = FileManager.default.fileExists(
                 atPath: repositoryRoot.appendingPathComponent(target.catalogue).path
