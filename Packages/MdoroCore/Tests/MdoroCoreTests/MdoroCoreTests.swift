@@ -585,6 +585,154 @@ struct ExtensionWindowTests {
     }
 }
 
+// MARK: - A pause with no remainder (REQ-TIM-002)
+
+// REQ-TIM-002 makes PAUSED hold the remainder of the session in remainingSeconds, so a pause without
+// one is a state the spec forbids. These tests pin down what happens if it turns up anyway: nothing is
+// invented in its place. Every refusal below is paired with the same call on a sound pause, so that an
+// implementation which simply turns everything away cannot pass.
+@Suite("A pause with no remainder (REQ-TIM-002)")
+struct PauseWithoutRemainderTests {
+    private let preset = makePreset(work: 25 * 60, extend: 5 * 60)
+    private var presets: PresetContext { makePresetContext(preset) }
+    private var pauseTime: Date { referenceDate.addingTimeInterval(60) }
+
+    // A sound pause, one minute into a 25-minute session: 24 minutes remain.
+    private func soundPause() throws -> TimerContext {
+        let idle = TimerContext.idle(now: referenceDate)
+        let started = try TimerEngine.reduce(
+            action: .startWork(presetId: preset.id, taskSnapshot: nil),
+            context: idle, presets: presets, now: referenceDate
+        ).get()
+        let paused = try TimerEngine.reduce(action: .pause, context: started.context, presets: presets, now: pauseTime).get()
+        #expect(paused.context.runState == .paused)
+        #expect(paused.context.remainingSeconds == 24 * 60)
+        return paused.context
+    }
+
+    // The same pause with the remainder gone — the state REQ-TIM-002 forbids.
+    private func pauseWithoutRemainder() throws -> TimerContext {
+        var broken = try soundPause()
+        broken.remainingSeconds = nil
+        return broken
+    }
+
+    // The long pause that raises a question, from which continueSession answers (REQ-TIM-033).
+    private func pausedTooLongDecision() throws -> TimerContext {
+        let sound = try soundPause()
+        let asked = try TimerEngine.reduce(
+            action: .resume, context: sound, presets: presets,
+            now: pauseTime.addingTimeInterval(20 * 3600)
+        ).get()
+        #expect(asked.context.runState == .pendingDecision)
+        #expect(asked.context.pendingDecision?.reason == .pausedTooLong)
+        #expect(asked.context.remainingSeconds == 24 * 60, "entering PENDING_DECISION must not drop the remainder")
+        return asked.context
+    }
+
+    // 1. The window cannot be measured without a remainder, so it counts as closed — the side the
+    //    RUNNING and FINISHED branches already fall to.
+    @Test func theExtensionWindowIsClosedWithoutARemainder() throws {
+        let broken = try pauseWithoutRemainder()
+        let now = pauseTime.addingTimeInterval(1)
+        #expect(!TimerEngine.isWithinExtensionWindow(broken, now: now))
+
+        // Paired sound case: a pause with two minutes left is inside the window.
+        var nearEnd = try soundPause()
+        nearEnd.remainingSeconds = 120
+        #expect(TimerEngine.isWithinExtensionWindow(nearEnd, now: now))
+    }
+
+    // 2. REQ-TIM-046: outside the window, extend answers extendWindowClosed.
+    @Test func extendingAPauseWithoutARemainderIsRefused() throws {
+        let broken = try pauseWithoutRemainder()
+        let now = pauseTime.addingTimeInterval(1)
+
+        switch TimerEngine.reduce(action: .extend, context: broken, presets: presets, now: now) {
+        case let .success(reduction):
+            Issue.record("REQ-TIM-046: extend on a pause with no remainder was accepted, leaving remainingSeconds=\(String(describing: reduction.context.remainingSeconds))")
+        case let .failure(failure):
+            #expect(failure.error == .extendWindowClosed)
+        }
+
+        // Paired sound case: a pause inside the window still takes the extension on its remainder.
+        var nearEnd = try soundPause()
+        nearEnd.remainingSeconds = 120
+        let extended = try TimerEngine.reduce(action: .extend, context: nearEnd, presets: presets, now: now).get()
+        #expect(extended.context.remainingSeconds == 120 + preset.extendSeconds)
+        #expect(extended.context.extendedSeconds == preset.extendSeconds)
+        #expect(extended.context.runState == .paused)
+    }
+
+    // 3. Resuming needs the remainder to recalculate the end time (REQ-TIM-002). Without it the action
+    //    is refused, and no end time is written.
+    @Test func resumingAPauseWithoutARemainderIsRefused() throws {
+        let broken = try pauseWithoutRemainder()
+        let resumeAt = pauseTime.addingTimeInterval(120)
+        let endAtBefore = broken.sessionEndAt
+
+        switch TimerEngine.reduce(action: .resume, context: broken, presets: presets, now: resumeAt) {
+        case let .success(reduction):
+            // An end time of "now" is the same shape as a session that has just ended: the next tick()
+            // takes it for an end that has arrived.
+            let followUp = TimerEngine.tick(context: reduction.context, presets: presets, now: resumeAt)
+            Issue.record("resume with no remainder was accepted: sessionEndAt=\(String(describing: reduction.context.sessionEndAt)) at now=\(resumeAt), and the next tick reached \(followUp.context.runState) with loopCount \(followUp.context.loopCount) and \(followUp.effects.count) effects")
+        case let .failure(failure):
+            #expect(failure.error == .invalidStateForAction)
+            #expect(failure.effects.isEmpty, "a refused resume commits nothing")
+            #expect(broken.sessionEndAt == endAtBefore, "no end time is written on the way out")
+        }
+
+        // Paired sound case: a normal resume still recalculates the end time from now + the remainder.
+        // (NetWorkingTimeTests.pauseIsExcludedFromElapsedSeconds covers the elapsed-time side of this.)
+        let sound = try soundPause()
+        let resumed = try TimerEngine.reduce(action: .resume, context: sound, presets: presets, now: resumeAt).get()
+        #expect(resumed.context.runState == .running)
+        #expect(resumed.context.sessionEndAt == resumeAt.addingTimeInterval(24 * 60))
+        #expect(resumed.context.remainingSeconds == nil)
+        #expect(resumed.context.pausedAt == nil)
+        #expect(resumed.context.accumulatedPausedSeconds == 120)
+    }
+
+    // 4. The same for the answer that continues a session the app asked about (REQ-TIM-033).
+    @Test func continuingARestoredSessionWithoutARemainderIsRefused() throws {
+        var broken = try pausedTooLongDecision()
+        broken.remainingSeconds = nil
+        let answerAt = pauseTime.addingTimeInterval(20 * 3600 + 30)
+        let endAtBefore = broken.sessionEndAt
+
+        switch TimerEngine.reduce(action: .confirmRestoredSession(.continueSession), context: broken, presets: presets, now: answerAt) {
+        case let .success(reduction):
+            Issue.record("continueSession with no remainder was accepted: sessionEndAt=\(String(describing: reduction.context.sessionEndAt)) at now=\(answerAt)")
+        case let .failure(failure):
+            #expect(failure.error == .invalidStateForAction)
+            #expect(broken.sessionEndAt == endAtBefore, "no end time is written on the way out")
+        }
+
+        // Paired sound case: with the remainder in hand the session picks up where it was left.
+        let sound = try pausedTooLongDecision()
+        let continued = try TimerEngine.reduce(action: .confirmRestoredSession(.continueSession), context: sound, presets: presets, now: answerAt).get()
+        #expect(continued.context.runState == .running)
+        #expect(continued.context.sessionEndAt == answerAt.addingTimeInterval(24 * 60))
+        #expect(continued.context.remainingSeconds == nil)
+        #expect(continued.context.pausedAt == nil)
+        #expect(continued.context.pendingDecision == nil)
+        #expect(continued.context.committedAt == nil, "continuing writes no log line")
+    }
+
+    // The branch that never reads the remainder is left alone: a pause held too long still turns into a
+    // question rather than a refusal, so the session can still be completed or discarded.
+    @Test func aLongPauseWithoutARemainderStillAsks() throws {
+        let broken = try pauseWithoutRemainder()
+        let resumed = try TimerEngine.reduce(
+            action: .resume, context: broken, presets: presets,
+            now: pauseTime.addingTimeInterval(20 * 3600)
+        ).get()
+        #expect(resumed.context.runState == .pendingDecision)
+        #expect(resumed.context.pendingDecision?.reason == .pausedTooLong)
+    }
+}
+
 // MARK: - Pre-notifications (REQ-NTF-020–023)
 
 @Suite("Pre-notification triggers (REQ-NTF-020–023)")
