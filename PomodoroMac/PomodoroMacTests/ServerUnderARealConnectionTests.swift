@@ -552,6 +552,22 @@ private final class Upstream {
         .accept(DeviceToken(deviceName: hello.deviceName))
     }
 
+    // REQ-SEC-004: what `resolveApproval` answers — the **second** judgement in the approval route,
+    // and the one that decides what `resolvePendingApproval` carries into `settle`.
+    //
+    // **The default is nil, which is exactly what this double answered before it could be replaced**,
+    // so no test that only watches a question being settled is changed by this seam existing at all.
+    // Nil is also what the real `Authenticator.resolveApproval` answers when it is holding no hello,
+    // and `resolvePendingApproval`'s `guard let decision` then returns without settling anything.
+    //
+    // **What replacing it buys is the route itself.** `authenticate` answers a hello from a
+    // token-holding device with `needsUserApproval` while anything is connected (`Pairing.swift`), and
+    // `resolveApproval(approved: true)` then answers with the `.accept` that `settle` is handed —
+    // **with the pending connection as `source`**. Without an answer here, no test can reach `settle`
+    // by that road at all: the only way in is `handleHello`, which fixes `source` to the line the
+    // hello arrived on and pins the decision to `answersHelloWith`.
+    var answersApprovalWith: (Bool) -> Authenticator.Decision? = { _ in nil }
+
     private var waitingForHangUp: CheckedContinuation<Void, Never>?
     private var waitingForApproval: CheckedContinuation<Void, Never>?
 
@@ -559,8 +575,21 @@ private final class Upstream {
     // from `connectionChanged`, which runs on the main actor — the same actor `MdoroServer` needs
     // to do the dropping — so a test that is waiting here is holding nothing of what it waits for.
     // That is the fourth run's lesson at the top of this file, kept to.
+    //
+    // **There is one waiting slot, and a second waiter would take it in silence.** The overwrite
+    // drops the first continuation somewhere nothing can reach it again: the deadline started for it
+    // resumes whatever occupies the slot by the time it fires, which is now the second waiter. So
+    // the second comes back early, at a budget that was never its own, and reports a timeout it
+    // never spent — while the first is never resumed at all and the run hangs there. **Both of those
+    // read as the server having failed to do something**, and neither has anything to do with the
+    // server. So a second waiter traps here, where the line number says which call did it.
+    // `HeldReads.waitsForReads` mechanises the same rule for the same reason; a comment saying "do
+    // not wait twice" holds nothing.
     func waitsForHangUp(upTo budget: Duration) async -> Bool {
         if hangUps > 0 { return true }
+        if case .some = waitingForHangUp {
+            preconditionFailure("Upstream has one slot for a hang-up waiter and something is already in it. This call would take it from a waiter that is still suspended, and that waiter can never be resumed again — the deadline it started resumes whoever holds the slot, which is now this call. So one test hangs and the other reports a timeout it never spent, both of them naming the server for something this double did. Wait for one thing at a time, or give this double a queue of waiters.")
+        }
         let deadline = Task { [weak self] in
             try? await Task.sleep(for: budget)
             guard !Task.isCancelled else { return }
@@ -584,11 +613,18 @@ private final class Upstream {
     // other. **Nothing is polled**, for the reason `waitsForHangUp` gives: this is resumed from
     // `resolveApproval`, on the main actor, which is the actor the settling has to happen on.
     //
-    // **One waiting slot, and no test here has two of these in flight** — a second waiter would
-    // take it from the first, which would then run out its own budget and blame the server. Should
-    // one ever be needed, take `HeldReads.waitsForReads`'s precondition rather than this comment.
+    // **There is one waiting slot, and a second waiter would take it in silence** — the same hazard
+    // `waitsForHangUp` above describes, and worse here for one reason: **several of the call sites
+    // below read a wait that ran out as the good outcome** (`holds(!settled, ...)`). A stolen slot
+    // hands exactly that answer back, at the first waiter's budget, having observed nothing — so the
+    // mistake does not surface as a failure to be read, it surfaces as a green test, with the first
+    // waiter hung for the rest of the run beside it. So a second waiter traps here, where the line
+    // number says which call did it, rather than being asked for in prose.
     func waitsForApprovalSettled(upTo budget: Duration) async -> Bool {
         if !approvalsAsked.isEmpty { return true }
+        if case .some = waitingForApproval {
+            preconditionFailure("Upstream has one slot for an approval waiter and something is already in it. This call would take it from a waiter that is still suspended, and that waiter can never be resumed again — the deadline it started resumes whoever holds the slot, which is now this call. Here that answer is `nothing was settled`, which several tests read as the outcome they wanted: the fault would come back green. Wait for one thing at a time, or give this double a queue of waiters.")
+        }
         let deadline = Task { [weak self] in
             try? await Task.sleep(for: budget)
             guard !Task.isCancelled else { return }
@@ -630,12 +666,15 @@ private final class Upstream {
             authenticate: { [weak self] hello in
                 self?.answersHelloWith(hello) ?? .accept(DeviceToken(deviceName: hello.deviceName))
             },
-            // REQ-SEC-004: nil is what an upstream with nothing waiting answers, and it is what the
-            // Authenticator itself answers a `resolveApproval` it has no held hello for. That it was
-            // asked at all is the observation; the answer is beside the point here.
+            // REQ-SEC-004: **that it was asked at all is one observation and the answer is another.**
+            // `approvalsAsked` is the first and is recorded whatever is answered; the answer is
+            // `answersApprovalWith`'s, and its default nil is what an upstream with nothing waiting
+            // answers — the same nil the Authenticator itself answers a `resolveApproval` it has no
+            // held hello for.
             resolveApproval: { [weak self] approved in
-                self?.note(approval: approved)
-                return nil
+                guard let self else { return nil }
+                self.note(approval: approved)
+                return self.answersApprovalWith(approved)
             },
             handleCommand: { [weak self] payload in
                 self?.commands.append(payload)
@@ -2017,6 +2056,10 @@ struct PendingApprovalEndingTests {
 // `source` — the connection the Mac is holding.** So the shape held below is reached with nothing
 // unusual answering: the user pressing Allow is enough.
 //
+// **That route is driven and not only argued**: the second test in this suite walks it end to end,
+// through `answersApprovalWith`. The paragraph above is why the first test's shortcut is a fair
+// reading of the same branch; it is not a substitute for having run the road the user's Allow takes.
+//
 // **The shipping iPhone sends no second hello**: `MdoroClient.sendHello` is reached once, from
 // `.ready`. What can reach this port is not limited to it, and REQ-SEC-003 is the only gate in
 // front of a hello.
@@ -2126,6 +2169,99 @@ struct HelloOnALineAlreadyHeldTests {
               "REQ-ERR-010: a `\(ConnectionEndingLine.code)` was written (\(recording.endings.count) in all: [\(recording.endings.map { $0.fields[ConnectionEndingLine.howKey] ?? "?" }.joined(separator: ", "))]) for a connection that is still up. Nothing ended here: one line was accepted twice. **A `\(ConnectionEnding.heartbeatTimeout.rawValue)` in that list is this run taking longer than REQ-COM-005's fifteen seconds** — this probe sends no `heartbeat` — and it says nothing about the branch under test.")
         holds(recording.approvalWithdrawals.isEmpty,
               "REQ-SEC-004 / REQ-ERR-010: the log holds \(recording.approvalWithdrawals.count) `\(ConnectionEndingLine.approvalWithdrawnCode)` line(s), and no question was ever waiting here.")
+    }
+
+    // **The same branch, reached the way the Mac in the user's hands reaches it.**
+    //
+    // The test above hands `settle` its accept from `handleHello`, which is the only door
+    // `Upstream`'s default answer can open. A real `Authenticator` does not answer this hello that
+    // way: with something connected, a hello from a device that already holds a token is answered
+    // `needsUserApproval` (`Pairing.swift`), the banner goes up, and the accept arrives later — from
+    // `resolvePendingApproval`, **with the pending connection as `source`**. Two callers, one branch.
+    //
+    // **The suite's own note above argues that the two arrive at the same shape. This runs it.** The
+    // fault was in a single statement of that branch, and a test that only ever drives one of its
+    // callers watches that statement through one door — leaving the other one, the one the user's own
+    // Allow opens, resting on a reading of the source.
+    //
+    // REQ-SEC-004: and this is the route the user is in. What they are looking at when they press
+    // Allow is a request to keep the very line the Mac is already holding; the answer to it must not
+    // be that line being hung up on.
+    @Test func anAllowForASecondHelloOnTheHeldLineDoesNotHangUpOnIt() async throws {
+        let recording = Recording()
+        defer { recording.discard() }
+        let reads = HeldReads()
+        let bench = try await raiseServer(reads: reads, diagnostics: recording.log)
+        defer { bench.server.stop() }
+        defer { for opened in reads.lines { opened.cancel() } }
+
+        let named = "iPhone that dialled again over itself"
+        let held = try await aLineTheMacHolds(bench, reads: reads, from: named)
+        defer { held.phone.cancel() }
+
+        // REQ-SEC-004: what the real `Authenticator` answers from here on. The hello is answered with
+        // a question because something is connected, and the user's yes is answered with an accept —
+        // the shape `Authenticator.authenticate` and `Authenticator.resolveApproval` take for a
+        // token-holding device dialling over a standing line, which is the ordinary case and not a
+        // contrivance. The token is built rather than looked up because `settle` reads nothing of it
+        // but `value`; whose record it is, is `Pairing.swift`'s question and is answered there.
+        let issued = DeviceToken(deviceName: named)
+        bench.upstream.answersHelloWith = { .needsUserApproval(requestingDeviceName: $0.deviceName) }
+        bench.upstream.answersApprovalWith = { approved in
+            guard approved else { return nil }
+            return .accept(issued)
+        }
+
+        let again = try MessageCoder.encode(
+            Envelope(body: ClientMessage.hello(HelloPayload(deviceName: named)))
+        )
+        holds(reads.deliver(to: held.line, data: again, frame: .text),
+              "no read was outstanding on the held line to hand the second hello to — the loop had stopped asking before it was told anything")
+        guard await reads.waitsForReads(3, upTo: arrivalBudget) else {
+            throw Wrong(diagnose("REQ-SEC-004: the second hello was handed to the read loop and the loop never armed again (\(reads.timesArmed) read(s) in all). The loop re-arms only once `dispatch` has returned, so nothing below would be about a hello that has been through `settle`."))
+        }
+
+        // **The question is up, and it is up over the line the Mac is holding.** Both halves are
+        // established rather than assumed: `connectedReports` still standing at one is what says the
+        // second hello went to the branch that asks the user and not to the accept, which is the whole
+        // premise of this test.
+        guard bench.server.hasPendingApproval, bench.upstream.connectedReports == 1 else {
+            throw Wrong(diagnose("REQ-SEC-004: the second hello did not put a question up (hasPendingApproval=\(bench.server.hasPendingApproval), connected reported \(bench.upstream.connectedReports) time(s)). Nothing below would be about an accept arriving from `resolvePendingApproval`."))
+        }
+        let waitingOnTheHeldLine = bench.server.connection === held.line
+        guard waitingOnTheHeldLine else {
+            throw Wrong(diagnose("REQ-SEC-004: the question went up and the Mac is not holding the line it arrived on (connection held=\(bench.server.connection != nil), connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil")). The branch under test is the one where the pending line and the held line are one object, so nothing below would be about it."))
+        }
+
+        // **Allow.** Everything from here is synchronous until the echo: `resolvePendingApproval` asks
+        // upstream for the answer and hands what comes back straight to `settle`.
+        bench.server.resolvePendingApproval(approved: true)
+        guard bench.upstream.approvalsAsked == [true] else {
+            throw Wrong(diagnose("REQ-SEC-004: Allow was pressed and what was asked for upstream was \(bench.upstream.approvalsAsked). `resolvePendingApproval` settles against the hello the Authenticator held, so nothing below would be about the accept that answer carries."))
+        }
+        guard bench.upstream.connectedReports == 2 else {
+            throw Wrong(diagnose("REQ-SEC-004: the Mac has been told it is connected \(bench.upstream.connectedReports) time(s), not twice, after an Allow answered with an accept. `settle`'s accept reports upward on every run, so nothing below would be about that branch having run at all."))
+        }
+
+        // **Running out here is the good outcome**, so the bound is the one a cancellation settles
+        // inside rather than the one an arrival is waited for with: the hang-up this is about follows
+        // the cancel by one hop of the main actor.
+        let hungUp = await bench.upstream.waitsForHangUp(upTo: cancelBound)
+        holds(!hungUp,
+              "REQ-COM-013 / REQ-UIX-004: the user pressed Allow on a request to keep the line the Mac was already holding, and the Mac reported itself disconnected. The accept cancelled that line, `connection` was `source` by the time the echo arrived, and `handleDisconnect`'s gate read the ending of the line just accepted as the ending of the held one. The screen said `Connected` and then said otherwise, one hop of the main actor after the user said yes.")
+        holds(!hasBeenCancelled(held.line),
+              "REQ-SEC-004: the connection the Mac was holding was hung up on by the accept that answered the user's Allow. **This is the same statement the test above watches, reached through the other of its two callers** — `resolvePendingApproval` hands `settle` the pending connection as `source`, and here that is the held line.")
+        let stillHeld = bench.server.connection === held.line
+        holds(stillHeld,
+              "REQ-SEC-004: the Mac is no longer holding the line the approval accepted (connection held=\(bench.server.connection != nil)). The accept put `source` on record and then the echo of its own cancel took it off again.")
+        holds(bench.server.connectedDeviceName == named,
+              "REQ-SEC-002: the Mac holds connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil"), not \(named). Everything the accept put on record is cleared together, so this is the same ending read from another field.")
+        holds(!bench.server.hasPendingApproval,
+              "REQ-SEC-004: the question is still waiting after it was answered. `resolvePendingApproval` releases it before it settles anything, so a question still standing here means the answer was never carried into `settle` at all.")
+        holds(recording.endings.isEmpty,
+              "REQ-ERR-010: a `\(ConnectionEndingLine.code)` was written (\(recording.endings.count) in all: [\(recording.endings.map { $0.fields[ConnectionEndingLine.howKey] ?? "?" }.joined(separator: ", "))]) for a connection that is still up. Nothing ended here: one line was accepted, asked about, and accepted again. **A `\(ConnectionEnding.heartbeatTimeout.rawValue)` in that list is this run taking longer than REQ-COM-005's fifteen seconds** — this probe sends no `heartbeat` — and it says nothing about the branch under test.")
+        holds(recording.approvalWithdrawals.isEmpty,
+              "REQ-SEC-004 / REQ-ERR-010: the log holds \(recording.approvalWithdrawals.count) `\(ConnectionEndingLine.approvalWithdrawnCode)` line(s). This question was answered by the user, not withdrawn on its own — a reader of a pasted log would count a banner that came down while nobody was looking.")
     }
 
     // **The displacement that is meant to happen, and the gate on the fix above.** A hello from a
