@@ -152,10 +152,10 @@ final class MdoroServer {
         // arrives is folded there — `approval.withdrawn` written and `resolveApproval(false)` called,
         // on every stop, for a question nobody withdrew and a banner nobody put up.
         //
-        // **The two orders behave alike today**, because the echo is a hop of the main actor away and
-        // nothing runs in between, so no test driving a real connection can tell them apart — a stop
-        // written the other way round is quiet, and stays quiet until somebody puts a statement
-        // between the two lines. That is the whole reason the order is written down rather than left
+        // **The two orders behave alike today, and the reason is mechanical**: the echo is a hop of the
+        // main actor away, and between these two statements there is nothing for it to arrive before.
+        // A stop written the other way round is quiet, and goes on being quiet until somebody puts a
+        // statement between them. That is the whole reason the order is written down rather than left
         // to be noticed: `FoldingWhatIsStandingTests` reads these three lines and asks which is first.
         let askingLine = pendingApproval?.connection
         pendingApproval = nil
