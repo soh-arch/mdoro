@@ -61,3 +61,69 @@ func swiftFiles(under directory: String, recursive: Bool = false) throws -> [Str
             withoutComments(try String(contentsOf: base.appendingPathComponent(name), encoding: .utf8))
     }
 }
+
+// REQ-UIX-038 / Decision 0022: the scans that keep the words in a String Catalog have to find the
+// calls that ask for them, and a scan that looks for the spelling `String(localized: "` finds only
+// the ones written on one line. **The call this family exists to catch is a long sentence added
+// from an editor that is not Xcode** (`StringCatalogTests`) — and a sentence long enough to be
+// worth localising is a sentence that gets wrapped, so the argument sits on the line below. The
+// label is matched across whitespace instead of as a fixed spelling; the literal itself is read
+// character by character, untouched.
+private let localizedCallOpening = "String("
+private let localizedCallLabel = "localized:"
+
+private func skipWhitespace(in text: String, from index: inout String.Index) {
+    while index < text.endIndex, text[index].isWhitespace {
+        index = text.index(after: index)
+    }
+}
+
+// Every `String(localized:)` call in a file, in order, each paired with the literal it was written
+// with — `nil` when the argument is not a string literal, so that a caller asking only whether a
+// file localises anything sees those too. Escapes are kept as written (`\"` stays two characters):
+// the point of comparison is the source, not the resolved string.
+func localizedCalls(in text: String) -> [String?] {
+    var found: [String?] = []
+    var searchFrom = text.startIndex
+    while let opening = text.range(of: localizedCallOpening, range: searchFrom..<text.endIndex) {
+        // Resume just past this `String(` whether or not it turns out to be the call we want, so a
+        // nested one is still reached.
+        searchFrom = opening.upperBound
+        var index = opening.upperBound
+        skipWhitespace(in: text, from: &index)
+        guard text[index...].hasPrefix(localizedCallLabel) else { continue }
+        index = text.index(index, offsetBy: localizedCallLabel.count)
+        skipWhitespace(in: text, from: &index)
+        guard index < text.endIndex, text[index] == "\"" else {
+            found.append(nil)
+            continue
+        }
+        index = text.index(after: index)
+        var literal = ""
+        var escaped = false
+        while index < text.endIndex {
+            let character = text[index]
+            if escaped {
+                literal.append(character)
+                escaped = false
+            } else if character == "\\" {
+                literal.append(character)
+                escaped = true
+            } else if character == "\"" {
+                break
+            } else {
+                literal.append(character)
+            }
+            index = text.index(after: index)
+        }
+        found.append(literal)
+        // Past the literal, so a `String(localized: "` spelled inside one is not read as a call.
+        searchFrom = index
+    }
+    return found
+}
+
+// Every `String(localized: "…")` literal in a file, as written.
+func localizedStringLiterals(in text: String) -> [String] {
+    localizedCalls(in: text).compactMap { $0 }
+}

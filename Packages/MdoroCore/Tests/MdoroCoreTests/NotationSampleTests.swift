@@ -17,17 +17,11 @@ private let drawingSources = [
     "PomodoroMac/PomodoroWidget",
 ]
 
-// Every `String(localized: "…")` literal in a file, as written.
+// Every `String(localized: "…")` literal in a file, as written. The scan is shared with
+// `StringCatalogTests` (`RepositorySources.swift`): both are here to notice a call nobody looked
+// at, and a copy of the scan is a second place for it to stop noticing.
 private func resolvedLiterals(in text: String) -> [String] {
-    var found: [String] = []
-    var rest = Substring(text)
-    while let call = rest.range(of: "String(localized: \"") {
-        rest = rest[call.upperBound...]
-        guard let end = rest.firstIndex(of: "\"") else { break }
-        found.append(String(rest[rest.startIndex..<end]))
-        rest = rest[end...]
-    }
-    return found
+    localizedStringLiterals(in: text)
 }
 
 @Suite("A notation sample reaches the screen as Markdown (REQ-TSK-016)")
@@ -51,7 +45,19 @@ struct NotationSampleTests {
     // The scan has to find the calls it is looking for, or it passes by being blind.
     @Test func theScanReadsTheFormItIsLookingFor() {
         #expect(resolvedLiterals(in: #"Text(String(localized: "a `b` c"))"#) == ["a `b` c"])
-        #expect(resolvedLiterals(in: #"Text("a `b` c")"#).isEmpty)
+        let nothingLocalised = resolvedLiterals(in: #"Text("a `b` c")"#).isEmpty
+        #expect(nothingLocalised)
+        // The same call with the argument on the next line, which is where a sentence this long
+        // ends up. The rest of the scan's coverage is in `RepositorySourcesTests`.
+        #expect(
+            resolvedLiterals(
+                in: """
+                Text(String(
+                    localized: "a `b` c"
+                ))
+                """
+            ) == ["a `b` c"]
+        )
     }
 
     // The one the audit found. It has to still be on screen, or the check above is about a
