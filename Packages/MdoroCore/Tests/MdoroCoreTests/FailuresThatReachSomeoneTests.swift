@@ -691,8 +691,10 @@ struct FailuresThatReachSomeoneTests {
         // **`write` is the writer; `record` only forwards.** This was anchored on `record`, whose
         // body is that one forwarding line, and read 300 characters from it — so it found
         // `conn.refused` in `write`, the declaration after the one it named, and passed because it
-        // had overrun. Eight lines of prose inside `record` were all that stood between that and an
-        // answer of its own. Name the declaration the line is in.
+        // had overrun. The line sat 233 characters into that 300, leaving 67 — eight further lines of
+        // prose inside `record` would have spent them and taken the answer with them, since what
+        // `withoutComments` leaves of a comment line is its indentation and its newline. Name the
+        // declaration the line is in.
         let writeTail = try #require(server.components(separatedBy: "func write(refusal").last)
         let writeBody = try declarationBody(openedBy: writeTail, "func write(refusal")
         #expect(

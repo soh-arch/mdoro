@@ -165,6 +165,62 @@ struct DeclarationBodyTests {
         #expect(!body.contains("next()"), "the window ran past the declaration it was cutting")
     }
 
+    // **The depth the count starts from comes off the marker, and it has to.** A marker that took the
+    // opening brace with it leaves the text already one level in; begin at zero instead and the first
+    // `if` in the body opens a level whose own `}` closes what then looks like the declaration.
+    //
+    // This is the shape that was wrong, and nothing caught it: `stop()` and `stopServer()` — the two
+    // declarations reached by a marker of that form — have no nested brace between them, so the files
+    // could not exercise it, and the fixture that covered the form had no nesting either. The
+    // statement after the nesting is the one the window has to still hold.
+    @Test func aMarkerThatTookTheOpeningBraceStartsOneLevelDeep() throws {
+        let oneNesting = #"""
+            if ready {
+                inner()
+            }
+            kept()
+        }
+        next()
+        """#
+        let body = try declarationBody(openedBy: oneNesting, "func stop() {")
+        #expect(body.contains("inner()"), "the window stopped before the nesting it should count through")
+        #expect(body.contains("kept()"), "a clause's own brace was read as the end of the declaration")
+        #expect(!body.contains("next()"), "the window ran past the declaration it was cutting")
+    }
+
+    // Two levels, because counting one back out is not the same as counting back to where it started.
+    @Test func aMarkerThatTookTheOpeningBraceCountsOutOfEveryNesting() throws {
+        let twoNestings = #"""
+            if ready {
+                for item in items {
+                    inner(item)
+                }
+            }
+            kept()
+        }
+        next()
+        """#
+        let body = try declarationBody(openedBy: twoNestings, "func stop() {")
+        #expect(body.contains("inner(item)"), "the window stopped before the nesting it should count through")
+        #expect(body.contains("kept()"), "the window came back up one level short")
+        #expect(!body.contains("next()"), "the window ran past the declaration it was cutting")
+    }
+
+    // And in the file, for the marker of that form the scans actually use. `stop()` holds no nested
+    // brace, which is why the two fixtures above carry that case; what is left for a real file to
+    // answer is that the window is this declaration and ends where it does.
+    @Test func theWindowCutFromAMarkerThatTookTheBraceIsRightInTheFileToo() throws {
+        let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
+        let opening = try #require(appModel.range(of: "func stop() {"), "AppModel no longer has stop()")
+        let body = try declarationBody(openedBy: appModel[opening.upperBound...], "func stop() {")
+        #expect(!body.isEmpty, "the window is empty, and anything read from an empty window agrees")
+        #expect(
+            body.contains("hasStarted = false"),
+            "the declaration this cuts is no longer the one that clears the flag"
+        )
+        #expect(!body.contains("func "), "the window ran into the declaration after it")
+    }
+
     // **A brace inside a string literal is not a brace.** Believed, it would cut the window short —
     // silently, and in the direction that reads like a rule being kept.
     @Test func aBraceInsideAStringLiteralIsNotABrace() throws {
@@ -208,6 +264,27 @@ struct DeclarationBodyTests {
         } catch let error as UnbalancedDeclaration {
             #expect(error.marker == "func refuse(")
             #expect(error.description.contains("func refuse("), "the failure does not name the declaration")
+        }
+    }
+
+    // **A marker that named no declaration is not a window either.** Anchored on a call, the text
+    // begins inside the parameter list of something that is not a declaration, and the first `}` it
+    // reaches closes a scope this window never opened. Left to run, the count comes back to zero on
+    // some later pair of braces and a window is answered — the rest of an enclosing function,
+    // presented as a declaration's body. This is also why the scans that anchor on a call cannot be
+    // moved onto this one.
+    @Test func aMarkerThatNamedNoDeclarationIsAnErrorRatherThanAWindow() {
+        let afterACall = #"""
+                code: reason.protocolErrorCode)
+            }
+            onRetry = {
+                queue.async {
+                    again()
+                }
+            }
+        """#
+        #expect(throws: UnbalancedDeclaration.self) {
+            try declarationBody(openedBy: afterACall, "ProtocolErrorPayload(")
         }
     }
 

@@ -40,10 +40,16 @@ func withoutComments(_ text: String) -> String {
 // **So the window ends where the declaration does**, at the brace that closes it, and how many
 // lines sit inside it stops mattering. Do not put a character count back.
 //
-// The text handed in begins just past a marker that named a declaration — either already inside its
-// body, when the marker took the opening brace with it (`func stop() {`), or still in its parameter
-// list, which is where `components(separatedBy: "func refuse(")` leaves it. One scan covers both:
-// the first `}` with none of our own still open is the one that closes the body either way.
+// The text handed in begins just past a marker that named a declaration, and there are two cases of
+// that. A marker that took the declaration's opening brace with it (`func stop() {`) leaves the text
+// **already inside the body, one level deep**. A marker that stopped in the parameter list
+// (`func refuse(`, which is where `components(separatedBy:)` leaves it) leaves the text **outside it,
+// with that brace still ahead**.
+//
+// **Which case it is, only the marker can say.** The two look alike from inside the text: a body
+// whose first statement is `if ready {` is one level down either way, so a scan that began at zero
+// and waited for a brace to open would read that clause's own `}` as the end of the declaration.
+// Counting from the depth the marker implies is what tells the clause's brace from the body's.
 //
 // A brace inside a string literal is not a brace. There are none in these files today; a scan that
 // believed one would cut the window short or run it long without saying so, which is the failure
@@ -62,8 +68,9 @@ struct UnbalancedDeclaration: Error, CustomStringConvertible {
 // failure can say which declaration went missing.
 func declarationBody(openedBy text: some StringProtocol, _ marker: String) throws -> String {
     let opened = String(text)
-    var depth = 0
-    var sawOpeningBrace = false
+    // Read off the marker, because the text cannot answer it.
+    let markerTookTheOpeningBrace = marker.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("{")
+    var depth = markerTookTheOpeningBrace ? 1 : 0
     var insideStringLiteral = false
     var escaped = false
     for index in opened.indices {
@@ -83,11 +90,12 @@ func declarationBody(openedBy text: some StringProtocol, _ marker: String) throw
             insideStringLiteral = true
         case "{":
             depth += 1
-            sawOpeningBrace = true
         case "}":
-            guard sawOpeningBrace else { return String(opened[opened.startIndex..<index]) }
             depth -= 1
             if depth == 0 { return String(opened[opened.startIndex..<index]) }
+            // Closing what was never opened: the marker did not name a declaration, or it named one
+            // whose brace the marker was expected to have taken and did not.
+            if depth < 0 { throw UnbalancedDeclaration(marker: marker) }
         default:
             break
         }
