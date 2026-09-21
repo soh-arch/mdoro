@@ -401,7 +401,8 @@ struct ProtocolRefusalTests {
         let refusals = server.components(separatedBy: "private func refuse(").dropFirst()
         #expect(refusals.count == 2, "10.2: one refusal for `authFailed`, one for `error`")
         for refusal in refusals {
-            let body = refusal.prefix(400)
+            // The body, not a count of characters: see `declarationBody`.
+            let body = try declarationBody(openedBy: refusal, "private func refuse(")
             let recorded = try #require(body.range(of: "record(refusal:"), "a refusal that leaves no line")
             let sent = try #require(body.range(of: "sendThenClose("), "a refusal that is recorded but never sent")
             #expect(recorded.upperBound < sent.lowerBound, "the line is written after the refusal is sent")
