@@ -338,3 +338,211 @@ struct DeclarationBodyTests {
         #expect(!body.contains("func "), "the window ran into the declaration after it")
     }
 }
+
+// **And the other bracket, for the scans that anchor on a call.**
+//
+// `ASettingWeCannotReadTests`, `FailuresThatReachSomeoneTests` and `TestHostTests` ask what
+// arguments a call was written with — `ProtocolErrorPayload(`, `AuthFailedPayload(`, `AppModel(`,
+// `State(initialValue:`, `MenuBarExtra(`. Nine of those windows were a fixed `prefix(n)`, and the
+// slack measured 1 to 10 lines: thinner than the declaration windows above, in the same files where
+// a line of prose is written most often. `declarationBody` cannot cut them, because past a call the
+// next `}` closes the scope the call sits in.
+//
+// Same reason the suite above exists: one function answers all of them, so a fault in it arrives
+// everywhere at once in the shape those suites cannot notice — a window that agrees with whatever it
+// was pointed at. The files it is pointed at hold no bracket inside a literal, no marker two levels
+// deep and no unclosed call, so the cases it has to get right are written here.
+@Suite("A window that ends where the call does")
+struct CallArgumentsTests {
+
+    // Exact text rather than `contains`, so a boundary off by one shows. The closing bracket is not
+    // part of the arguments, and nothing after it is either.
+    @Test func theWindowRunsFromTheMarkerToTheBracketThatClosesTheCall() throws {
+        let flat = try callArguments(openedBy: "code: 1, message: nil)\nnext()", "refuse(")
+        #expect(flat == "code: 1, message: nil")
+
+        let wrapped = try callArguments(
+            openedBy: "\n    code: 1,\n    message: nil\n)\nnext()",
+            "refuse("
+        )
+        #expect(wrapped == "\n    code: 1,\n    message: nil\n")
+    }
+
+    // A bracket the call did not open cannot close it, and the inner one has to be counted back out
+    // again. Stop at the first `)` and the window ends inside the first argument.
+    @Test func aNestedCallDoesNotCloseTheOuterOne() throws {
+        let nested = try callArguments(openedBy: "code: Code(error), message: sum(a, b))\nnext()", "refuse(")
+        #expect(nested == "code: Code(error), message: sum(a, b)")
+        let stoppedEarly = nested.contains("message:")
+        #expect(stoppedEarly, "a nested call's own bracket was read as the end of the outer one")
+        let ranOn = nested.contains("next()")
+        #expect(!ranOn, "the window ran past the call it was cutting")
+    }
+
+    // **The depth the count starts from comes off the marker, and the marker's last character is not
+    // enough to read it.** `State(initialValue:` ends in a colon and leaves a call open all the
+    // same; `TestHostTests` anchors on exactly that. A marker can leave two open, and one can carry
+    // a bracket inside a literal of its own, which is not a bracket either.
+    @Test func theDepthTheCountStartsFromComesOffTheMarker() throws {
+        let notEndingInABracket = try callArguments(
+            openedBy: " TestHost.isRunning ? AppModel(store: x) : AppModel())\n",
+            "_model = State(initialValue:"
+        )
+        #expect(notEndingInABracket == " TestHost.isRunning ? AppModel(store: x) : AppModel()")
+
+        // Two levels: counting one back out is not the same as counting back to where it started.
+        let twoLevelsDeep = try callArguments(openedBy: "x))\nnext()", "outer(inner(")
+        #expect(twoLevelsDeep == "x)")
+
+        let bracketInsideTheMarkersLiteral = try callArguments(openedBy: "b)\nnext()", #"log("a(", "#)
+        #expect(bracketInsideTheMarkersLiteral == "b")
+    }
+
+    // **A marker that leaves no call open is refused rather than guessed at.** Begin the count at
+    // zero and the first `(` inside the arguments opens a level whose own `)` is read as the end of
+    // the call: a window cut short of what it is handed over as, which is the failure this function
+    // exists to stop.
+    @Test func aMarkerThatLeavesNoCallOpenIsAnErrorRatherThanAWindow() {
+        #expect(throws: UnclosedCall.self) {
+            try callArguments(openedBy: "(a)\nnext()", "somethingElse")
+        }
+        // A marker matched against nothing, which is what an empty one is.
+        #expect(throws: UnclosedCall.self) {
+            try callArguments(openedBy: "(a)\nnext()", "")
+        }
+        // And one that closed again what it opened.
+        #expect(throws: UnclosedCall.self) {
+            try callArguments(openedBy: "b)\nnext()", "refuse(a)")
+        }
+    }
+
+    // **A bracket inside a string literal is not a bracket.** Believed, it cuts the window short —
+    // silently, and in the direction that reads like a rule being kept.
+    @Test func aBracketInsideAStringLiteralIsNotABracket() throws {
+        let inALiteral = try callArguments(openedBy: #"message: "done)", code: 1)"# + "\nnext()", "refuse(")
+        #expect(inALiteral == #"message: "done)", code: 1"#)
+
+        // And the escape, because a `\"` read as the end of the literal puts the bracket after it
+        // back in play — the same fault one character along.
+        let escapedQuote = try callArguments(openedBy: #"message: "it\")", code: 1)"# + "\nnext()", "refuse(")
+        #expect(escapedQuote == #"message: "it\")", code: 1"#)
+    }
+
+    // **A window with no end is not a window.** Answering the rest of the file instead hands every
+    // caller the whole type to look in, which is how a scan starts agreeing with anything.
+    @Test func aCallWithNoClosingBracketIsAnErrorRatherThanAWindow() {
+        #expect(throws: UnclosedCall.self) {
+            try callArguments(openedBy: "code: 1, message: nil", "refuse(")
+        }
+        // And it says which call, and which of the two faults it was: a marker of the wrong shape is
+        // not a file that has lost what the marker named.
+        do {
+            let answered = try callArguments(openedBy: "code: 1", "refuse(")
+            Issue.record("a call with no closing bracket answered a window: \(answered)")
+        } catch let error as UnclosedCall {
+            #expect(error.marker == "refuse(")
+            #expect(error.markerOpensNoCall == false)
+            let namesTheCall = error.description.contains("refuse(")
+            #expect(namesTheCall, "the failure does not name the call")
+        } catch {
+            Issue.record("a call with no closing bracket threw something else: \(error)")
+        }
+        do {
+            let answered = try callArguments(openedBy: "(a)", "somethingElse")
+            Issue.record("a marker that opens no call answered a window: \(answered)")
+        } catch let error as UnclosedCall {
+            #expect(error.markerOpensNoCall)
+            let saysWhy = error.description.contains("leaves no call open")
+            #expect(saysWhy, "the failure does not say the marker opened nothing")
+        } catch {
+            Issue.record("a marker that opens no call threw something else: \(error)")
+        }
+    }
+
+    // A call written with nothing in it has an empty window, and that is an answer rather than a
+    // fault. The callers are the ones that insist their own windows are not empty.
+    @Test func aCallWithNoArgumentsIsAnEmptyWindowAndNotAnError() throws {
+        let nothing = try callArguments(openedBy: ")\nnext()", "AppModel(")
+        #expect(nothing.isEmpty)
+    }
+
+    // **Proved on text written here, the scan can still be cutting the wrong thing out of the file
+    // it is pointed at.** Both callers' real anchors, for the two things a real file can say that a
+    // fixture cannot: that the window is this call and not the declaration around it, and that the
+    // bound is doing work — `message:` is in the file just past the bracket, which is the sentence
+    // `theRefusalsTheServerSendsCarryACodeAndNoSentence` would be wrong to read.
+    @Test func theWindowCutFromARealFileIsOneCallAndNotTheFileAroundIt() throws {
+        let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
+        let payload = try #require(appModel.components(separatedBy: "ProtocolErrorPayload(").last)
+        let arguments = try callArguments(openedBy: payload, "ProtocolErrorPayload(")
+        #expect(!arguments.isEmpty, "the window is empty, and anything read from an empty window agrees")
+        #expect(arguments.count < payload.count, "the window is the whole rest of the file")
+        let tied = arguments.contains("relatedRequestId:")
+        #expect(tied, "the call this cuts is no longer the one that answers a request")
+        // The next declaration is outside it, whatever it has come to be called.
+        let ranOn = arguments.contains("func ")
+        #expect(!ranOn, "the window ran into the declaration after the call")
+
+        let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
+        let refusal = try #require(server.components(separatedBy: "AuthFailedPayload(").last)
+        let refusalArguments = try callArguments(openedBy: refusal, "AuthFailedPayload(")
+        #expect(!refusalArguments.isEmpty, "the window is empty, and an empty window agrees with anything")
+        let carriesNoSentence = !refusalArguments.contains("message:")
+        #expect(carriesNoSentence, "the refusal now carries a sentence")
+        // **And the bound is what says so.** The file does hold a `message:` past this bracket,
+        // legitimately, for a payload of another kind — so a window that ran on would call the
+        // refusal wrong. This is the negative claim the fixed count above was closest to breaking.
+        let pastTheBracket = refusal.contains("message:")
+        #expect(pastTheBracket, "nothing past the bracket says `message:` any more, so this proves nothing")
+    }
+
+    // **The property the change was for.** Prose written inside the arguments spends a character
+    // count and does not move this. `withoutComments` leaves the comment's indentation and its
+    // newline behind, which is what the count was being spent on — so the fixture is held to
+    // actually moving the argument, or it demonstrates nothing at all.
+    @Test func prosePutInsideTheArgumentsDoesNotMoveTheWindow() throws {
+        let plain = #"""
+
+            store: x,
+            notifications: y
+        )
+        next()
+        """#
+        let withProse = #"""
+
+            store: x,
+            // why this one is the one
+            notifications: y
+        )
+        next()
+        """#
+        let strippedPlain = withoutComments(plain)
+        let strippedProse = withoutComments(withProse)
+
+        let fromPlain = try callArguments(openedBy: strippedPlain, "AppModel(")
+        let fromProse = try callArguments(openedBy: strippedProse, "AppModel(")
+        let plainSays = fromPlain.contains("notifications:")
+        #expect(plainSays)
+        let proseSays = fromProse.contains("notifications:")
+        #expect(proseSays, "a line of prose pushed the argument out of the window")
+        let ranOn = fromProse.contains("next()")
+        #expect(!ranOn, "the window ran past the call it was cutting")
+
+        let plainAt = try #require(strippedPlain.range(of: "notifications:"))
+        let proseAt = try #require(strippedProse.range(of: "notifications:"))
+        let argumentMoved =
+            strippedPlain.distance(from: strippedPlain.startIndex, to: plainAt.lowerBound)
+                < strippedProse.distance(from: strippedProse.startIndex, to: proseAt.lowerBound)
+        #expect(argumentMoved, "the prose did not move the argument, so this fixture proves nothing")
+    }
+
+    // The other half of the same property, and the one a negative claim rests on: what is written
+    // past the bracket is not in the window, however close to it.
+    @Test func whatIsWrittenPastTheBracketIsNotInTheWindow() throws {
+        let planted = "code: 1)\nlog(message: \"after\")\nnext()"
+        let arguments = try callArguments(openedBy: planted, "refuse(")
+        #expect(arguments == "code: 1")
+        let reachedPast = arguments.contains("message:")
+        #expect(!reachedPast, "the window reached past the bracket it stops at")
+    }
+}

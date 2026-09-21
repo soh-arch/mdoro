@@ -532,12 +532,22 @@ struct DisplayNameTravelTests {
     // reaches the settings file is half a setting.
     @Test func changingTheNameReachesTheAir() throws {
         let text = try appModel
+        let branchCondition = "settings.displayName != previous.displayName"
         let branch = try #require(
-            text.range(of: "settings.displayName != previous.displayName"),
+            text.range(of: branchCondition),
             "Decision 0040: nothing at all happens when the name changes"
         )
-        let body = text[branch.upperBound...].prefix(120)
-        #expect(body.contains("readvertise()"), "Decision 0040: the old name stays on the air")
+        // To the brace that closes the branch, not a count of characters. 120 of them reached 83
+        // past the end of this two-line clause and into the ones after it, where an edit that
+        // deleted `readvertise()` from here could leave this passing on a neighbour's text.
+        //
+        // **What `declarationBody` counts is braces, and the marker says which side of the opening
+        // one the text begins on** — as true of a branch as of a declaration. Its name is narrower
+        // than that, and here it says something not so: this marker names an `if` condition. The
+        // name is not changed from a call site.
+        let clause = try declarationBody(openedBy: text[branch.upperBound...], branchCondition)
+        let reachesTheAir = clause.contains("readvertise()")
+        #expect(reachesTheAir, "Decision 0040: the old name stays on the air")
     }
 
     // Decision 0040: what a re-advertisement needs to know is whether the Mac is on the air, which

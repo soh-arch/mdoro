@@ -71,13 +71,16 @@ struct TestHostTests {
         // REQ-COM-003: the model is built inside `init`, not as a declaration default — the
         // single-instance check must run before the model exists, and a declaration's default
         // value runs before an init body ever does.
-        let construction = try #require(app.range(of: "_model = State(initialValue:"))
-        let statement = app[construction.upperBound...].prefix(200)
-        #expect(statement.contains("TestHost.isRunning"), "the model is built the same way under test")
-        #expect(
-            statement.contains("InMemoryStateStore"),
-            "a test run restores the reader's saved session and acts on it"
-        )
+        let marker = "_model = State(initialValue:"
+        let construction = try #require(app.range(of: marker))
+        // To the bracket that closes `State(`, not a count of characters. The marker does not end in
+        // a bracket and still leaves one open, which is why `callArguments` counts the marker's own
+        // rather than looking at its last character.
+        let statement = try callArguments(openedBy: app[construction.upperBound...], marker)
+        let decidedByTheTestRun = statement.contains("TestHost.isRunning")
+        #expect(decidedByTheTestRun, "the model is built the same way under test")
+        let restoresNothing = statement.contains("InMemoryStateStore")
+        #expect(restoresNothing, "a test run restores the reader's saved session and acts on it")
     }
 
     // The guards above stop the app from *starting*. They do not stop a model from being
@@ -101,8 +104,14 @@ struct TestHostTests {
                 for construction in text.components(separatedBy: "AppModel(").dropFirst() {
                     // `AppModel()` — the production one. Nothing substituted, nothing to check.
                     guard !construction.hasPrefix(")") else { continue }
+                    // To the bracket that closes the call. A count of characters was spent by the
+                    // prose written inside these constructions — and three of them are longer than
+                    // the 400 this used to read (440, 414, 414), so the window was already short of
+                    // the thing it was watching, and one more argument would have ended it.
+                    let arguments = try callArguments(openedBy: construction, "AppModel(")
+                    let saysWhereNotificationsGo = arguments.contains("notifications:")
                     #expect(
-                        construction.prefix(400).contains("notifications:"),
+                        saysWhereNotificationsGo,
                         "\(name) builds an AppModel that delivers to the reader's notification centre"
                     )
                 }
@@ -125,8 +134,10 @@ struct TestHostTests {
             for (name, text) in files {
                 for construction in text.components(separatedBy: "AppModel(").dropFirst() {
                     guard !construction.hasPrefix(")") else { continue }
+                    let arguments = try callArguments(openedBy: construction, "AppModel(")
+                    let saysWhereTheAssertionGoes = arguments.contains("idleSleep:")
                     #expect(
-                        construction.prefix(400).contains("idleSleep:"),
+                        saysWhereTheAssertionGoes,
                         "\(name) builds an AppModel that holds the reader's Mac awake"
                     )
                 }
@@ -148,10 +159,13 @@ struct TestHostTests {
             for (name, text) in files {
                 for construction in text.components(separatedBy: "AppModel(").dropFirst() {
                     guard !construction.hasPrefix(")") else { continue }
-                    // A wider window than the two above: this argument is the last one, so the
-                    // whole construction has to fit inside it.
+                    // This argument is the last one, so the whole construction has to fit inside
+                    // the window — which is what ending at the bracket gives, rather than the
+                    // guessed-at 700 characters that used to stand in for it.
+                    let arguments = try callArguments(openedBy: construction, "AppModel(")
+                    let saysWhereTheTokensGo = arguments.contains("deviceTokens:")
                     #expect(
-                        construction.prefix(700).contains("deviceTokens:"),
+                        saysWhereTheTokensGo,
                         "Decision 0040: \(name) builds an AppModel that writes into the reader's Keychain"
                     )
                 }
@@ -168,12 +182,19 @@ struct TestHostTests {
             app.contains("defaultLaunchBehavior(TestHost.isRunning ? .suppressed : .presented)"),
             "the main window opens itself during the suite"
         )
-        // Look as far as the parenthesis of `MenuBarExtra(`. `showsMenuBarExtra` comes before it.
+        // Look as far as the parenthesis of `MenuBarExtra(` — which is what this now does, rather
+        // than the 20 characters that used to stand in for it. The bound is still a bound: the two
+        // trailing closures are outside it, and the argument list is 30 characters, so 20 was not
+        // reading the whole of what it was pointed at either.
+        //
+        // 20 left `isInserted:` nine characters from the edge, so a title argument written in front
+        // of it — `MenuBarExtra("Mdoro", isInserted: $showsMenuBarExtra)`, which keeps the
+        // requirement — would have turned this red for nothing. **That the argument is there is the
+        // claim; that it comes first is not.**
         let extra = try #require(app.range(of: "MenuBarExtra("), "REQ-UIX-030: the menu bar mark is gone")
-        #expect(
-            app[extra.upperBound...].prefix(20).contains("isInserted:"),
-            "the menu bar mark is inserted during the suite"
-        )
+        let arguments = try callArguments(openedBy: app[extra.upperBound...], "MenuBarExtra(")
+        let insertionIsConditional = arguments.contains("isInserted:")
+        #expect(insertionIsConditional, "the menu bar mark is inserted during the suite")
         #expect(
             app.contains("_showsMenuBarExtra = State(initialValue: !TestHost.isRunning)"),
             "whether the mark is inserted no longer depends on the test run"
