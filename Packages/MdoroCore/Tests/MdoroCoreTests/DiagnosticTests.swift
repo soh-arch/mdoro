@@ -399,3 +399,127 @@ struct DiagnosticHeaderPerLaunchTests {
         #expect(text.contains("app.stop"))
     }
 }
+
+// A `FileManager` that admits the file is there and refuses to measure it. Everything else is the
+// real implementation, so the directory, the file and the appending all behave as they do in
+// production — the one thing that changes is the answer to `attributesOfItem`.
+private final class UnmeasurableFileManager: FileManager {
+    private let refusedPath: String
+
+    init(refusing path: String) {
+        self.refusedPath = path
+        super.init()
+    }
+
+    override func attributesOfItem(atPath path: String) throws -> [FileAttributeKey: Any] {
+        if path == refusedPath {
+            throw NSError(domain: NSCocoaErrorDomain, code: NSFileReadUnknownError)
+        }
+        return try super.attributesOfItem(atPath: path)
+    }
+}
+
+// **A log that cannot be measured is not an empty one.** The size decides two things — whether a new
+// file is opened over whatever is at the path, and whether the file is rotated — and both read 0 as
+// "nothing is in the way yet". A size that could not be read used to come back as 0, so an existing
+// log was replaced by a header and one line, with nothing said anywhere.
+@Suite("A log that cannot be measured is not empty (REQ-ERR-010)")
+struct DiagnosticSizeIsMeasuredNotGuessedTests {
+
+    // The decision on its own. `attributesOfItem` cannot be made to answer a real file with a
+    // dictionary that has no `.size` in it, which is why the decision is here to be asked directly.
+    @Test func attributesWithNoSizeAreRefusedInsteadOfAnsweredWithZero() {
+        #expect(throws: MeasuredLogSize.NoSizeOnAFileThatIsThere.self) {
+            try MeasuredLogSize.bytes(in: [:])
+        }
+    }
+
+    // And a `.size` that is not a number: not a size either, and not to be replaced with one.
+    @Test func aSizeThatIsNotANumberIsRefusedForTheSameReason() {
+        #expect(throws: MeasuredLogSize.NoSizeOnAFileThatIsThere.self) {
+            try MeasuredLogSize.bytes(in: [.size: "4096"])
+        }
+    }
+
+    // The other half, which is what keeps the two above from being satisfied by a function that
+    // refuses everything. 0 is in here on purpose: **a measured 0 is a real answer** — an empty file
+    // that is there — and it has to come back, not be turned into a refusal.
+    @Test func aSizeThatIsThereComesStraightBack() throws {
+        let measured = try MeasuredLogSize.bytes(in: [.size: NSNumber(value: 4096)])
+        #expect(measured == 4096)
+        let empty = try MeasuredLogSize.bytes(in: [.size: NSNumber(value: 0)])
+        #expect(empty == 0)
+    }
+
+    // The line this suite exists for: an existing log, a size that cannot be read, and the log still
+    // on disk afterwards. What is lost is the one line that was being written, and it is lost
+    // loudly — `lastFailure` is what the settings screen reads.
+    @Test func anExistingLogIsNotReplacedWhenItsSizeCannotBeRead() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let first = DiagnosticLogFile(directory: directory, header: header)
+        first.write(DiagnosticEvent(code: "app.start"))
+        first.write(DiagnosticEvent(code: "session.start"))
+        let onDisk = try Data(contentsOf: first.currentURL)
+        #expect(onDisk.count > 0, "there has to be a log to lose, or the rest proves nothing")
+
+        let unmeasurable = UnmeasurableFileManager(refusing: first.currentURL.path)
+        let second = DiagnosticLogFile(directory: directory, header: header, fileManager: unmeasurable)
+        second.write(DiagnosticEvent(code: "session.end"))
+
+        #expect(second.lastFailure != nil, "the log was lost, or kept, without a word either way")
+        let afterwards = try Data(contentsOf: second.currentURL)
+        #expect(afterwards == onDisk, "an existing log was replaced by a header and one line")
+        let text = try String(contentsOf: second.currentURL, encoding: .utf8)
+        let carriesTheRefusedLine = text.contains("session.end")
+        #expect(carriesTheRefusedLine == false, "the refused line is the only thing that is lost")
+    }
+
+    // With no file there, nothing is measured and a new one is opened, header ahead of the line.
+    // Every other test in this file walks this branch on its first write; it is asserted here on its
+    // own so that a `currentSize()` refusing an absent file fails one named test rather than all.
+    @Test func withNoFileThereANewOneIsOpenedWithTheHeaderAhead() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let file = DiagnosticLogFile(directory: directory, header: header)
+        let existedBefore = FileManager.default.fileExists(atPath: file.currentURL.path)
+        #expect(existedBefore == false, "the directory has to start out without a log")
+
+        file.write(DiagnosticEvent(code: "app.start"))
+
+        #expect(file.lastFailure == nil)
+        let text = try String(contentsOf: file.currentURL, encoding: .utf8)
+        #expect(text.hasPrefix("# Mdoro diagnostic log"))
+        let carriesTheLine = text.contains("app.start")
+        #expect(carriesTheLine)
+    }
+
+    // A file that is there and is nought bytes long: **`open(with:)` took this before and the append
+    // path takes it now**, and the bytes it ends up with have to be the same either way — the header
+    // this launch owes, then the line. Written out in full rather than as a prefix, so a second
+    // header or a lost one fails here.
+    @Test func anExistingEmptyFileEndsUpWithExactlyTheHeaderAndTheLine() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let file = DiagnosticLogFile(directory: directory, header: header)
+        try Data().write(to: file.currentURL)
+        let sizeBefore = try Data(contentsOf: file.currentURL).count
+        #expect(sizeBefore == 0, "the file under test has to be there and be empty")
+
+        let event = DiagnosticEvent(
+            timestamp: Date(timeIntervalSince1970: 1_756_000_000),
+            code: "app.start"
+        )
+        file.write(event)
+
+        #expect(file.lastFailure == nil)
+        let text = try String(contentsOf: file.currentURL, encoding: .utf8)
+        let expected = DiagnosticLogFormat.header(header) + DiagnosticLogFormat.line(event) + "\n"
+        #expect(text == expected, "what an empty file ends up with changed with the route taken")
+        #expect(occurrences(of: "# opened=", in: text) == 1)
+    }
+}

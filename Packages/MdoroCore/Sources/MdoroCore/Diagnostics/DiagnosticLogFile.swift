@@ -62,8 +62,10 @@ public final class DiagnosticLogFile: @unchecked Sendable {
         guard let data = text.data(using: .utf8) else { return }
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
 
-        let size = currentSize()
-        if size == 0 {
+        // **Only the absence of a file opens one.** `open(with:)` replaces whatever is at
+        // `currentURL` with this launch's header and this one line, so it must be reached for a file
+        // that is not there — never for one that is there and could not be measured.
+        guard let size = try currentSize() else {
             try open(with: data)
             return
         }
@@ -108,8 +110,42 @@ public final class DiagnosticLogFile: @unchecked Sendable {
         try fileManager.moveItem(at: currentURL, to: previousURL)
     }
 
-    private func currentSize() -> Int {
-        let attributes = try? fileManager.attributesOfItem(atPath: currentURL.path)
-        return (attributes?[.size] as? NSNumber)?.intValue ?? 0
+    // The size of the file that is there, or `nil` when there is no file at all. **Those are the
+    // two answers; a number for a file nothing could measure is not among them.** Both readers of
+    // this treat 0 as a file that is not yet in the way: `append` above opens a new one over it, and
+    // `DiagnosticLogFormat.shouldRotate` never rotates at 0 — so answering 0 for a file that could
+    // not be measured deletes the diagnostic log (REQ-ERR-010) and switches the two generations off,
+    // and the only sign of either is that a log someone was asked to paste into an issue is a
+    // header and one line. Refusing instead costs the line that was being written: `write(_:)`
+    // catches it into `lastFailure`, which the settings screen reads.
+    // `docs/CONTEXT.md` §2 ("failures must not be silenced" — the heading is Japanese, and so is
+    // the document) is what chooses that direction.
+    private func currentSize() throws -> Int? {
+        guard fileManager.fileExists(atPath: currentURL.path) else { return nil }
+        // A file that goes away between these two calls throws rather than being taken for absent.
+        // One line is lost and nothing on disk is written over, which is the safe way round.
+        let attributes = try fileManager.attributesOfItem(atPath: currentURL.path)
+        return try MeasuredLogSize.bytes(in: attributes)
+    }
+}
+
+// Reading a size out of what the file system said, kept apart from reading the file — the shape
+// `ListenerReadiness.settledPort` uses. **This is the one place the decision can be tried**: a real
+// `attributesOfItem` cannot be made to hand back a dictionary with no `.size` in it, so asked
+// through a file the refusing branch is unreachable and only the answering one gets tested.
+enum MeasuredLogSize {
+
+    // The name is the claim: the caller has already established that the file is there, and a file
+    // that is there has a size. Deliberately carries no `ErrorCode` of its own, as
+    // `NoPortOnAReadyListener` does: Decision 0034 hands out a fixed number per case from the bands
+    // in `ErrorCode.swift`, none of those bands covers measuring a file, and opening one is a
+    // decision about that ledger. Bridged, this reaches `lastFailure` as this type's own name.
+    struct NoSizeOnAFileThatIsThere: Error {}
+
+    // `.size` is documented as an `NSNumber`. What is refused here is its absence — and anything
+    // else standing in its place, since a value that is not a number is not a size either.
+    static func bytes(in attributes: [FileAttributeKey: Any]) throws -> Int {
+        guard let size = attributes[.size] as? NSNumber else { throw NoSizeOnAFileThatIsThere() }
+        return size.intValue
     }
 }
