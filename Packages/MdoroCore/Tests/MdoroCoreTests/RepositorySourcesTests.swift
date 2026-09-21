@@ -49,48 +49,54 @@ struct RepositorySourcesTests {
     // that gets wrapped, so its argument sits on the next line and the spelling is not there. The
     // scan then reports nothing and the suites pass, which is the shape of failure they were
     // written against.
-    @Test func aCallWrappedOverTwoLinesIsStillACall() {
-        #expect(localizedStringLiterals(in: #"String(localized: "flat")"#) == ["flat"])
-        #expect(
-            localizedStringLiterals(
-                in: #"""
-                String(
-                    localized: "wrapped"
-                )
-                """#
-            ) == ["wrapped"]
+    @Test func aCallWrappedOverTwoLinesIsStillACall() throws {
+        let flat = try localizedStringLiterals(in: #"String(localized: "flat")"#)
+        #expect(flat == ["flat"])
+        let wrapped = try localizedStringLiterals(
+            in: #"""
+            String(
+                localized: "wrapped"
+            )
+            """#
         )
+        #expect(wrapped == ["wrapped"])
         // The break can fall on the other side of the label, and the spacing is not the point
         // either way.
-        #expect(localizedStringLiterals(in: "String(localized:\n    \"after the colon\")") == ["after the colon"])
-        #expect(localizedStringLiterals(in: #"String( localized:  "spaced" )"#) == ["spaced"])
+        let afterTheColon = try localizedStringLiterals(in: "String(localized:\n    \"after the colon\")")
+        #expect(afterTheColon == ["after the colon"])
+        let spaced = try localizedStringLiterals(in: #"String( localized:  "spaced" )"#)
+        #expect(spaced == ["spaced"])
     }
 
     // What the scan answered before has to survive being made to see more.
-    @Test func theScanStillReadsWhatItAlwaysRead() {
+    @Test func theScanStillReadsWhatItAlwaysRead() throws {
         // A `String(` that is not this call, and the rejected one does not swallow the call nested
         // inside it.
-        let describing = localizedCalls(in: #"String(describing: error)"#).isEmpty
+        let describing = try localizedCalls(in: #"String(describing: error)"#).isEmpty
         #expect(describing)
-        let formatted = localizedCalls(in: #"String(format: "%@", count)"#).isEmpty
+        let formatted = try localizedCalls(in: #"String(format: "%@", count)"#).isEmpty
         #expect(formatted)
-        #expect(localizedStringLiterals(in: #"Text(String(localized: "inner"))"#) == ["inner"])
+        let inner = try localizedStringLiterals(in: #"Text(String(localized: "inner"))"#)
+        #expect(inner == ["inner"])
         // Escapes are kept as written: what these suites compare is the source.
-        #expect(localizedStringLiterals(in: #"String(localized: "a \"b\" c")"#) == [#"a \"b\" c"#])
+        let escaped = try localizedStringLiterals(in: #"String(localized: "a \"b\" c")"#)
+        #expect(escaped == [#"a \"b\" c"#])
         // Interpolation is read here and dropped by `StringCatalogTests`, the one caller that
         // cannot check it against a catalogue. The scan is not the place that decides that.
-        #expect(localizedStringLiterals(in: #"String(localized: "n = \(count)")"#) == [#"n = \(count)"#])
+        let interpolated = try localizedStringLiterals(in: #"String(localized: "n = \(count)")"#)
+        #expect(interpolated == [#"n = \(count)"#])
         // A literal that spells the call out does not add one.
-        #expect(
-            localizedStringLiterals(in: #"String(localized: "say String(localized: \"x\" here")"#)
-                == [#"say String(localized: \"x\" here"#]
+        let spellingTheCallOut = try localizedStringLiterals(
+            in: #"String(localized: "say String(localized: \"x\" here")"#
         )
+        #expect(spellingTheCallOut == [#"say String(localized: \"x\" here"#])
         // An argument that is not a literal is still a call. `StringCatalogTests` asks whether a
         // file localises anything at all before it insists on a catalogue, and the answer there
         // does not depend on the argument being readable.
         let oneCallWithNothingToRead: [String?] = [nil]
-        #expect(localizedCalls(in: #"String(localized: key)"#) == oneCallWithNothingToRead)
-        let noLiteral = localizedStringLiterals(in: #"String(localized: key)"#).isEmpty
+        let notALiteral = try localizedCalls(in: #"String(localized: key)"#)
+        #expect(notALiteral == oneCallWithNothingToRead)
+        let noLiteral = try localizedStringLiterals(in: #"String(localized: key)"#).isEmpty
         #expect(noLiteral)
     }
 
@@ -103,7 +109,8 @@ struct RepositorySourcesTests {
         var spelledOnOneLine = 0
         for folder in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroiOS", "PomodoroMac/PomodoroWidget"] {
             for (_, text) in try swiftFiles(under: folder, recursive: true) {
-                read += localizedCalls(in: text).count
+                let calls = try localizedCalls(in: text)
+                read += calls.count
                 spelledOnOneLine += text.components(separatedBy: "String(localized: \"").count - 1
             }
         }
@@ -544,5 +551,234 @@ struct CallArgumentsTests {
         #expect(arguments == "code: 1")
         let reachedPast = arguments.contains("message:")
         #expect(!reachedPast, "the window reached past the bracket it stops at")
+    }
+}
+
+// **One reading, and the kinds of literal it is handed.**
+//
+// The three scans above share `StringLiteralSkipping`, and what was wrong with it was never in its
+// counting. The bench written for the two windows broke this file nine ways and **every one of those
+// nine was a mutation of the scan; not one of them changed the input.** A literal with a literal
+// inside it was never handed in, so a reading that could not follow one went on being described as
+// narrow and taken to be enough.
+//
+// **So the axis here is the input.** Each test below walks the kinds of literal — plain, interpolated,
+// a subscript inside an interpolation with and without an escape, two interpolations deep, multiline,
+// raw — and asks one question of each: is what comes back the whole of what the marker named?
+//
+// **One of those shapes was answered correctly before any of this, and it is kept for that reason.**
+// `"\(a["k"])"` has an even number of quotes and no bracket inside the nested literal, so counting the
+// nested literal's quotes as the outer one's came out right **by arithmetic**. It sits here next to
+// the shape that differs from it by one character — a bracket inside that subscript — which the same
+// arithmetic cut short. **Passing the first alone says nothing at all**; passing both is what tells a
+// reading from a coincidence, and that is why neither is written without the other.
+//
+// `localizedCalls` had no such coincidence to lean on: it stopped at the first quote it met after the
+// opening one, so **every** subscript in an interpolation cut a sentence short there. The backtick in
+// its fixtures is the point — `NotationSampleTests` looks for one, and a sentence cut off before it
+// reads as a sentence that has none.
+@Suite("One reading of a literal, and the kinds of literal it is handed")
+struct StringLiteralReadingTests {
+
+    // Each goes into `() { … kept() }` with `next()` after it. The window has to hold `kept()` and
+    // stop before `next()`.
+    private static let statements: [(name: String, statement: String)] = [
+        ("no interpolation", #"log("}")"#),
+        ("an interpolation with nothing in it", #"log("\(n)")"#),
+        ("a subscript in an interpolation", #"log("\(a["k"])")"#),
+        ("a subscript holding the closing brace", #"log("\(a["}"])")"#),
+        ("a subscript holding an escaped quote", #"log("\(a["it\"s"])")"#),
+        ("two interpolations deep, a brace innermost", #"log("\(f("\(a["}"])"))")"#),
+    ]
+
+    @Test func aLiteralInsideAnInterpolationDoesNotEndTheLiteralAroundIt() throws {
+        for (name, statement) in Self.statements {
+            let text = "() {\n    \(statement)\n    kept()\n}\nnext()"
+            let body = try declarationBody(openedBy: text, "func write(")
+            let holdsWhatFollowsTheLiteral = body.contains("kept()")
+            #expect(holdsWhatFollowsTheLiteral, "\(name): the window was cut short inside the literal")
+            let stopsAtTheDeclaration = !body.contains("next()")
+            #expect(stopsAtTheDeclaration, "\(name): the window ran past the declaration it was cutting")
+        }
+    }
+
+    // The same axis, one bracket along: `)` is what ends a call, so the brackets go inside the
+    // subscripts instead of the braces.
+    private static let arguments: [(name: String, argument: String)] = [
+        ("no interpolation", #"message: "done)""#),
+        ("an interpolation with nothing in it", #"message: "\(n)""#),
+        ("a subscript in an interpolation", #"message: "\(a["k"])""#),
+        ("a subscript holding the closing bracket", #"message: "\(a[")"])""#),
+        ("a subscript holding an escaped quote", #"message: "\(a["it\"s"])""#),
+        ("two interpolations deep, a bracket innermost", #"message: "\(f("\(a[")"])"))""#),
+    ]
+
+    @Test func aLiteralInsideAnInterpolationDoesNotEndTheCallAroundIt() throws {
+        for (name, argument) in Self.arguments {
+            let text = "\(argument), code: 1)\nnext()"
+            let arguments = try callArguments(openedBy: text, "refuse(")
+            let holdsWhatFollowsTheLiteral = arguments.contains("code: 1")
+            #expect(holdsWhatFollowsTheLiteral, "\(name): the window was cut short inside the literal")
+            let stopsAtTheCall = !arguments.contains("next()")
+            #expect(stopsAtTheCall, "\(name): the window ran past the call it was cutting")
+        }
+    }
+
+    // And the third scan, where what is cut short is not a window but the sentence itself.
+    private static let sentences: [(name: String, source: String, asWritten: String)] = [
+        ("no interpolation", #"String(localized: "a `tick` b")"#, "a `tick` b"),
+        ("an interpolation with nothing in it", #"String(localized: "n = \(count)")"#, #"n = \(count)"#),
+        (
+            "a subscript in an interpolation",
+            #"String(localized: "a \(d["k"]) `tick`")"#,
+            #"a \(d["k"]) `tick`"#
+        ),
+        (
+            "a subscript holding an escaped quote",
+            #"String(localized: "a \(d["it\"s"]) `tick`")"#,
+            #"a \(d["it\"s"]) `tick`"#
+        ),
+        (
+            "two interpolations deep",
+            #"String(localized: "a \(f("\(d["k"])")) `tick`")"#,
+            #"a \(f("\(d["k"])")) `tick`"#
+        ),
+    ]
+
+    @Test func aSentenceIsReadPastALiteralWrittenInsideItsOwnInterpolation() throws {
+        for (name, source, asWritten) in Self.sentences {
+            let read = try localizedStringLiterals(in: source)
+            #expect(read == [asWritten], "\(name): the sentence is not what was written")
+        }
+    }
+
+    // **A `\` before a `(` is not an interpolation** when the backslash is itself escaped: `"a\\(b)"`
+    // is one backslash and then the text `(b)`. This is the shape a reading of interpolations can
+    // break and the old arithmetic could not — read that `(` as code and its `)` is back in play.
+    @Test func anEscapedBackslashDoesNotOpenAnInterpolation() throws {
+        let arguments = try callArguments(
+            openedBy: #"message: "a\\(b)", code: 1)"# + "\nnext()",
+            "refuse("
+        )
+        #expect(arguments == #"message: "a\\(b)", code: 1"#)
+
+        let escapedBackslash = #"""
+        () {
+            log("a\\(}")
+            kept()
+        }
+        next()
+        """#
+        let body = try declarationBody(openedBy: escapedBackslash, "func write(")
+        let holdsWhatFollowsTheLiteral = body.contains("kept()")
+        #expect(holdsWhatFollowsTheLiteral, "a brace in a literal after an escaped backslash closed the window")
+        let stopsAtTheDeclaration = !body.contains("next()")
+        #expect(stopsAtTheDeclaration, "the window ran past the declaration it was cutting")
+    }
+
+    // **The two forms this reading still cannot follow are refused, not answered.** A multiline
+    // literal begins with two quotes and nothing between them, which inverts the parity of every
+    // quote after it; a raw one honours no `\"` at all, so an escape inside it is read as one that
+    // is not there. Either way what comes back is a window shorter than the thing it is handed over
+    // as — the one failure these scans exist to stop, arriving through the scans.
+    @Test func aMultilineLiteralIsRefusedRatherThanAnsweredShort() throws {
+        let inADeclaration = ##"""
+        () {
+            log("""
+            }
+            """)
+            kept()
+        }
+        next()
+        """##
+        #expect(throws: UnreadableLiteral.self) {
+            try declarationBody(openedBy: inADeclaration, "func write(")
+        }
+
+        let inACall = ##"""
+        message: """
+        )
+        """, code: 1)
+        next()
+        """##
+        #expect(throws: UnreadableLiteral.self) {
+            try callArguments(openedBy: inACall, "refuse(")
+        }
+
+        // And as a localised sentence, where answering short means answering the empty literal at the
+        // head of it — a sentence of no characters, compared to a catalogue, with nothing saying so.
+        let asASentence = ##"""
+        String(localized: """
+        a sentence
+        """)
+        """##
+        #expect(throws: UnreadableLiteral.self) { try localizedCalls(in: asASentence) }
+        do {
+            let answered = try localizedCalls(in: asASentence)
+            Issue.record("a multiline argument answered \(answered)")
+        } catch let error as UnreadableLiteral {
+            #expect(error.form == .multiline)
+            let namesTheForm = error.description.contains("multiline")
+            #expect(namesTheForm, "the failure does not say which form of literal it met")
+        }
+    }
+
+    @Test func aRawLiteralIsRefusedRatherThanAnsweredShort() throws {
+        let inADeclaration = ##"""
+        () {
+            log(#"}"#)
+            kept()
+        }
+        next()
+        """##
+        #expect(throws: UnreadableLiteral.self) {
+            try declarationBody(openedBy: inADeclaration, "func write(")
+        }
+
+        let inACall = ##"message: #")"#, code: 1)"## + "\nnext()"
+        #expect(throws: UnreadableLiteral.self) {
+            try callArguments(openedBy: inACall, "refuse(")
+        }
+
+        let asASentence = ##"String(localized: #"a sentence"#)"##
+        #expect(throws: UnreadableLiteral.self) { try localizedCalls(in: asASentence) }
+        do {
+            let answered = try localizedCalls(in: asASentence)
+            Issue.record("a raw argument answered \(answered)")
+        } catch let error as UnreadableLiteral {
+            #expect(error.form == .raw)
+            let namesTheForm = error.description.contains("raw")
+            #expect(namesTheForm, "the failure does not say which form of literal it met")
+        }
+        // More than one hash is the same form. A refusal that read only `#"` would let `##"` past.
+        let moreHashes = ###"String(localized: ##"a sentence"##)"###
+        #expect(throws: UnreadableLiteral.self) { try localizedCalls(in: moreHashes) }
+    }
+
+    // **A refusal that fires on ordinary code is the same fault with its sign reversed.** A `#` is
+    // written here for `#if`, for `#expect`, and inside literals of its own — `!line.hasPrefix("#")`
+    // is in five of the Mac suites — and an empty literal is two quotes without being the head of a
+    // multiline one. Every scan in the file goes red at once if any of these is refused, and there
+    // would be nothing in the failure to say that the code was fine.
+    @Test func aHashThatOpensNoRawLiteralIsStillCode() throws {
+        let notRawLiterals: [(name: String, statement: String)] = [
+            ("a hash inside a literal", ##"guard !line.hasPrefix("#") else { return }"##),
+            ("a literal that is only a hash", ##"log("#" + String(format: "%04x", n))"##),
+            ("a compiler directive above a literal", "#if DEBUG\n    log(\"x\")\n    #endif"),
+            ("a macro with a brace in its literal", ##"#expect(a == "}")"##),
+            ("an empty literal and then another", ##"if a == "" { log("}") }"##),
+        ]
+        for (name, statement) in notRawLiterals {
+            let text = "() {\n    \(statement)\n    kept()\n}\nnext()"
+            let body = try declarationBody(openedBy: text, "func write(")
+            let holdsWhatFollows = body.contains("kept()")
+            #expect(holdsWhatFollows, "\(name): the window was cut short")
+            let stopsAtTheDeclaration = !body.contains("next()")
+            #expect(stopsAtTheDeclaration, "\(name): the window ran past the declaration")
+        }
+        // And the empty sentence is a sentence. Read as the head of a multiline literal it would be
+        // refused, and `String(localized: "")` is neither refused nor read as nothing.
+        let empty = try localizedStringLiterals(in: #"String(localized: "")"#)
+        #expect(empty == [""])
     }
 }
