@@ -29,18 +29,24 @@ private let macServer = "PomodoroMac/PomodoroMac/Server/MdoroServer.swift"
 // The body of one named declaration in the server, comments already gone. `declarationBody` ends the
 // window at the brace that closes the declaration, so no count of lines is being spent here and prose
 // written inside the body cannot slide the answer.
+//
+// **The count of the pieces is what catches a renamed anchor, and it has to stop the scan.**
+// `components(separatedBy:)` answers one piece when the separator is nowhere in the text, so
+// `pieces.last` is never nil and asking for it catches nothing at all. Noting the count and carrying
+// on is not enough either: the piece handed on is then the whole file, and the run goes red out of
+// `declarationBody` saying that no brace closes the declaration — true, and it says nothing about the
+// anchor a reader would have to go looking for. So this throws, and the sentence a reader sees names
+// the anchor and what became of it.
 private func bodyOfDeclaration(_ marker: String) throws -> String {
     let server = withoutComments(try source(macServer))
     let pieces = server.components(separatedBy: marker)
-    #expect(
+    try #require(
         pieces.count == 2,
-        "\(macServer) holds \(pieces.count - 1) of `\(marker)`, and one is expected — a scan that reads one of two says nothing about the other"
+        "\(macServer) holds \(pieces.count - 1) of `\(marker)` where one is expected — it was renamed or a second one was written, and a scan reading one of two says nothing about the other. This scan is watching nothing until the anchor is put right."
     )
-    let tail = try #require(
-        pieces.last,
-        "\(macServer) no longer holds `\(marker)` — it was renamed, and this scan was watching nothing"
-    )
-    let body = try declarationBody(openedBy: tail, marker)
+    // Safe by the count above: two pieces mean the marker is there exactly once, and the second piece
+    // is what follows it.
+    let body = try declarationBody(openedBy: pieces[1], marker)
     #expect(!body.isEmpty, "the window is empty, and anything read from an empty window agrees")
     return body
 }
@@ -65,22 +71,26 @@ struct FoldingWhatIsStandingTests {
     // and `resolveApproval(false)` called, on every stop, for a question nobody withdrew.
     //
     // **This is not a canary, and it is not a test of behaviour.** The two orders behave identically
-    // as the file stands, because the echo is a hop of the main actor away and there is nothing
-    // between the two statements to run in between — a stop written the wrong way round is silent,
-    // and stays silent until somebody puts a statement there. So there is nothing to observe: no
-    // extra line appears in a log, no callback fires, nothing goes red. **What is checked instead is
-    // that the two statements are in the order that stays correct when something is put between
-    // them**, which is a fact about the text and is read as one. The behaviour this order protects is
-    // driven in the app target, from the endings that reach `foldPendingApproval`
-    // (`aReadThatSaysTheLineIsOverTakesTheQuestionWithIt` and the two beside it); what no bench there
-    // reaches is `stop()`'s own copy of the ordering, which is why it is read here.
+    // as the file stands, and the reason is mechanical: the echo is a hop of the main actor away, and
+    // between the two statements there is nothing for it to arrive before. A stop written the wrong
+    // way round is silent, and goes on being silent until somebody puts a statement there — so it
+    // leaves nothing to observe, no line in a log and no callback. **What is checked instead is that
+    // the two statements are in the order that stays correct when something is put between them**,
+    // which is a fact about the text and is read as one.
+    //
+    // The behaviour this ordering protects is driven in the app target, from the endings that reach
+    // `foldPendingApproval` (`aReadThatSaysTheLineIsOverTakesTheQuestionWithIt` and the two beside
+    // it). **Nothing is claimed here about which benches exist or what they reach** — the argument
+    // above is the mechanism, and it is what a bench would have to get past: a run that could tell the
+    // two orders apart is a run with a statement between them, which is a property of this code and
+    // not of the suite.
     @Test func theStopLetsGoOfTheWaitingQuestionBeforeItHangsUpOnItsLine() throws {
         let body = try bodyOfDeclaration("func stop() {")
         let lines = statements(of: body)
 
         let releaseAt = try #require(
             lines.firstIndex(of: "pendingApproval = nil"),
-            "`stop()` does not let go of the waiting question at all, so a stopped server keeps one on record and the next answer is settled against it"
+            "nothing in `stop()`'s own body lets go of the waiting question, so a stopped server keeps one on record and the next answer is settled against it. **If the release and the hang-up were moved into a declaration of their own, that is not the fault this is about** — the ordering is what matters and it can live anywhere: point this scan at that declaration's marker instead of `func stop() {`."
         )
 
         // **The fault this exists for, in whatever position it is written.** A hang-up spelled
@@ -156,7 +166,7 @@ struct FoldingWhatIsStandingTests {
         let folds = settleBody.components(separatedBy: "fold(").count - 1
         #expect(
             folds == 2,
-            "`settle` folds what is standing in \(folds) places — the accept and the approval are two, and each has to be the shared one"
+            "`settle` folds what is standing in \(folds) places, where the accept and the approval make two. **A number that has grown is not a fault in itself**: a third branch that reuses the shared declaration is exactly what this shape is for, and if that is what happened, this count is the thing to update. What the check refuses is a branch that went back to writing the judgement out for itself — which the two claims below are what catch."
         )
         #expect(
             !settleBody.contains("cancel("),
@@ -172,12 +182,12 @@ struct FoldingWhatIsStandingTests {
         let exemptions = foldBody.components(separatedBy: "!== source").count - 1
         #expect(
             exemptions == 1,
-            "the shared fold exempts `source` in \(exemptions) places — a fold that does not compare at all hangs up on the line the hello arrived on, and two comparisons are the shape this replaced"
+            "the shared fold exempts `source` in \(exemptions) places. None means it hangs up on the line the hello arrived on, which is the fault it was written for; more than one is the shape it replaced. **If a second comparison here is deliberate, this count is the thing to update** — and the sentence above the declaration is where the reason belongs, because the next person reads that before this."
         )
         let hangUps = foldBody.components(separatedBy: "cancel(").count - 1
         #expect(
             hangUps == 1,
-            "the shared fold hangs up in \(hangUps) places — one is what both branches were asking for"
+            "the shared fold hangs up in \(hangUps) places where both branches asked for one. **A second one is not read as wrong here, only as unexplained**: if the fold legitimately took on another, update this count and say above the declaration what the second one is for."
         )
     }
 }
