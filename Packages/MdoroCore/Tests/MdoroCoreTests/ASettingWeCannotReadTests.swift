@@ -441,10 +441,12 @@ struct ASettingWeCannotReadTests {
         let payloads = appModel.components(separatedBy: "ProtocolErrorPayload(").dropFirst()
         #expect(!payloads.isEmpty)
         for payload in payloads {
-            #expect(
-                payload.prefix(200).contains("relatedRequestId: command.clientRequestId"),
-                "10.2: an error goes back with no request to tie it to"
-            )
+            // To the bracket that closes the call, not a count of characters: a count is spent by
+            // every line of prose written inside the payload, and a window that has slid off the
+            // end of it reads exactly like one whose arguments are fine.
+            let arguments = try callArguments(openedBy: payload, "ProtocolErrorPayload(")
+            let tiedToTheRequest = arguments.contains("relatedRequestId: command.clientRequestId")
+            #expect(tiedToTheRequest, "10.2: an error goes back with no request to tie it to")
         }
     }
 

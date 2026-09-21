@@ -593,10 +593,12 @@ struct FailuresThatReachSomeoneTests {
         let payloads = appModel.components(separatedBy: "ProtocolErrorPayload(").dropFirst()
         #expect(!payloads.isEmpty, "nothing here builds an error payload any more")
         for payload in payloads {
-            #expect(
-                payload.prefix(200).contains("diagnosticSummary"),
-                "Decision 0034: an `error.message` written in a shape of its own"
-            )
+            // To the bracket that closes the call. A count of characters is spent by every line of
+            // prose written inside the payload, so what it answers is an accident of how much of
+            // that there happens to be.
+            let arguments = try callArguments(openedBy: payload, "ProtocolErrorPayload(")
+            let inAShapeOfItsOwn = arguments.contains("diagnosticSummary")
+            #expect(inAShapeOfItsOwn, "Decision 0034: an `error.message` written in a shape of its own")
         }
 
         // 10.2 / Decision 0035: **the iPhone's screen looks it up from `code`.** Each of the three
@@ -637,10 +639,14 @@ struct FailuresThatReachSomeoneTests {
         let payloads = server.components(separatedBy: "AuthFailedPayload(").dropFirst()
         #expect(!payloads.isEmpty, "nothing here refuses a connection any more")
         for payload in payloads {
-            #expect(
-                !payload.prefix(200).contains("message:"),
-                "Decision 0034: an `authFailed.message` written in a shape of its own"
-            )
+            // **The window matters most where the claim is a negative one.** A count of characters
+            // runs past the bracket that closes this call and on into whatever was written after it
+            // — and `refuse(_ reason:)`, the next declaration in the file, does pass a `message:`,
+            // legitimately, to a payload of a different kind. Nothing here is wrong when that
+            // sentence moves up the file; a window measured in characters would call it wrong.
+            let arguments = try callArguments(openedBy: payload, "AuthFailedPayload(")
+            let carriesNoSentence = !arguments.contains("message:")
+            #expect(carriesNoSentence, "Decision 0034: an `authFailed.message` written in a shape of its own")
         }
 
         // 10.2 / Decision 0035: the sentence the iPhone shows comes from the code, so none of

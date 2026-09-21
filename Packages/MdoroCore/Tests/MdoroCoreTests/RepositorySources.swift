@@ -79,17 +79,20 @@ struct UnbalancedDeclaration: Error, CustomStringConvertible {
     }
 }
 
-// The body of the declaration the text opens, comments already gone. `marker` is carried only so a
-// failure can say which declaration went missing.
-func declarationBody(openedBy text: some StringProtocol, _ marker: String) throws -> String {
-    let opened = String(text)
-    // Read off the marker, because the text cannot answer it.
-    let markerTookTheOpeningBrace = marker.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("{")
-    var depth = markerTookTheOpeningBrace ? 1 : 0
-    var insideStringLiteral = false
-    var escaped = false
-    for index in opened.indices {
-        let character = opened[index]
+// **The one reading of a string literal that both windows below share.** A bracket counted here is
+// what decides where a window ends, so the two must not each hold an opinion about what a literal
+// is: a second reading of them is a second place to forget to plug.
+//
+// What this reading does **not** cover is written out above — a multiline (`"""`) literal, a raw
+// (`#"`) one, and a literal nested inside an interpolation — and because there is one reading, that
+// paragraph is about both windows. Neither of them is claimed to read more than this.
+private struct StringLiteralSkipping {
+    private var insideStringLiteral = false
+    private var escaped = false
+
+    // True when the character is code, where a bracket is a bracket. False for every character
+    // inside a string literal, the quotes that open and close it included.
+    mutating func isCode(_ character: Character) -> Bool {
         if insideStringLiteral {
             if escaped {
                 escaped = false
@@ -98,11 +101,28 @@ func declarationBody(openedBy text: some StringProtocol, _ marker: String) throw
             } else if character == "\"" {
                 insideStringLiteral = false
             }
-            continue
+            return false
         }
-        switch character {
-        case "\"":
+        if character == "\"" {
             insideStringLiteral = true
+            return false
+        }
+        return true
+    }
+}
+
+// The body of the declaration the text opens, comments already gone. `marker` is carried only so a
+// failure can say which declaration went missing.
+func declarationBody(openedBy text: some StringProtocol, _ marker: String) throws -> String {
+    let opened = String(text)
+    // Read off the marker, because the text cannot answer it.
+    let markerTookTheOpeningBrace = marker.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("{")
+    var depth = markerTookTheOpeningBrace ? 1 : 0
+    var scan = StringLiteralSkipping()
+    for index in opened.indices {
+        let character = opened[index]
+        guard scan.isCode(character) else { continue }
+        switch character {
         case "{":
             depth += 1
         case "}":
@@ -116,6 +136,79 @@ func declarationBody(openedBy text: some StringProtocol, _ marker: String) throw
         }
     }
     throw UnbalancedDeclaration(marker: marker)
+}
+
+// **The same window, ended by the other bracket.** The scans above anchor on a declaration; several
+// others anchor on a **call** — `ProtocolErrorPayload(`, `AuthFailedPayload(`, `AppModel(`,
+// `State(initialValue:`, `MenuBarExtra(` — and ask which arguments it was written with. Those cut a
+// fixed `prefix(n)` out of the text until 2026-09-20, with the fault the paragraph above describes:
+// a count of characters is spent by every line of prose written above what is being watched, and a
+// window that has slid reads exactly like a window whose contents are fine.
+//
+// **`declarationBody` cannot cut these.** Anchored on a call, the text begins inside an argument
+// list, so the next `}` it meets closes the scope the call sits in rather than anything the call
+// opened — the window it answers is the rest of the enclosing declaration, handed over as a body.
+// `aMarkerThatNamedNoDeclarationIsAnErrorRatherThanAWindow` holds that, and it is why there are two
+// functions here rather than one. **The bracket that ends a call is the `)` matching the one the
+// marker opened.**
+//
+// **Which bracket the marker opened, only the marker can say** — the same reading `declarationBody`
+// makes of its brace, one bracket along. The marker's own brackets are counted: `AppModel(` leaves
+// one call open; `State(initialValue:` leaves one open as well, though it does not end in a
+// bracket, so asking whether the last character is `(` is not enough; `f(a)` leaves none.
+//
+// **A marker that leaves none is refused rather than guessed at.** Beginning at zero instead, the
+// first `(` inside the arguments opens a level whose own `)` is then read as the end of the call,
+// and the window is cut short of what it is handed over as — which is the failure both of these
+// functions exist to stop, arriving through the function meant to stop it.
+struct UnclosedCall: Error, CustomStringConvertible {
+    let marker: String
+    // Two ways to have no bracket to stop at, and they are not the same fault: one is the marker
+    // being the wrong shape for this window, the other is the file no longer holding what it named.
+    let markerOpensNoCall: Bool
+    var description: String {
+        markerOpensNoCall
+            ? "`\(marker)` leaves no call open, so there is no bracket for a window to end at"
+            : "no bracket closes the call after `\(marker)` — the marker names something else now, "
+                + "or the file is truncated"
+    }
+}
+
+// The arguments the call the text opens was written with, comments already gone. `marker` is carried
+// only so a failure can say which call went missing.
+func callArguments(openedBy text: some StringProtocol, _ marker: String) throws -> String {
+    // Read off the marker, because the text cannot answer it.
+    var depth = 0
+    var markerScan = StringLiteralSkipping()
+    for character in marker {
+        guard markerScan.isCode(character) else { continue }
+        switch character {
+        case "(":
+            depth += 1
+        case ")":
+            depth -= 1
+        default:
+            break
+        }
+    }
+    guard depth > 0 else { throw UnclosedCall(marker: marker, markerOpensNoCall: true) }
+
+    let opened = String(text)
+    var scan = StringLiteralSkipping()
+    for index in opened.indices {
+        let character = opened[index]
+        guard scan.isCode(character) else { continue }
+        switch character {
+        case "(":
+            depth += 1
+        case ")":
+            depth -= 1
+            if depth == 0 { return String(opened[opened.startIndex..<index]) }
+        default:
+            break
+        }
+    }
+    throw UnclosedCall(marker: marker, markerOpensNoCall: false)
 }
 
 // **A directory that moved is not a directory with nothing in it.** A recursive branch answering
