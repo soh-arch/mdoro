@@ -395,10 +395,13 @@ struct ProtocolRefusalTests {
     // wiring is read: every case `settle` answers must go through a `refuse` that records, not
     // straight to the wire.
     @Test func theServerRecordsThisRefusalBeforeSendingIt() throws {
-        let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
+        let serverPath = "PomodoroMac/PomodoroMac/Server/MdoroServer.swift"
+        let server = withoutComments(try source(serverPath))
 
         // Two `refuse`s now, one per message 10.2 carries a reason in — and each records first.
-        let refusals = server.components(separatedBy: "private func refuse(").dropFirst()
+        // Through `afterEachAnchor`: a renamed anchor leaves nothing to loop over, and the count
+        // below would then read as a refusal having been deleted (see `MissingAnchor`).
+        let refusals = try afterEachAnchor("private func refuse(", in: server, of: serverPath)
         #expect(refusals.count == 2, "10.2: one refusal for `authFailed`, one for `error`")
         for refusal in refusals {
             // The body, not a count of characters: see `declarationBody`.

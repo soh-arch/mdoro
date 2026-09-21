@@ -114,6 +114,127 @@ struct RepositorySourcesTests {
     }
 }
 
+// **Before either window, the anchor.** The two suites below answer where a window *ends*; what says
+// where one begins is an anchor looked up in the file, and `components(separatedBy:)` cannot report
+// an anchor that is not there. `.last` on what it answers is then the whole file — not nil, not
+// empty, so `try #require(…)` hands it on as the window — and `.dropFirst()` on it is nothing at
+// all, so a loop over every occurrence of a rule's shape runs no iterations. Either way the suite
+// passes having read nothing, which is the one failure these scans exist to prevent.
+//
+// **The window functions cannot catch it for their callers.** Handed the whole file, `declarationBody`
+// answers the first declaration in it and `callArguments` the first call — both perfectly formed, and
+// about whatever happens to be at the top of the file.
+private let aFixture = "Fixture.swift"
+
+@Suite("An anchor that went missing says so")
+struct AnchorLookupTests {
+
+    // Each of the three shapes, because fixing one leaves the next to go slack — the same reason
+    // `aDirectoryThatIsNotThereThrowsRatherThanReadingNothing` above tries both branches.
+    @Test func anAnchorThatIsNotThereIsAnErrorRatherThanTheWholeText() {
+        let file = "func here() {\n    body()\n}\n"
+        #expect(throws: MissingAnchor.self) {
+            try afterTheLastAnchor("func gone(", in: file, of: aFixture)
+        }
+        #expect(throws: MissingAnchor.self) {
+            try afterEachAnchor("func gone(", in: file, of: aFixture)
+        }
+        #expect(throws: MissingAnchor.self) {
+            try beforeEachAnchor("func gone(", in: file, of: aFixture)
+        }
+    }
+
+    // **And the news is the rename**, not anything about the code that was being read. A caller's own
+    // guard could only say what it was hoping to find ("nothing here refuses a connection any more"),
+    // which sends the next reader looking at the code.
+    @Test func theFailureNamesTheAnchorAndTheFileItWasWatching() {
+        do {
+            let answered = try afterTheLastAnchor("func gone(", in: "func here() {}", of: aFixture)
+            Issue.record("a missing anchor answered a window: \(answered)")
+        } catch let error as MissingAnchor {
+            #expect(error.anchor == "func gone(")
+            #expect(error.path == aFixture)
+            let namesTheAnchor = error.description.contains("func gone(")
+            #expect(namesTheAnchor, "the failure does not say which anchor went missing")
+            let namesTheFile = error.description.contains(aFixture)
+            #expect(namesTheFile, "the failure does not say which file it was watching")
+        } catch {
+            Issue.record("a missing anchor threw something else: \(error)")
+        }
+    }
+
+    // One occurrence. Exact text rather than `contains`, so a boundary off by one shows: the anchor
+    // itself is in none of the three answers.
+    @Test func oneAnchorIsTheTextAfterItAndTheTextBeforeIt() throws {
+        let file = "above\nfunc refuse(code: Int) {\n    body()\n}\n"
+        let tail = try afterTheLastAnchor("func refuse(", in: file, of: aFixture)
+        #expect(tail == "code: Int) {\n    body()\n}\n")
+        let each = try afterEachAnchor("func refuse(", in: file, of: aFixture)
+        #expect(each == ["code: Int) {\n    body()\n}\n"])
+        let before = try beforeEachAnchor("func refuse(", in: file, of: aFixture)
+        #expect(before == ["above\n"])
+    }
+
+    // **One anchor can name more than one thing**, which is the whole reason the last one is asked
+    // for rather than the first: `func refuse(` names two declarations in `MdoroServer.swift`, and a
+    // caller reading the second cannot ask for it by the first. One piece per occurrence, so a
+    // caller counting them is counting occurrences — `PairingTests` insists on two.
+    @Test func severalAnchorsAreOnePieceEachAndTheLastOneIsTheLast() throws {
+        let file = "a\nfunc refuse(first) {\n    one()\n}\nb\nfunc refuse(second) {\n    two()\n}\nc\n"
+        let tail = try afterTheLastAnchor("func refuse(", in: file, of: aFixture)
+        #expect(tail == "second) {\n    two()\n}\nc\n")
+
+        let each = try afterEachAnchor("func refuse(", in: file, of: aFixture)
+        #expect(each == ["first) {\n    one()\n}\nb\n", "second) {\n    two()\n}\nc\n"])
+        let theLastPieceIsTheSameWindow = each.last == tail
+        #expect(theLastPieceIsTheSameWindow, "the two lookups disagree about which occurrence is last")
+
+        // Each piece begins where the previous occurrence ended rather than at the start of the
+        // file: `everyRefusalTheServerSendsIsWrittenDownFirst` reads the declaration each payload
+        // sits in out of exactly this, and a piece that began at the file would give it the first
+        // declaration every time.
+        let before = try beforeEachAnchor("func refuse(", in: file, of: aFixture)
+        #expect(before == ["a\n", "first) {\n    one()\n}\nb\n"])
+    }
+
+    // **An anchor matched against nothing is refused rather than guessed at**, the same reading
+    // `callArguments` makes of a marker that opens no call. What `components(separatedBy: "")`
+    // answers is not something either end of this documents, and a lookup that read the answer off
+    // it would be reading a window off a position no anchor named.
+    @Test func anEmptyAnchorIsAnErrorRatherThanEveryPositionAtOnce() {
+        #expect(throws: MissingAnchor.self) { try afterTheLastAnchor("", in: "text", of: aFixture) }
+        #expect(throws: MissingAnchor.self) { try afterEachAnchor("", in: "text", of: aFixture) }
+        #expect(throws: MissingAnchor.self) { try beforeEachAnchor("", in: "text", of: aFixture) }
+    }
+
+    // **Proved on text written here, the lookup can still be answering the wrong piece of the file it
+    // is pointed at** — the same gap the two suites below close with a real file each.
+    // `everyRefusalTheServerSendsIsWrittenDownFirst` reads the *second* `func refuse(` in
+    // `MdoroServer.swift`, so the first is what a lookup that took the wrong end would hand it, and
+    // the two have to come out different here for that to have been tested at all.
+    @Test func theLastAnchorInARealFileIsTheLastOneAndNotTheWholeFile() throws {
+        let serverPath = "PomodoroMac/PomodoroMac/Server/MdoroServer.swift"
+        let server = withoutComments(try source(serverPath))
+
+        let each = try afterEachAnchor("func refuse(", in: server, of: serverPath)
+        #expect(each.count == 2, "`MdoroServer.swift` no longer holds two `func refuse(`")
+        let tail = try afterTheLastAnchor("func refuse(", in: server, of: serverPath)
+        let theSameWindow = tail == each.last
+        #expect(theSameWindow, "the two lookups disagree about which occurrence is last")
+        let shorterThanTheFile = tail.count < server.count
+        #expect(shorterThanTheFile, "the whole file came back as the window")
+
+        // Two declarations, not one read twice. Told apart by their bodies, because that is what the
+        // callers go on to read.
+        let firstBody = try declarationBody(openedBy: each[0], "func refuse(")
+        let lastBody = try declarationBody(openedBy: tail, "func refuse(")
+        #expect(!firstBody.isEmpty, "an empty body agrees with anything")
+        #expect(!lastBody.isEmpty, "an empty body agrees with anything")
+        let twoDeclarations = firstBody != lastBody
+        #expect(twoDeclarations, "both lookups landed on one declaration, so neither end was tested")
+    }
+}
+
 // **The scans that read a declaration now trust one function to say where it ends.**
 //
 // `PairingTests`, `FailuresThatReachSomeoneTests` and `StartingTwiceTests` used to cut a fixed
@@ -328,8 +449,9 @@ struct DeclarationBodyTests {
     // above. `FailuresThatReachSomeoneTests` reads `write(refusal:)` for the refusal's log line, and
     // what it must get back is that declaration rather than the type around it.
     @Test func theWindowCutFromARealFileIsOneDeclarationAndNotTheFileAroundIt() throws {
-        let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
-        let tail = try #require(server.components(separatedBy: "func write(refusal").last)
+        let serverPath = "PomodoroMac/PomodoroMac/Server/MdoroServer.swift"
+        let server = withoutComments(try source(serverPath))
+        let tail = try afterTheLastAnchor("func write(refusal", in: server, of: serverPath)
         let body = try declarationBody(openedBy: tail, "func write(refusal")
         #expect(!body.isEmpty, "the window is empty, and anything read from an empty window agrees")
         #expect(body.count < tail.count, "the window is the whole rest of the file")
@@ -472,8 +594,9 @@ struct CallArgumentsTests {
     // bound is doing work — `message:` is in the file just past the bracket, which is the sentence
     // `theRefusalsTheServerSendsCarryACodeAndNoSentence` would be wrong to read.
     @Test func theWindowCutFromARealFileIsOneCallAndNotTheFileAroundIt() throws {
-        let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
-        let payload = try #require(appModel.components(separatedBy: "ProtocolErrorPayload(").last)
+        let appModelPath = "PomodoroMac/PomodoroMac/AppModel.swift"
+        let appModel = withoutComments(try source(appModelPath))
+        let payload = try afterTheLastAnchor("ProtocolErrorPayload(", in: appModel, of: appModelPath)
         let arguments = try callArguments(openedBy: payload, "ProtocolErrorPayload(")
         #expect(!arguments.isEmpty, "the window is empty, and anything read from an empty window agrees")
         #expect(arguments.count < payload.count, "the window is the whole rest of the file")
@@ -483,8 +606,9 @@ struct CallArgumentsTests {
         let ranOn = arguments.contains("func ")
         #expect(!ranOn, "the window ran into the declaration after the call")
 
-        let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
-        let refusal = try #require(server.components(separatedBy: "AuthFailedPayload(").last)
+        let serverPath = "PomodoroMac/PomodoroMac/Server/MdoroServer.swift"
+        let server = withoutComments(try source(serverPath))
+        let refusal = try afterTheLastAnchor("AuthFailedPayload(", in: server, of: serverPath)
         let refusalArguments = try callArguments(openedBy: refusal, "AuthFailedPayload(")
         #expect(!refusalArguments.isEmpty, "the window is empty, and an empty window agrees with anything")
         let carriesNoSentence = !refusalArguments.contains("message:")

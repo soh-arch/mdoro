@@ -14,6 +14,14 @@ import Foundation
 // The client and the banner live in the iPhone target, which `swift test` cannot link. Reading
 // their source is how a rule this package's own types take part in stays checked in CI — the same
 // route `ProtocolRefusalTests` takes to `MdoroServer` next door.
+
+// The banner is read out of its directory rather than by path, so that a view that moved is a
+// directory `swiftFiles(under:)` can refuse — and the path is still spelled once, for the anchor
+// lookups that have to name the file they were watching.
+private let bannerDirectory = "PomodoroMac/PomodoroiOS/Views"
+private let bannerFile = "ConnectionViews.swift"
+private let bannerPath = bannerDirectory + "/" + bannerFile
+
 @Suite("A refusal is not a reason to dial again (REQ-COM-004 / REQ-PRT-004)")
 struct ARefusalIsNotAReasonToDialAgainTests {
 
@@ -150,7 +158,9 @@ struct ARefusalIsNotAReasonToDialAgainTests {
     // a thing the compiler can ask about, which is what this reads.
     @Test func onlyTheFailuresThatSixDigitsCanMendAreOfferedTheField() throws {
         let failed = try noticeBranch(after: "case let .failed(code) = model.status {", in: try bannerSource())
-        let arms = failed.components(separatedBy: "\n            case ").dropFirst()
+        // Through `afterEachAnchor`: a `switch` written at another indentation leaves nothing to
+        // loop over, and the count below would then read as an arm having been deleted.
+        let arms = try afterEachAnchor("\n            case ", in: failed, of: bannerPath)
         #expect(arms.count == 2, "the banner no longer sorts the reasons into a control each")
 
         let rejected = try #require(arms.first(where: { $0.hasPrefix(".connectionRejectedByUser:") }),
@@ -231,9 +241,9 @@ struct ARefusalIsNotAReasonToDialAgainTests {
     }
 
     private func bannerSource() throws -> String {
-        let views = try swiftFiles(under: "PomodoroMac/PomodoroiOS/Views")
-        guard let banner = views["ConnectionViews.swift"] else {
-            throw ShapeHasMoved(what: "`ConnectionViews.swift` among the iPhone's views")
+        let views = try swiftFiles(under: bannerDirectory)
+        guard let banner = views[bannerFile] else {
+            throw ShapeHasMoved(what: "`\(bannerFile)` among the iPhone's views")
         }
         return banner
     }

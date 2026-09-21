@@ -27,15 +27,8 @@ private let toggleCall = "Toggle(\"Notify during Focus modes\""
 // The wording, exactly as the view asks for it, which is also the key Xcode extracts.
 private let theNote = "This build does not carry the Time Sensitive Notifications capability, so end-of-session notifications are not expected to arrive until Focus ends. The session itself ends on time."
 
-// A scan whose anchor has been renamed finds nothing to object to, and nothing to object to
-// reads exactly like nothing wrong. Every lookup here fails loudly instead.
-private struct MissingAnchor: Error, CustomStringConvertible {
-    let path: String
-    let anchor: String
-    var description: String {
-        "\(path) no longer contains `\(anchor)` — it was renamed or removed, and this scan was watching nothing"
-    }
-}
+// A scan whose anchor has been renamed finds nothing to object to, and passes: every lookup here
+// goes through `MissingAnchor` in `RepositorySources.swift`, which says which anchor is gone.
 
 // Comments are where a sentence can sit without being on screen, so they come out first.
 private func codeLines(of path: String) throws -> [String] {
