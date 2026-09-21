@@ -1252,7 +1252,7 @@ struct ServerUnderARealConnectionTests {
 @MainActor
 private final class HeldReads: ServerLineReading {
     private(set) var lines: [NWConnection] = []
-    private var outstanding: [ServerLineRead] = []
+    private var outstanding: [(line: NWConnection, completion: ServerLineRead)] = []
     private var waiting: (needed: Int, ticket: Int, continuation: CheckedContinuation<Void, Never>)?
     private var tickets = 0
 
@@ -1260,7 +1260,7 @@ private final class HeldReads: ServerLineReading {
 
     func read(from connection: NWConnection, completion: @escaping ServerLineRead) {
         lines.append(connection)
-        outstanding.append(completion)
+        outstanding.append((line: connection, completion: completion))
         if let pending = waiting, lines.count >= pending.needed {
             waiting = nil
             pending.continuation.resume()
@@ -1314,14 +1314,39 @@ private final class HeldReads: ServerLineReading {
         data: Data? = nil, frame: NWProtocolWebSocket.Opcode? = nil, isComplete: Bool = true
     ) -> Bool {
         guard !outstanding.isEmpty else { return false }
-        let completion = outstanding.removeFirst()
+        answer(outstanding.removeFirst().completion, data, frame, isComplete)
+        return true
+    }
+
+    // The same, for the oldest read outstanding **on one named line**. `deliver` above answers
+    // whichever read is oldest of all, and that is the wrong end of the queue the moment two
+    // connections are open at once: the loop re-arms on the line it has just heard from, so a second
+    // phone's hello would be handed to the first phone's read and the test would go on to watch
+    // something it never set up — with every wait below it still holding, because a read was
+    // answered and the loop did arm again. **Which line a read belongs to is the thing that had to
+    // be said out loud**, so it is a parameter rather than an ordering a comment promises.
+    //
+    // False says that line has no read outstanding, which is the same refusal `deliver` makes and is
+    // read the same way at a call site.
+    func deliver(
+        to line: NWConnection, data: Data? = nil, frame: NWProtocolWebSocket.Opcode? = nil,
+        isComplete: Bool = true
+    ) -> Bool {
+        guard let next = outstanding.firstIndex(where: { $0.line === line }) else { return false }
+        answer(outstanding.remove(at: next).completion, data, frame, isComplete)
+        return true
+    }
+
+    private func answer(
+        _ completion: ServerLineRead, _ data: Data?, _ frame: NWProtocolWebSocket.Opcode?,
+        _ isComplete: Bool
+    ) {
         let context = frame.map {
             NWConnection.ContentContext(
                 identifier: "delivered", metadata: [NWProtocolWebSocket.Metadata(opcode: $0)]
             )
         }
         completion(data, context, isComplete, nil)
-        return true
     }
 }
 
@@ -1775,6 +1800,15 @@ private func aQuestionWaitingOn(
     return (asking, line)
 }
 
+// Whether a line has already been hung up on, asked once and not waited for. **Every use of this is
+// after a wait that a cancel issued beforehand would have settled inside** — `settlesAsCancelled`
+// above is for the other case, where the cancel is the thing being waited for, and it would spend
+// its whole bound on every run where the right answer is "no". Two questions, two instruments.
+private func hasBeenCancelled(_ connection: NWConnection) -> Bool {
+    if case .cancelled = connection.state { return true }
+    return false
+}
+
 @Suite("A connection request whose line ends before it is answered (REQ-SEC-004)")
 @MainActor
 struct PendingApprovalEndingTests {
@@ -1840,5 +1874,121 @@ struct PendingApprovalEndingTests {
               "REQ-SEC-004: the question is still waiting after the transport ended the line it arrived on.")
         _ = try theOneWithdrawal(in: recording, is: .transportCancelled,
                                  "a line the transport ended while the question waited")
+    }
+
+    // **A second hello arriving on the line the question is already waiting on.** `settle` folds
+    // whatever connection was waiting before it puts this one up, and when the two are the same line
+    // that fold lands on the connection it is about to wait on. The `.cancelled` echo then reaches
+    // `foldPendingApproval`, which finds `pendingApproval` holding that very connection and takes the
+    // question down with it: the banner goes up and withdraws itself, and the phone is left behind a
+    // line the Mac hung up on in the act of deciding to keep it.
+    //
+    // **The accept branch beside this one already exempts `source`** and says why — a second hello on
+    // the line already held is not one connection displacing another. The branch that asks the user
+    // was the one place that exemption was left out.
+    //
+    // **The shipping iPhone does not send a second hello**: `MdoroClient.sendHello` is reached once,
+    // from `.ready`. What can reach this port is not limited to it, and REQ-SEC-003 is the only gate
+    // in front of a hello — so what is held here is a path no iPhone of ours walks and anything else
+    // may.
+    @Test func aSecondHelloOnTheAskingLineDoesNotHangUpOnIt() async throws {
+        let recording = Recording()
+        defer { recording.discard() }
+        let reads = HeldReads()
+        let bench = try await raiseServer(reads: reads, diagnostics: recording.log)
+        defer { bench.server.stop() }
+        defer { for opened in reads.lines { opened.cancel() } }
+
+        let asked = "iPhone that said hello twice"
+        let question = try await aQuestionWaitingOn(bench, reads: reads, from: asked)
+        defer { question.asking.cancel() }
+
+        // The same hello again, down the same read loop. `answersHelloWith` is left as
+        // `aQuestionWaitingOn` set it, so the Authenticator's answer is the one that put the question
+        // up in the first place — which is what the second hello from one device gets.
+        let again = try MessageCoder.encode(
+            Envelope(body: ClientMessage.hello(HelloPayload(deviceName: asked)))
+        )
+        holds(reads.deliver(to: question.line, data: again, frame: .text),
+              "no read was outstanding on the asking line to hand the second hello to — the loop had stopped asking before it was told anything")
+        guard await reads.waitsForReads(3, upTo: arrivalBudget) else {
+            throw Wrong(diagnose("REQ-SEC-004: the second hello was handed to the read loop and the loop never armed again (\(reads.timesArmed) read(s) in all). The loop re-arms only once `dispatch` has returned, so nothing below would be about a hello that has been through `settle`."))
+        }
+
+        // **Running out here is the good outcome**, so the bound is the one a cancellation settles
+        // inside rather than the one an arrival is waited for with: the fold this is about follows the
+        // cancel by one hop of the main actor, and a run that reaches the end of this wait without it
+        // is a run in which nothing was cancelled.
+        let settled = await bench.upstream.waitsForApprovalSettled(upTo: cancelBound)
+        holds(!settled,
+              "REQ-SEC-004: the question was settled (\(bench.upstream.approvalsAsked)) by a second hello arriving on the line it was waiting on, and nobody answered it. `settle` hung up on the pending line before putting this one up, and the `.cancelled` echo carried the question off through `foldPendingApproval`. The banner went up and came down on its own; the phone is still waiting for an answer that will never be asked for.")
+        holds(!hasBeenCancelled(question.line),
+              "REQ-SEC-004: **the connection is held open while it waits**, and the line the question is waiting on was hung up on by a hello that arrived on it. An Allow pressed now lands on a finished line — which is the fault the two tests above this one are about, arriving by a route that needs no network at all.")
+        holds(bench.server.hasPendingApproval,
+              "REQ-SEC-004: nothing is waiting for the user after a second hello on the asking line. The hello is still one the Authenticator answers with `ask the user`, so a question has to be standing — and the phone has had no refusal either.")
+        holds(recording.approvalWithdrawals.isEmpty,
+              "REQ-SEC-004 / REQ-ERR-010: the log holds \(recording.approvalWithdrawals.count) `\(ConnectionEndingLine.approvalWithdrawnCode)` line(s). Nothing withdrew this question — it was replaced by an identical one on the same line — so a reader of a pasted log is being told a banner vanished while it is still up.")
+        holds(recording.endings.isEmpty,
+              "REQ-ERR-010: a `\(ConnectionEndingLine.code)` was written (\(recording.endings.count) in all) for a line the Mac never held. That line sits beside `conn up=no` and carries `\(ConnectionEndingLine.silentKey)` from the authenticated connection's stamp; here there is no authenticated connection at all.")
+    }
+
+    // **The displacement that is meant to happen, and the question that has to survive it.** A hello
+    // from a *different* line does fold the one the standing question was waiting on — only one
+    // question can be up, so the phone whose turn has passed is let go of. What has to hold is that
+    // the ending of that folded line does not carry the new question off with it.
+    //
+    // `foldPendingApproval` is reached for every ending this class hears, ahead of the
+    // `closed === connection` gate, and the `pending.connection === closed` comparison inside it is
+    // the whole of what keeps one line's ending off another line's question. **Nothing ran against
+    // it.** The fold was written for a phone that went away while the banner was up; this case was
+    // left out of that work on purpose and read as correct out of the source, which is not the same
+    // as having been run once.
+    @Test func aQuestionDisplacedByAnotherLineOutlivesTheFoldedLinesEnding() async throws {
+        let recording = Recording()
+        defer { recording.discard() }
+        let reads = HeldReads()
+        let bench = try await raiseServer(reads: reads, diagnostics: recording.log)
+        defer { bench.server.stop() }
+        defer { for opened in reads.lines { opened.cancel() } }
+
+        let first = try await aQuestionWaitingOn(bench, reads: reads, from: "iPhone that asked first")
+        defer { first.asking.cancel() }
+
+        let asked = "iPhone that asked over it"
+        let second = try await connectedProbe(to: bench, called: asked)
+        defer { second.cancel() }
+        guard await reads.waitsForReads(3, upTo: arrivalBudget) else {
+            throw Wrong(diagnose("REQ-COM-004: a second connection reached the listener and went ready and the server never asked to read from it inside \(describe(arrivalBudget)) (\(reads.timesArmed) read(s) in all) — there is no loop to hand its hello to."))
+        }
+        // **The other line, named rather than counted.** Two connections are open, the first one's is
+        // in hand, and every read armed on this bench belongs to one or the other.
+        guard let secondLine = reads.lines.first(where: { $0 !== first.line }) else {
+            throw Wrong(diagnose("REQ-COM-004: the server has armed \(reads.timesArmed) read(s) and every one of them is on the first phone's line, so the second connection never reached `accept`."))
+        }
+        let hello = try MessageCoder.encode(
+            Envelope(body: ClientMessage.hello(HelloPayload(deviceName: asked)))
+        )
+        holds(reads.deliver(to: secondLine, data: hello, frame: .text),
+              "no read was outstanding on the second line to hand its hello to")
+        guard await reads.waitsForReads(4, upTo: arrivalBudget) else {
+            throw Wrong(diagnose("REQ-SEC-004: the second phone's hello was handed to the read loop and the loop never armed again (\(reads.timesArmed) read(s) in all), so it has not been through `settle`."))
+        }
+        guard await settlesAsCancelled(first.line) else {
+            throw Wrong(diagnose("REQ-SEC-004: a hello from a second line did not fold the line the standing question was waiting on, inside \(describe(cancelBound)). `pendingApproval` holds one request, so the phone whose question has been replaced is a phone nobody will ever answer for — leaving its line up is the shape `foldPendingApproval` exists to prevent, arriving from the other end. Nothing below would be about an ending reaching a question that had moved on."))
+        }
+
+        // **Running out here is the good outcome**, for the reason the test above gives: the fold
+        // follows the ending by one hop of the main actor, and the ending has just been observed.
+        let settled = await bench.upstream.waitsForApprovalSettled(upTo: cancelBound)
+        holds(!settled,
+              "REQ-SEC-004: the second phone's question was settled (\(bench.upstream.approvalsAsked)) by the *first* line's ending. `foldPendingApproval` runs for every ending this class hears, and its `pending.connection === closed` comparison is the whole of what keeps one line's ending off another line's question. Lose it and the banner the user is looking at is withdrawn by a phone that has already been let go of, while the phone behind it waits.")
+        holds(bench.server.hasPendingApproval,
+              "REQ-SEC-004: nothing is waiting for the user after one hello displaced another. The second phone's hello is one the Authenticator answers with `ask the user` and its line is up; the only ending since was the first line's.")
+        holds(!hasBeenCancelled(secondLine),
+              "REQ-SEC-004: the line the new question is waiting on was hung up on as well. Only the line whose question was replaced is folded here — this one is the one being waited on.")
+        holds(recording.approvalWithdrawals.isEmpty,
+              "REQ-SEC-004 / REQ-ERR-010: the log holds \(recording.approvalWithdrawals.count) `\(ConnectionEndingLine.approvalWithdrawnCode)` line(s). Nothing was withdrawn: the first question was replaced rather than abandoned, and the second is still up. A reader of a pasted log would count a banner that vanished on its own.")
+        holds(recording.endings.isEmpty,
+              "REQ-ERR-010: a `\(ConnectionEndingLine.code)` was written (\(recording.endings.count) in all) for a line the Mac never held. Neither of these connections was ever accepted, so neither has a `conn up=no` for such a line to sit beside, and `\(ConnectionEndingLine.silentKey)` would be read off a stamp that belongs to no connection here.")
     }
 }

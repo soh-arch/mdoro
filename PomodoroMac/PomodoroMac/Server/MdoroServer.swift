@@ -549,7 +549,18 @@ final class MdoroServer {
         case .needsUserApproval:
             // REQ-SEC-004: **the connection is held open while it waits.** Drop it and by the time
             // "Allow" is pressed the other side is gone.
-            pendingApproval.map { $0.connection.cancel() }
+            //
+            // `source` itself is exempt: a second hello on the line a question is already waiting on
+            // is not one request displacing another, and the cancel would land on the very line
+            // about to be waited on. **It would not merely be a wasted call.** The `.cancelled` echo
+            // reaches `handleDisconnect`, which finds `pendingApproval` holding that same connection
+            // and folds it — so the question put up on the line here would come straight back down,
+            // and the phone would be waiting behind a banner that had already withdrawn itself.
+            //
+            // The accept above draws the same line, **but only around its log line**: the cancel
+            // that follows it is unconditional. Whatever that costs there is its own to answer for;
+            // it is not the reason this branch exempts `source`.
+            if let standing = pendingApproval?.connection, standing !== source { standing.cancel() }
             pendingApproval = (source, payload)
             startApprovalTimeout()
 
