@@ -26,8 +26,10 @@ final class ClientModel {
     private(set) var snapshotReceivedAt: Date?
     private(set) var localNetworkDenied = false
     private(set) var displayNow = Date()
-    // REQ-NTF-011: right after launching from a notification, do not show anything as settled until a
-    // sync has happened.
+    // REQ-PER-011 / REQ-NTF-011: **nothing on this screen is settled until a `stateSnapshot` has
+    // arrived over a live connection.** Raised wherever a state that was not received this run goes
+    // on show — the snapshot restored from disk (REQ-PER-010) and a launch from a notification —
+    // and `receivedSnapshot` is the only thing that puts it back down.
     private(set) var isAwaitingFirstSync = false
     // The reason comes back only when there is a problem. **Nothing fails quietly.**
     var liveActivityProblem: String? { liveActivity.isHealthy ? nil : liveActivity.diagnostic }
@@ -41,6 +43,10 @@ final class ClientModel {
     // REQ-SEC-002 / Decision 0040: the Keychain is outside this process. **The default is the same
     // as production**, and only when it is replaced does a test write into the reader's own.
     private let tokens: any TokenStoring
+    // REQ-PER-010: where the last snapshot and this device's own settings are kept. **The default is
+    // the same as production**, the way the Keychain above is: the suite runs inside this app, so
+    // `.standard` is the user's own store, and a test that seeds a snapshot replaces this instead.
+    private let defaults: UserDefaults
     // **Where the client the app runs is made.** REQ-COM-005's five seconds are whatever is — or,
     // as here, is not — passed to it, so `SilenceDetectionTests` reads the interval back off this
     // property rather than off a client it built to the same initializer.
@@ -73,8 +79,9 @@ final class ClientModel {
     // `stop()` puts this back, so a deliberate restart still works; only repetition is refused.
     private var hasStarted = false
 
-    init(tokens: any TokenStoring = TokenKeychain()) {
+    init(tokens: any TokenStoring = TokenKeychain(), defaults: UserDefaults = .standard) {
         self.tokens = tokens
+        self.defaults = defaults
         self.client = MdoroClient(tokens: tokens)
     }
 
@@ -252,7 +259,9 @@ final class ClientModel {
 
     private var clockOffset: TimeInterval { client.timeSync.offset }
 
-    // REQ-NTF-011: called when the app was launched by tapping a notification.
+    // REQ-NTF-011: called when the app was launched by tapping a notification. **No longer the only
+    // way in** — `restoreLastSnapshot()` raises the same flag for REQ-PER-011, which covers the
+    // launches that went through no notification at all.
     func markAwaitingSync() { isAwaitingFirstSync = true }
 
     // MARK: - Actions
@@ -308,11 +317,11 @@ final class ClientModel {
 
     func setAppearance(_ new: AppearancePreference) {
         appearance = new
-        UserDefaults.standard.set(new.rawValue, forKey: Self.appearanceKey)
+        defaults.set(new.rawValue, forKey: Self.appearanceKey)
     }
 
     private func restoreAppearance() {
-        guard let raw = UserDefaults.standard.string(forKey: Self.appearanceKey),
+        guard let raw = defaults.string(forKey: Self.appearanceKey),
               let value = AppearancePreference(rawValue: raw) else { return }
         appearance = value
     }
@@ -324,15 +333,26 @@ final class ClientModel {
 
     private func persistSnapshot(_ snapshot: StateSnapshot) {
         guard let data = try? MessageCoder.encoder.encode(snapshot) else { return }
-        UserDefaults.standard.set(data, forKey: Self.snapshotKey)
-        UserDefaults.standard.set(Date(), forKey: Self.snapshotAtKey)
+        defaults.set(data, forKey: Self.snapshotKey)
+        defaults.set(Date(), forKey: Self.snapshotAtKey)
     }
 
     // REQ-PER-010: right after launch and while not connected, it is shown as "the state last confirmed".
-    private func restoreLastSnapshot() {
-        guard let data = UserDefaults.standard.data(forKey: Self.snapshotKey),
+    //
+    // **The app reaches this through `start()`; it is not private so that the suite can read what it
+    // leaves behind** without browsing for Bonjour services, asking for notification permission or
+    // opening a Live Activity on the reader's phone.
+    func restoreLastSnapshot() {
+        guard let data = defaults.data(forKey: Self.snapshotKey),
               let restored = try? MessageCoder.decoder.decode(StateSnapshot.self, from: data) else { return }
         snapshot = restored
-        snapshotReceivedAt = UserDefaults.standard.object(forKey: Self.snapshotAtKey) as? Date
+        snapshotReceivedAt = defaults.object(forKey: Self.snapshotAtKey) as? Date
+        // REQ-PER-011: **how many hours old this is, is not known here** — the same reason
+        // `hasLiveSnapshot` stays down. So the screen says it is not synced yet from the moment the
+        // restored state goes on it, **whatever route the launch took.** Raising it only from the
+        // notification tap (`markAwaitingSync`) left the user who simply opened the app to read the
+        // age off the received-at time beside a state shown as if it stood. `receivedSnapshot` is
+        // what puts it back down.
+        isAwaitingFirstSync = true
     }
 }

@@ -46,8 +46,12 @@ struct ConnectionBanner: View {
             .font(.footnote)
             .foregroundStyle(theme.color(model.connectionStatus.colorRole, .text))
 
-            // REQ-NTF-011: until a sync has happened it says "syncing", and information that is not
-            // settled is not shown as if it were.
+            // REQ-PER-011 / REQ-NTF-011: until a `stateSnapshot` has arrived the screen says it is not
+            // synced, and information that is not settled is not shown as if it were. **Two clauses
+            // reach this one line** — the MUST for a state restored from disk (REQ-PER-011) and the
+            // SHOULD for a launch from a notification (REQ-NTF-011). Both say what has to be conveyed;
+            // the wording is ours. The flag used to be raised on the notification route alone, so the
+            // MUST was the one going unserved.
             if model.isAwaitingFirstSync {
                 Text("Syncing…")
                     .font(.footnote)
