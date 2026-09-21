@@ -677,22 +677,31 @@ struct FailuresThatReachSomeoneTests {
                 "a refusal is sent from somewhere other than `refuse`, so it is never written down"
             )
         }
-        // And `refuse` writes one. Both halves, because either alone passes with the other gone.
+        // And a line is written for it. **Asking for the record and writing it are two
+        // declarations**: `refuse` asks `record`, `record` is one line of delegation to `write`, and
+        // `write` is the only place the line is actually written. Both halves are held, because
+        // either alone passes with the other gone.
         let refuseTail = try #require(server.components(separatedBy: "func refuse(").last)
         // The body, not a count of characters: see `declarationBody`.
         let refuseBody = try declarationBody(openedBy: refuseTail, "func refuse(")
         #expect(
             refuseBody.contains("record(refusal:"),
-            "`refuse` no longer records anything, so every refusal is silent again"
+            "`refuse` no longer asks for a record, so every refusal is silent again"
         )
-        let recordBody = try #require(server.components(separatedBy: "func record(refusal").last)
+        // **`write` is the writer; `record` only forwards.** This was anchored on `record`, whose
+        // body is that one forwarding line, and read 300 characters from it — so it found
+        // `conn.refused` in `write`, the declaration after the one it named, and passed because it
+        // had overrun. Eight lines of prose inside `record` were all that stood between that and an
+        // answer of its own. Name the declaration the line is in.
+        let writeTail = try #require(server.components(separatedBy: "func write(refusal").last)
+        let writeBody = try declarationBody(openedBy: writeTail, "func write(refusal")
         #expect(
-            recordBody.prefix(300).contains("conn.refused"),
-            "the refusal no longer reaches the diagnostic log"
+            writeBody.contains("conn.refused"),
+            "`write` no longer puts the refusal on the diagnostic log, so it reaches nobody"
         )
         // Decision 0018: the code, never the name of the device that was turned away.
         #expect(
-            !recordBody.prefix(300).contains("deviceName"),
+            !writeBody.contains("deviceName"),
             "Decision 0018: the refused device's name is being written to the diagnostic log"
         )
     }
