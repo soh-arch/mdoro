@@ -51,11 +51,26 @@ func withoutComments(_ text: String) -> String {
 // and waited for a brace to open would read that clause's own `}` as the end of the declaration.
 // Counting from the depth the marker implies is what tells the clause's brace from the body's.
 //
-// A brace inside a string literal is not a brace. There are none in these files today; a scan that
-// believed one would cut the window short or run it long without saying so, which is the failure
-// this exists to prevent. Escapes are honoured the way `localizedCalls` below honours them.
-// Multiline (`"""`) and raw (`#"`) literals are not understood — there are none, and one would have
-// to be read here before it could be written there.
+// **What this reads of a string literal is narrow**: a `"` opens one and the next unescaped `"`
+// closes it. Inside, a brace is not a brace, and a `\"` does not end the literal — escapes are
+// honoured the way `localizedCalls` below honours them. Swift's literals are more than that. What
+// is known not to be read is a multiline (`"""`) literal, a raw (`#"`) one, and **a literal nested
+// inside an interpolation**. That these three are the ones known is not a reason to believe they
+// are all of them.
+//
+// The nested one is the ordinary shape of the three: `"\(a["k"])"` is a subscript inside a message.
+// Its quotes are counted as the outer literal's, so past it the parity of `"` is inverted for
+// everything that follows. **It falls two ways, and the quiet one is the worse.** With an escape
+// inside it — `"\(a["it\"s"])"` — the count comes out odd, the brace that closes the declaration is
+// read as though it sat inside a literal, it is never counted, and the answer is
+// `UnbalancedDeclaration`: wrong, but loud. With a brace inside it — `"\(a["}"])"` — the count comes
+// out even and that brace is put back in play, so the window is cut short at it and handed over as
+// the declaration's body. **A window shorter than the thing it is passed off as is the failure this
+// function was written to stop.** And one with neither, `"\(a["k"])"`, comes out right by
+// arithmetic — so writing one, trying it and watching it work says nothing about the next one.
+//
+// Neither file the callers read holds an interpolation at all today. That is a fact about
+// `MdoroServer.swift` and `AppModel.swift` as they stand, not a property of this function.
 struct UnbalancedDeclaration: Error, CustomStringConvertible {
     let marker: String
     var description: String {
