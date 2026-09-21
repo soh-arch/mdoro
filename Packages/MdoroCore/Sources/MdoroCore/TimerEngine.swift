@@ -259,9 +259,24 @@ public enum TimerEngine {
             ctx = startSession(type: type, preset: preset, settings: settings, now: now, context: ctx, taskSnapshot: nil)
 
         case .pause:
+            // REQ-TIM-002: a pause holds the remainder as it stands at that moment, and the remainder is
+            // sessionEndAt minus now. With no end time there is no remainder, and `now` does not stand in
+            // for one: `now - now` is 0, which is the shape .resume's comment below warns about — the very
+            // next resume turns a 0 remainder into "now + 0", a session that has just ended, and it
+            // reaches `MdoroLog.md` as completed. Only insertion is allowed there (Decision 0002), so an
+            // invented remainder cannot be taken back once it has been written.
+            //
+            // **RUNNING with no end time does not arise.** Every path that sets runState to .running
+            // writes sessionEndAt in the same breath — startSession(), .resume, .extend from FINISHED,
+            // confirmRestoredSession(.continueSession) — and restore() sends an uncommitted session with
+            // no end time to IDLE instead of carrying it. The guard is written out all the same: a
+            // default that is safe only because nothing can reach it comes back quietly the day one of
+            // those paths changes.
+            //
             // Rounded up, as the display rounds. Truncating would take a second off the remainder the instant
             // the timer was paused.
-            ctx.remainingSeconds = max(0, Int((ctx.sessionEndAt ?? now).timeIntervalSince(now).rounded(.up)))
+            guard let endAt = ctx.sessionEndAt else { return fail(.invalidStateForAction) }
+            ctx.remainingSeconds = max(0, Int(endAt.timeIntervalSince(now).rounded(.up)))
             ctx.pausedAt = now
             ctx.runState = .paused
             ctx.lastUpdatedAt = now
@@ -316,7 +331,14 @@ public enum TimerEngine {
             guard isWithinExtensionWindow(ctx, now: now) else { return fail(.extendWindowClosed) }
             switch ctx.runState {
             case .running:
-                ctx.sessionEndAt = (ctx.sessionEndAt ?? now).addingTimeInterval(TimeInterval(extendSeconds))
+                // REQ-TIM-040: the extension is added to the session's scheduled end time and not to the
+                // moment the button was pressed. With no scheduled end there is nothing to add to, and
+                // `now` would quietly make the press time the anchor the clause rules out.
+                // The window check above already turns a RUNNING session with no end time away, so this
+                // is the second door rather than the first — the same standing as the PAUSED branch
+                // below, and shut for the same reason.
+                guard let endAt = ctx.sessionEndAt else { return fail(.invalidStateForAction) }
+                ctx.sessionEndAt = endAt.addingTimeInterval(TimeInterval(extendSeconds))
             case .paused:
                 // REQ-TIM-002: while PAUSED the extension is added to the remainder the pause holds.
                 // The window check above already turns a missing remainder away, so this is the second
@@ -325,10 +347,22 @@ public enum TimerEngine {
                 guard let remaining = ctx.remainingSeconds else { return fail(.invalidStateForAction) }
                 ctx.remainingSeconds = remaining + extendSeconds
             case .finished:
+                // REQ-TIM-040: the anchor is the scheduled end time. REQ-TIM-046 measures the window for
+                // FINISHED from finishedAt, so — unlike the two branches above — the check does not
+                // already ask for an end time, and a FINISHED session arrives here on finishedAt alone.
+                //
+                // **It does not arise all the same.** Both ways into FINISHED read sessionEndAt to get
+                // there and set finishedAt from it (tick(), restore()), and nothing clears sessionEndAt
+                // while leaving that state behind. The refusal is written out because what would be
+                // invented here is not read back here: finalize() takes a completed session's end from
+                // finishedAt, falling back to sessionEndAt, and this branch clears finishedAt on its way
+                // back to RUNNING — so a fabricated end time becomes the one finalize() reads and writes
+                // into `MdoroLog.md`, a file only ever added to, never corrected (Decision 0002).
+                guard let endAt = ctx.sessionEndAt else { return fail(.invalidStateForAction) }
                 // REQ-TIM-042: take back the loop count already added, then return to RUNNING.
                 ctx.loopCount = max(0, ctx.loopCount - 1)
                 ctx.nextSessionType = standardNextSessionType(after: .work, loopCount: ctx.loopCount, longBreakInterval: activePreset.longBreakInterval)
-                ctx.sessionEndAt = (ctx.sessionEndAt ?? now).addingTimeInterval(TimeInterval(extendSeconds))
+                ctx.sessionEndAt = endAt.addingTimeInterval(TimeInterval(extendSeconds))
                 ctx.finishedAt = nil
                 ctx.runState = .running
             default:
