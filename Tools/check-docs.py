@@ -165,9 +165,20 @@ def check_pols() -> None:
     # in a document does -- this file names POL-244 and POL-245 in its own margins. Nothing was
     # watching those. Only this check is widened: the other four reading markdown_files() ask
     # questions about prose, and a Python file is not prose.
+    #
+    # THE LEDGER IS READ LIKE ANYTHING ELSE. It used to be skipped here, copying the exemption
+    # three checks up -- where it is right, because the ledger files defects and some of those
+    # defects *are* requirement ids that do not exist. Nothing of the kind held on this side:
+    # the ledger only *defines* POL rows, filed_pols() reads it for that above, and defining a
+    # row is not citing one. So the densest POL prose in the repository was the one place where
+    # a citation of nothing passed -- and it did: a row was written saying 続きは別の行に起票した,
+    # naming a number nobody had filed yet, and this printed ok (2026-09-21). CLAUDE.md sends the
+    # reader here for exactly that question ("存在しない POL-nnn は Tools/check-docs.py が見る"),
+    # and until now the answer stopped at the ledger's door.
+    #
+    # A row head is a definition and matches the pattern too, so those pass by being filed --
+    # which is what makes splitting the two questions no more than deleting the skip.
     for source in markdown_files() + sorted((ROOT / "Tools").glob("*.py")):
-        if source == PUNCH:
-            continue
         text = read(source)
         for m in re.finditer(r"POL-(\d+)", text):
             if int(m.group(1)) not in filed:
@@ -884,6 +895,22 @@ CASES = (
     (check_pols, "a punch list with no rows at all", {
         "docs/PUNCHLIST.md": "nothing is filed here\n",
     }, True),
+    # The ledger itself, which this check used to skip. Its own prose is where POL citations are
+    # densest, and a row pointing at a number nobody had filed passed silently -- the real one
+    # said 続きは別の行に起票した and the row it named did not exist. The let-through case below is
+    # the half that matters as much: a row head *is* a citation-shaped string, so a check that
+    # merely started reading the ledger, without the heads passing by being filed, would fire on
+    # every row the ledger defines and be turned off the same afternoon.
+    (check_pols, "the ledger itself citing a POL that was never filed", {
+        "docs/PUNCHLIST.md": "| **POL-001** | a row |\n| **POL-002** | 続きは POL-003 に起票した |\n",
+    }, True),
+    (check_pols, "the ledger citing a row it really does file, heads included", {
+        "docs/PUNCHLIST.md": (
+            "| **POL-001** | a row |\n"
+            "| **POL-002** | 続きは POL-003 に起票した |\n"
+            "| **POL-003** | the row it points at, which also points back at POL-002 |\n"
+        ),
+    }, False),
 
     (check_pol_free_swift, "a comment in Swift citing the ledger", {
         "Packages/MdoroCore/Sources/A.swift": "// POL-001: why this line is here\n",
