@@ -27,6 +27,74 @@ func withoutComments(_ text: String) -> String {
         .joined(separator: "\n")
 }
 
+// REQ-ERR-010 / REQ-COM-003 / REQ-PRT-004: several scans here read a marker out of a file and then
+// ask what the declaration underneath it does. **A window measured in characters is a window that
+// slides.** `withoutComments` above drops a comment's text and keeps its newline and its
+// indentation, so every line of prose written inside a declaration spends part of a fixed
+// `prefix(n)` budget — and on 2026-09-20 two of these bodies grew by four lines and by two. Nothing
+// went red, because nothing can: a window that has slid off the end of what it was watching reads
+// exactly like a window whose contents are fine, and one that has slid onto the *next* declaration
+// reads like a rule that declaration keeps. Either way the answer is an accident of how much prose
+// happens to be above it.
+//
+// **So the window ends where the declaration does**, at the brace that closes it, and how many
+// lines sit inside it stops mattering. Do not put a character count back.
+//
+// The text handed in begins just past a marker that named a declaration — either already inside its
+// body, when the marker took the opening brace with it (`func stop() {`), or still in its parameter
+// list, which is where `components(separatedBy: "func refuse(")` leaves it. One scan covers both:
+// the first `}` with none of our own still open is the one that closes the body either way.
+//
+// A brace inside a string literal is not a brace. There are none in these files today; a scan that
+// believed one would cut the window short or run it long without saying so, which is the failure
+// this exists to prevent. Escapes are honoured the way `localizedCalls` below honours them.
+// Multiline (`"""`) and raw (`#"`) literals are not understood — there are none, and one would have
+// to be read here before it could be written there.
+struct UnbalancedDeclaration: Error, CustomStringConvertible {
+    let marker: String
+    var description: String {
+        "no brace closes the declaration after `\(marker)` — the marker names something else now, "
+            + "or the file is truncated"
+    }
+}
+
+// The body of the declaration the text opens, comments already gone. `marker` is carried only so a
+// failure can say which declaration went missing.
+func declarationBody(openedBy text: some StringProtocol, _ marker: String) throws -> String {
+    let opened = String(text)
+    var depth = 0
+    var sawOpeningBrace = false
+    var insideStringLiteral = false
+    var escaped = false
+    for index in opened.indices {
+        let character = opened[index]
+        if insideStringLiteral {
+            if escaped {
+                escaped = false
+            } else if character == "\\" {
+                escaped = true
+            } else if character == "\"" {
+                insideStringLiteral = false
+            }
+            continue
+        }
+        switch character {
+        case "\"":
+            insideStringLiteral = true
+        case "{":
+            depth += 1
+            sawOpeningBrace = true
+        case "}":
+            guard sawOpeningBrace else { return String(opened[opened.startIndex..<index]) }
+            depth -= 1
+            if depth == 0 { return String(opened[opened.startIndex..<index]) }
+        default:
+            break
+        }
+    }
+    throw UnbalancedDeclaration(marker: marker)
+}
+
 // **A directory that moved is not a directory with nothing in it.** A recursive branch answering
 // `[]` when `enumerator` hands back nil lets a scan whose target has been renamed pass by finding
 // nothing to object to — which is the one failure these scans exist to prevent, arriving through

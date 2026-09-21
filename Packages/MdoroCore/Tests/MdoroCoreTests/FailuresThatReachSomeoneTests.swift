@@ -678,9 +678,11 @@ struct FailuresThatReachSomeoneTests {
             )
         }
         // And `refuse` writes one. Both halves, because either alone passes with the other gone.
-        let refuseBody = try #require(server.components(separatedBy: "func refuse(").last)
+        let refuseTail = try #require(server.components(separatedBy: "func refuse(").last)
+        // The body, not a count of characters: see `declarationBody`.
+        let refuseBody = try declarationBody(openedBy: refuseTail, "func refuse(")
         #expect(
-            refuseBody.prefix(300).contains("record(refusal:"),
+            refuseBody.contains("record(refusal:"),
             "`refuse` no longer records anything, so every refusal is silent again"
         )
         let recordBody = try #require(server.components(separatedBy: "func record(refusal").last)

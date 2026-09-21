@@ -121,8 +121,10 @@ struct StartingTwiceTests {
             body.range(of: "private func stopServer() {"),
             "\(appModel) no longer has stopServer()"
         )
+        // The body, not a count of characters: see `declarationBody`.
+        let fold = try declarationBody(openedBy: body[opening.upperBound...], "private func stopServer() {")
         #expect(
-            body[opening.upperBound...].prefix(600).contains("advertisedWebsocketPort = 0"),
+            fold.contains("advertisedWebsocketPort = 0"),
             "\(appModel) folds the server and keeps the advertised port on record, so a rename after the fold re-advertises a dead port"
         )
     }
@@ -150,8 +152,10 @@ struct StartingTwiceTests {
     @Test func stoppingLetsTheAppBeStartedAgain() throws {
         let body = try text(of: appModel)
         let opening = try #require(body.range(of: "func stop() {"), "\(appModel) no longer has stop()")
+        // The body, not a count of characters: see `declarationBody`.
+        let stopBody = try declarationBody(openedBy: body[opening.upperBound...], "func stop() {")
         #expect(
-            body[opening.upperBound...].prefix(400).contains("hasStarted = false"),
+            stopBody.contains("hasStarted = false"),
             "\(appModel) stops without clearing the flag, so nothing can start it again"
         )
     }
