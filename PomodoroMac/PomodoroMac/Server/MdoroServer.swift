@@ -146,8 +146,20 @@ final class MdoroServer {
         heartbeatTimer = nil
         approvalTimeout?.cancel()
         approvalTimeout = nil
-        pendingApproval?.connection.cancel()
+        // REQ-SEC-004 / REQ-ERR-010: **the question is let go of before the line it stood on is hung
+        // up on.** That is the order `foldPendingApproval` keeps, for the same reason: the hang-up's
+        // `.cancelled` echo reaches `handleDisconnect`, and a `pendingApproval` still standing when it
+        // arrives is folded there — `approval.withdrawn` written and `resolveApproval(false)` called,
+        // on every stop, for a question nobody withdrew and a banner nobody put up.
+        //
+        // **The two orders behave alike today**, because the echo is a hop of the main actor away and
+        // nothing runs in between, so no test driving a real connection can tell them apart — a stop
+        // written the other way round is quiet, and stays quiet until somebody puts a statement
+        // between the two lines. That is the whole reason the order is written down rather than left
+        // to be noticed: `FoldingWhatIsStandingTests` reads these three lines and asks which is first.
+        let askingLine = pendingApproval?.connection
         pendingApproval = nil
+        askingLine?.cancel()
         // REQ-ERR-010: **this fold is the one ending that makes no callback at all.** The cancel
         // below reaches `handleDisconnect` only after `connection` has been let go of, so its echo
         // is refused by the guard and `connectionChanged` is never called — which is why
@@ -521,28 +533,16 @@ final class MdoroServer {
             // `connection` has become `source`, so the guard refuses it, and `connectionChanged`
             // reports `isConnected: true` throughout — no `conn up=no` is ever written. Read from
             // the log alone, a phone that dialled again over a line the Mac was still holding was
-            // indistinguishable from one that had never been away.
+            // indistinguishable from one that had never been away. **`displacedByNewHello` is the
+            // ending this branch alone has to write**, which is why it is the one handed to `fold`.
             //
-            // **`source` itself is exempt, and the exemption covers the hang-up as much as the line
-            // written about it.** A second hello on the line the Mac is already holding is not one
-            // connection displacing another: there is no other connection. What the cancel would
-            // reach is the very connection this branch is in the middle of accepting.
-            //
-            // **And it would not merely be a wasted call.** `connection` is `source` by the time the
-            // `.cancelled` echo arrives, so `handleDisconnect`'s `closed === connection` — the gate
-            // that refuses the ending of every line but the one the Mac believes in — lets it
-            // through. The echo would be read as the held connection ending: a `conn.end` written,
-            // the connection let go of, and `connectionChanged(isConnected: false)` reported
-            // upward. **The accept would hang up on the line it had just accepted**, one hop of the
-            // main actor after telling the screen it was connected.
+            // **Whether `source` is what is standing is `fold`'s question, not this branch's** — both
+            // branches asked it separately once, and what came of that is written over there.
             //
             // `connection = source` stays outside the exemption. A hello from a line that is not the
             // held one is what this branch is mostly for, and where the two are the same line the
             // assignment writes the object that is already there.
-            if let standing = connection, standing !== source {
-                record(ending: .displacedByNewHello)
-                standing.cancel()
-            }
+            fold(connection, displacedBy: source, recording: .displacedByNewHello)
             connection = source
             connectedDeviceName = payload.deviceName
             connectedTokenValue = token.value
@@ -565,19 +565,14 @@ final class MdoroServer {
             // REQ-SEC-004: **the connection is held open while it waits.** Drop it and by the time
             // "Allow" is pressed the other side is gone.
             //
-            // `source` itself is exempt: a second hello on the line a question is already waiting on
-            // is not one request displacing another, and the cancel would land on the very line
-            // about to be waited on. **It would not merely be a wasted call.** The `.cancelled` echo
-            // reaches `handleDisconnect`, which finds `pendingApproval` holding that same connection
-            // and folds it — so the question put up on the line here would come straight back down,
-            // and the phone would be waiting behind a banner that had already withdrawn itself.
+            // **Nothing is recorded for the request this displaces, and that is deliberate.** The
+            // `conn.end` vocabulary describes the line the Mac was holding, and a request that never
+            // got past a question was never that line — a word for it here would put a disconnection
+            // in the log that the reader cannot match to any connection (REQ-ERR-010 / Decision 0018).
+            // The accept above is the opposite case and says why.
             //
-            // **The accept above draws the same line, around its cancel as well as its log line.**
-            // The two branches answer to different gates — that one's is `handleDisconnect`'s
-            // `closed === connection`, this one's is `foldPendingApproval`'s
-            // `pending.connection === closed` — and in both the gate is holding the very connection
-            // the echo would be about, so in both it lets the echo through.
-            if let standing = pendingApproval?.connection, standing !== source { standing.cancel() }
+            // **Whether `source` is what is standing is `fold`'s question, not this branch's.**
+            fold(pendingApproval?.connection, displacedBy: source, recording: nil)
             pendingApproval = (source, payload)
             startApprovalTimeout()
 
@@ -589,6 +584,40 @@ final class MdoroServer {
         case let .rejectWithProtocolError(reason):
             refuse(reason, of: payload, to: source)
         }
+    }
+
+    // REQ-SEC-004 / REQ-ERR-010: **one declaration decides what it means to fold what is standing.**
+    // Both of `settle`'s branches make room for the hello they are settling — the accept folds the
+    // line the Mac is holding, the approval folds the request a question was already waiting on — and
+    // each used to write the judgement out for itself. Written twice, it was corrected twice and
+    // neither time completely: the exemption for `source` was missing from one branch, and in the
+    // other it covered the log line but not the hang-up beside it. **A judgement in two places is a
+    // judgement that can be half-fixed**, so it is in one.
+    //
+    // **`source` is exempt, and for the same reason in both branches — down to the mechanism.** A
+    // second hello arriving on the line that is already standing is not one connection displacing
+    // another: there is no other connection, and what the cancel would reach is the very line the
+    // caller is in the middle of setting up. **It would not merely be a wasted call.** The
+    // `.cancelled` echo reaches a gate that is holding that same connection by the time it arrives —
+    // `handleDisconnect`'s `closed === connection` for the accept, `foldPendingApproval`'s
+    // `pending.connection === closed` for the approval — so in both cases the gate lets the echo
+    // through and the branch tears down what it had just stood up. The accept would write `conn.end`,
+    // let the connection go and report `isConnected: false` one hop of the main actor after telling
+    // the screen it was connected; the approval would withdraw the question it had just put up.
+    //
+    // **`ending` is nil for the caller that writes nothing**, rather than a word chosen here: only
+    // the accept displaces a connection the Mac was holding, and only that ending needs a line of its
+    // own (`handleDisconnect` refuses its echo, so no `conn up=no` is ever written for it). The
+    // approval's is deliberately silent — its own branch says why — and this parameter is what keeps
+    // the two apart without either of them owning the fold.
+    //
+    // The line goes in before the hang-up, the order `handleDisconnect` keeps and for its reason: the
+    // ending is what `record` explains, and folding a line is what destroys the state it is explained
+    // from.
+    private func fold(_ standing: NWConnection?, displacedBy source: NWConnection, recording ending: ConnectionEnding?) {
+        guard let standing, standing !== source else { return }
+        if let ending { record(ending: ending) }
+        standing.cancel()
     }
 
     // **The only ways a refusal leaves this process**, so the record cannot be forgotten on a path
