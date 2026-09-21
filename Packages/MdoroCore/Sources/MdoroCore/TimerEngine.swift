@@ -509,17 +509,27 @@ public enum TimerEngine {
         } else {
             switch outcome {
             case .completed:
-                // Decision 0002: MdoroLog.md is only ever inserted into, so a time range written once
-                // cannot be corrected from inside the app afterwards. `now` is the worst stand-in
-                // available here: it is the same shape as a session that ended this instant, so a made-up
-                // range would be indistinguishable from a true one, both to the reader and to us. Every
-                // path that completes a session has the moment in hand — tick() and restore() assign
-                // finishedAt from sessionEndAt, confirmRestoredSession(.complete) assigns it from the
-                // question that was answered, and startWork / startBreak out of FINISHED inherit whatever
-                // took the session there. With neither, when the session ended is simply not known, and
-                // this call commits nothing: no log line, and the context handed back as it came. The two
-                // callers that could reach this go on to start the next session, so nothing is stranded in
-                // FINISHED (REQ-TIM-035).
+                // Decision 0002: MdoroLog.md is only ever inserted into, so a time range that reaches
+                // it cannot be corrected from inside the app afterwards. That is what the decision
+                // settles, and it is the whole of what it settles.
+                //
+                // `now` is the worst stand-in available here: it is the same shape as a session that
+                // ended this instant, so a made-up range would be indistinguishable from a true one,
+                // both to the reader and to us. Every path that completes a session has the moment in
+                // hand — tick() and restore() assign finishedAt from sessionEndAt,
+                // confirmRestoredSession(.complete) assigns it from the question that was answered, and
+                // startWork / startBreak out of FINISHED inherit whatever took the session there. With
+                // neither, when the session ended is not known, and this call commits nothing: no log
+                // line, and the context handed back as it came.
+                //
+                // Two things that leaves open, neither of them decided here:
+                //   - committedAt is not set. REQ-LOG-019 names one case where nothing is written and
+                //     committedAt is set all the same — logFolderPath unset (REQ-LOG-002 /
+                //     Decision 0033). This is a second case where nothing is written, and the
+                //     requirement speaks about the first one only.
+                //   - The IDLE context is never formed on this path: finalize hands the context back
+                //     unchanged and the caller's startSession writes RUNNING over it. The
+                //     already-committed guard above returns in the same shape.
                 guard let completedAt = context.finishedAt ?? context.sessionEndAt else {
                     return (context, [])
                 }
