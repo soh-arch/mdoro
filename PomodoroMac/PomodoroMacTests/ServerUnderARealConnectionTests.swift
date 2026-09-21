@@ -2199,12 +2199,30 @@ struct HelloOnALineAlreadyHeldTests {
         let held = try await aLineTheMacHolds(bench, reads: reads, from: named)
         defer { held.phone.cancel() }
 
-        // REQ-SEC-004: what the real `Authenticator` answers from here on. The hello is answered with
-        // a question because something is connected, and the user's yes is answered with an accept —
-        // the shape `Authenticator.authenticate` and `Authenticator.resolveApproval` take for a
-        // token-holding device dialling over a standing line, which is the ordinary case and not a
-        // contrivance. The token is built rather than looked up because `settle` reads nothing of it
-        // but `value`; whose record it is, is `Pairing.swift`'s question and is answered there.
+        // REQ-SEC-004: **the state the branch under test is reached from, put there by hand.**
+        //
+        // **What is reproduced is the shape**: a hello answered with a question while the Mac is
+        // holding a line, and the user's yes answered with an accept. Those are the two answers
+        // `Authenticator.authenticate` and `Authenticator.resolveApproval` give while something is
+        // already connected (`Pairing.swift`), and between them they are what carries an accept into
+        // `settle` **with the pending connection as `source`** — which is the one thing this test
+        // needs to be true of the state it starts from.
+        //
+        // **What is not reproduced is the judgement.** The hello sent below carries neither a
+        // `deviceToken` nor a `pairingCode`, so it is not a hello any `Authenticator` answers with a
+        // question: both routes to `needsUserApproval` pass credentials first, and with no pairing
+        // window open this one is refused outright (`.reject(.pairingModeNotActive)`). It reaches the
+        // question because `answersHelloWith` is replaced unconditionally. **So nothing here is
+        // evidence that a real `Authenticator` would ask the user about this hello** — that is
+        // `Pairing.swift`'s question and is answered there, under its own tests.
+        //
+        // That is enough for what is under test, and deliberately so: the subject is one statement of
+        // `settle`'s accept branch, which reads a decision and a `source` and nothing whatever about
+        // how either was arrived at. **It is also how every test in this file that uses `Upstream`
+        // works** — the double holds no domain judgement, by its own description.
+        //
+        // The token is built rather than looked up for the same reason: `settle` reads nothing of it
+        // but `value`.
         let issued = DeviceToken(deviceName: named)
         bench.upstream.answersHelloWith = { .needsUserApproval(requestingDeviceName: $0.deviceName) }
         bench.upstream.answersApprovalWith = { approved in
@@ -2256,12 +2274,34 @@ struct HelloOnALineAlreadyHeldTests {
               "REQ-SEC-004: the Mac is no longer holding the line the approval accepted (connection held=\(bench.server.connection != nil)). The accept put `source` on record and then the echo of its own cancel took it off again.")
         holds(bench.server.connectedDeviceName == named,
               "REQ-SEC-002: the Mac holds connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil"), not \(named). Everything the accept put on record is cleared together, so this is the same ending read from another field.")
+        // **The next observation, and the last one in this test, are not this test's canary.** The
+        // one standing between them — the log holding no `conn.end` — is; these two are not, and
+        // they are kept deliberately. What they are for is written here so that nobody counts them
+        // among the observations that do change with the branch under test.
+        //
+        // **Neither of them can tell the branch under test from the fault it is about.**
+        // `resolvePendingApproval` releases `pendingApproval` **before** it hands anything to
+        // `settle`, so by the time the accept runs there is no question left for it to affect either
+        // way — and `foldPendingApproval`, the only thing that writes an approval withdrawal, finds
+        // that same nil and returns. Both read identically whether the accept keeps this line or hangs
+        // up on it, so both would go on passing against the fault, and a run that counted them as
+        // evidence would be counting two observations that cost nothing.
+        //
+        // **What they do hold is the order those two facts come out of**: the question is let go of
+        // before the answer is settled, and letting go of it that way writes no withdrawal for a
+        // question the user actually answered. A withdrawal line means a banner that came down with
+        // nobody touching it (`theOneWithdrawal` is built on that reading), so one written here would
+        // tell a reader of a pasted log that a request vanished on its own at the exact moment
+        // somebody pressed Allow. **That property is `resolvePendingApproval`'s and would survive the
+        // accept branch being wrong**, which is the whole reason it is said apart rather than counted
+        // in.
         holds(!bench.server.hasPendingApproval,
-              "REQ-SEC-004: the question is still waiting after it was answered. `resolvePendingApproval` releases it before it settles anything, so a question still standing here means the answer was never carried into `settle` at all.")
+              "REQ-SEC-004: the question is still waiting after it was answered. `resolvePendingApproval` releases `pendingApproval` before it settles anything, so this holds whatever `settle` then does with the line — **it is not the accept branch being watched here**, it is the order in which the question is let go of. A question still standing means the answer was never carried into `settle` at all.")
         holds(recording.endings.isEmpty,
               "REQ-ERR-010: a `\(ConnectionEndingLine.code)` was written (\(recording.endings.count) in all: [\(recording.endings.map { $0.fields[ConnectionEndingLine.howKey] ?? "?" }.joined(separator: ", "))]) for a connection that is still up. Nothing ended here: one line was accepted, asked about, and accepted again. **A `\(ConnectionEnding.heartbeatTimeout.rawValue)` in that list is this run taking longer than REQ-COM-005's fifteen seconds** — this probe sends no `heartbeat` — and it says nothing about the branch under test.")
+        // The second of the two just described, and it is not a canary either.
         holds(recording.approvalWithdrawals.isEmpty,
-              "REQ-SEC-004 / REQ-ERR-010: the log holds \(recording.approvalWithdrawals.count) `\(ConnectionEndingLine.approvalWithdrawnCode)` line(s). This question was answered by the user, not withdrawn on its own — a reader of a pasted log would count a banner that came down while nobody was looking.")
+              "REQ-SEC-004 / REQ-ERR-010: the log holds \(recording.approvalWithdrawals.count) `\(ConnectionEndingLine.approvalWithdrawnCode)` line(s) for a question the user answered. `foldPendingApproval` is what writes that line and it finds `pendingApproval` already nil — so, like the check on the question itself above, **this says nothing about `settle`'s accept branch**. What it says is that answering a question leaves none of the trace of one that vanished on its own, which a reader of a pasted log would otherwise count as a banner nobody touched.")
     }
 
     // **The displacement that is meant to happen, and the gate on the fix above.** A hello from a
