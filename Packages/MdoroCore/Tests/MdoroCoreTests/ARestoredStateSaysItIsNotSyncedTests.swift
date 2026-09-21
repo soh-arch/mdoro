@@ -32,38 +32,29 @@ private struct MissingAnchor: Error, CustomStringConvertible {
     }
 }
 
-// What a block does, from the brace that opens it to the one that closes it, comments already gone.
-// **Brace counting, so a nested closure does not end the block early** — and it takes the braces at
-// face value, which is fair for the blocks read here and would not be for a body carrying one in a
-// string literal.
-//
-// Counting starts at the last `{` **inside the signature**, not at the character it ends on: one of
-// these anchors is a closure argument (`receivedSnapshot: { [weak self] snapshot in`) whose brace
-// sits in the middle of it, and starting after that brace opens at depth zero and closes at minus one.
-private func block(_ path: String, after signature: String) throws -> String {
-    let text = withoutComments(try source(path))
-    guard let opening = text.range(of: signature) else {
-        throw MissingAnchor(path: path, anchor: signature)
-    }
-    guard let brace = text[opening].lastIndex(of: "{") else {
-        throw MissingAnchor(path: path, anchor: "an opening brace in \(signature)")
-    }
-    var depth = 0
-    var index = brace
-    let start = index
-    while index < text.endIndex {
-        if text[index] == "{" { depth += 1 }
-        if text[index] == "}" {
-            depth -= 1
-            if depth == 0 { return String(text[start...index]) }
-        }
-        index = text.index(after: index)
-    }
-    throw MissingAnchor(path: path, anchor: "the brace closing \(signature)")
-}
-
 private func text(of path: String) throws -> String {
     withoutComments(try source(path))
+}
+
+// The declaration a marker opens, in the file at `path`: **`declarationBody`, with the three steps
+// its callers all take first** — read the file, drop the comments, find the marker.
+//
+// This began as a brace counter of its own. It counted braces inside a string literal as braces,
+// which is exactly the failure `declarationBody` was written to stop: a literal holding a `}` cuts
+// the window short, and a window shorter than the declaration it is passed off as reads like a
+// declaration that keeps the rule. Neither file read here holds such a literal today — **a fact
+// about these two files, not a property of a counter** — and a second counter is a second place to
+// forget to mend.
+//
+// **Every marker below ends in `{`.** `declarationBody` reads the opening depth off the marker, so a
+// marker that stops short of the brace (`receivedSnapshot: { [weak self] snapshot in`, which is where
+// the closure's own brace sits in the middle) starts the count at zero and closes at minus one.
+private func body(of path: String, openedBy marker: String) throws -> String {
+    let whole = try text(of: path)
+    guard let opening = whole.range(of: marker) else {
+        throw MissingAnchor(path: path, anchor: marker)
+    }
+    return try declarationBody(openedBy: whole[opening.upperBound...], marker)
 }
 
 @Suite("A restored state says it is not synced (REQ-PER-011)")
@@ -72,8 +63,8 @@ struct ARestoredStateSaysItIsNotSyncedTests {
     // **The one that was broken.** Restoring the snapshot put it on the screen and said nothing
     // about it not being settled.
     @Test func restoringTheLastSnapshotSaysItIsNotSyncedYet() throws {
-        let body = try block(clientModel, after: "func restoreLastSnapshot() {")
-        let raised = body.contains("isAwaitingFirstSync = true")
+        let restored = try body(of: clientModel, openedBy: "func restoreLastSnapshot() {")
+        let raised = restored.contains("isAwaitingFirstSync = true")
         #expect(raised, "REQ-PER-011: a restored state goes on the screen without being called unsynced")
     }
 
@@ -82,11 +73,11 @@ struct ARestoredStateSaysItIsNotSyncedTests {
     // is a banner about nothing (REQ-UIX-046). The order of the two statements is the whole of it:
     // the flag goes up after the `guard` that gives up when nothing was stored.
     @Test func aLaunchWithNothingStoredRaisesNothing() throws {
-        let body = try block(clientModel, after: "func restoreLastSnapshot() {")
-        guard let guardStatement = body.range(of: "guard let data") else {
+        let restored = try body(of: clientModel, openedBy: "func restoreLastSnapshot() {")
+        guard let guardStatement = restored.range(of: "guard let data") else {
             throw MissingAnchor(path: clientModel, anchor: "guard let data in restoreLastSnapshot()")
         }
-        guard let raised = body.range(of: "isAwaitingFirstSync = true") else {
+        guard let raised = restored.range(of: "isAwaitingFirstSync = true") else {
             throw MissingAnchor(path: clientModel, anchor: "isAwaitingFirstSync = true in restoreLastSnapshot()")
         }
         let afterTheGuard = guardStatement.lowerBound < raised.lowerBound
@@ -96,8 +87,8 @@ struct ARestoredStateSaysItIsNotSyncedTests {
 
     // **The way back down.** One arriving `stateSnapshot` is what ends it; nothing else may.
     @Test func anArrivingSnapshotPutsItBackDown() throws {
-        let body = try block(clientModel, after: "receivedSnapshot: { [weak self] snapshot in")
-        let lowered = body.contains("isAwaitingFirstSync = false")
+        let arrived = try body(of: clientModel, openedBy: "receivedSnapshot: {")
+        let lowered = arrived.contains("isAwaitingFirstSync = false")
         #expect(lowered, "REQ-PER-011: a state received over a live connection is still called unsynced")
 
         // And nothing else puts it down, so the flag cannot be lowered by anything that is not a
@@ -134,7 +125,7 @@ struct ARestoredStateSaysItIsNotSyncedTests {
         let says = views.contains("Syncing")
         #expect(says, "REQ-PER-011: nothing on the banner says a sync is outstanding")
 
-        let attention = try block(connectionViews, after: "private var needsAttention: Bool {")
+        let attention = try body(of: connectionViews, openedBy: "private var needsAttention: Bool {")
         let shown = attention.contains("model.isAwaitingFirstSync")
         #expect(shown, "REQ-UIX-046: the banner is not shown for a state that has not been synced")
     }
