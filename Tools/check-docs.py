@@ -878,6 +878,24 @@ CASES = (
     (check_inline_paths, "a placeholder and a glob name no one file", {
         "docs/a.md": "see `docs/<name>.md` and `docs/*.md`\n",
     }, False),
+    # The VERBATIM exclusion, both halves. This check reaches it through markdown_files() the way
+    # check_links and check_pols do, and nothing held either side of it here: every case above keeps
+    # its fixture outside `experiments/`, so deleting the exclusion, widening it over the index, and
+    # narrowing it to the parent directory were all three silent (measured 2026-09-22).
+    #
+    # A real run cannot supply either shape. Every inline path named under docs/experiments/ that
+    # this repository keeps resolves, so this check is silent on the exclusion over there however it
+    # is written, and the cases are the only place the question gets asked.
+    #
+    # The report sits a directory down, the way the real ones do -- a run gets a dated directory and
+    # the reports go inside it. That placing is what pins the exemption to `experiments` being
+    # anywhere in the path rather than to it being the parent. The index is flat, as the real one is.
+    (check_inline_paths, "a report kept verbatim is exempt, however it names paths", {
+        "docs/experiments/a-run/a-report.md": "see `docs/gone.md`\n",
+    }, False),
+    (check_inline_paths, "but the index over those reports is ours", {
+        "docs/experiments/README.md": "see `docs/gone.md`\n",
+    }, True),
 
     (check_requirement_ids, "a document citing an id SPEC does not define", {
         "docs/SPEC.md": SOUND_SPEC,
@@ -902,6 +920,22 @@ CASES = (
     }, True),
     (check_requirement_ids, "a SPEC with no requirement rows at all", {
         "docs/SPEC.md": "**バージョン:** 2.1\n",
+    }, True),
+    # The VERBATIM exclusion, both halves, for the fourth reader of markdown_files(). A frozen
+    # report cites the requirement ids that were defined when it was written, and SPEC goes on
+    # being renumbered afterwards -- which is the same reason the reports are kept unedited at
+    # all. Nothing held this: the cases above all sit outside `experiments/`, so the three ways of
+    # breaking the exclusion were silent here too (measured 2026-09-22).
+    #
+    # Placed as in the pair over in check_inline_paths, and for the same reasons: the report a
+    # directory down, the index flat.
+    (check_requirement_ids, "a report kept verbatim is exempt, however it cites SPEC", {
+        "docs/SPEC.md": SOUND_SPEC,
+        "docs/experiments/a-run/a-report.md": "the run rested on REQ-ABC-002\n",
+    }, False),
+    (check_requirement_ids, "but the index over those reports is ours", {
+        "docs/SPEC.md": SOUND_SPEC,
+        "docs/experiments/README.md": "the run rested on REQ-ABC-002\n",
     }, True),
 
     (check_pols, "a document citing a POL that was never filed", {
@@ -1373,55 +1407,105 @@ def _the_numbering_arm_is_asked_both_ways(cases) -> list[str]:
     return wrong
 
 
-def _cites_an_unfiled_pol_under_verbatim(files: dict[str, str], *, index: bool) -> bool:
-    """Whether some fixture file under the exempt directory cites a number the fixture ledger lacks.
+def _dead_link(body: str, path: Path, files: dict[str, str]) -> bool:
+    """Whether the body holds a relative link this fixture tree cannot resolve."""
+    for m in re.finditer(r"\[[^\]]*\]\(([^)]+)\)", body):
+        target = m.group(1).split("#")[0].strip()
+        if not target or target.startswith(("http://", "https://", "mailto:")):
+            continue
+        if "/" not in target and "." not in target:
+            continue
+        if str((path.parent / target).as_posix()).replace("./", "") not in files:
+            return True
+    return False
+
+
+def _missing_inline_path(body: str, path: Path, files: dict[str, str]) -> bool:
+    """Whether the body names, in inline code, a repository path this fixture tree lacks."""
+    for m in re.finditer(r"`([^`\s]+\.(?:md|py|swift|json|plist|xcstrings|xcconfig))`", body):
+        target = m.group(1)
+        if not target.startswith(REPO_DIRS) or "<" in target or "*" in target:
+            continue
+        if target not in files:
+            return True
+    return False
+
+
+def _undefined_requirement(body: str, path: Path, files: dict[str, str]) -> bool:
+    """Whether the body cites a requirement id the fixture SPEC does not define."""
+    defined = set(re.findall(r"^\| \*\*(REQ-[A-Z]{3}-\d{3})\*\*", files.get("docs/SPEC.md", ""), re.M))
+    return any(m not in defined for m in re.findall(r"REQ-[A-Z]{3}-\d+", body))
+
+
+def _unfiled_pol(body: str, path: Path, files: dict[str, str]) -> bool:
+    """Whether the body cites a POL number the fixture ledger does not file."""
+    filed = _pol_numbers(files)
+    return any(int(n) not in filed for n in re.findall(r"POL-(\d+)", body))
+
+
+# The four checks that read markdown_files(), each with the shape of prose it is here to
+# complain about. The exclusion lives inside markdown_files(), so it is these four that change
+# when it does -- and two of them (check_links, check_pols) had a pair of cases over it while
+# the other two had none, which is why this claim is asked per check rather than once.
+VERBATIM_READERS = (
+    (check_links, "a link that does not resolve", _dead_link),
+    (check_inline_paths, "an inline path the repository lacks", _missing_inline_path),
+    (check_requirement_ids, "a requirement id SPEC does not define", _undefined_requirement),
+    (check_pols, "a POL number nobody filed", _unfiled_pol),
+)
+
+
+def _offends_under_verbatim(files, offends, *, index: bool) -> bool:
+    """Whether some fixture file under the exempt directory holds what `offends` looks for.
 
     `index` picks which side of the exclusion is wanted: the README the exclusion reads back in,
-    or any other file under it. The citation has to be of an unfiled number, because a report
-    citing a filed one says nothing about being exempt -- check_pols is silent on it either way.
+    or any other file under it. What the file holds has to be something the check would really
+    complain about, because a frozen report that says nothing wrong says nothing about being
+    exempt either -- the check is silent on it whichever way the exclusion is written.
 
     Read off the fixture's own path rather than through markdown_files(): a question about
     whether the cases ask about the exclusion must not be answered by the exclusion. VERBATIM
     itself is used, so that renaming the exempt directory without moving the fixtures leaves the
     shape unasked and this says so.
     """
-    filed = _pol_numbers(files)
     for name, body in files.items():
         path = Path(name)
         if VERBATIM not in path.parts or (path.name == "README.md") != index:
             continue
-        if any(int(n) not in filed for n in re.findall(r"POL-(\d+)", body)):
+        if offends(body, path, files):
             return True
     return False
 
 
 def _the_verbatim_exclusion_is_asked_both_ways(cases) -> list[str]:
-    """Ask the case table for a frozen report that is exempt, and for an index that is not.
+    """Ask the table, for each reader, for a frozen report that is exempt and an index that is not.
 
-    The same limit as the claim above: neither half can tell why a case complains or stays
+    The same limit as the 欠番 claim above: neither half can tell why a case complains or stays
     silent, only that a fixture of each shape is in the table. And as there, both shapes are ones
-    only this table can supply -- every POL number cited under docs/experiments/ in this
-    repository is filed, so check_pols is silent on this exclusion in a real run however it is
-    written. Other checks reading markdown_files() do fire there; their cases answer for them.
+    only this table can supply -- what this repository keeps under docs/experiments/ is sound by
+    every one of the four questions (its links resolve, its paths exist, its requirement ids and
+    POL numbers are filed), so a real run is silent on this exclusion however it is written, on
+    all four checks at once.
 
     A fixture moved out from under the exempt directory, or renamed to or from README.md, drops
     out of the half it was serving and this then says so: the placing and the name ARE the
     question here, which is why they are what gets looked at.
     """
-    pols = [(files, must) for check, _, files, must in cases if check is check_pols]
     wrong = []
-    if not any(_cites_an_unfiled_pol_under_verbatim(files, index=False)
-               for files, must in pols if not must):
-        wrong.append(
-            f"  check_pols has no exempt file under {VERBATIM}/ citing an unfiled POL that it must "
-            "let through, so an exclusion that had stopped exempting anything would pass this "
-            "check's cases -- and a real run of it, since every POL cited under there is filed")
-    if not any(_cites_an_unfiled_pol_under_verbatim(files, index=True)
-               for files, must in pols if must):
-        wrong.append(
-            f"  check_pols has no README.md under {VERBATIM}/ citing an unfiled POL that it must "
-            "catch, so an exclusion widened over the index as well would pass this check's cases "
-            "-- and the index is the one file under there that is ours")
+    for check, what, offends in VERBATIM_READERS:
+        fixtures = [(files, must) for c, _, files, must in cases if c is check]
+        if not any(_offends_under_verbatim(files, offends, index=False)
+                   for files, must in fixtures if not must):
+            wrong.append(
+                f"  {check.__name__} has no exempt file under {VERBATIM}/ holding {what} that it "
+                "must let through, so an exclusion that had stopped exempting anything would pass "
+                "this check's cases")
+        if not any(_offends_under_verbatim(files, offends, index=True)
+                   for files, must in fixtures if must):
+            wrong.append(
+                f"  {check.__name__} has no README.md under {VERBATIM}/ holding {what} that it "
+                "must catch, so an exclusion widened over the index as well would pass this "
+                "check's cases -- and the index is the one file under there that is ours")
     return wrong
 
 
