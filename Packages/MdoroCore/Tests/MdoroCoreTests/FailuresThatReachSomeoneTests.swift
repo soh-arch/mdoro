@@ -586,12 +586,13 @@ struct FailuresThatReachSomeoneTests {
     // would pass again the moment someone writes a fourth, so every payload the file builds is
     // held to `case(domain:code)` instead.
     @Test func theRefusalsTheMacRaisesItselfCarryACodeAndNoSentence() throws {
-        let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
+        let appModelPath = "PomodoroMac/PomodoroMac/AppModel.swift"
+        let appModel = withoutComments(try source(appModelPath))
         for prose in ["No stableId", "That task no longer exists", "No settings"] {
             #expect(!appModel.contains(prose), "10.2: `\(prose)` still goes out as `error.message`")
         }
-        let payloads = appModel.components(separatedBy: "ProtocolErrorPayload(").dropFirst()
-        #expect(!payloads.isEmpty, "nothing here builds an error payload any more")
+        // Through `afterEachAnchor`, because a loop over no payloads passes: see `MissingAnchor`.
+        let payloads = try afterEachAnchor("ProtocolErrorPayload(", in: appModel, of: appModelPath)
         for payload in payloads {
             // To the bracket that closes the call. A count of characters is spent by every line of
             // prose written inside the payload, so what it answers is an accident of how much of
@@ -628,7 +629,8 @@ struct FailuresThatReachSomeoneTests {
     // and the parameter could come back. **Look at the shape, not the declaration** — every
     // payload the file builds is read, not just the six sentences that were there.
     @Test func theRefusalsTheServerSendsCarryACodeAndNoSentence() throws {
-        let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
+        let serverPath = "PomodoroMac/PomodoroMac/Server/MdoroServer.swift"
+        let server = withoutComments(try source(serverPath))
         for prose in [
             "Wrong pairing code", "Start pairing on the Mac", "Pairing ended after five wrong codes",
             "This device is not registered", "Another device is connected",
@@ -636,8 +638,8 @@ struct FailuresThatReachSomeoneTests {
         ] {
             #expect(!server.contains(prose), "10.2: `\(prose)` still goes out as `authFailed.message`")
         }
-        let payloads = server.components(separatedBy: "AuthFailedPayload(").dropFirst()
-        #expect(!payloads.isEmpty, "nothing here refuses a connection any more")
+        // Through `afterEachAnchor`, because a loop over no payloads passes: see `MissingAnchor`.
+        let payloads = try afterEachAnchor("AuthFailedPayload(", in: server, of: serverPath)
         for payload in payloads {
             // **The window matters most where the claim is a negative one.** A count of characters
             // runs past the bracket that closes this call and on into whatever was written after it
@@ -673,10 +675,16 @@ struct FailuresThatReachSomeoneTests {
     // has to be inside `refuse`. `MdoroMacTests` reads what comes out; this reads whether every
     // path goes through it, and it runs in CI, which that target does not.
     @Test func everyRefusalTheServerSendsIsWrittenDownFirst() throws {
-        let server = withoutComments(try source("PomodoroMac/PomodoroMac/Server/MdoroServer.swift"))
-        let beforeEachPayload = server.components(separatedBy: "AuthFailedPayload(").dropLast()
-        #expect(!beforeEachPayload.isEmpty, "nothing here refuses a connection any more")
+        let serverPath = "PomodoroMac/PomodoroMac/Server/MdoroServer.swift"
+        let server = withoutComments(try source(serverPath))
+        // Through `beforeEachAnchor`, because a loop over no payloads passes: see `MissingAnchor`.
+        let beforeEachPayload = try beforeEachAnchor("AuthFailedPayload(", in: server, of: serverPath)
         for text in beforeEachPayload {
+            // **Not an anchor lookup.** `text` is one stretch between two payloads, and `func ` not
+            // being in it means those two were built inside one declaration rather than that the
+            // file has lost the word — so the stretch stands as it is and the check below answers
+            // it. `components(separatedBy:).last` hands the whole stretch back for exactly that
+            // case, which is why it is the right reading here and the wrong one below.
             let enclosingFunction = text.components(separatedBy: "func ").last ?? ""
             #expect(
                 enclosingFunction.hasPrefix("refuse("),
@@ -687,7 +695,10 @@ struct FailuresThatReachSomeoneTests {
         // declarations**: `refuse` asks `record`, `record` is one line of delegation to `write`, and
         // `write` is the only place the line is actually written. Both halves are held, because
         // either alone passes with the other gone.
-        let refuseTail = try #require(server.components(separatedBy: "func refuse(").last)
+        // The last of the two, and an error if there is no `func refuse(` at all: `components(…).last`
+        // answers the whole file for an anchor that is gone, and a window that is the file agrees
+        // with whatever the file says (see `MissingAnchor`).
+        let refuseTail = try afterTheLastAnchor("func refuse(", in: server, of: serverPath)
         // The body, not a count of characters: see `declarationBody`.
         let refuseBody = try declarationBody(openedBy: refuseTail, "func refuse(")
         #expect(
@@ -701,7 +712,7 @@ struct FailuresThatReachSomeoneTests {
         // prose inside `record` would have spent them and taken the answer with them, since what
         // `withoutComments` leaves of a comment line is its indentation and its newline. Name the
         // declaration the line is in.
-        let writeTail = try #require(server.components(separatedBy: "func write(refusal").last)
+        let writeTail = try afterTheLastAnchor("func write(refusal", in: server, of: serverPath)
         let writeBody = try declarationBody(openedBy: writeTail, "func write(refusal")
         #expect(
             writeBody.contains("conn.refused"),

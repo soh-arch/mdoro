@@ -97,9 +97,19 @@ struct TestHostTests {
     // Both directories, because the host app's construction sat in neither the seam nor this
     // check and was the only one in the repository to get past both.
     @Test func noModelBuiltForATestCanReachTheNotificationCentre() throws {
+        // **`AppModel(` cannot be looked up through `afterEachAnchor` here.** Most of these files
+        // do not build one at all, and that is the ordinary case rather than a renamed anchor — so
+        // the absence is refused per directory instead of file by file. Renamed in one directory,
+        // every loop over its files runs over nothing and every check in it passes, which is what
+        // that directory's own count is watching for.
+        //
+        // **A total across both would not be.** The host app's construction is the only one in
+        // `PomodoroMac/PomodoroMac` — the one this check was written for, having sat in neither the
+        // seam nor here — and the nine in `PomodoroMacTests` keep a sum above zero after it goes.
         for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
             let files = try swiftFiles(under: directory, recursive: true)
             #expect(!files.isEmpty, "\(directory) could not be read; it moved, or its name changed")
+            var constructionsRead = 0
             for (name, text) in files {
                 for construction in text.components(separatedBy: "AppModel(").dropFirst() {
                     // `AppModel()` — the production one. Nothing substituted, nothing to check.
@@ -109,6 +119,7 @@ struct TestHostTests {
                     // the 400 this used to read (440, 414, 414), so the window was already short of
                     // the thing it was watching, and one more argument would have ended it.
                     let arguments = try callArguments(openedBy: construction, "AppModel(")
+                    constructionsRead += 1
                     let saysWhereNotificationsGo = arguments.contains("notifications:")
                     #expect(
                         saysWhereNotificationsGo,
@@ -116,6 +127,10 @@ struct TestHostTests {
                     )
                 }
             }
+            #expect(
+                constructionsRead > 0,
+                "no `AppModel(` is built with arguments under \(directory), so this read nothing there"
+            )
         }
     }
 
@@ -128,13 +143,24 @@ struct TestHostTests {
     // Read exactly as the check above: `AppModel()` with no arguments is the app running for a
     // person; anything built with arguments is built for a test and has to say where this goes.
     @Test func noModelBuiltForATestCanHoldTheMacAwake() throws {
+        // **`AppModel(` cannot be looked up through `afterEachAnchor` here.** Most of these files
+        // do not build one at all, and that is the ordinary case rather than a renamed anchor — so
+        // the absence is refused per directory instead of file by file. Renamed in one directory,
+        // every loop over its files runs over nothing and every check in it passes, which is what
+        // that directory's own count is watching for.
+        //
+        // **A total across both would not be.** The host app's construction is the only one in
+        // `PomodoroMac/PomodoroMac` — the one this check was written for, having sat in neither the
+        // seam nor here — and the nine in `PomodoroMacTests` keep a sum above zero after it goes.
         for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
             let files = try swiftFiles(under: directory, recursive: true)
             #expect(!files.isEmpty, "\(directory) could not be read; it moved, or its name changed")
+            var constructionsRead = 0
             for (name, text) in files {
                 for construction in text.components(separatedBy: "AppModel(").dropFirst() {
                     guard !construction.hasPrefix(")") else { continue }
                     let arguments = try callArguments(openedBy: construction, "AppModel(")
+                    constructionsRead += 1
                     let saysWhereTheAssertionGoes = arguments.contains("idleSleep:")
                     #expect(
                         saysWhereTheAssertionGoes,
@@ -142,6 +168,10 @@ struct TestHostTests {
                     )
                 }
             }
+            #expect(
+                constructionsRead > 0,
+                "no `AppModel(` is built with arguments under \(directory), so this read nothing there"
+            )
         }
     }
 
@@ -153,9 +183,19 @@ struct TestHostTests {
     // Read exactly as the two checks above: `AppModel()` with no arguments is the app running for
     // a person; anything built with arguments is built for a test and has to say where this goes.
     @Test func noModelBuiltForATestCanWriteToTheReadersKeychain() throws {
+        // **`AppModel(` cannot be looked up through `afterEachAnchor` here.** Most of these files
+        // do not build one at all, and that is the ordinary case rather than a renamed anchor — so
+        // the absence is refused per directory instead of file by file. Renamed in one directory,
+        // every loop over its files runs over nothing and every check in it passes, which is what
+        // that directory's own count is watching for.
+        //
+        // **A total across both would not be.** The host app's construction is the only one in
+        // `PomodoroMac/PomodoroMac` — the one this check was written for, having sat in neither the
+        // seam nor here — and the nine in `PomodoroMacTests` keep a sum above zero after it goes.
         for directory in ["PomodoroMac/PomodoroMac", "PomodoroMac/PomodoroMacTests"] {
             let files = try swiftFiles(under: directory, recursive: true)
             #expect(!files.isEmpty, "\(directory) could not be read; it moved, or its name changed")
+            var constructionsRead = 0
             for (name, text) in files {
                 for construction in text.components(separatedBy: "AppModel(").dropFirst() {
                     guard !construction.hasPrefix(")") else { continue }
@@ -163,6 +203,7 @@ struct TestHostTests {
                     // the window — which is what ending at the bracket gives, rather than the
                     // guessed-at 700 characters that used to stand in for it.
                     let arguments = try callArguments(openedBy: construction, "AppModel(")
+                    constructionsRead += 1
                     let saysWhereTheTokensGo = arguments.contains("deviceTokens:")
                     #expect(
                         saysWhereTheTokensGo,
@@ -170,6 +211,10 @@ struct TestHostTests {
                     )
                 }
             }
+            #expect(
+                constructionsRead > 0,
+                "no `AppModel(` is built with arguments under \(directory), so this read nothing there"
+            )
         }
     }
 

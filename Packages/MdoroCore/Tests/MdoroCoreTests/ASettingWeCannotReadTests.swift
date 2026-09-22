@@ -410,8 +410,11 @@ struct ASettingWeCannotReadTests {
     // does that with no request in hand, so the iPhone gets nothing back at all for the command it
     // sent. The answer is owed to a `clientRequestId`, and only `apply` still has one.
     @Test func theMacAnswersForANumberOutsideItsRangeBeforeItIsApplied() throws {
-        let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
-        let block = try #require(appModel.components(separatedBy: "case .updateSettings:").last)
+        let appModelPath = "PomodoroMac/PomodoroMac/AppModel.swift"
+        let appModel = withoutComments(try source(appModelPath))
+        // An error if that `case` is gone, rather than the whole file as the block to look in: a
+        // window that is the file agrees with whatever the file says (see `MissingAnchor`).
+        let block = try afterTheLastAnchor("case .updateSettings:", in: appModel, of: appModelPath)
         let range = try #require(
             block.range(of: "isWithinValidRanges()"),
             "REQ-CFG-018: an out-of-range number is applied, or refused with no answer sent"
@@ -428,8 +431,9 @@ struct ASettingWeCannotReadTests {
     // command never reaches `CommandTranslation` — `AppModel` takes settings in itself. **Refusing
     // after the assignment would be too late**: the value is applied by `didSet` on the way in.
     @Test func theMacRefusesTheValueBeforeItIsApplied() throws {
-        let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
-        let block = try #require(appModel.components(separatedBy: "case .updateSettings:").last)
+        let appModelPath = "PomodoroMac/PomodoroMac/AppModel.swift"
+        let appModel = withoutComments(try source(appModelPath))
+        let block = try afterTheLastAnchor("case .updateSettings:", in: appModel, of: appModelPath)
         let refusal = try #require(
             block.range(of: "valueOutOfRange(.settings)"),
             "REQ-CFG-018: a value the Mac cannot read is applied, or answered for nowhere"
@@ -438,8 +442,8 @@ struct ASettingWeCannotReadTests {
         #expect(refusal.upperBound < application.lowerBound, "the refusal comes after the value is applied")
 
         // Every refusal the Mac raises itself is tied to the request that caused it.
-        let payloads = appModel.components(separatedBy: "ProtocolErrorPayload(").dropFirst()
-        #expect(!payloads.isEmpty)
+        // Through `afterEachAnchor`, because a loop over no payloads passes: see `MissingAnchor`.
+        let payloads = try afterEachAnchor("ProtocolErrorPayload(", in: appModel, of: appModelPath)
         for payload in payloads {
             // To the bracket that closes the call, not a count of characters: a count is spent by
             // every line of prose written inside the payload, and a window that has slid off the

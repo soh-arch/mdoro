@@ -12,13 +12,8 @@ import Foundation
 
 private let menuBarViews = "PomodoroMac/PomodoroMac/Views/MenuBarViews.swift"
 
-private struct MissingAnchor: Error, CustomStringConvertible {
-    let path: String
-    let anchor: String
-    var description: String {
-        "\(path) no longer contains `\(anchor)` — it was renamed, and this scan was watching nothing"
-    }
-}
+// A scan whose anchor has been renamed finds nothing to object to, and passes: every lookup here
+// goes through `MissingAnchor` in `RepositorySources.swift`, which says which anchor is gone.
 
 // The live half of the top level: from the first `if isLive {` to the `Divider()` that closes it.
 private func liveBlock() throws -> String {
