@@ -568,8 +568,52 @@ private final class Upstream {
     // hello arrived on and pins the decision to `answersHelloWith`.
     var answersApprovalWith: (Bool) -> Authenticator.Decision? = { _ in nil }
 
-    private var waitingForHangUp: CheckedContinuation<Void, Never>?
-    private var waitingForApproval: CheckedContinuation<Void, Never>?
+    private var waitingForHangUp: (ticket: Int, continuation: CheckedContinuation<Void, Never>)?
+    private var waitingForApproval: (ticket: Int, continuation: CheckedContinuation<Void, Never>)?
+
+    // REQ-COM-004 / REQ-SEC-004: **which wait a deadline was started for.** Both give-ups below
+    // refuse a ticket that is not the one in the slot, so a deadline belonging to a wait that is
+    // already over can only fall on the floor.
+    //
+    // **One counter serves both slots**, so a ticket names a wait and not a place to wait in: a
+    // hang-up deadline and an approval deadline never hold the same number, and neither can be
+    // mistaken for the other's waiter if these two ever become one queue.
+    //
+    // **What it is against.** `deadline.cancel()` is asked for as a wait returns, and cancellation is
+    // a flag the sleeping task reads when it wakes: a deadline whose wait is over can wake with that
+    // flag not yet set, pass its own check, and resume whoever holds the slot by then. **That is the
+    // next waiter, at a budget that was never its own, having observed nothing.**
+    //
+    // **And what the next waiter reports depends on which call site it is, which is why a ticket and
+    // not a comment.** Ten waits stand below — six for `waitsForHangUp`, four for
+    // `waitsForApprovalSettled` — and they do not ask for the same thing:
+    //
+    //   * **Six want the arrival**: the four `guard await … else { throw Wrong(…) }` and the two
+    //     `holds(hungUp, …)`. **These are where REQ-COM-004's noticing of a closed line, REQ-ERR-009's
+    //     run of ten and REQ-SEC-004's settling of a question are observed** — two waits each, counted
+    //     by the clause each sentence leads with; two of the six name a second clause besides. An early
+    //     return reads there as the Mac never hanging up, or the question never being settled, and the
+    //     sentence that goes out names one of those clauses for something this double did. A failure
+    //     nobody can act on — the same unreadable shape the preconditions above are against, arriving
+    //     without a second waiter.
+    //   * **Four read running out as the good outcome**: `holds(!hungUp, …)` in the two tests about a
+    //     hello on the line the Mac already holds, and `holds(!settled, …)` in the two about a
+    //     question that has to survive. **These are where REQ-COM-013 / REQ-UIX-004 — the screen
+    //     saying `Connected` and then saying otherwise — and REQ-SEC-004's standing question are
+    //     observed.** There the wait *is* the observation: all it separates is "nothing was folded"
+    //     from "we did not look long enough", and a stray deadline collapses that into the first, at a
+    //     fraction of `cancelBound`. **The fault comes back green.**
+    //
+    // **That last half is where this differs from `HeldReads`**, which carries a ticket against the
+    // same shape: `waitsForReads` returning early always reads as the loop never arming, so there the
+    // hazard is at worst a failure that misnames itself. Here it is a pass.
+    private var tickets = 0
+
+    // **How many spent deadlines arrived while something really was waiting.** Only the test at
+    // `UpstreamWaitingSlotTests` reads this, and it cannot do without it: a ticket that was refused
+    // and a deadline that landed on an empty slot answer identically — nothing happens — so a check
+    // that cannot tell them apart would pass on the very fault it is against.
+    private(set) var earlierDeadlinesThatFoundAWaiter = 0
 
     // Wait until the Mac drops a connection, or give up. **Nothing is polled**: this is resumed
     // from `connectionChanged`, which runs on the main actor — the same actor `MdoroServer` needs
@@ -590,23 +634,26 @@ private final class Upstream {
         if case .some = waitingForHangUp {
             preconditionFailure("Upstream has one slot for a hang-up waiter and something is already in it. This call would take it from a waiter that is still suspended, and that waiter can never be resumed again — the deadline it started resumes whoever holds the slot, which is now this call. So one test hangs and the other reports a timeout it never spent, both of them naming the server for something this double did. Wait for one thing at a time, or give this double a queue of waiters.")
         }
+        tickets += 1
+        let ticket = tickets
         let deadline = Task { [weak self] in
             try? await Task.sleep(for: budget)
             guard !Task.isCancelled else { return }
-            self?.giveUpWaitingForHangUp()
+            self?.giveUpWaitingForHangUp(ticket)
         }
         defer { deadline.cancel() }
         // The deadline sleeps before it can resume anything, so the registration below is always
         // in place first — there is no window in which a resumption is lost.
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            waitingForHangUp = continuation
+            waitingForHangUp = (ticket, continuation)
         }
         return hangUps > 0
     }
 
-    private func giveUpWaitingForHangUp() {
-        waitingForHangUp?.resume()
+    private func giveUpWaitingForHangUp(_ ticket: Int) {
+        guard let pending = waitingForHangUp, pending.ticket == ticket else { return }
         waitingForHangUp = nil
+        pending.continuation.resume()
     }
 
     // REQ-SEC-004: wait until the question about a connection request is settled one way or the
@@ -625,26 +672,55 @@ private final class Upstream {
         if case .some = waitingForApproval {
             preconditionFailure("Upstream has one slot for an approval waiter and something is already in it. This call would take it from a waiter that is still suspended, and that waiter can never be resumed again — the deadline it started resumes whoever holds the slot, which is now this call. Here that answer is `nothing was settled`, which several tests read as the outcome they wanted: the fault would come back green. Wait for one thing at a time, or give this double a queue of waiters.")
         }
+        tickets += 1
+        let ticket = tickets
         let deadline = Task { [weak self] in
             try? await Task.sleep(for: budget)
             guard !Task.isCancelled else { return }
-            self?.giveUpWaitingForApproval()
+            self?.giveUpWaitingForApproval(ticket)
         }
         defer { deadline.cancel() }
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            waitingForApproval = continuation
+            waitingForApproval = (ticket, continuation)
         }
         return !approvalsAsked.isEmpty
     }
 
-    private func giveUpWaitingForApproval() {
-        waitingForApproval?.resume()
+    private func giveUpWaitingForApproval(_ ticket: Int) {
+        guard let pending = waitingForApproval, pending.ticket == ticket else { return }
         waitingForApproval = nil
+        pending.continuation.resume()
+    }
+
+    // **A deadline that belongs to a wait already over, arriving now** — the one thing the ticket is
+    // against, handed to a test because **no sequence of calls on this double can bring it about.**
+    // Everything that would have to interleave is on the main actor and none of it can be split:
+    // `waitsForHangUp` cancels its deadline before it returns, so the cancel is always in before the
+    // next wait can register; and the deadline's cancellation check is followed by its give-up inside
+    // one main-actor run, so a deadline that gets past the check finds the wait it was started for
+    // still in the slot, or an empty one. **A version without the ticket is therefore green today**,
+    // and the hazard is one edit away from being real: take the deadline off this actor
+    // (`Task.detached`), put an `await` between the check and the give-up, or give either slot a queue
+    // of waiters, and the wrong wait is resumed. The two calls below are what says so out loud, where
+    // a test can state it rather than a comment asking to be believed.
+    //
+    // The ticket handed over is one below the newest wait's, which is the wait before it — or no wait
+    // at all, when this is the first. Either way it is not the ticket in the slot.
+    func aHangUpDeadlineFromAnEarlierWaitArrives() {
+        if case .some = waitingForHangUp { earlierDeadlinesThatFoundAWaiter += 1 }
+        giveUpWaitingForHangUp(tickets - 1)
+    }
+
+    func anApprovalDeadlineFromAnEarlierWaitArrives() {
+        if case .some = waitingForApproval { earlierDeadlinesThatFoundAWaiter += 1 }
+        giveUpWaitingForApproval(tickets - 1)
     }
 
     private func note(approval approved: Bool) {
         approvalsAsked.append(approved)
-        waitingForApproval?.resume()
+        // The arrival resumes whoever is waiting, whatever ticket they hold: the ticket is about
+        // deadlines belonging to somebody else's wait, and this is the thing being waited for.
+        waitingForApproval?.continuation.resume()
         waitingForApproval = nil
     }
 
@@ -654,7 +730,8 @@ private final class Upstream {
             return
         }
         hangUps += 1
-        waitingForHangUp?.resume()
+        // As in `note(approval:)`: the arrival resumes whoever is waiting, whatever ticket they hold.
+        waitingForHangUp?.continuation.resume()
         waitingForHangUp = nil
     }
 
@@ -693,6 +770,108 @@ private final class Upstream {
             provideDisplayName: { AppSettings.defaultDisplayName },
             connectionChanged: { [weak self] state in self?.note(state) }
         )
+    }
+}
+
+// MARK: - The waiting slots the tests below watch through
+
+// **`Upstream`'s ticket, stated.**
+//
+// **Nothing here is about `MdoroServer`, and no clause of the requirements is observed below.** No
+// listener is raised, no line is opened and nothing is sent: the subject is the scaffolding that the
+// ten waits further down do their watching through. **Which clause each of those ten carries is
+// written at `Upstream.tickets`** — that is where the requirement ids belong, because that is where
+// the watching is done from. **No id belongs on the name of this suite**, and one was on it for a
+// while: a name is read before the lines under it, so a name claiming a clause would have this pair
+// answering for something they never look at. **The two ids that do appear below are in sentences
+// that go out on a failure, and they name what such a failure would cost those ten waits** — not
+// anything observed here.
+//
+// **So neither of these two tests is anybody's canary** — delete any clause of the requirements and
+// both go on passing. They are here for the opposite reason: so that when one of those ten waits comes
+// back and a sentence is written about the Mac, the sentence is about the Mac.
+//
+// **Two things are checked and the second is what makes the first worth anything**: that the next wait
+// ran to its own deadline, and that the spent deadline really did arrive while it was waiting. A
+// deadline that lands on an empty slot does nothing either — so without the second check, a slot that
+// was never taken would read exactly like a ticket that was refused, and the check would pass on the
+// fault it is against.
+//
+// **What is not checked here is the interleaving itself**, because it cannot be produced: the reasons
+// are written at `Upstream.aHangUpDeadlineFromAnEarlierWaitArrives`, and they are properties of where
+// this code runs rather than of the ticket. What stands in is the arrival, delivered by hand.
+@Suite("That no wait in this file is ended by somebody else's deadline")
+@MainActor
+struct UpstreamWaitingSlotTests {
+
+    // **The elapsed time is an exact statement here and not a tolerance.** A wait nothing answers can
+    // only be resumed by its own deadline, and `Task.sleep` does not come back early — so the wait
+    // takes at least its budget, and a wait resumed by somebody else's deadline takes nothing like it.
+    @Test func aSpentHangUpDeadlineLeavesTheNextWaitAlone() async {
+        let upstream = Upstream()
+
+        let firstBudget = Duration.milliseconds(50)
+        let ranOut = await upstream.waitsForHangUp(upTo: firstBudget)
+        holds(!ranOut,
+              "a wait for a hang-up came back saying one had happened, with nothing connected and nothing to hang up on. The wait below needs a ticket that has really been spent, and this is the wait that spends it.")
+
+        let budget = Duration.milliseconds(300)
+        // **Ordered from the inside**: `waitsForHangUp` takes the slot synchronously, before it
+        // suspends, so this task cannot run until there is a waiter for the arrival to land on.
+        // **The loop is insurance against that reasoning, not a poll.** An arrival that landed on an
+        // empty slot would do nothing whatever the ticket said, so getting the order wrong would not
+        // show up as a wrong answer — it would show up as nothing having been asked. It is bounded, so
+        // a slot that is never taken fails on the count below rather than spinning for the run.
+        Task {
+            for _ in 1...10 {
+                if upstream.earlierDeadlinesThatFoundAWaiter > 0 { break }
+                upstream.aHangUpDeadlineFromAnEarlierWaitArrives()
+                await Task.yield()
+            }
+        }
+        let began = ContinuousClock.now
+        let next = await upstream.waitsForHangUp(upTo: budget)
+        let elapsed = began.duration(to: ContinuousClock.now)
+
+        holds(upstream.earlierDeadlinesThatFoundAWaiter == 1,
+              "the deadline of the spent wait arrived while nothing was in the hang-up slot (\(upstream.earlierDeadlinesThatFoundAWaiter) of them found a waiter). It would then do nothing whether the ticket were checked or not, and the observation below would be empty rather than true.")
+        holds(elapsed >= budget,
+              "REQ-COM-004: a hang-up wait of \(describe(budget)) came back after \(describe(elapsed)), woken by the deadline of a wait that was already over. **Six of the waits below read that as the Mac not hanging up and name a clause for it, and four read it as the good outcome and pass** — a fold nobody looked for, reported as a fold that did not happen.")
+        holds(!next,
+              "a wait resumed by nothing but a deadline reported a hang-up. `hangUps` is read after the wait, so this is the count itself being wrong rather than the waiting.")
+    }
+
+    // The same rule in the other slot. **It is the slot where a stray deadline is worst**: two of the
+    // four waits for it read running out as the outcome they wanted, so there the fault is not a
+    // failure at all — the question was never settled, the test hoped for exactly that, and it is
+    // handed it without the waiting that was the whole of the evidence.
+    @Test func aSpentApprovalDeadlineLeavesTheNextWaitAlone() async {
+        let upstream = Upstream()
+
+        let firstBudget = Duration.milliseconds(50)
+        let ranOut = await upstream.waitsForApprovalSettled(upTo: firstBudget)
+        holds(!ranOut,
+              "a wait for a question to be settled came back saying one had been, with no question ever asked. The wait below needs a ticket that has really been spent, and this is the wait that spends it.")
+
+        let budget = Duration.milliseconds(300)
+        // Bounded and retried for the reason the test above writes out.
+        Task {
+            for _ in 1...10 {
+                if upstream.earlierDeadlinesThatFoundAWaiter > 0 { break }
+                upstream.anApprovalDeadlineFromAnEarlierWaitArrives()
+                await Task.yield()
+            }
+        }
+        let began = ContinuousClock.now
+        let next = await upstream.waitsForApprovalSettled(upTo: budget)
+        let elapsed = began.duration(to: ContinuousClock.now)
+
+        holds(upstream.earlierDeadlinesThatFoundAWaiter == 1,
+              "the deadline of the spent wait arrived while nothing was in the approval slot (\(upstream.earlierDeadlinesThatFoundAWaiter) of them found a waiter), so the observation below would be empty rather than true.")
+        holds(elapsed >= budget,
+              "REQ-SEC-004: an approval wait of \(describe(budget)) came back after \(describe(elapsed)), woken by the deadline of a wait that was already over. **Two of the four waits below read `nothing was settled` as the outcome they wanted** — they would be handed it here, green, having watched a fraction of the bound.")
+        holds(!next,
+              "a wait resumed by nothing but a deadline reported a settled question. `approvalsAsked` is read after the wait, so this is the record itself being wrong rather than the waiting.")
     }
 }
 
