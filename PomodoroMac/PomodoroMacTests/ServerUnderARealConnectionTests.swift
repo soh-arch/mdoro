@@ -589,15 +589,20 @@ private final class Upstream {
     // `waitsForApprovalSettled` — and they do not ask for the same thing:
     //
     //   * **Six want the arrival**: the four `guard await … else { throw Wrong(…) }` and the two
-    //     `holds(hungUp, …)`. An early return reads there as the Mac never hanging up, or the question
-    //     never being settled, and the sentence that goes out names a clause for something this double
-    //     did. A failure nobody can act on — the same unreadable shape the preconditions above are
-    //     against, arriving without a second waiter.
+    //     `holds(hungUp, …)`. **These are where REQ-COM-004's noticing of a closed line, REQ-ERR-009's
+    //     run of ten and REQ-SEC-004's settling of a question are observed** — two waits each, counted
+    //     by the clause each sentence leads with; two of the six name a second clause besides. An early
+    //     return reads there as the Mac never hanging up, or the question never being settled, and the
+    //     sentence that goes out names one of those clauses for something this double did. A failure
+    //     nobody can act on — the same unreadable shape the preconditions above are against, arriving
+    //     without a second waiter.
     //   * **Four read running out as the good outcome**: `holds(!hungUp, …)` in the two tests about a
     //     hello on the line the Mac already holds, and `holds(!settled, …)` in the two about a
-    //     question that has to survive. There the wait *is* the observation — all it separates is
-    //     "nothing was folded" from "we did not look long enough" — and a stray deadline collapses
-    //     that into the first, at a fraction of `cancelBound`. **The fault comes back green.**
+    //     question that has to survive. **These are where REQ-COM-013 / REQ-UIX-004 — the screen
+    //     saying `Connected` and then saying otherwise — and REQ-SEC-004's standing question are
+    //     observed.** There the wait *is* the observation: all it separates is "nothing was folded"
+    //     from "we did not look long enough", and a stray deadline collapses that into the first, at a
+    //     fraction of `cancelBound`. **The fault comes back green.**
     //
     // **That last half is where this differs from `HeldReads`**, which carries a ticket against the
     // same shape: `waitsForReads` returning early always reads as the loop never arming, so there the
@@ -770,13 +775,21 @@ private final class Upstream {
 
 // MARK: - The waiting slots the tests below watch through
 
-// REQ-COM-004 / REQ-SEC-004: **`Upstream`'s ticket, stated.**
+// **`Upstream`'s ticket, stated.**
 //
-// **Nothing here is about `MdoroServer`.** No listener is raised, no line is opened and nothing is
-// sent: the subject is the scaffolding that the ten waits further down do their watching through.
-// **So neither of these is anybody's canary** — delete any clause of the requirements and both go on
-// passing. They are here for the opposite reason: so that when one of those ten waits comes back and
-// a sentence is written about the Mac, the sentence is about the Mac.
+// **Nothing here is about `MdoroServer`, and no clause of the requirements is observed below.** No
+// listener is raised, no line is opened and nothing is sent: the subject is the scaffolding that the
+// ten waits further down do their watching through. **Which clause each of those ten carries is
+// written at `Upstream.tickets`** — that is where the requirement ids belong, because that is where
+// the watching is done from. **No id belongs on the name of this suite**, and one was on it for a
+// while: a name is read before the lines under it, so a name claiming a clause would have this pair
+// answering for something they never look at. **The two ids that do appear below are in sentences
+// that go out on a failure, and they name what such a failure would cost those ten waits** — not
+// anything observed here.
+//
+// **So neither of these two tests is anybody's canary** — delete any clause of the requirements and
+// both go on passing. They are here for the opposite reason: so that when one of those ten waits comes
+// back and a sentence is written about the Mac, the sentence is about the Mac.
 //
 // **Two things are checked and the second is what makes the first worth anything**: that the next wait
 // ran to its own deadline, and that the spent deadline really did arrive while it was waiting. A
@@ -787,7 +800,7 @@ private final class Upstream {
 // **What is not checked here is the interleaving itself**, because it cannot be produced: the reasons
 // are written at `Upstream.aHangUpDeadlineFromAnEarlierWaitArrives`, and they are properties of where
 // this code runs rather than of the ticket. What stands in is the arrival, delivered by hand.
-@Suite("The waiting slots the tests watch through (REQ-COM-004 / REQ-SEC-004)")
+@Suite("That no wait in this file is ended by somebody else's deadline")
 @MainActor
 struct UpstreamWaitingSlotTests {
 
