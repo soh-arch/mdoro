@@ -124,26 +124,26 @@ func beforeEachAnchor(_ anchor: String, in text: String, of path: String) throws
 // and waited for a brace to open would read that clause's own `}` as the end of the declaration.
 // Counting from the depth the marker implies is what tells the clause's brace from the body's.
 //
-// **What this reads of a string literal is narrow**: a `"` opens one and the next unescaped `"`
-// closes it. Inside, a brace is not a brace, and a `\"` does not end the literal — escapes are
-// honoured the way `localizedCalls` below honours them. Swift's literals are more than that. What
-// is known not to be read is a multiline (`"""`) literal, a raw (`#"`) one, and **a literal nested
-// inside an interpolation**. That these three are the ones known is not a reason to believe they
-// are all of them.
+// **What this reads of a string literal**: a `"` opens one and the next unescaped `"` closes it, and
+// inside it a brace is not a brace and a `\"` does not end the literal. **And `\(` is where the code
+// comes back** — so a literal written inside an interpolation is read as a literal of its own, and a
+// bracket is counted at the depth it is actually written at. `"\(a["}"])"` holds no brace at all.
 //
-// The nested one is the ordinary shape of the three: `"\(a["k"])"` is a subscript inside a message.
-// Its quotes are counted as the outer literal's, so past it the parity of `"` is inverted for
-// everything that follows. **It falls two ways, and the quiet one is the worse.** With an escape
-// inside it — `"\(a["it\"s"])"` — the count comes out odd, the brace that closes the declaration is
-// read as though it sat inside a literal, it is never counted, and the answer is
-// `UnbalancedDeclaration`: wrong, but loud. With a brace inside it — `"\(a["}"])"` — the count comes
-// out even and that brace is put back in play, so the window is cut short at it and handed over as
-// the declaration's body. **A window shorter than the thing it is passed off as is the failure this
-// function was written to stop.** And one with neither, `"\(a["k"])"`, comes out right by
-// arithmetic — so writing one, trying it and watching it work says nothing about the next one.
+// That last part was not read until 2026-09-21, and how it failed is the reason the paragraphs above
+// are here. The nested literal's quotes were counted as the outer one's, so past it the parity of `"`
+// was inverted for everything after. **It fell two ways, and the quiet one was the worse.** With a
+// brace inside it — `"\(a["}"])"` — the count came out even, that brace was put back in play, the
+// window was cut short at it and handed over as the declaration's body: **a window shorter than the
+// thing it is passed off as is the failure this function was written to stop.** With an escape inside
+// it — `"\(a["it\"s"])"` — the count came out odd, the brace that closes the declaration was read as
+// though it sat inside a literal, and the answer was `UnbalancedDeclaration`: wrong, but loud. And
+// one with neither, `"\(a["k"])"`, came out right **by arithmetic** — so writing one, trying it and
+// watching it work said nothing whatever about the next one.
 //
-// Neither file the callers read holds an interpolation at all today. That is a fact about
-// `MdoroServer.swift` and `AppModel.swift` as they stand, not a property of this function.
+// **Two forms are still not read, and those are refused rather than answered**: a multiline (`"""`)
+// literal and a raw (`#"`, `##"`, …) one both meet `UnreadableLiteral`. Cutting a short window for
+// them would be the failure above arriving through the function meant to stop it. **That these two
+// are the ones named is not a reason to believe they are all of them.**
 struct UnbalancedDeclaration: Error, CustomStringConvertible {
     let marker: String
     var description: String {
@@ -152,33 +152,131 @@ struct UnbalancedDeclaration: Error, CustomStringConvertible {
     }
 }
 
-// **The one reading of a string literal that both windows below share.** A bracket counted here is
-// what decides where a window ends, so the two must not each hold an opinion about what a literal
-// is: a second reading of them is a second place to forget to plug.
-//
-// What this reading does **not** cover is written out above — a multiline (`"""`) literal, a raw
-// (`#"`) one, and a literal nested inside an interpolation — and because there is one reading, that
-// paragraph is about both windows. Neither of them is claimed to read more than this.
-private struct StringLiteralSkipping {
-    private var insideStringLiteral = false
-    private var escaped = false
+// A literal this reading cannot follow. **Refused, rather than answered short.** The alternative is
+// a window that stops inside the literal and is handed to a caller as the whole of what its marker
+// named, or a sentence handed to a catalogue with its end cut off — which is the one failure every
+// scan in this file exists to prevent, arriving through the scans themselves.
+struct UnreadableLiteral: Error, CustomStringConvertible {
+    // Named rather than counted, so a failure says which form was met and not merely that one was.
+    enum Form: Equatable {
+        case multiline
+        case raw
+    }
+    let form: Form
+    var description: String {
+        // Spelled with escapes rather than as raw literals, so that nothing in this file is a shape
+        // the reading above refuses — a scan pointed at it one day would have to stop on its own text.
+        let spelling = switch form {
+        case .multiline: "multiline (\"\"\")"
+        case .raw: "raw (#\")"
+        }
+        return "a \(spelling) string literal is not read here, so nothing is cut or collected past one"
+    }
+}
 
-    // True when the character is code, where a bracket is a bracket. False for every character
-    // inside a string literal, the quotes that open and close it included.
-    mutating func isCode(_ character: Character) -> Bool {
-        if insideStringLiteral {
+// **The one reading of a string literal in this file.** A bracket counted here is what decides where
+// a window ends, and the same reading says what a localised sentence was written to say — so the
+// three scans below must not each hold an opinion about what a literal is: **a second reading of
+// them is a second place to forget to plug.**
+//
+// `localizedCalls` held a second one until 2026-09-21, and it had the fault above in a worse form.
+// It stopped at the first `"` after the opening one, which a subscript inside an interpolation puts
+// in the middle of the sentence — so `"a \(d["k"]) b"` came back as `a \(d[`, **with or without an
+// escape in it**. The windows had one shape that came out right by arithmetic; this had none.
+//
+// What this reading does **not** cover is written out above — a multiline (`"""`) literal and a raw
+// (`#"`) one, both refused — and because there is one reading, that paragraph is about all three
+// scans. None of them is claimed to read more than this.
+private struct StringLiteralSkipping {
+    // Where the reading is, innermost last. Empty is plain code. `.literal` is inside a `"…"`;
+    // `.interpolation` is code again, inside a `\(…)`, and counts its own brackets so that it knows
+    // which `)` hands the reading back to the literal it was written in.
+    private enum Nesting {
+        case literal
+        case interpolation(depth: Int)
+    }
+    private var nesting: [Nesting] = []
+    private var escaped = false
+    // A `"""` cannot be told from an empty literal until its third quote arrives, and a `#"` cannot
+    // be told from an ordinary `#` until its quote does. One character of memory each, rather than a
+    // lookahead this reading has no way to take.
+    private var literalIsEmptySoFar = false
+    private var closedAnEmptyLiteral = false
+    private var sawHashes = false
+
+    private var insideALiteral: Bool {
+        guard let innermost = nesting.last else { return false }
+        if case .literal = innermost { return true }
+        return false
+    }
+
+    // True while the reading is anywhere inside a literal, its interpolations included — because the
+    // text of a literal is everything written between its quotes, which is what `localizedCalls`
+    // collects.
+    var isReadingALiteral: Bool { !nesting.isEmpty }
+
+    // True when the character is code, where a bracket is a bracket. False for every character inside
+    // a string literal, the quotes that open and close it included — **except that the code inside an
+    // interpolation is code**, and so are the brackets of the `\(…)` itself, which pair up and so
+    // leave every count where it was.
+    mutating func isCode(_ character: Character) throws -> Bool {
+        if insideALiteral {
+            closedAnEmptyLiteral = false
+            sawHashes = false
+            let wasEmpty = literalIsEmptySoFar
+            literalIsEmptySoFar = false
             if escaped {
                 escaped = false
-            } else if character == "\\" {
+                // `\(` is the one escape that hands the reading back to code.
+                if character == "(" {
+                    nesting.append(.interpolation(depth: 1))
+                    return true
+                }
+                return false
+            }
+            if character == "\\" {
                 escaped = true
-            } else if character == "\"" {
-                insideStringLiteral = false
+                return false
+            }
+            if character == "\"" {
+                nesting.removeLast()
+                // Only at the top level: an empty literal closing inside an interpolation cannot be
+                // the head of a multiline one.
+                if wasEmpty, !insideALiteral { closedAnEmptyLiteral = true }
+                return false
             }
             return false
         }
+        // Code: the top level, or inside an interpolation.
         if character == "\"" {
-            insideStringLiteral = true
+            if closedAnEmptyLiteral { throw UnreadableLiteral(form: .multiline) }
+            if sawHashes { throw UnreadableLiteral(form: .raw) }
+            nesting.append(.literal)
+            literalIsEmptySoFar = true
             return false
+        }
+        if character == "#" {
+            // Held rather than acted on: `#if`, `#expect` and a `"#"` of its own are not raw
+            // literals, and each of them clears this on the character that follows.
+            sawHashes = true
+            closedAnEmptyLiteral = false
+            return true
+        }
+        closedAnEmptyLiteral = false
+        sawHashes = false
+        if let innermost = nesting.last, case .interpolation(let depth) = innermost {
+            switch character {
+            case "(":
+                nesting[nesting.count - 1] = .interpolation(depth: depth + 1)
+            case ")":
+                if depth == 1 {
+                    nesting.removeLast()
+                } else {
+                    nesting[nesting.count - 1] = .interpolation(depth: depth - 1)
+                }
+            default:
+                break
+            }
         }
         return true
     }
@@ -194,7 +292,7 @@ func declarationBody(openedBy text: some StringProtocol, _ marker: String) throw
     var scan = StringLiteralSkipping()
     for index in opened.indices {
         let character = opened[index]
-        guard scan.isCode(character) else { continue }
+        guard try scan.isCode(character) else { continue }
         switch character {
         case "{":
             depth += 1
@@ -254,7 +352,7 @@ func callArguments(openedBy text: some StringProtocol, _ marker: String) throws 
     var depth = 0
     var markerScan = StringLiteralSkipping()
     for character in marker {
-        guard markerScan.isCode(character) else { continue }
+        guard try markerScan.isCode(character) else { continue }
         switch character {
         case "(":
             depth += 1
@@ -270,7 +368,7 @@ func callArguments(openedBy text: some StringProtocol, _ marker: String) throws 
     var scan = StringLiteralSkipping()
     for index in opened.indices {
         let character = opened[index]
-        guard scan.isCode(character) else { continue }
+        guard try scan.isCode(character) else { continue }
         switch character {
         case "(":
             depth += 1
@@ -324,8 +422,8 @@ func swiftFiles(under directory: String, recursive: Bool = false) throws -> [Str
 // the ones written on one line. **The call this family exists to catch is a long sentence added
 // from an editor that is not Xcode** (`StringCatalogTests`) — and a sentence long enough to be
 // worth localising is a sentence that gets wrapped, so the argument sits on the line below. The
-// label is matched across whitespace instead of as a fixed spelling; the literal itself is read
-// character by character, untouched.
+// label is matched across whitespace instead of as a fixed spelling; the literal itself goes through
+// `StringLiteralSkipping` above and is kept exactly as it was written.
 private let localizedCallOpening = "String("
 private let localizedCallLabel = "localized:"
 
@@ -339,7 +437,13 @@ private func skipWhitespace(in text: String, from index: inout String.Index) {
 // with — `nil` when the argument is not a string literal, so that a caller asking only whether a
 // file localises anything sees those too. Escapes are kept as written (`\"` stays two characters):
 // the point of comparison is the source, not the resolved string.
-func localizedCalls(in text: String) -> [String?] {
+//
+// **What a literal is, `StringLiteralSkipping` says and nothing here does.** What is left below is
+// the driving of it — where to begin, what to keep, where to stop — and the driving is all this ever
+// was on top of a reading of its own. Two places held one reading each, so a form neither could
+// follow had to be remembered in both; the form that arrived was a literal nested in an
+// interpolation, and this was the copy nobody had looked at.
+func localizedCalls(in text: String) throws -> [String?] {
     var found: [String?] = []
     var searchFrom = text.startIndex
     while let opening = text.range(of: localizedCallOpening, range: searchFrom..<text.endIndex) {
@@ -351,26 +455,41 @@ func localizedCalls(in text: String) -> [String?] {
         guard text[index...].hasPrefix(localizedCallLabel) else { continue }
         index = text.index(index, offsetBy: localizedCallLabel.count)
         skipWhitespace(in: text, from: &index)
-        guard index < text.endIndex, text[index] == "\"" else {
+
+        // The argument's opening is handed to the reading a character at a time rather than compared
+        // to `"`: a raw literal begins with a `#`, and the reading refuses one on the quote behind
+        // it, which it can only do if it is shown both.
+        var scan = StringLiteralSkipping()
+        var opened = false
+        while index < text.endIndex, !opened {
+            let character = text[index]
+            _ = try scan.isCode(character)
+            if scan.isReadingALiteral {
+                opened = true
+            } else if character != "#" {
+                break
+            }
+            index = text.index(after: index)
+        }
+        guard opened else {
             found.append(nil)
             continue
         }
-        index = text.index(after: index)
+
         var literal = ""
-        var escaped = false
         while index < text.endIndex {
             let character = text[index]
-            if escaped {
-                literal.append(character)
-                escaped = false
-            } else if character == "\\" {
-                literal.append(character)
-                escaped = true
-            } else if character == "\"" {
+            _ = try scan.isCode(character)
+            guard scan.isReadingALiteral else {
+                // That character closed the literal — and a `"""` is only recognisable from its third
+                // quote, so the next character is shown to the reading before this answer is kept.
+                // Otherwise the empty literal at the head of a multiline one is answered as the whole
+                // of it: a sentence of no characters, with nothing anywhere saying so.
+                let next = text.index(after: index)
+                if next < text.endIndex { _ = try scan.isCode(text[next]) }
                 break
-            } else {
-                literal.append(character)
             }
+            literal.append(character)
             index = text.index(after: index)
         }
         found.append(literal)
@@ -381,6 +500,6 @@ func localizedCalls(in text: String) -> [String?] {
 }
 
 // Every `String(localized: "…")` literal in a file, as written.
-func localizedStringLiterals(in text: String) -> [String] {
-    localizedCalls(in: text).compactMap { $0 }
+func localizedStringLiterals(in text: String) throws -> [String] {
+    try localizedCalls(in: text).compactMap { $0 }
 }
