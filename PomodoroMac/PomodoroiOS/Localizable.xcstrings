@@ -46,9 +46,6 @@
     "About %lld min left" : {
 
     },
-    "actual %lld min" : {
-
-    },
     "Allow this app in Settings > Privacy & Security > Local Network." : {
 
     },
@@ -251,6 +248,9 @@
     "This device is no longer registered. Pair again" : {
 
     },
+    "Try again" : {
+
+    },
     "Version" : {
 
     },
@@ -264,6 +264,9 @@
 
     },
     "Your Mac needs a decision" : {
+
+    },
+    "actual %lld min" : {
 
     }
   },

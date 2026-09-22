@@ -475,17 +475,31 @@ private func skipWhitespace(in text: String, from index: inout String.Index) {
 // follow had to be remembered in both; the form that arrived was a literal nested in an
 // interpolation, and this was the copy nobody had looked at.
 func localizedCalls(in text: String) throws -> [String?] {
+    try literalArguments(in: text, opening: localizedCallOpening, label: localizedCallLabel)
+}
+
+// The driving shared by both families of call: find `opening`, step over `label` if there is one,
+// and read the first argument if it is a string literal. One copy, so a form one family can follow
+// is a form the other can too.
+private func literalArguments(in text: String, opening marker: String, label: String?) throws -> [String?] {
     var found: [String?] = []
     var searchFrom = text.startIndex
-    while let opening = text.range(of: localizedCallOpening, range: searchFrom..<text.endIndex) {
-        // Resume just past this `String(` whether or not it turns out to be the call we want, so a
+    while let opening = text.range(of: marker, range: searchFrom..<text.endIndex) {
+        // Resume just past this opening whether or not it turns out to be the call we want, so a
         // nested one is still reached.
         searchFrom = opening.upperBound
+        // `Text(` is not the end of `MyText(`: an opening that begins with a letter has to begin a name.
+        if marker.first?.isLetter == true, opening.lowerBound > text.startIndex {
+            let before = text[text.index(before: opening.lowerBound)]
+            if before.isLetter || before.isNumber || before == "_" { continue }
+        }
         var index = opening.upperBound
         skipWhitespace(in: text, from: &index)
-        guard text[index...].hasPrefix(localizedCallLabel) else { continue }
-        index = text.index(index, offsetBy: localizedCallLabel.count)
-        skipWhitespace(in: text, from: &index)
+        if let label {
+            guard text[index...].hasPrefix(label) else { continue }
+            index = text.index(index, offsetBy: label.count)
+            skipWhitespace(in: text, from: &index)
+        }
 
         // The argument's opening is handed to the reading a character at a time rather than compared
         // to `"`: a raw literal begins with a `#`, and the reading refuses one on the quote behind
@@ -533,4 +547,26 @@ func localizedCalls(in text: String) throws -> [String?] {
 // Every `String(localized: "…")` literal in a file, as written.
 func localizedStringLiterals(in text: String) throws -> [String] {
     try localizedCalls(in: text).compactMap { $0 }
+}
+
+// REQ-UIX-038 / Decision 0022: a literal handed straight to one of these is a `LocalizedStringKey`,
+// and Xcode extracts it into the catalogue exactly as it does a `String(localized:)` — so it can be
+// missing from the catalogue in exactly the same silent way. These are the SwiftUI initialisers and
+// modifiers the app targets pass a title to; a helper of the app's own that takes a
+// `LocalizedStringKey` is not recognisable from its spelling and is not on the list.
+let localizedViewOpenings = [
+    "Text(", "Button(", "Label(", "Section(", "Menu(", "Toggle(", "Picker(", "Stepper(",
+    "TextField(", "SecureField(", "LabeledContent(", "Link(", "Window(", "WindowGroup(",
+    "GroupBox(", "DisclosureGroup(",
+    ".help(", ".navigationTitle(", ".accessibilityLabel(", ".accessibilityHint(",
+    ".confirmationDialog(", ".alert(",
+]
+
+// Every string literal passed as the first, unlabelled argument to one of `localizedViewOpenings`,
+// as written. `Text(verbatim:)` and the like carry a label and are not read as keys, so neither are
+// they here.
+func localizedViewLiterals(in text: String) throws -> [String] {
+    try localizedViewOpenings.flatMap { opening in
+        try literalArguments(in: text, opening: opening, label: nil).compactMap { $0 }
+    }
 }
