@@ -149,10 +149,27 @@ def check_requirement_ids() -> None:
 
 
 # --- punch list --------------------------------------------------------------
+# ONE SPELLING OF A LEDGER ROW'S HEAD, and everything that reads one reads it from here.
+#
 # Named rather than written inline, because the self-test below asks a question about the
 # ledgers the cases hand this check -- how they are numbered -- and has to read them the way
 # the check does. A second copy of the pattern would let the claim go on answering about rows
 # this check had stopped counting.
+#
+# punch_rows() used to be that second copy: the same head written again, a line at a time, for
+# check_in_progress_rows, check_axis_column and check_declared_columns -- the three checks that
+# read the ledger row by row. Nothing was wrong with it, and that is the point: the two
+# spellings agreed, so whoever changed the ledger's row head next would have found one of them
+# and left three checks reading no rows. Two of them would have said so -- check_axis_column and
+# check_declared_columns refuse to read an empty table -- and check_in_progress_rows would have
+# gone silently green, because a loop over no rows has nothing to complain about.
+#
+# The two readers want different scans and share this one pattern anyway. Whole document, with
+# `re.M`, so `^` finds every row: filed_pols() below. One line at a time, so a row can be
+# reported by line number and split into cells: punch_rows(). `re.M` costs the second reader
+# nothing, because `.match()` anchors at position 0 and `^` is satisfied there with the flag or
+# without it -- the flag only adds the positions after a newline, and a line split on `\n` holds
+# none. So the anchor is free for the line reader and load-bearing for the document reader.
 POL_ROW = re.compile(r"^\| \*\*POL-(\d+)\*\*", re.M)
 
 
@@ -249,7 +266,10 @@ CELL = re.compile(r"(?<!\\)\|")
 def punch_rows() -> list[tuple[int, str, list[str]]]:
     rows = []
     for line_no, line in enumerate(read(PUNCH).split("\n"), 1):
-        m = re.match(r"\| \*\*POL-(\d+)\*\*", line)
+        # POL_ROW, not a second copy of it: see the comment over it for why `re.M` is harmless
+        # to a `.match()` on one line. The three checks below read rows through this, so the head
+        # of a ledger row is spelled in exactly one place.
+        m = POL_ROW.match(line)
         if m:
             cells = [c.strip().strip("*").strip() for c in CELL.split(line)]
             rows.append((line_no, m.group(1), cells))
