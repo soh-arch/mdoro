@@ -25,17 +25,8 @@ import Foundation
 private let macServer = "PomodoroMac/PomodoroMac/Server/MdoroServer.swift"
 private let appModel = "PomodoroMac/PomodoroMac/AppModel.swift"
 
-// **A scan whose anchor has been renamed finds nothing to object to, and passes.** That is the one
-// failure these scans exist to prevent, arriving through the scans themselves, so a missing anchor
-// is an error rather than an absence — the same reason `swiftFiles(under:)` refuses a directory
-// that moved.
-private struct MissingAnchor: Error, CustomStringConvertible {
-    let path: String
-    let anchor: String
-    var description: String {
-        "\(path) no longer contains `\(anchor)` — it was renamed, and this scan was watching nothing"
-    }
-}
+// A scan whose anchor has been renamed finds nothing to object to, and passes: every lookup here
+// goes through `MissingAnchor` in `RepositorySources.swift`, which says which anchor is gone.
 
 private func text(of path: String) throws -> String {
     withoutComments(try source(path))

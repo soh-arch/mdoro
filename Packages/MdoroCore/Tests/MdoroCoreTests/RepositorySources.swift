@@ -27,6 +27,79 @@ func withoutComments(_ text: String) -> String {
         .joined(separator: "\n")
 }
 
+// REQ-ERR-010 / REQ-COM-003 / REQ-PRT-004: **a scan whose anchor has been renamed finds nothing to
+// object to, and passes.** That is the one failure the scans that read this repository's own sources
+// exist to prevent, arriving through the scans themselves, so a missing anchor is an error rather
+// than an absence — the same reason `swiftFiles(under:)` refuses a directory that moved.
+struct MissingAnchor: Error, CustomStringConvertible {
+    let path: String
+    let anchor: String
+    var description: String {
+        "\(path) no longer contains `\(anchor)` — it was renamed or removed, and this scan was "
+            + "watching nothing"
+    }
+}
+
+// **`components(separatedBy:)` cannot say that the separator was not there.** It answers one piece —
+// the whole text, handed back — for a text the anchor does not occur in, and every shape the callers
+// here take that answer in reads like an answer about the code rather than about the anchor:
+//
+//   * `.last` is then the whole file. It is neither nil nor empty, so `try #require(…)` passes it
+//     straight through as the window, and what the window contains is whatever the file contains. A
+//     `contains` that has to hold is met by that spelling anywhere else in the file; a `contains`
+//     that must not hold is broken by a spelling that was never in the declaration being watched.
+//     **Both answers are an accident**, and on 2026-09-21 both were had at once from one renamed
+//     anchor. Handed the whole of `MdoroServer.swift` where it had asked for one declaration, the
+//     scan found the log line it insists on somewhere else in the file — so that half passed — and
+//     found the field Decision 0018 forbids as well, so it failed, for the other clause, saying
+//     nothing about the anchor. **A measurement of how much slack there is dates**: what that
+//     window came to was measured twice over one fix to the file, and grew by 224 characters.
+//   * `.dropFirst()` and `.dropLast()` are then empty, so a loop over every occurrence runs no
+//     iterations: a rule with nothing left to break it, which is how a suite passes having read
+//     nothing.
+//
+// The callers' own guard against the second shape was `!pieces.isEmpty`, which does catch the
+// absence — but it says something about the code in saying so ("nothing here refuses a connection
+// any more"), and that is not what went wrong. **Which anchor is gone is the whole of the news**, so
+// it is told here, where it is known, rather than guessed at by each caller.
+private func pieces(of text: String, splitAt anchor: String, in path: String) throws -> [String] {
+    // An anchor that matches everywhere names nothing in particular. What `components(separatedBy:)`
+    // answers for an empty separator is not something either end of this documents, so it is refused
+    // rather than read off whatever comes back — the same reading `callArguments` makes of a marker
+    // that opens no call.
+    guard !anchor.isEmpty else { throw MissingAnchor(path: path, anchor: anchor) }
+    let split = text.components(separatedBy: anchor)
+    // One piece is the whole text back again, which is what "not found" looks like from here.
+    guard split.count > 1 else { throw MissingAnchor(path: path, anchor: anchor) }
+    return split
+}
+
+// The text after the last `anchor` — `components(separatedBy:).last`, with the absence it cannot
+// report. **The last one, because one anchor can name more than one thing**: `func refuse(` names
+// two declarations in `MdoroServer.swift`, and a caller that wants the second cannot ask for it by
+// the first.
+func afterTheLastAnchor(_ anchor: String, in text: String, of path: String) throws -> String {
+    let split = try pieces(of: text, splitAt: anchor, in: path)
+    // `pieces` answers two or more, so this is the text past an anchor that was really there.
+    guard let last = split.last else { throw MissingAnchor(path: path, anchor: anchor) }
+    return last
+}
+
+// The text after each `anchor`, in order — `components(separatedBy:).dropFirst()`, with the absence
+// it cannot report. One piece per occurrence, so a caller counting them is counting occurrences.
+func afterEachAnchor(_ anchor: String, in text: String, of path: String) throws -> [String] {
+    let split = try pieces(of: text, splitAt: anchor, in: path)
+    return Array(split.dropFirst())
+}
+
+// The text before each `anchor` — `components(separatedBy:).dropLast()`, with the absence it cannot
+// report. Each piece begins where the previous occurrence ended rather than at the start of the
+// file, and there is one per occurrence, the same as `afterEachAnchor`.
+func beforeEachAnchor(_ anchor: String, in text: String, of path: String) throws -> [String] {
+    let split = try pieces(of: text, splitAt: anchor, in: path)
+    return Array(split.dropLast())
+}
+
 // REQ-ERR-010 / REQ-COM-003 / REQ-PRT-004: several scans here read a marker out of a file and then
 // ask what the declaration underneath it does. **A window measured in characters is a window that
 // slides.** `withoutComments` above drops a comment's text and keeps its newline and its
