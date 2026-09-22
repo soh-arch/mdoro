@@ -1500,6 +1500,31 @@ private final class HeldReads: ServerLineReading {
 
     var timesArmed: Int { lines.count }
 
+    // The line the loop was armed on, opened here rather than at each call site.
+    //
+    // **No call site can reach the throw, and that is not why it is here.** `timesArmed` *is*
+    // `lines.count`, `lines` is only ever appended to, and every caller stands after a
+    // `waitsForReads(_:upTo:)` that has already returned true for at least one read — so a line
+    // exists by the time this is asked. The optional still has to be opened somewhere, so what this
+    // saves is the sentence: **four call sites used to carry their own wording, in two spellings**,
+    // and the one who rewrites that sentence should not have to find all four.
+    //
+    // REQ-COM-004: it goes out as a thrown `Wrong(diagnose(…))`, the failure channel this file
+    // states at `diagnose` — one grep-able line on both streams, and the test ended where the
+    // premise went. Two of the four sites cannot be a `#require` in any case: they have a
+    // connection of their own to hand back first.
+    //
+    // `handingBack` is what to do on the way out. An `NWConnection` nobody cancels keeps its
+    // endpoint and its path monitor for the rest of the run, and a throw from in here would
+    // otherwise walk past the caller's `cancel()`.
+    func armedLine(handingBack cleanUp: () -> Void = {}) throws -> NWConnection {
+        guard let line = lines.first else {
+            cleanUp()
+            throw Wrong(diagnose("the read loop was armed without a connection — `HeldReads` recorded \(timesArmed) read(s) and no line to go with them"))
+        }
+        return line
+    }
+
     func read(from connection: NWConnection, completion: @escaping ServerLineRead) {
         lines.append(connection)
         outstanding.append((line: connection, completion: completion))
@@ -1660,7 +1685,7 @@ struct ServerReadLoopEndingTests {
         guard armed else {
             throw Wrong(diagnose("REQ-COM-004: a connection reached the listener and went ready, and the server never asked to read from it inside \(arrivalBudget) — `accept` starts the read loop, so nothing below has a loop to observe"))
         }
-        let line = try #require(reads.lines.first, "the read loop was armed without a connection")
+        let line = try reads.armedLine()
 
         // REQ-COM-004: a completed read carrying no frame and no bytes. It is the ending as the
         // transport reports it when there was no close frame to hand over, and `LineRead.of` is what
@@ -1699,7 +1724,7 @@ struct ServerReadLoopEndingTests {
         guard armed else {
             throw Wrong(diagnose("REQ-COM-004: a connection reached the listener and went ready, and the server never asked to read from it inside \(arrivalBudget)"))
         }
-        let line = try #require(reads.lines.first, "the read loop was armed without a connection")
+        let line = try reads.armedLine()
 
         // Not an observation of the server either (see `HeldReads.deliver`): one read armed above,
         // none answered.
@@ -2080,10 +2105,7 @@ private func aQuestionWaitingOn(
         asking.cancel()
         throw Wrong(diagnose("REQ-SEC-004: the hello that was answered with a question was accepted as well — the Mac is holding the connection (connectedDeviceName=\(bench.server.connectedDeviceName ?? "nil")). Nothing is issued and nothing is held while the answer is `ask the user`."))
     }
-    guard let line = reads.lines.first else {
-        asking.cancel()
-        throw Wrong(diagnose("the read loop was armed without a connection — `HeldReads` recorded \(reads.timesArmed) read(s) and no line to go with them"))
-    }
+    let line = try reads.armedLine(handingBack: asking.cancel)
     return (asking, line)
 }
 
@@ -2368,10 +2390,7 @@ private func aLineTheMacHolds(
         phone.cancel()
         throw Wrong(diagnose("REQ-COM-004: \(deviceName) reached the listener and went ready, and the server never asked to read from it inside \(describe(arrivalBudget)) — there is no read loop to hand a hello to."))
     }
-    guard let line = reads.lines.first else {
-        phone.cancel()
-        throw Wrong(diagnose("the read loop was armed without a connection — `HeldReads` recorded \(reads.timesArmed) read(s) and no line to go with them"))
-    }
+    let line = try reads.armedLine(handingBack: phone.cancel)
     let hello = try MessageCoder.encode(
         Envelope(body: ClientMessage.hello(HelloPayload(deviceName: deviceName)))
     )
