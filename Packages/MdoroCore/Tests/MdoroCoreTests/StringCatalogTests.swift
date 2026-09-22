@@ -39,13 +39,15 @@ private func sourceLanguage(_ path: String) throws -> String? {
     return (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["sourceLanguage"] as? String
 }
 
-// Every `String(localized: "…")` in a file, as written — the scan itself is in
-// `RepositorySources.swift`, so the same blind spot cannot open up in one copy of it.
+// Every `String(localized: "…")` in a file, and every literal handed straight to a SwiftUI view or
+// modifier that takes a `LocalizedStringKey` (`Button("…")`, `Text("…")`, …), as written — the
+// scans themselves are in `RepositorySources.swift`, so the same blind spot cannot open up in one
+// copy of them.
 // Interpolated ones are left out: the key Xcode extracts for those depends on the type of each
 // interpolation (`%@` / `%lld` / …), which is not in the text. A literal with no interpolation is
 // its own key exactly.
 private func plainLocalizedLiterals(in text: String) throws -> [String] {
-    try localizedStringLiterals(in: text).filter { !$0.contains("\\(") }
+    try (localizedStringLiterals(in: text) + localizedViewLiterals(in: text)).filter { !$0.contains("\\(") }
 }
 
 @Suite("The words the app shows live in a String Catalog (Decision 0022)")
