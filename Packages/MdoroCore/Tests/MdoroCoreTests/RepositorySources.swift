@@ -101,27 +101,33 @@ func beforeEachAnchor(_ anchor: String, in text: String, of path: String) throws
 }
 
 // REQ-ERR-010 / REQ-COM-003 / REQ-PRT-004: several scans here read a marker out of a file and then
-// ask what the declaration underneath it does. **A window measured in characters is a window that
+// ask what the braces underneath it hold. **A window measured in characters is a window that
 // slides.** `withoutComments` above drops a comment's text and keeps its newline and its
-// indentation, so every line of prose written inside a declaration spends part of a fixed
+// indentation, so every line of prose written inside a body spends part of a fixed
 // `prefix(n)` budget — and on 2026-09-20 two of these bodies grew by four lines and by two. Nothing
 // went red, because nothing can: a window that has slid off the end of what it was watching reads
-// exactly like a window whose contents are fine, and one that has slid onto the *next* declaration
-// reads like a rule that declaration keeps. Either way the answer is an accident of how much prose
+// exactly like a window whose contents are fine, and one that has slid onto what comes *after* it
+// reads like a rule that neighbour keeps. Either way the answer is an accident of how much prose
 // happens to be above it.
 //
-// **So the window ends where the declaration does**, at the brace that closes it, and how many
+// **So the window ends where the braces do**, at the one that closes the pair, and how many
 // lines sit inside it stops mattering. Do not put a character count back.
 //
-// The text handed in begins just past a marker that named a declaration, and there are two cases of
-// that. A marker that took the declaration's opening brace with it (`func stop() {`) leaves the text
-// **already inside the body, one level deep**. A marker that stopped in the parameter list
-// (`func refuse(`, which is where `components(separatedBy:)` leaves it) leaves the text **outside it,
-// with that brace still ahead**.
+// **What the marker named is not restricted to a declaration.** What is counted is braces, so
+// anything written with a pair of them is in range: `func stop() {` is a declaration,
+// `settings.displayName != previous.displayName` is the condition of an `if` (`IdentityTests`), and
+// `receivedSnapshot: {` opens a closure (`ARestoredStateSaysItIsNotSyncedTests`). The name says
+// braces for that reason — it used to say declaration, and on 2026-09-21 the first branch anchored
+// here made that a lie a caller's own comment had to apologise for.
+//
+// There are two cases of where the marker leaves the text. A marker that took the opening brace with
+// it (`func stop() {`) leaves the text **already inside the body, one level deep**. A marker that
+// stopped short of it (`func refuse(`, which is where `components(separatedBy:)` leaves it) leaves
+// the text **outside it, with that brace still ahead**.
 //
 // **Which case it is, only the marker can say.** The two look alike from inside the text: a body
 // whose first statement is `if ready {` is one level down either way, so a scan that began at zero
-// and waited for a brace to open would read that clause's own `}` as the end of the declaration.
+// and waited for a brace to open would read that clause's own `}` as the end of the body.
 // Counting from the depth the marker implies is what tells the clause's brace from the body's.
 //
 // **What this reads of a string literal**: a `"` opens one and the next unescaped `"` closes it, and
@@ -133,10 +139,10 @@ func beforeEachAnchor(_ anchor: String, in text: String, of path: String) throws
 // are here. The nested literal's quotes were counted as the outer one's, so past it the parity of `"`
 // was inverted for everything after. **It fell two ways, and the quiet one was the worse.** With a
 // brace inside it — `"\(a["}"])"` — the count came out even, that brace was put back in play, the
-// window was cut short at it and handed over as the declaration's body: **a window shorter than the
+// window was cut short at it and handed over as the whole body: **a window shorter than the
 // thing it is passed off as is the failure this function was written to stop.** With an escape inside
-// it — `"\(a["it\"s"])"` — the count came out odd, the brace that closes the declaration was read as
-// though it sat inside a literal, and the answer was `UnbalancedDeclaration`: wrong, but loud. And
+// it — `"\(a["it\"s"])"` — the count came out odd, the brace that closes the body was read as
+// though it sat inside a literal, and the answer was `UnbalancedBraces`: wrong, but loud. And
 // one with neither, `"\(a["k"])"`, came out right **by arithmetic** — so writing one, trying it and
 // watching it work said nothing whatever about the next one.
 //
@@ -144,10 +150,13 @@ func beforeEachAnchor(_ anchor: String, in text: String, of path: String) throws
 // literal and a raw (`#"`, `##"`, …) one both meet `UnreadableLiteral`. Cutting a short window for
 // them would be the failure above arriving through the function meant to stop it. **That these two
 // are the ones named is not a reason to believe they are all of them.**
-struct UnbalancedDeclaration: Error, CustomStringConvertible {
+struct UnbalancedBraces: Error, CustomStringConvertible {
     let marker: String
+    // **What the marker opened, rather than "the declaration".** The marker may have named a branch
+    // or a closure, and a reader who meets this sentence in a red run is reading the name of the
+    // failure and this line, not the paragraphs above them.
     var description: String {
-        "no brace closes the declaration after `\(marker)` — the marker names something else now, "
+        "no brace closes what `\(marker)` opened — the marker names something else now, "
             + "or the file is truncated"
     }
 }
@@ -282,9 +291,10 @@ private struct StringLiteralSkipping {
     }
 }
 
-// The body of the declaration the text opens, comments already gone. `marker` is carried only so a
-// failure can say which declaration went missing.
-func declarationBody(openedBy text: some StringProtocol, _ marker: String) throws -> String {
+// What the brace pair the text opens holds, comments already gone — **the pair at the depth the
+// marker implies, whatever that pair belongs to**: a declaration, an `if` clause, a closure. `marker`
+// is carried only so a failure can say which anchor went missing.
+func bracedBody(openedBy text: some StringProtocol, _ marker: String) throws -> String {
     let opened = String(text)
     // Read off the marker, because the text cannot answer it.
     let markerTookTheOpeningBrace = marker.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("{")
@@ -299,31 +309,31 @@ func declarationBody(openedBy text: some StringProtocol, _ marker: String) throw
         case "}":
             depth -= 1
             if depth == 0 { return String(opened[opened.startIndex..<index]) }
-            // Closing what was never opened: the marker did not name a declaration, or it named one
+            // Closing what was never opened: the marker opened no brace at all, or it named something
             // whose brace the marker was expected to have taken and did not.
-            if depth < 0 { throw UnbalancedDeclaration(marker: marker) }
+            if depth < 0 { throw UnbalancedBraces(marker: marker) }
         default:
             break
         }
     }
-    throw UnbalancedDeclaration(marker: marker)
+    throw UnbalancedBraces(marker: marker)
 }
 
-// **The same window, ended by the other bracket.** The scans above anchor on a declaration; several
-// others anchor on a **call** — `ProtocolErrorPayload(`, `AuthFailedPayload(`, `AppModel(`,
-// `State(initialValue:`, `MenuBarExtra(` — and ask which arguments it was written with. Those cut a
-// fixed `prefix(n)` out of the text until 2026-09-20, with the fault the paragraph above describes:
-// a count of characters is spent by every line of prose written above what is being watched, and a
-// window that has slid reads exactly like a window whose contents are fine.
+// **The same window, ended by the other bracket.** The scans above anchor on something written with
+// braces; several others anchor on a **call** — `ProtocolErrorPayload(`, `AuthFailedPayload(`,
+// `AppModel(`, `State(initialValue:`, `MenuBarExtra(` — and ask which arguments it was written with.
+// Those cut a fixed `prefix(n)` out of the text until 2026-09-20, with the fault the paragraph above
+// describes: a count of characters is spent by every line of prose written above what is being
+// watched, and a window that has slid reads exactly like a window whose contents are fine.
 //
-// **`declarationBody` cannot cut these.** Anchored on a call, the text begins inside an argument
-// list, so the next `}` it meets closes the scope the call sits in rather than anything the call
-// opened — the window it answers is the rest of the enclosing declaration, handed over as a body.
-// `aMarkerThatNamedNoDeclarationIsAnErrorRatherThanAWindow` holds that, and it is why there are two
+// **`bracedBody` cannot cut these.** Anchored on a call, the text begins inside an argument list, so
+// the next `}` it meets closes the scope the call sits in rather than anything the call opened — the
+// window it answers is the rest of the enclosing declaration, handed over as a body.
+// `aMarkerThatOpenedNoBraceIsAnErrorRatherThanAWindow` holds that, and it is why there are two
 // functions here rather than one. **The bracket that ends a call is the `)` matching the one the
 // marker opened.**
 //
-// **Which bracket the marker opened, only the marker can say** — the same reading `declarationBody`
+// **Which bracket the marker opened, only the marker can say** — the same reading `bracedBody`
 // makes of its brace, one bracket along. The marker's own brackets are counted: `AppModel(` leaves
 // one call open; `State(initialValue:` leaves one open as well, though it does not end in a
 // bracket, so asking whether the last character is `(` is not enough; `f(a)` leaves none.
