@@ -177,14 +177,55 @@ def filed_pols() -> set[int]:
     return {int(n) for n in POL_ROW.findall(read(PUNCH))}
 
 
+# --- a ledger number names one row --------------------------------------------
+# THIS USED TO ASK THE OPPOSITE QUESTION: that the numbering has no gap in it. The judgement
+# cost more than it held. A number can only be chosen once it is certain nobody else is taking
+# it, so a run of work that files anything had to be serialised behind whichever branch merged
+# first -- docs/ORCHESTRATION.md carried a line of discipline for this check alone, and on
+# 2026-09-22 three pieces of work waited on it and a fourth went out with a hole in the
+# numbering and turned the check red.
+#
+# What the gap arm was protecting is held elsewhere already: the loop below refuses a citation
+# of a number nobody filed. A row that is deleted rather than renumbered is caught the moment
+# anything still points at it, which is the case where a missing row is a mistake; a hole with
+# nothing pointing into it is merely a number that was skipped.
+#
+# Uniqueness is the question that was going unasked, and letting holes through is what makes it
+# urgent: two branches numbering their rows independently can now land on the same number, and
+# nothing was looking. A duplicate is worse than a hole -- every citation of it resolves, and
+# resolves to two different rows.
+#
+# WHAT COUNTS AS A LEDGER ROW IS A TABLE SHAPE, NOT A SECTION. Measured on 2026-09-22: 380 rows
+# of ten cells or more, 380 distinct numbers; and six rows of five or six cells that deliberately
+# repeat a number -- POL-004/009/018/020 record a human's ruling under 決定済みの方針, POL-043/051
+# a disposal under 却下・先送り. Those are other tables, and counting them would report six
+# duplicates on a sound ledger. A section heading cannot tell them apart, because 却下・先送り
+# opens with the four-column disposal table and then holds 147 ordinary ledger rows underneath it.
+#
+# TEN OR MORE, NEVER EXACTLY TEN. Three ledger rows carry a bare `|` in their prose and split
+# into eleven or thirteen cells (POL-147, POL-355, POL-366); nine more carry an escaped one,
+# which CELL is careful not to split on. An equality test would drop those three out of the
+# question without saying so.
+LEDGER_ROW_CELLS = 10
+
+
+def ledger_rows() -> list[tuple[int, int, list[str]]]:
+    """The rows of the eight-column ledger table, by line and number."""
+    return [
+        (line_no, int(pol), cells)
+        for line_no, pol, cells in punch_rows()
+        if len(cells) >= LEDGER_ROW_CELLS
+    ]
+
+
 def check_pols() -> None:
     filed = filed_pols()
     if not filed:
         note("pol", "no POL rows found in docs/PUNCHLIST.md — the pattern changed?")
         return
-    gaps = [n for n in range(min(filed), max(filed) + 1) if n not in filed]
-    if gaps:
-        note("pol", f"numbering has gaps: {gaps} (the punch list says 欠番を作らない)")
+    duplicated = sorted(n for n, times in Counter(n for _, n, _ in ledger_rows()).items() if times > 1)
+    if duplicated:
+        note("pol", f"a number is filed more than once: {duplicated} — a ledger number names one row")
     # The tools cite the ledger too, and a citation in a comment goes stale exactly the way one
     # in a document does -- this file names POL-244 and POL-245 in its own margins. Nothing was
     # watching those. Only this check is widened: the other four reading markdown_files() ask
@@ -802,6 +843,14 @@ PR_CELLS_THAT_ARE_NOT_A_NAME = (
     "裁定のみ",
 )
 
+# One sound ledger row, in the ledger's own shape, for the cases that ask about numbering rather
+# than about any one column. A second copy of it is a duplicate; the same number written into a
+# narrower table is not, and that is the difference those cases are built out of.
+LEDGER_ROW = "| **POL-001** | a symptom | REQ-ABC-001 | K | agent | minor | done | #1 |\n"
+
+# Two rows, so that a ledger handed to those cases is a table and not a single line.
+LEDGER = LEDGER_ROW + LEDGER_ROW.replace("POL-001", "POL-002")
+
 # (check, what the tree is asking, the tree, whether the check must complain)
 CASES = (
     (check_links, "a relative link whose target is not there", {
@@ -908,28 +957,28 @@ CASES = (
         "docs/PUNCHLIST.md": "| **POL-001** | a |\n",
         "docs/a.md": "as POL-002 found\n",
     }, True),
-    (check_pols, "a gap in the numbering", {
-        "docs/PUNCHLIST.md": "| **POL-001** | a |\n| **POL-003** | c |\n",
+    # The point of the change: a hole in the numbering is a number that was skipped, not a
+    # mistake, and two branches may now both file rows without waiting on each other.
+    (check_pols, "a ledger with a number missing", {
+        "docs/PUNCHLIST.md": LEDGER + LEDGER_ROW.replace("POL-001", "POL-004"),
+    }, False),
+    # Uniqueness, both ways. Neither shape is one this tree can supply: the real ledger has no
+    # duplicate among its 380 rows, so a real run is silent however the judgement is written.
+    (check_pols, "the same number filed twice", {
+        "docs/PUNCHLIST.md": LEDGER + LEDGER_ROW,
     }, True),
-    # The other half of that arm, which nothing was holding. Every other case here runs through
-    # the 欠番 judgement too, but their ledgers are `001` alone or `001`–`002`, and a run that
-    # short beginning at `001` cannot tell a sound judgement from several ways of getting it
-    # wrong. Measured on 2026-09-22: rewrite the range as `range(1, max(filed) + 1)` -- the most
-    # obvious of those ways -- and the whole self-test still printed ok, because the real ledger
-    # begins at `001` as well, so neither the cases nor a real run could see it.
-    #
-    # So the shape asked for here is the one the arm needs and this tree cannot supply: skipping
-    # nothing, and beginning above `001`. Gaps are measured from the lowest row filed rather than
-    # from `001`, which is what makes such a ledger sound -- and the ledger will become one the
-    # first time its early rows are folded away. Three rows rather than two so that the run is a
-    # run, with two steps in it; only the contiguity and the opening number are load-bearing
-    # against the rewrites tried.
-    (check_pols, "a ledger that begins above 001 and skips nothing", {
-        "docs/PUNCHLIST.md": (
-            "| **POL-007** | the lowest row still filed |\n"
-            "| **POL-008** | the next |\n"
-            "| **POL-009** | and the next |\n"
-        ),
+    # The equality test that would look right. A ledger row may carry a bare `|` in its prose and
+    # split into more than ten cells, and three real rows do; a duplicate involving one of those
+    # is still a duplicate.
+    (check_pols, "the same number twice, one row widened by a pipe in its prose", {
+        "docs/PUNCHLIST.md": LEDGER + LEDGER_ROW.replace("a symptom", "a | symptom"),
+    }, True),
+    # The other side of the shape test: the tables that repeat a number on purpose. Four rows
+    # under 決定済みの方針 record a human's ruling on a row filed above, and two under 却下・先送り
+    # a disposal; all six are narrower than a ledger row, and a judgement that read every POL row
+    # head would report all six on a sound ledger.
+    (check_pols, "a narrower table repeating a number the ledger files", {
+        "docs/PUNCHLIST.md": LEDGER + "| **POL-001** | the ruling | [0001](decisions/a.md) |\n",
     }, False),
     (check_pols, "a document citing a POL that is filed", {
         "docs/PUNCHLIST.md": "| **POL-001** | a |\n| **POL-002** | b |\n",
@@ -1317,16 +1366,18 @@ SELF_TEST = (
 # written, so that the ok line cannot go on claiming one that is gone.
 #
 # THE FIRST THREE ASK PER CHECK, AND THAT IS WHAT LET ONE THROUGH. check_pols had eight cases,
-# complaints and let-throughs both, and satisfied all three claims while its 欠番 judgement had a
-# complaint pinned and no silence: the ledgers that were let through were sound about their
-# *citations*, and merely happened to be numbered too plainly to say anything about numbering. A
-# check is not one question, and the polarity of the check is not the polarity of its arms.
+# complaints and let-throughs both, and satisfied all three claims while the numbering judgement
+# it carried then -- 欠番を作らない, since replaced by uniqueness -- had a complaint pinned and no
+# silence: the ledgers that were let through were sound about their *citations*, and merely
+# happened to be numbered too plainly to say anything about numbering. A check is not one
+# question, and the polarity of the check is not the polarity of its arms.
 #
 # COVERAGE WOULD NOT HAVE FOUND IT. Measured on 2026-09-22, over the table as it stood and again
 # with each of the cases below added: 38 of the 40 if-statements inside the checks are taken both
-# ways, and `if gaps:` was already one of the 38 -- its silent side ran on every case whose ledger
-# held one or two rows. What was missing is a shape of input, not a line of code. So the claims
-# below are written about the shape.
+# ways, and that judgement's own `if` was already one of the 38 -- its silent side ran on every
+# case whose ledger held one or two rows. What was missing is a shape of input, not a line of
+# code. So the claims below are written about the shape, and the uniqueness claim that took its
+# place is written the same way: the widths of the rows, not the lines of the check.
 #
 # The second arm held this way, the VERBATIM exclusion, is further out of coverage's reach still:
 # it is a conditional expression inside a comprehension in markdown_files(), so it is not one of
@@ -1334,8 +1385,9 @@ SELF_TEST = (
 # found the same way instead -- by someone reading the cases and noticing which shapes of input
 # none of them had.
 #
-# Each asks about one arm of one check, which is narrower than anything else here. The 欠番 claim
-# was written as a precedent rather than a pattern, and this is the precedent being followed once:
+# Each asks about one arm of one check, which is narrower than anything else here. The numbering
+# claim was written as a precedent rather than a pattern, and this is the precedent being followed
+# once:
 # the arms of the other ten checks are still not held to this, and on the same measurement two of
 # them were reached only one way.
 def _pol_numbers(files: dict[str, str]) -> list[int]:
@@ -1343,33 +1395,78 @@ def _pol_numbers(files: dict[str, str]) -> list[int]:
     return sorted({int(n) for n in POL_ROW.findall(files.get("docs/PUNCHLIST.md", ""))})
 
 
-def _the_numbering_arm_is_asked_both_ways(cases) -> list[str]:
-    """Ask the case table for a ledger with a number missing, and for one that is sound about it.
+def _fixture_rows(files: dict[str, str]) -> list[tuple[int, int]]:
+    """Every POL row head a fixture ledger writes, as (number, how many cells the row splits into).
 
-    Neither half can tell WHY a case complains -- a ledger with a gap in it may be reported for
-    a citation as well -- which is the same limit the three claims above carry. What it can tell
-    is whether a ledger of each shape is in the table at all, and both shapes are ones only this
-    table can supply: this repository's own ledger skips nothing and begins at `001`, so a real
-    run is silent on both counts however the judgement is written.
+    Read with POL_ROW and CELL -- the two patterns the check reads rows with, so a change to
+    either is answered here as well -- but no width is applied. Which widths are the ledger's is
+    exactly what the claim below is asking about, and a question about whether the cases ask about
+    the threshold must not be answered by the threshold.
+    """
+    return [
+        (int(m.group(1)), len(CELL.split(line)))
+        for m, line in (
+            (POL_ROW.match(line), line)
+            for line in files.get("docs/PUNCHLIST.md", "").split("\n")
+        )
+        if m
+    ]
 
-    A case whose ledger were spelled at some other path would drop out of both halves, and this
+
+def _the_uniqueness_arm_is_asked_both_ways(cases) -> list[str]:
+    """Ask the case table for a ledger that repeats a number, and for a table that repeats one legally.
+
+    Neither half can tell WHY a case complains -- a ledger with a duplicate in it may be reported
+    for a citation as well -- which is the same limit the three claims above carry. What it can
+    tell is whether a ledger of each shape is in the table at all, and every shape below is one
+    only this table can supply: measured on 2026-09-22, the real ledger's 380 rows hold 380
+    distinct numbers, so a real run is silent however the judgement is written.
+
+    A case whose ledger were spelled at some other path would drop out of every half, and this
     then says so: an unread fixture leaves the shape unasked, which is the failing answer.
     """
-    ledgers = [(_pol_numbers(files), must) for check, _, files, must in cases if check is check_pols]
+    pols = [(_fixture_rows(files), must) for check, _, files, must in cases if check is check_pols]
 
-    def contiguous(ns: list[int]) -> bool:
-        return ns == list(range(ns[0], ns[-1] + 1))
+    def widths_of(rows, number, keep):
+        return [w for n, w in rows if n == number and keep(w)]
+
+    def repeated_in_ledger(rows) -> set[int]:
+        wide = Counter(n for n, w in rows if w >= LEDGER_ROW_CELLS)
+        return {n for n, times in wide.items() if times > 1}
 
     wrong = []
-    if not any(ns and not contiguous(ns) for ns, must in ledgers if must):
+    if not any(repeated_in_ledger(rows) for rows, must in pols if must):
         wrong.append(
-            "  check_pols has no ledger with a number missing that it must complain about, so a "
-            "欠番 judgement that had stopped looking would pass the self-test")
-    if not any(len(ns) >= 2 and ns[0] > 1 and contiguous(ns) for ns, must in ledgers if not must):
+            "  check_pols has no ledger filing one number on two rows that it must complain "
+            "about, so a uniqueness judgement that had stopped looking would pass the self-test")
+
+    # The same duplicate again, with one of its two rows split wider than a ledger row by a bare
+    # pipe in its prose. An equality test on the width sees one row and reports nothing.
+    if not any(
+        any(any(w > LEDGER_ROW_CELLS for w in widths_of(rows, n, lambda w: w >= LEDGER_ROW_CELLS))
+            for n in repeated_in_ledger(rows))
+        for rows, must in pols if must
+    ):
         wrong.append(
-            "  check_pols has no sound ledger that begins above POL-001 and skips nothing, so a "
-            "欠番 judgement measured from POL-001 rather than from the lowest row filed would "
-            "pass the self-test -- and so would a real run, since this ledger begins at POL-001")
+            "  check_pols has no duplicate one of whose rows splits into more than "
+            f"{LEDGER_ROW_CELLS} cells that it must complain about, so a judgement testing the "
+            "width for equality would pass the self-test -- and so would a real run, whose three "
+            "rows that carry a bare pipe in their prose are all sound about their numbers")
+
+    # The other side of the shape test: a number written both in the ledger and in one of the
+    # narrower tables that record a ruling on it, which is six real rows and no mistake. Sound
+    # about the ledger itself, so a judgement reading every row head is the only way to report it.
+    if not any(
+        not repeated_in_ledger(rows)
+        and any(widths_of(rows, n, lambda w: w < LEDGER_ROW_CELLS)
+                and widths_of(rows, n, lambda w: w >= LEDGER_ROW_CELLS)
+                for n, _ in rows)
+        for rows, must in pols if not must
+    ):
+        wrong.append(
+            "  check_pols has no sound ledger with a narrower table repeating a number it files, "
+            "so a judgement reading every POL row head rather than the ledger's own rows would "
+            "pass the self-test -- and a real run would then report six rows that are not mistakes")
     return wrong
 
 
@@ -1438,7 +1535,7 @@ META = (
         f"  {name} has no sound case it must let through"
         for name, check in CHECKS if check not in {c for c, _, _, m in cases if not m}
     ]),
-    ("the 欠番 arm is asked both ways", _the_numbering_arm_is_asked_both_ways),
+    ("the uniqueness arm is asked both ways", _the_uniqueness_arm_is_asked_both_ways),
     ("the verbatim exclusion is asked both ways", _the_verbatim_exclusion_is_asked_both_ways),
 )
 
