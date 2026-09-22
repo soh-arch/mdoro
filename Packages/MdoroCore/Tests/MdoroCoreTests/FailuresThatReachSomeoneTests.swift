@@ -699,8 +699,8 @@ struct FailuresThatReachSomeoneTests {
         // answers the whole file for an anchor that is gone, and a window that is the file agrees
         // with whatever the file says (see `MissingAnchor`).
         let refuseTail = try afterTheLastAnchor("func refuse(", in: server, of: serverPath)
-        // The body, not a count of characters: see `declarationBody`.
-        let refuseBody = try declarationBody(openedBy: refuseTail, "func refuse(")
+        // The body, not a count of characters: see `bracedBody`.
+        let refuseBody = try bracedBody(openedBy: refuseTail, "func refuse(")
         #expect(
             refuseBody.contains("record(refusal:"),
             "`refuse` no longer asks for a record, so every refusal is silent again"
@@ -713,7 +713,7 @@ struct FailuresThatReachSomeoneTests {
         // `withoutComments` leaves of a comment line is its indentation and its newline. Name the
         // declaration the line is in.
         let writeTail = try afterTheLastAnchor("func write(refusal", in: server, of: serverPath)
-        let writeBody = try declarationBody(openedBy: writeTail, "func write(refusal")
+        let writeBody = try bracedBody(openedBy: writeTail, "func write(refusal")
         #expect(
             writeBody.contains("conn.refused"),
             "`write` no longer puts the refusal on the diagnostic log, so it reaches nobody"

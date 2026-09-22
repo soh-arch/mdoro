@@ -26,17 +26,17 @@ import Foundation
 
 private let macServer = "PomodoroMac/PomodoroMac/Server/MdoroServer.swift"
 
-// The body of one named declaration in the server, comments already gone. `declarationBody` ends the
-// window at the brace that closes the declaration, so no count of lines is being spent here and prose
+// The body of one named declaration in the server, comments already gone. `bracedBody` ends the
+// window at the brace that closes it, so no count of lines is being spent here and prose
 // written inside the body cannot slide the answer.
 //
 // **The count of the pieces is what catches a renamed anchor, and it has to stop the scan.**
 // `components(separatedBy:)` answers one piece when the separator is nowhere in the text, so
 // `pieces.last` is never nil and asking for it catches nothing at all. Noting the count and carrying
 // on is not enough either: the piece handed on is then the whole file, and the run goes red out of
-// `declarationBody` saying that no brace closes the declaration — true, and it says nothing about the
-// anchor a reader would have to go looking for. So this throws, and the sentence a reader sees names
-// the anchor and what became of it.
+// `bracedBody` saying that no brace closes what the marker opened — true, and it says nothing about
+// the anchor a reader would have to go looking for. So this throws, and the sentence a reader sees
+// names the anchor and what became of it.
 private func bodyOfDeclaration(_ marker: String) throws -> String {
     let server = withoutComments(try source(macServer))
     let pieces = server.components(separatedBy: marker)
@@ -46,7 +46,7 @@ private func bodyOfDeclaration(_ marker: String) throws -> String {
     )
     // Safe by the count above: two pieces mean the marker is there exactly once, and the second piece
     // is what follows it.
-    let body = try declarationBody(openedBy: pieces[1], marker)
+    let body = try bracedBody(openedBy: pieces[1], marker)
     #expect(!body.isEmpty, "the window is empty, and anything read from an empty window agrees")
     return body
 }

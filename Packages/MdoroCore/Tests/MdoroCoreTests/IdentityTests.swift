@@ -541,11 +541,10 @@ struct DisplayNameTravelTests {
         // past the end of this two-line clause and into the ones after it, where an edit that
         // deleted `readvertise()` from here could leave this passing on a neighbour's text.
         //
-        // **What `declarationBody` counts is braces, and the marker says which side of the opening
-        // one the text begins on** — as true of a branch as of a declaration. Its name is narrower
-        // than that, and here it says something not so: this marker names an `if` condition. The
-        // name is not changed from a call site.
-        let clause = try declarationBody(openedBy: text[branch.upperBound...], branchCondition)
+        // **What `bracedBody` counts is braces, and the marker says which side of the opening
+        // one the text begins on** — as true of a branch as of a declaration, which is why the
+        // marker here is an `if` condition and the window is still the clause.
+        let clause = try bracedBody(openedBy: text[branch.upperBound...], branchCondition)
         let reachesTheAir = clause.contains("readvertise()")
         #expect(reachesTheAir, "Decision 0040: the old name stays on the air")
     }

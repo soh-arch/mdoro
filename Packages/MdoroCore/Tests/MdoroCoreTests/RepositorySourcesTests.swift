@@ -128,8 +128,8 @@ struct RepositorySourcesTests {
 // all, so a loop over every occurrence of a rule's shape runs no iterations. Either way the suite
 // passes having read nothing, which is the one failure these scans exist to prevent.
 //
-// **The window functions cannot catch it for their callers.** Handed the whole file, `declarationBody`
-// answers the first declaration in it and `callArguments` the first call — both perfectly formed, and
+// **The window functions cannot catch it for their callers.** Handed the whole file, `bracedBody`
+// answers the first brace pair in it and `callArguments` the first call — both perfectly formed, and
 // about whatever happens to be at the top of the file.
 private let aFixture = "Fixture.swift"
 
@@ -233,8 +233,8 @@ struct AnchorLookupTests {
 
         // Two declarations, not one read twice. Told apart by their bodies, because that is what the
         // callers go on to read.
-        let firstBody = try declarationBody(openedBy: each[0], "func refuse(")
-        let lastBody = try declarationBody(openedBy: tail, "func refuse(")
+        let firstBody = try bracedBody(openedBy: each[0], "func refuse(")
+        let lastBody = try bracedBody(openedBy: tail, "func refuse(")
         #expect(!firstBody.isEmpty, "an empty body agrees with anything")
         #expect(!lastBody.isEmpty, "an empty body agrees with anything")
         let twoDeclarations = firstBody != lastBody
@@ -242,7 +242,7 @@ struct AnchorLookupTests {
     }
 }
 
-// **The scans that read a declaration now trust one function to say where it ends.**
+// **The scans that read a braced body now trust one function to say where it ends.**
 //
 // `PairingTests`, `FailuresThatReachSomeoneTests` and `StartingTwiceTests` used to cut a fixed
 // number of characters out of the comment-stripped source, which moved every time a line of prose
@@ -250,34 +250,38 @@ struct AnchorLookupTests {
 // boundary in one place, and a fault in that one place would reach all of them at once in the shape
 // those suites are least able to notice: a window that agrees with whatever it was pointed at.
 //
-// Nothing else reads `declarationBody`, and the files it is pointed at hold no brace inside a
-// string literal and no declaration without a closing brace — so the cases it has to get right
+// **What the marker names is not always a declaration** — `IdentityTests` anchors an `if` condition
+// and `ARestoredStateSaysItIsNotSyncedTests` a closure — so what is written below is about braces
+// rather than about declarations, and the markers in the fixtures are only the commonest shape.
+//
+// Nothing else reads `bracedBody`, and the files it is pointed at hold no brace inside a
+// string literal and no body without a closing brace — so the cases it has to get right
 // cannot be tried on them. They are written here.
-@Suite("A window that ends where the declaration does")
-struct DeclarationBodyTests {
+@Suite("A window that ends where the braces close")
+struct BracedBodyTests {
 
     // The two shapes a marker leaves behind, because one scan covers both.
     // `components(separatedBy: "func refuse(")` stops inside the parameter list, with the body's
     // opening brace still ahead; `range(of: "func stop() {")` stops inside the body, with that
     // brace already behind. Exact text rather than `contains`, so a boundary off by one shows.
-    @Test func theWindowRunsFromTheMarkerToTheBraceThatClosesTheDeclaration() throws {
+    @Test func theWindowRunsFromTheMarkerToTheBraceThatClosesIt() throws {
         let stoppedInTheParameterList = #"""
         _ code: Int) {
             body()
         }
         next()
         """#
-        let fromTheParameterList = try declarationBody(openedBy: stoppedInTheParameterList, "func refuse(")
+        let fromTheParameterList = try bracedBody(openedBy: stoppedInTheParameterList, "func refuse(")
         #expect(fromTheParameterList == "_ code: Int) {\n    body()\n")
 
         let stoppedInsideTheBody = "\n    body()\n}\nnext()"
-        let fromInsideTheBody = try declarationBody(openedBy: stoppedInsideTheBody, "func stop() {")
+        let fromInsideTheBody = try bracedBody(openedBy: stoppedInsideTheBody, "func stop() {")
         #expect(fromInsideTheBody == "\n    body()\n")
     }
 
     // A brace the declaration does not open cannot close it, and the inner one has to be counted
     // back out again. Cut at the first `}` and the window ends before `kept()`.
-    @Test func anInnerBraceDoesNotCloseTheDeclaration() throws {
+    @Test func anInnerBraceDoesNotCloseTheWindow() throws {
         let nested = #"""
         () {
             if ready {
@@ -287,7 +291,7 @@ struct DeclarationBodyTests {
         }
         next()
         """#
-        let body = try declarationBody(openedBy: nested, "func refuse(")
+        let body = try bracedBody(openedBy: nested, "func refuse(")
         #expect(body.contains("inner()"), "the window stopped before the nesting it should count through")
         #expect(body.contains("kept()"), "an inner brace was read as the end of the declaration")
         #expect(!body.contains("next()"), "the window ran past the declaration it was cutting")
@@ -310,7 +314,7 @@ struct DeclarationBodyTests {
         }
         next()
         """#
-        let body = try declarationBody(openedBy: oneNesting, "func stop() {")
+        let body = try bracedBody(openedBy: oneNesting, "func stop() {")
         #expect(body.contains("inner()"), "the window stopped before the nesting it should count through")
         #expect(body.contains("kept()"), "a clause's own brace was read as the end of the declaration")
         #expect(!body.contains("next()"), "the window ran past the declaration it was cutting")
@@ -328,7 +332,7 @@ struct DeclarationBodyTests {
         }
         next()
         """#
-        let body = try declarationBody(openedBy: twoNestings, "func stop() {")
+        let body = try bracedBody(openedBy: twoNestings, "func stop() {")
         #expect(body.contains("inner(item)"), "the window stopped before the nesting it should count through")
         #expect(body.contains("kept()"), "the window came back up one level short")
         #expect(!body.contains("next()"), "the window ran past the declaration it was cutting")
@@ -340,7 +344,7 @@ struct DeclarationBodyTests {
     @Test func theWindowCutFromAMarkerThatTookTheBraceIsRightInTheFileToo() throws {
         let appModel = withoutComments(try source("PomodoroMac/PomodoroMac/AppModel.swift"))
         let opening = try #require(appModel.range(of: "func stop() {"), "AppModel no longer has stop()")
-        let body = try declarationBody(openedBy: appModel[opening.upperBound...], "func stop() {")
+        let body = try bracedBody(openedBy: appModel[opening.upperBound...], "func stop() {")
         #expect(!body.isEmpty, "the window is empty, and anything read from an empty window agrees")
         #expect(
             body.contains("hasStarted = false"),
@@ -359,7 +363,7 @@ struct DeclarationBodyTests {
         }
         next()
         """#
-        let plainLiteral = try declarationBody(openedBy: withABraceInALiteral, "func write(")
+        let plainLiteral = try bracedBody(openedBy: withABraceInALiteral, "func write(")
         #expect(plainLiteral.contains("kept()"), "a brace inside a string literal closed the window")
         #expect(!plainLiteral.contains("next()"), "the window ran past the declaration it was cutting")
 
@@ -372,36 +376,35 @@ struct DeclarationBodyTests {
         }
         next()
         """#
-        let escapedLiteral = try declarationBody(openedBy: withAnEscapedQuote, "func write(")
+        let escapedLiteral = try bracedBody(openedBy: withAnEscapedQuote, "func write(")
         #expect(escapedLiteral.contains("kept()"), "an escaped quote was read as the end of the literal")
         #expect(!escapedLiteral.contains("next()"), "the window ran past the declaration it was cutting")
     }
 
     // **A window with no end is not a window.** Answering the rest of the file instead would hand
     // every caller the whole type to look in, which is how a scan starts agreeing with anything.
-    @Test func aDeclarationWithNoClosingBraceIsAnErrorRatherThanAWindow() throws {
+    @Test func aBodyWithNoClosingBraceIsAnErrorRatherThanAWindow() throws {
         let unclosed = "() {\n    body()\n"
-        #expect(throws: UnbalancedDeclaration.self) {
-            try declarationBody(openedBy: unclosed, "func refuse(")
+        #expect(throws: UnbalancedBraces.self) {
+            try bracedBody(openedBy: unclosed, "func refuse(")
         }
-        // And it says which declaration. A scan that has lost its anchor is the thing these
+        // And it says which anchor. A scan that has lost its anchor is the thing these
         // helpers exist to make loud, not the thing they exist to survive.
         do {
-            let answered = try declarationBody(openedBy: unclosed, "func refuse(")
-            Issue.record("a declaration with no closing brace answered a window: \(answered)")
-        } catch let error as UnbalancedDeclaration {
+            let answered = try bracedBody(openedBy: unclosed, "func refuse(")
+            Issue.record("a body with no closing brace answered a window: \(answered)")
+        } catch let error as UnbalancedBraces {
             #expect(error.marker == "func refuse(")
-            #expect(error.description.contains("func refuse("), "the failure does not name the declaration")
+            #expect(error.description.contains("func refuse("), "the failure does not name the anchor")
         }
     }
 
-    // **A marker that named no declaration is not a window either.** Anchored on a call, the text
-    // begins inside the parameter list of something that is not a declaration, and the first `}` it
-    // reaches closes a scope this window never opened. Left to run, the count comes back to zero on
-    // some later pair of braces and a window is answered — the rest of an enclosing function,
-    // presented as a declaration's body. This is also why the scans that anchor on a call cannot be
-    // moved onto this one.
-    @Test func aMarkerThatNamedNoDeclarationIsAnErrorRatherThanAWindow() {
+    // **A marker that opened no brace is not a window either.** Anchored on a call, the text begins
+    // inside an argument list, so the first `}` it reaches closes a scope this window never opened.
+    // Left to run, the count comes back to zero on some later pair of braces and a window is
+    // answered — the rest of an enclosing function, presented as a body. This is also why the scans
+    // that anchor on a call cannot be moved onto this one.
+    @Test func aMarkerThatOpenedNoBraceIsAnErrorRatherThanAWindow() {
         let afterACall = #"""
                 code: reason.protocolErrorCode)
             }
@@ -411,8 +414,8 @@ struct DeclarationBodyTests {
                 }
             }
         """#
-        #expect(throws: UnbalancedDeclaration.self) {
-            try declarationBody(openedBy: afterACall, "ProtocolErrorPayload(")
+        #expect(throws: UnbalancedBraces.self) {
+            try bracedBody(openedBy: afterACall, "ProtocolErrorPayload(")
         }
     }
 
@@ -437,8 +440,8 @@ struct DeclarationBodyTests {
         let strippedPlain = withoutComments(plain)
         let strippedProse = withoutComments(withProse)
 
-        let fromPlain = try declarationBody(openedBy: strippedPlain, "func refuse(")
-        let fromProse = try declarationBody(openedBy: strippedProse, "func refuse(")
+        let fromPlain = try bracedBody(openedBy: strippedPlain, "func refuse(")
+        let fromProse = try bracedBody(openedBy: strippedProse, "func refuse(")
         #expect(fromPlain.contains("kept()"))
         #expect(fromProse.contains("kept()"), "a line of prose pushed the statement out of the window")
         #expect(!fromProse.contains("next()"), "the window ran past the declaration it was cutting")
@@ -459,7 +462,7 @@ struct DeclarationBodyTests {
         let serverPath = "PomodoroMac/PomodoroMac/Server/MdoroServer.swift"
         let server = withoutComments(try source(serverPath))
         let tail = try afterTheLastAnchor("func write(refusal", in: server, of: serverPath)
-        let body = try declarationBody(openedBy: tail, "func write(refusal")
+        let body = try bracedBody(openedBy: tail, "func write(refusal")
         #expect(!body.isEmpty, "the window is empty, and anything read from an empty window agrees")
         #expect(body.count < tail.count, "the window is the whole rest of the file")
         #expect(body.contains("conn.refused"), "the declaration this cuts is no longer the one that writes")
@@ -473,8 +476,8 @@ struct DeclarationBodyTests {
 // `ASettingWeCannotReadTests`, `FailuresThatReachSomeoneTests` and `TestHostTests` ask what
 // arguments a call was written with — `ProtocolErrorPayload(`, `AuthFailedPayload(`, `AppModel(`,
 // `State(initialValue:`, `MenuBarExtra(`. Nine of those windows were a fixed `prefix(n)`, and the
-// slack measured 1 to 10 lines: thinner than the declaration windows above, in the same files where
-// a line of prose is written most often. `declarationBody` cannot cut them, because past a call the
+// slack measured 1 to 10 lines: thinner than the braced windows above, in the same files where
+// a line of prose is written most often. `bracedBody` cannot cut them, because past a call the
 // next `}` closes the scope the call sits in.
 //
 // Same reason the suite above exists: one function answers all of them, so a fault in it arrives
@@ -718,7 +721,7 @@ struct StringLiteralReadingTests {
     @Test func aLiteralInsideAnInterpolationDoesNotEndTheLiteralAroundIt() throws {
         for (name, statement) in Self.statements {
             let text = "() {\n    \(statement)\n    kept()\n}\nnext()"
-            let body = try declarationBody(openedBy: text, "func write(")
+            let body = try bracedBody(openedBy: text, "func write(")
             let holdsWhatFollowsTheLiteral = body.contains("kept()")
             #expect(holdsWhatFollowsTheLiteral, "\(name): the window was cut short inside the literal")
             let stopsAtTheDeclaration = !body.contains("next()")
@@ -793,7 +796,7 @@ struct StringLiteralReadingTests {
         }
         next()
         """#
-        let body = try declarationBody(openedBy: escapedBackslash, "func write(")
+        let body = try bracedBody(openedBy: escapedBackslash, "func write(")
         let holdsWhatFollowsTheLiteral = body.contains("kept()")
         #expect(holdsWhatFollowsTheLiteral, "a brace in a literal after an escaped backslash closed the window")
         let stopsAtTheDeclaration = !body.contains("next()")
@@ -816,7 +819,7 @@ struct StringLiteralReadingTests {
         next()
         """##
         #expect(throws: UnreadableLiteral.self) {
-            try declarationBody(openedBy: inADeclaration, "func write(")
+            try bracedBody(openedBy: inADeclaration, "func write(")
         }
 
         let inACall = ##"""
@@ -856,7 +859,7 @@ struct StringLiteralReadingTests {
         next()
         """##
         #expect(throws: UnreadableLiteral.self) {
-            try declarationBody(openedBy: inADeclaration, "func write(")
+            try bracedBody(openedBy: inADeclaration, "func write(")
         }
 
         let inACall = ##"message: #")"#, code: 1)"## + "\nnext()"
@@ -894,7 +897,7 @@ struct StringLiteralReadingTests {
         ]
         for (name, statement) in notRawLiterals {
             let text = "() {\n    \(statement)\n    kept()\n}\nnext()"
-            let body = try declarationBody(openedBy: text, "func write(")
+            let body = try bracedBody(openedBy: text, "func write(")
             let holdsWhatFollows = body.contains("kept()")
             #expect(holdsWhatFollows, "\(name): the window was cut short")
             let stopsAtTheDeclaration = !body.contains("next()")

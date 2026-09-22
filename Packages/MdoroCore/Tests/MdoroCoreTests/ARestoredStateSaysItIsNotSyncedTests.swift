@@ -28,17 +28,18 @@ private func text(of path: String) throws -> String {
     withoutComments(try source(path))
 }
 
-// The declaration a marker opens, in the file at `path`: **`declarationBody`, with the three steps
-// its callers all take first** — read the file, drop the comments, find the marker.
+// The body a marker opens, in the file at `path`: **`bracedBody`, with the three steps
+// its callers all take first** — read the file, drop the comments, find the marker. **Not always a
+// declaration**: `receivedSnapshot: {` below opens a closure, and braces are what is counted.
 //
 // This began as a brace counter of its own. It counted braces inside a string literal as braces,
-// which is exactly the failure `declarationBody` was written to stop: a literal holding a `}` cuts
-// the window short, and a window shorter than the declaration it is passed off as reads like a
-// declaration that keeps the rule. Neither file read here holds such a literal today — **a fact
+// which is exactly the failure `bracedBody` was written to stop: a literal holding a `}` cuts
+// the window short, and a window shorter than the body it is passed off as reads like a
+// body that keeps the rule. Neither file read here holds such a literal today — **a fact
 // about these two files, not a property of a counter** — and a second counter is a second place to
 // forget to mend.
 //
-// **Every marker below ends in `{`.** `declarationBody` reads the opening depth off the marker, so a
+// **Every marker below ends in `{`.** `bracedBody` reads the opening depth off the marker, so a
 // marker that stops short of the brace (`receivedSnapshot: { [weak self] snapshot in`, which is where
 // the closure's own brace sits in the middle) starts the count at zero and closes at minus one.
 private func body(of path: String, openedBy marker: String) throws -> String {
@@ -46,7 +47,7 @@ private func body(of path: String, openedBy marker: String) throws -> String {
     guard let opening = whole.range(of: marker) else {
         throw MissingAnchor(path: path, anchor: marker)
     }
-    return try declarationBody(openedBy: whole[opening.upperBound...], marker)
+    return try bracedBody(openedBy: whole[opening.upperBound...], marker)
 }
 
 @Suite("A restored state says it is not synced (REQ-PER-011)")
