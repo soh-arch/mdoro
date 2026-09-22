@@ -396,15 +396,29 @@ struct BracedBodyTests {
         } catch let error as UnbalancedBraces {
             #expect(error.marker == "func refuse(")
             #expect(error.description.contains("func refuse("), "the failure does not name the anchor")
+            // And which of the two faults it was: a body that opened is not a marker that opened
+            // nothing. This one opened — `() {` is in the text — so the window is the truncated kind.
+            #expect(error.markerOpensNoBrace == false)
+            let saysWhy = error.description.contains("no brace closes what")
+            #expect(saysWhy, "the failure does not say the body was left open")
+        } catch {
+            Issue.record("a body with no closing brace threw something else: \(error)")
         }
     }
 
-    // **A marker that opened no brace is not a window either.** Anchored on a call, the text begins
+    // **A marker that opens no brace is not a window either.** Anchored on a call, the text begins
     // inside an argument list, so the first `}` it reaches closes a scope this window never opened.
     // Left to run, the count comes back to zero on some later pair of braces and a window is
     // answered — the rest of an enclosing function, presented as a body. This is also why the scans
     // that anchor on a call cannot be moved onto this one.
-    @Test func aMarkerThatOpenedNoBraceIsAnErrorRatherThanAWindow() {
+    //
+    // **And it is told apart from the body that opened and did not close**, which is the other way to
+    // have no brace to stop at. The name of this test was the only thing separating them until
+    // 2026-09-22: both faults came out of one failure with one sentence, so a reader who met either
+    // was told the marker had opened something. **A marker may legitimately stop short of the opening
+    // brace** (`func refuse(`), so which fault it is cannot be read off the marker the way
+    // `callArguments` reads its own; it is read off the scan.
+    @Test func aMarkerThatOpensNoBraceIsAnErrorRatherThanAWindow() {
         let afterACall = #"""
                 code: reason.protocolErrorCode)
             }
@@ -416,6 +430,28 @@ struct BracedBodyTests {
         """#
         #expect(throws: UnbalancedBraces.self) {
             try bracedBody(openedBy: afterACall, "ProtocolErrorPayload(")
+        }
+        do {
+            let answered = try bracedBody(openedBy: afterACall, "ProtocolErrorPayload(")
+            Issue.record("a marker that opens no brace answered a window: \(answered)")
+        } catch let error as UnbalancedBraces {
+            #expect(error.markerOpensNoBrace)
+            let saysWhy = error.description.contains("opens no brace")
+            #expect(saysWhy, "the failure does not say the marker opened nothing")
+        } catch {
+            Issue.record("a marker that opens no brace threw something else: \(error)")
+        }
+
+        // The same fault without a `}` to meet: the text simply runs out, and nothing in it ever
+        // opened a brace. Answering "no brace closes what the marker opened" here names something
+        // that never happened.
+        do {
+            let answered = try bracedBody(openedBy: "code: 1, message: nil", "ProtocolErrorPayload(")
+            Issue.record("a text with no brace at all answered a window: \(answered)")
+        } catch let error as UnbalancedBraces {
+            #expect(error.markerOpensNoBrace)
+        } catch {
+            Issue.record("a text with no brace at all threw something else: \(error)")
         }
     }
 
