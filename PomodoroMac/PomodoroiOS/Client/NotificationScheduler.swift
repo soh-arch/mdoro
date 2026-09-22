@@ -93,12 +93,11 @@ final class NotificationScheduler {
     }
 
     private func add(_ content: UNNotificationContent, at fireDate: Date, identifier: String) {
-        // REQ-COM-014: **give `timeZone` explicitly.** Without it, a change of time zone or of summer
-        // time shifts when it fires.
-        var components = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute, .second], from: fireDate
-        )
-        components.timeZone = TimeZone.current
+        // REQ-PRT-001 / REQ-COM-014: **which fields are matched, and the zone they are read in, is
+        // `NotificationFireTime`'s answer, not this file's.** The Mac side asks the same function
+        // (`PomodoroMac/Services/NotificationScheduler.swift`); REQ-COM-014's explicit zone was on
+        // this side alone until the two were brought together.
+        let components = NotificationFireTime.dateComponents(for: fireDate)
 
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         scheduledIds.append(identifier)
