@@ -834,8 +834,14 @@ CASES = (
     (check_links, "a bare word in a code example is prose, not a path", {
         "docs/a.md": "write it as [text](url)\n",
     }, False),
+    # The report sits a directory down, the way the real ones do -- a run gets a dated directory
+    # and the reports go inside it. That placing is what pins the exemption to `experiments` being
+    # anywhere in the path rather than to it being the parent: with the fixture flat, narrowing the
+    # test to `f.parent.name` left this pair saying the same thing it says now, while every report
+    # this repository actually keeps stopped being exempt (measured 2026-09-22 -- check_pols, whose
+    # pair is already a directory down, was the only complaint).
     (check_links, "a report kept verbatim is exempt, however it links", {
-        "docs/experiments/a-report.md": "[gone](nowhere.md)\n",
+        "docs/experiments/a-run/a-report.md": "[gone](nowhere.md)\n",
     }, False),
     (check_links, "but the index over those reports is ours", {
         "docs/experiments/README.md": "[gone](nowhere.md)\n",
@@ -1669,9 +1675,15 @@ def self_test() -> int:
     cases += list(CASES)
     wrong: list[str] = []
 
+    # Kept apart from `wrong` all the way to the printing. A META claim is about the table --
+    # a shape of input no case supplies -- and not about a case that came out the wrong way,
+    # so the two are printed under headings of their own below. Read together under one
+    # heading, a META line counted as a case failure, and anyone reading the heading alone
+    # came away with a number of cases that had gone red and no case behind it.
+    meta_wrong: list[str] = []
     asked = []
     for name, ask in META:
-        wrong += ask(cases)
+        meta_wrong += ask(cases)
         asked.append(name)
 
     # Asked before the cases run, because every one of them goes through a_repository, and
@@ -1706,7 +1718,6 @@ def self_test() -> int:
                     f"{name} asked nothing, so nothing is left of it but its name")
         harness_wrong += claim.wrong
         asked_of_the_harness.append((name, claim.asked))
-    wrong += harness_wrong
     if harness_wrong:
         # The cases are not run: they write their fixtures under ROOT and read through SPEC,
         # PUNCH and DECISIONS, so with those wrong they would damage the real tree or raise
@@ -1718,9 +1729,9 @@ def self_test() -> int:
         # appears exactly when something else is already broken -- found by the reviewer with
         # a mutation that broke one META claim and the harness together, where the heading
         # said eight and nine lines followed.
-        print(f"the self-test is wrong in {len(wrong)} place(s), "
+        print(f"the self-test is wrong in {len(meta_wrong) + len(harness_wrong)} place(s), "
               f"{len(harness_wrong)} of them in a_repository; the cases were not run:\n")
-        print("\n".join(wrong))
+        print("\n".join(meta_wrong + harness_wrong))
         return 1
 
     counts: Counter = Counter()
@@ -1734,9 +1745,18 @@ def self_test() -> int:
                 wrong.append(f"  {check.__name__}: wanted {wanted}, got {len(failures)}: {asking}")
     failures.clear()
 
-    if wrong:
-        print(f"the checks themselves are wrong in {len(wrong)} place(s), over {len(cases)} cases:\n")
-        print("\n".join(wrong))
+    if meta_wrong or wrong:
+        # Two headings rather than one, and either can stand alone: what the table failed to ask
+        # is counted in claims, what the cases failed is counted in cases. The exit code is the
+        # same 1 it always was, whichever of them spoke.
+        if meta_wrong:
+            print(f"the case table is not asking enough, in {len(meta_wrong)} place(s), "
+                  f"over {len(META)} claim(s) about it:\n")
+            print("\n".join(meta_wrong) + "\n")
+        if wrong:
+            print(f"the checks themselves are wrong in {len(wrong)} place(s), "
+                  f"over {len(cases)} cases:\n")
+            print("\n".join(wrong))
         return 1
     print("ok — " + ", ".join(f"{name} ({counts[check]})" for name, check in CHECKS))
     print("     of the table itself: " + (", ".join(asked) if asked else "nothing was asked"))
