@@ -178,14 +178,10 @@ final class NotificationScheduler: SessionNotifying {
         }
     }
 
-    // REQ-COM-014: **`DateComponents.timeZone` is given explicitly.** Wall-clock fields on their own
-    // do not name an instant: without the zone, a trip across time zones or a summer-time change
-    // moves the moment the notification fires.
-    //
-    // The zone is the calendar's own, not `TimeZone.current` read a second time — the fields are read
-    // out of that same calendar, so the pair has to come from one place or the two can disagree and
-    // describe a time that never existed. With the default calendar it is the reader's current zone,
-    // which is what the iPhone side attaches (`PomodoroiOS/Client/NotificationScheduler.swift`).
+    // REQ-PRT-001 / REQ-COM-014: **which fields are matched, and the zone they are read in, is
+    // `NotificationFireTime`'s answer, not this file's.** The iPhone side asks the same function
+    // (`PomodoroiOS/Client/NotificationScheduler.swift`), so the two cannot drift apart again — which
+    // they had, the explicit zone having been on that side alone for close to a year.
     //
     // Fired at an absolute time. In relative seconds it drifts across a wake from sleep (the third
     // principle).
@@ -195,10 +191,7 @@ final class NotificationScheduler: SessionNotifying {
     // `SessionNotifying` above). `UNCalendarNotificationTrigger.dateComponents` reads back, so the
     // check can stand on the trigger itself rather than on a copy of the arithmetic.
     static func calendarTrigger(for fireDate: Date, calendar: Calendar = .current) -> UNCalendarNotificationTrigger {
-        var components = calendar.dateComponents(
-            [.year, .month, .day, .hour, .minute, .second], from: fireDate
-        )
-        components.timeZone = calendar.timeZone
+        let components = NotificationFireTime.dateComponents(for: fireDate, calendar: calendar)
         return UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
     }
 
