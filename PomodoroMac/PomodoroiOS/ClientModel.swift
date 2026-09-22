@@ -99,6 +99,8 @@ final class ClientModel {
             self?.servers = found
             // REQ-ERR-005: with one, connect quietly; with more than one, let the user choose.
             if found.count == 1, self?.status == .idle { self?.connect(to: found[0]) }
+            // REQ-COM-003 / REQ-COM-004: a renamed Mac is followed by its id, not its name.
+            self?.client.follow(found)
         }
         browser.onLocalNetworkDenied = { [weak self] in self?.localNetworkDenied = true }
         browser.start()
