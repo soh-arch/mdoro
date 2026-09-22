@@ -57,12 +57,11 @@ struct OneFireTimeForBothDevicesTests {
                 throw MissingAnchor(path: path, anchor: "NotificationFireTime.dateComponents(for:")
             }
 
-            let found = handRolledFireTimeBuilding(in: text)
             #expect(
-                found.isEmpty,
-                Comment(rawValue: "\(path) builds a notification fire time of its own: "
-                    + found.joined(separator: ", ")
-                    + " — REQ-PRT-001: the fields and the zone are `NotificationFireTime`'s answer")
+                handRolledFireTimeBuilding(in: text).isEmpty,
+                "\(path) builds a notification fire time of its own: "
+                    + handRolledFireTimeBuilding(in: text).joined(separator: ", ")
+                    + " — REQ-PRT-001: the fields and the zone are `NotificationFireTime`'s answer"
             )
         }
     }
