@@ -149,8 +149,15 @@ def check_requirement_ids() -> None:
 
 
 # --- punch list --------------------------------------------------------------
+# Named rather than written inline, because the self-test below asks a question about the
+# ledgers the cases hand this check -- how they are numbered -- and has to read them the way
+# the check does. A second copy of the pattern would let the claim go on answering about rows
+# this check had stopped counting.
+POL_ROW = re.compile(r"^\| \*\*POL-(\d+)\*\*", re.M)
+
+
 def filed_pols() -> set[int]:
-    return {int(n) for n in re.findall(r"^\| \*\*POL-(\d+)\*\*", read(PUNCH), re.M)}
+    return {int(n) for n in POL_ROW.findall(read(PUNCH))}
 
 
 def check_pols() -> None:
@@ -878,6 +885,26 @@ CASES = (
     (check_pols, "a gap in the numbering", {
         "docs/PUNCHLIST.md": "| **POL-001** | a |\n| **POL-003** | c |\n",
     }, True),
+    # The other half of that arm, which nothing was holding. Every other case here runs through
+    # the 欠番 judgement too, but their ledgers are `001` alone or `001`–`002`, and a run that
+    # short beginning at `001` cannot tell a sound judgement from several ways of getting it
+    # wrong. Measured on 2026-09-22: rewrite the range as `range(1, max(filed) + 1)` -- the most
+    # obvious of those ways -- and the whole self-test still printed ok, because the real ledger
+    # begins at `001` as well, so neither the cases nor a real run could see it.
+    #
+    # So the shape asked for here is the one the arm needs and this tree cannot supply: skipping
+    # nothing, and beginning above `001`. Gaps are measured from the lowest row filed rather than
+    # from `001`, which is what makes such a ledger sound -- and the ledger will become one the
+    # first time its early rows are folded away. Three rows rather than two so that the run is a
+    # run, with two steps in it; only the contiguity and the opening number are load-bearing
+    # against the rewrites tried.
+    (check_pols, "a ledger that begins above 001 and skips nothing", {
+        "docs/PUNCHLIST.md": (
+            "| **POL-007** | the lowest row still filed |\n"
+            "| **POL-008** | the next |\n"
+            "| **POL-009** | and the next |\n"
+        ),
+    }, False),
     (check_pols, "a document citing a POL that is filed", {
         "docs/PUNCHLIST.md": "| **POL-001** | a |\n| **POL-002** | b |\n",
         "docs/a.md": "as POL-002 found\n",
@@ -1235,6 +1262,57 @@ SELF_TEST = (
 # check's cases is as quiet as deleting the check was before CHECKS existed, so these are the
 # claims that keep the table honest -- and, like CHECKS, they are named rather than merely
 # written, so that the ok line cannot go on claiming one that is gone.
+#
+# THE FIRST THREE ASK PER CHECK, AND THAT IS WHAT LET ONE THROUGH. check_pols had eight cases,
+# complaints and let-throughs both, and satisfied all three claims while its 欠番 judgement had a
+# complaint pinned and no silence: the ledgers that were let through were sound about their
+# *citations*, and merely happened to be numbered too plainly to say anything about numbering. A
+# check is not one question, and the polarity of the check is not the polarity of its arms.
+#
+# COVERAGE WOULD NOT HAVE FOUND IT. Measured on 2026-09-22, over the table as it stood and again
+# with the case below added: 38 of the 40 if-statements inside the checks are taken both ways, and
+# `if gaps:` was already one of the 38 -- its silent side ran on every case whose ledger held one
+# or two rows. What was missing is a shape of input, not a line of code. So the claim below is
+# written about the shape.
+#
+# It asks about one arm of one check, which is narrower than anything else here and is meant as a
+# precedent rather than a pattern: the arms of the other ten checks are not held to this, and on
+# the same measurement two of them were reached only one way.
+def _pol_numbers(files: dict[str, str]) -> list[int]:
+    """The numbers a fixture ledger files, read the way check_pols reads them."""
+    return sorted({int(n) for n in POL_ROW.findall(files.get("docs/PUNCHLIST.md", ""))})
+
+
+def _the_numbering_arm_is_asked_both_ways(cases) -> list[str]:
+    """Ask the case table for a ledger with a number missing, and for one that is sound about it.
+
+    Neither half can tell WHY a case complains -- a ledger with a gap in it may be reported for
+    a citation as well -- which is the same limit the three claims above carry. What it can tell
+    is whether a ledger of each shape is in the table at all, and both shapes are ones only this
+    table can supply: this repository's own ledger skips nothing and begins at `001`, so a real
+    run is silent on both counts however the judgement is written.
+
+    A case whose ledger were spelled at some other path would drop out of both halves, and this
+    then says so: an unread fixture leaves the shape unasked, which is the failing answer.
+    """
+    ledgers = [(_pol_numbers(files), must) for check, _, files, must in cases if check is check_pols]
+
+    def contiguous(ns: list[int]) -> bool:
+        return ns == list(range(ns[0], ns[-1] + 1))
+
+    wrong = []
+    if not any(ns and not contiguous(ns) for ns, must in ledgers if must):
+        wrong.append(
+            "  check_pols has no ledger with a number missing that it must complain about, so a "
+            "欠番 judgement that had stopped looking would pass the self-test")
+    if not any(len(ns) >= 2 and ns[0] > 1 and contiguous(ns) for ns, must in ledgers if not must):
+        wrong.append(
+            "  check_pols has no sound ledger that begins above POL-001 and skips nothing, so a "
+            "欠番 judgement measured from POL-001 rather than from the lowest row filed would "
+            "pass the self-test -- and so would a real run, since this ledger begins at POL-001")
+    return wrong
+
+
 META = (
     ("every check is in CHECKS", lambda cases: [
         f"  {check.__name__} is not in CHECKS, so a real run never calls it"
@@ -1248,6 +1326,7 @@ META = (
         f"  {name} has no sound case it must let through"
         for name, check in CHECKS if check not in {c for c, _, _, m in cases if not m}
     ]),
+    ("the 欠番 arm is asked both ways", _the_numbering_arm_is_asked_both_ways),
 )
 
 
