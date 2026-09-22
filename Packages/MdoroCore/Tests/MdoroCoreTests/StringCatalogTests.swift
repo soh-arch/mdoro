@@ -44,8 +44,8 @@ private func sourceLanguage(_ path: String) throws -> String? {
 // Interpolated ones are left out: the key Xcode extracts for those depends on the type of each
 // interpolation (`%@` / `%lld` / …), which is not in the text. A literal with no interpolation is
 // its own key exactly.
-private func plainLocalizedLiterals(in text: String) -> [String] {
-    localizedStringLiterals(in: text).filter { !$0.contains("\\(") }
+private func plainLocalizedLiterals(in text: String) throws -> [String] {
+    try localizedStringLiterals(in: text).filter { !$0.contains("\\(") }
 }
 
 @Suite("The words the app shows live in a String Catalog (Decision 0022)")
@@ -60,7 +60,10 @@ struct StringCatalogTests {
             // are wrapped ones localises just as much, and skipping it here would let it keep no
             // catalogue at all.
             let localises = try swiftFiles(under: target.folder, recursive: true)
-                .filter { !localizedCalls(in: $0.value).isEmpty || $0.value.contains("LocalizedStringKey") }
+                .filter { file in
+                    let calls = try localizedCalls(in: file.value)
+                    return !calls.isEmpty || file.value.contains("LocalizedStringKey")
+                }
             guard !localises.isEmpty else { continue }
             let exists = FileManager.default.fileExists(
                 atPath: repositoryRoot.appendingPathComponent(target.catalogue).path
@@ -81,7 +84,7 @@ struct StringCatalogTests {
         for target in appTargets {
             let keys = try catalogueKeys(target.catalogue)
             for (name, text) in try swiftFiles(under: target.folder, recursive: true) {
-                for literal in plainLocalizedLiterals(in: text) {
+                for literal in try plainLocalizedLiterals(in: text) {
                     #expect(
                         keys.contains(literal),
                         "Decision 0022: \(name) asks for `\(literal)`, which \(target.catalogue) does not have"
