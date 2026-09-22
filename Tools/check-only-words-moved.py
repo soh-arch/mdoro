@@ -4,6 +4,7 @@
     python3 Tools/check-only-words-moved.py --comments-only
     python3 Tools/check-only-words-moved.py --words-only --base origin/main
     python3 Tools/check-only-words-moved.py --comments-only Packages/MdoroCore/Sources/A.swift
+    python3 Tools/check-only-words-moved.py --words-only --renamed declarationBody=bracedBody
 
 Four sweeps in a row (#127, #131, #132, #133) rested their whole case on one
 sentence: *nothing but comments moved; not one byte of code changed.* Each time
@@ -32,6 +33,33 @@ A sweep that rewrites an assertion's message is making the second claim and not
 the first, and the difference is the whole point of running this: the two modes
 disagree on exactly the change that matters, so the mode named in the pull
 request is itself part of the evidence.
+
+AND A RENAME MAKES A THIRD CLAIM, WHICH IS WHY IT NEEDS ITS OWN ARGUMENT:
+
+  --renamed old=new   `old` at --base is read as `new` before the two are
+                      compared. Repeat it once per identifier renamed.
+
+Given none, this tool is exactly what it was: nothing in code moved. Given some,
+the green line no longer says that and must not be read as if it did. It says
+*undoing this table makes it so* -- which is a narrower claim than a reader's eye
+over a rename diff, and a wider one than the modes above. #213 (a @Suite's name)
+and #217 (declarationBody -> bracedBody, and six names with it) were both of this
+shape, and each had a throwaway check written for it on the day, because the
+claim this tool prints would have been a lie over either of them.
+
+WHAT A RENAME TABLE DOES NOT BUY. Only the renames are forgiven. A sweep that
+renamed an identifier *and* changed a number, an operator, a call's arguments or
+-- under --comments-only -- a literal cannot be cleared here at all, and should
+not be: that is two changes, and this tool only ever answers one question. The
+table is applied to code, never to prose: an identifier that also occurs inside a
+string literal is not rewritten there, so under --comments-only such a sweep goes
+red, and under --words-only the prose was free to move anyway.
+
+A TABLE ENTRY THAT NEVER FIRED IS A PROBLEM. Not a shrug: the table *is* the
+claim, so an entry matching nothing means the claim on the screen names a rename
+that is not in the diff -- a typo in the flag, a stale line carried from the last
+sweep, or the wrong --base. All three read green today and would print a claim
+nobody could check.
 
 HOW IT WORKS. Each file is lexed as Swift into code, comments and string
 literals -- nested block comments, multiline strings, raw strings with their #
@@ -64,6 +92,7 @@ and an exit status of 1, never a silent pass:
   - no .swift to compare at all: comparing nothing and calling it clean is the
     same mistake wearing a file count of zero
   - being run from outside a git repository at all
+  - a --renamed entry that matched nothing anywhere (see above)
 
 WHICH TREE IT READS. The one the caller is standing in -- `git rev-parse
 --show-toplevel` from the working directory -- and never the one this script
@@ -90,7 +119,9 @@ Output and exit status follow Tools/check-docs.py: one `ok — ...` line and 0, 
 """
 from __future__ import annotations
 import argparse
+import collections
 import difflib
+import re
 import subprocess
 import sys
 import urllib.parse
@@ -310,6 +341,55 @@ class Lexer:
         return Literal(parts, src[start:self.i])
 
 
+# --- the identifiers the caller says were renamed ------------------------------
+# An identifier, because \b only means what it should around one: `[A-Za-z_][A-Za-z0-9_]*`
+# has no regex metacharacter in it and no boundary inside it. Anything else -- a phrase, a
+# call with its parentheses, a fragment of an operator -- would substitute in places
+# nobody could predict from reading the flag, and the flag is the claim.
+IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
+
+
+@dataclass
+class Renaming:
+    """The table, applied to --base's code so that it reads like the working tree's.
+
+    Applied to --base rather than the other way about for one reason: when it does not
+    match, the report should say `declarationBody -> bracedBody` in the direction the
+    author renamed, so that a reader holds the diff and the report the same way round.
+
+    Every entry is applied in a single pass, so `a=b` and `b=c` in one table cannot chain
+    into `a=c`. Two rules applied in sequence depend on which order they were typed in,
+    and nothing in a command line says an order was meant.
+    """
+
+    table: dict[str, str]
+    fired: collections.Counter = field(default_factory=collections.Counter)
+    pattern: re.Pattern | None = None
+
+    def __post_init__(self) -> None:
+        # Longest first so that an entry is not shadowed by another that is its prefix --
+        # \b would not stop `body` from being tried inside `bodyText` were the shorter one
+        # first, and although \b does stop it, the order costs nothing and says so.
+        names = sorted(self.table, key=len, reverse=True)
+        self.pattern = re.compile(r"\b(?:" + "|".join(re.escape(n) for n in names) + r")\b")
+
+    def apply(self, text: str) -> str:
+        def once(m: re.Match) -> str:
+            self.fired[m.group(0)] += 1
+            return self.table[m.group(0)]
+
+        return self.pattern.sub(once, text)
+
+    def never_fired(self) -> list[str]:
+        return [old for old in self.table if not self.fired[old]]
+
+    def as_lines(self) -> list[str]:
+        return [
+            f"{old} -> {new} ({self.fired[old]} occurrence(s) at base)"
+            for old, new in sorted(self.table.items())
+        ]
+
+
 # --- from pieces to a skeleton -------------------------------------------------
 # A literal is carried as one word with no whitespace in it, so that normalising the
 # whitespace around code cannot reach inside a string and quietly forgive a change there.
@@ -317,10 +397,13 @@ def one_word(text: str) -> str:
     return urllib.parse.quote(text, safe="")
 
 
-def emit(segments: list, mode: str, out: list[str]) -> None:
+def emit(segments: list, mode: str, out: list[str], renaming: Renaming | None = None) -> None:
     for s in segments:
         if isinstance(s, Code):
-            out.append(s.text)
+            # Code only. A rename does not reach into prose, and reaching in here would
+            # forgive a rewritten message under --comments-only, which is that mode's
+            # entire subject.
+            out.append(renaming.apply(s.text) if renaming else s.text)
         elif isinstance(s, Comment):
             # A comment separates the tokens on either side of it: `a/*x*/b` is two
             # tokens, not `ab`. Dropping it to nothing would join them.
@@ -335,7 +418,7 @@ def emit(segments: list, mode: str, out: list[str]) -> None:
                 for p in s.parts:
                     if isinstance(p, Interp):
                         out.append(" interp( ")
-                        emit(p.segments, mode, out)
+                        emit(p.segments, mode, out, renaming)
                         out.append(" ) ")
                 out.append(" ) ")
 
@@ -400,11 +483,11 @@ class Skeleton:
         return self.text.split(" ") if self.text else []
 
 
-def skeleton_of(source: str, path: str, mode: str) -> Skeleton:
+def skeleton_of(source: str, path: str, mode: str, renaming: Renaming | None = None) -> Skeleton:
     lexer = Lexer(source, path)
     segments = lexer.scan()
     out: list[str] = []
-    emit(segments, mode, out)
+    emit(segments, mode, out, renaming)
     text = " ".join("".join(out).split())
     literals = count_literals(segments)
     return Skeleton(text, literals, lexer.problems + guards(path, mode, text, literals, segments))
@@ -562,13 +645,15 @@ def first_differences(before: list[str], after: list[str], limit: int = 3) -> li
     return told
 
 
-def compare(tree: Path, path: str, base: str, mode: str) -> tuple[int, int] | None:
+def compare(
+    tree: Path, path: str, base: str, mode: str, renaming: Renaming | None = None
+) -> tuple[int, int] | None:
     """Returns (skeleton size, literal count) when the file could be read at all."""
     there, here = at_base(tree, base, path), in_tree(tree, path)
     if there is None or here is None:
         return None
 
-    was = skeleton_of(there, f"{base}:{path}", mode)
+    was = skeleton_of(there, f"{base}:{path}", mode, renaming)
     now = skeleton_of(here, path, mode)
     for p in was.problems + now.problems:
         note("unreadable", p)
@@ -577,13 +662,20 @@ def compare(tree: Path, path: str, base: str, mode: str) -> tuple[int, int] | No
 
     if was.text != now.text:
         moved = "outside comments and prose" if mode == WORDS_ONLY else "outside comments"
+        if renaming:
+            # Said on the red line too: a reader looking at a difference here needs to know
+            # the left-hand side has already had the table applied to it, or they will go
+            # hunting for the rename in it.
+            moved += " even with the rename table applied"
         note("moved", f"{path} differs from {base} {moved}:")
         for line in first_differences(was.chunks, now.chunks):
             note("moved", f"    {line}")
     return len(now.text), now.literals
 
 
-def report(read: list[tuple[str, int, int]], base: str, mode: str) -> int:
+def report(
+    read: list[tuple[str, int, int]], base: str, mode: str, renaming: Renaming | None = None
+) -> int:
     for path, size, literals in read:
         print(f"  {path}  —  {size} skeleton chars, {literals} literal(s)")
     if read:
@@ -594,6 +686,25 @@ def report(read: list[tuple[str, int, int]], base: str, mode: str) -> int:
             print(f"  {f}")
         return 1
     moved = "only words moved" if mode == WORDS_ONLY else "only comments moved"
+    if renaming:
+        # A DIFFERENT CLAIM, SO A DIFFERENT SENTENCE. Printing the line below over a rename
+        # sweep would be the tool telling the lie it exists to catch: nothing about the
+        # identifiers held still, and `only comments moved` says they did. Both #213 and
+        # #217 were renames, and both had a throwaway check written for them rather than
+        # this one, for exactly that reason.
+        print(
+            f"ok — {len(read)} file(s) compared against {base}; once the {len(renaming.table)} "
+            f"rename(s) below were applied to {base}, {moved} — each skeleton matched end to "
+            f"end, all of it and not a sample of it"
+        )
+        print("\n  the claim is NOT that nothing but words moved. It is that undoing this makes it so:")
+        for line in renaming.as_lines():
+            print(f"    {line}")
+        print(
+            "\n  and nothing else was forgiven: a sweep that also moved a number, an operator, an\n"
+            "  argument or a literal cannot come out green here, and is two changes rather than one."
+        )
+        return 0
     # Said out loud because the red half of this report *is* a sample (see first_differences)
     # and the green half is not, and nothing in `ok — 15 file(s) compared` told the two
     # apart. A reader who suspects green of being a sample re-reads the files by hand; the
@@ -603,6 +714,28 @@ def report(read: list[tuple[str, int, int]], base: str, mode: str) -> int:
         f"each skeleton matched end to end, all of it and not a sample of it"
     )
     return 0
+
+
+def rename_table(parser: argparse.ArgumentParser, given: list[str]) -> Renaming | None:
+    """Turn the repeated --renamed flags into one table, or refuse them.
+
+    Refused rather than noted, because these are the caller's words and not the
+    repository's: a misspelt flag is a usage error, and answering it with a red run about
+    the Swift would put the blame in the wrong place.
+    """
+    table: dict[str, str] = {}
+    for entry in given:
+        old, sep, new = entry.partition("=")
+        if not sep:
+            parser.error(f"--renamed {entry} is not old=new")
+        if not IDENTIFIER.match(old) or not IDENTIFIER.match(new):
+            parser.error(f"--renamed {entry}: both sides must be Swift identifiers")
+        if old == new:
+            parser.error(f"--renamed {entry} renames nothing")
+        if old in table:
+            parser.error(f"--renamed names {old} twice, as {table[old]} and as {new}")
+        table[old] = new
+    return Renaming(table) if table else None
 
 
 def main() -> int:
@@ -625,8 +758,22 @@ def main() -> int:
         help="comments, blank lines and the prose inside string literals may move; nothing else",
     )
     parser.add_argument("--base", default="origin/main", help="the ref to compare against (default: origin/main)")
+    parser.add_argument(
+        "--renamed",
+        metavar="OLD=NEW",
+        action="append",
+        default=[],
+        help=(
+            "read the identifier OLD at --base as NEW before comparing; repeat once per rename. "
+            "Given any, the green line claims only that undoing this table makes the mode's claim "
+            "true -- nothing else is forgiven, so a sweep that renamed and also changed a number, "
+            "an operator or a literal cannot be cleared here. An entry that matches nothing is a "
+            "problem, not a shrug"
+        ),
+    )
     parser.add_argument("paths", nargs="*", help="files to compare (default: the .swift the diff names)")
     args = parser.parse_args()
+    renaming = rename_table(parser, args.renamed)
 
     tree = toplevel(Path.cwd())
     if tree is None:
@@ -665,10 +812,21 @@ def main() -> int:
 
     read = []
     for path in paths:
-        got = compare(tree, path, args.base, args.mode)
+        got = compare(tree, path, args.base, args.mode, renaming)
         if got is not None:
             read.append((path, *got))
-    return report(read, args.base, args.mode)
+
+    # Asked after every file, since a rename may live in one file of many. The table is the
+    # claim, so an entry that matched nothing means the claim names a rename that is not
+    # there -- a typo in the flag, a line left over from the last sweep, or the wrong --base.
+    if renaming:
+        for old in renaming.never_fired():
+            note(
+                "renamed",
+                f"--renamed {old}={renaming.table[old]} matched nothing at {args.base} in the "
+                f"{len(read)} file(s) read, so the green line would claim a rename that is not here",
+            )
+    return report(read, args.base, args.mode, renaming)
 
 
 if __name__ == "__main__":

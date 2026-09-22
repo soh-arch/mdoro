@@ -19,6 +19,12 @@ A fourth kind was added later, and it is about the report rather than the answer
 what it says when it has printed only some of what it found, and what it says
 when it has printed all of it. Either line read like the other until #202.
 
+A fifth came with --renamed, and it is about the claim rather than the report: a
+rename table changes what green *means*, from `nothing in code moved` to `undoing
+this table makes that so`. So the cases below ask not only that the answer flips
+where it should, but that the two sentences differ -- a tool that printed the
+older claim over a rename sweep would be telling the lie it exists to catch.
+
 Each case builds a real repository: a bare one to be origin, a work clone beside
 it, a real Swift file committed and pushed, and a working tree that differs from
 it by one deliberate edit. Nothing is stubbed and no network is used -- origin is
@@ -40,6 +46,7 @@ finds a different number again.
 '''
 from __future__ import annotations
 import importlib.util
+import re
 import shutil
 import subprocess
 import sys
@@ -639,6 +646,214 @@ class WhenTheToolItselfIsBroken(WithTheModuleLoaded):
             got = self.tool.skeleton_of(SWIFT, WHERE, mode)
             self.assertEqual(got.problems, [], mode)
             self.assertEqual(got.literals, LITERALS, mode)
+
+
+class WhenIdentifiersWereRenamed(AgainstARealRepository):
+    """--renamed, which is a third claim rather than a third mode.
+
+    #213 renamed a @Suite; #217 renamed declarationBody and six names with it. Neither
+    could be put to this tool -- the claim it printed would have been false over both -- so
+    each had a throwaway check written on the day, which is the shape of failure this whole
+    file exists about.
+    """
+
+    def renamed_in_the_tree(self, *pairs: tuple[str, str]) -> None:
+        """Rename identifiers in the working tree, on word boundaries and nowhere else.
+
+        Word boundaries because a plain replace would also rewrite the prose that happens
+        to contain the word -- `name` inside "A notice names the file" -- and the point of
+        several cases below is that a rename is a change to code and the prose held still.
+        """
+        text = SWIFT
+        for old, new in pairs:
+            where = re.compile(rf"\b{re.escape(old)}\b")
+            self.assertTrue(where.search(text), f"the specimen holds no identifier {old}")
+            text = where.sub(new, text)
+        self.now_reads(text)
+
+    ONE = ("--renamed", "attempts=tries")
+
+    # --- the answer -----------------------------------------------------------
+    def test_a_rename_is_caught_when_no_table_is_given(self) -> None:
+        # The default behaviour, unchanged: with no table this is the tool it always was,
+        # and a rename is a word that moved.
+        self.renamed_in_the_tree(("attempts", "tries"))
+        said = self.caught("--words-only", WHERE)
+        self.assertIn("tries", said)
+
+    def test_the_same_rename_is_let_through_when_the_table_names_it(self) -> None:
+        self.renamed_in_the_tree(("attempts", "tries"))
+        self.let_through("--words-only", *self.ONE, WHERE)
+
+    def test_a_rename_is_let_through_in_the_stricter_mode_too(self) -> None:
+        # Nothing but identifiers moved here, so the strict mode has no quarrel either.
+        self.renamed_in_the_tree(("attempts", "tries"))
+        self.let_through("--comments-only", *self.ONE, WHERE)
+
+    def test_a_rename_inside_an_interpolation_is_let_through(self) -> None:
+        # `name` is declared, passed to a call, and interpolated inside two literals, one of
+        # them raw. The table has to reach the code inside a literal and not its prose.
+        self.renamed_in_the_tree(("name", "label"))
+        said = self.let_through("--words-only", "--renamed", "name=label", WHERE)
+        self.assertIn(f"{LITERALS} literal(s)", said)
+
+    def test_a_rename_that_also_changes_a_number_is_caught(self) -> None:
+        # The case the table must not buy: two changes, of which only one was declared.
+        self.renamed_in_the_tree(("attempts", "tries"))
+        self.now_reads((self.repo / WHERE).read_text().replace("tries = 3", "tries = 4"))
+        said = self.caught("--words-only", *self.ONE, WHERE)
+        self.assertIn("4", said)
+
+    def test_a_rename_that_also_turns_an_assertion_around_is_caught(self) -> None:
+        self.renamed_in_the_tree(("describe", "explain"))
+        self.now_reads((self.repo / WHERE).read_text().replace("explain(name) ==", "explain(name) !="))
+        said = self.caught("--words-only", "--renamed", "describe=explain", WHERE)
+        self.assertIn("!=", said)
+
+    def test_a_table_that_names_the_rename_backwards_does_not_clear_it(self) -> None:
+        # The direction is old=new, as the author renamed. Typed the other way about it
+        # matches nothing at base, which is the unfired complaint rather than a green line.
+        self.renamed_in_the_tree(("attempts", "tries"))
+        said = self.caught("--words-only", "--renamed", "tries=attempts", WHERE)
+        self.assertIn("matched nothing", said)
+
+    def test_only_the_renames_named_are_forgiven(self) -> None:
+        # Two renames in the tree, one in the table. The undeclared one is still a word
+        # that moved, and the declared one must not cover for it.
+        self.renamed_in_the_tree(("attempts", "tries"), ("describe", "explain"))
+        said = self.caught("--words-only", *self.ONE, WHERE)
+        self.assertIn("explain", said)
+        self.assertNotIn("tries", said)
+
+    def test_a_table_entry_that_matched_nothing_is_a_problem(self) -> None:
+        # The table is the claim. An entry matching nothing means the sentence on the
+        # screen names a rename that is not in the diff -- a typo in the flag, a line left
+        # over from the last sweep, or the wrong --base. All three used to read green.
+        self.renamed_in_the_tree(("attempts", "tries"))
+        said = self.caught("--words-only", *self.ONE, "--renamed", "noSuchName=other", WHERE)
+        self.assertIn("noSuchName=other matched nothing", said)
+        self.assertNotIn("ok —", said)
+
+    def test_an_entry_that_fires_in_one_file_of_two_is_not_unfired(self) -> None:
+        # Asked after every file, not per file: a rename usually lives in some of them.
+        self.commit("Packages/Other.swift", 'let count = 1\nlet said = "a"\n')
+        self.renamed_in_the_tree(("attempts", "tries"))
+        self.now_reads('let count = 1\nlet said = "a and so on"\n', path="Packages/Other.swift")
+        done = self.run_tool("--words-only", *self.ONE)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("2 file(s) compared", done.stdout)
+
+    def test_the_table_does_not_reach_the_prose_of_a_literal(self) -> None:
+        # There is no allowlist for literals here, on purpose: a sweep that renamed and
+        # also rewrote a message under --comments-only is two changes. Under --words-only
+        # the prose was free to move with or without a table.
+        self.renamed_in_the_tree(("attempts", "tries"))
+        self.now_reads(
+            (self.repo / WHERE).read_text().replace('"Task.md is read only"', '"Task.md is opened read-only"')
+        )
+        self.assertIn("Task.md is", self.caught("--comments-only", *self.ONE, WHERE))
+        self.let_through("--words-only", *self.ONE, WHERE)
+
+    # --- the claim ------------------------------------------------------------
+    def test_the_green_line_says_the_claim_rests_on_the_table(self) -> None:
+        self.renamed_in_the_tree(("attempts", "tries"))
+        said = self.let_through("--words-only", *self.ONE, WHERE)
+        self.assertIn("rename(s) below were applied", said)
+        self.assertIn("the claim is NOT that nothing but words moved", said)
+        self.assertIn("attempts -> tries", said)
+
+    def test_the_green_line_without_a_table_claims_nothing_about_renames(self) -> None:
+        # The other half of the pair. Given no table the sentence must be the old one, or
+        # every run of this tool would start hedging about a table nobody passed.
+        self.instead_of('"Task.md is read only"', '"Task.md is opened read-only"')
+        said = self.let_through("--words-only", WHERE)
+        self.assertIn("only words moved", said)
+        self.assertNotIn("rename", said)
+        self.assertNotIn("the claim is NOT", said)
+
+    def test_the_green_line_counts_the_occurrences_it_rewrote(self) -> None:
+        # So that two runs over the same table can be held against each other, and so that
+        # a table entry firing once where the author expected thirty is visible.
+        self.renamed_in_the_tree(("attempts", "tries"))
+        said = self.let_through("--words-only", *self.ONE, WHERE)
+        self.assertIn("attempts -> tries (2 occurrence(s) at base)", said)
+
+    def test_the_green_line_says_nothing_else_was_forgiven(self) -> None:
+        self.renamed_in_the_tree(("attempts", "tries"))
+        self.assertIn("nothing else was forgiven", self.let_through("--words-only", *self.ONE, WHERE))
+
+    def test_the_red_line_says_the_table_had_already_been_applied(self) -> None:
+        # Otherwise a reader goes hunting for the rename in a left-hand side that has
+        # already had it applied.
+        self.renamed_in_the_tree(("attempts", "tries"), ("describe", "explain"))
+        said = self.caught("--words-only", *self.ONE, WHERE)
+        self.assertIn("even with the rename table applied", said)
+
+    # --- the flag itself ------------------------------------------------------
+    def test_a_table_entry_with_no_equals_sign_is_refused(self) -> None:
+        done = self.run_tool("--words-only", "--renamed", "attempts", WHERE)
+        self.assertEqual(done.returncode, 2, done.stdout + done.stderr)
+        self.assertIn("is not old=new", done.stderr)
+
+    def test_a_side_that_is_not_an_identifier_is_refused(self) -> None:
+        # \b means what it should around an identifier and nowhere else, so a phrase or a
+        # call would substitute in places nobody could predict from reading the flag.
+        done = self.run_tool("--words-only", "--renamed", "attempts=let tries", WHERE)
+        self.assertEqual(done.returncode, 2, done.stdout + done.stderr)
+        self.assertIn("must be Swift identifiers", done.stderr)
+
+    def test_an_entry_that_renames_nothing_is_refused(self) -> None:
+        done = self.run_tool("--words-only", "--renamed", "attempts=attempts", WHERE)
+        self.assertEqual(done.returncode, 2, done.stdout + done.stderr)
+        self.assertIn("renames nothing", done.stderr)
+
+    def test_the_same_name_renamed_twice_is_refused(self) -> None:
+        # Silently keeping the last would make the claim on the screen depend on an order
+        # the flag never promised.
+        done = self.run_tool("--words-only", "--renamed", "a=b", "--renamed", "a=c", WHERE)
+        self.assertEqual(done.returncode, 2, done.stdout + done.stderr)
+        self.assertIn("twice", done.stderr)
+
+
+class TheTableItself(WithTheModuleLoaded):
+    """Renaming, asked directly, for the parts a command line cannot arrange."""
+
+    def test_every_entry_is_applied_in_one_pass_so_two_cannot_chain(self) -> None:
+        # a=b and b=c applied in sequence turn `a` into `c`, and which sequence depends on
+        # the order the flags were typed in. Nothing in a command line promises an order.
+        table = self.tool.Renaming({"a": "b", "b": "c"})
+        self.assertEqual(table.apply("a b a"), "b c b")
+
+    def test_a_longer_name_is_not_shadowed_by_a_shorter_one(self) -> None:
+        table = self.tool.Renaming({"body": "trunk", "bodyText": "trunkText"})
+        self.assertEqual(table.apply("body bodyText"), "trunk trunkText")
+
+    def test_a_name_inside_a_longer_one_is_left_alone(self) -> None:
+        table = self.tool.Renaming({"body": "trunk"})
+        self.assertEqual(table.apply("body bodyText somebody body_text"), "trunk bodyText somebody body_text")
+
+    def test_the_table_rewrites_code_and_not_the_prose_beside_it(self) -> None:
+        # Under --comments-only a literal is carried whole into the skeleton, so this is
+        # where prose being rewritten would show: `Task` occurs in this specimen only
+        # inside literals, and must survive a table that names it.
+        table = self.tool.Renaming({"Task": "Job"})
+        got = self.tool.skeleton_of(SWIFT, WHERE, self.tool.COMMENTS_ONLY, table)
+        self.assertIn("Task.md", got.text)
+        self.assertNotIn("Job", got.text)
+        self.assertEqual(table.fired["Task"], 0)
+
+    def test_an_unfired_entry_is_named_and_a_fired_one_is_not(self) -> None:
+        table = self.tool.Renaming({"attempts": "tries", "noSuchName": "other"})
+        self.tool.skeleton_of(SWIFT, WHERE, self.tool.WORDS_ONLY, table)
+        self.assertEqual(table.never_fired(), ["noSuchName"])
+
+    def test_a_skeleton_built_with_no_table_is_the_one_it_always_was(self) -> None:
+        # The promise that matters most about this argument: given none, nothing changed.
+        with_none = self.tool.skeleton_of(SWIFT, WHERE, self.tool.WORDS_ONLY)
+        with_empty = self.tool.skeleton_of(SWIFT, WHERE, self.tool.WORDS_ONLY, None)
+        self.assertEqual(with_none.text, with_empty.text)
+        self.assertNotIn("tries", with_none.text)
+        self.assertIn("attempts", with_none.text)
 
 
 if __name__ == "__main__":
