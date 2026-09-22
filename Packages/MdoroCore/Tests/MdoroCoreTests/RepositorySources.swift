@@ -150,14 +150,27 @@ func beforeEachAnchor(_ anchor: String, in text: String, of path: String) throws
 // literal and a raw (`#"`, `##"`, …) one both meet `UnreadableLiteral`. Cutting a short window for
 // them would be the failure above arriving through the function meant to stop it. **That these two
 // are the ones named is not a reason to believe they are all of them.**
+//
+// **Two ways to have no brace to stop at, told apart the way `callArguments` tells its two apart.**
+// Either nothing the marker names opened a brace at all, or one opened and none closed it — and a
+// reader who meets the failure is looking for the marker, so it says which. **Unlike `callArguments`,
+// this cannot be settled from the marker before the scan**: a marker is *allowed* to stop short of
+// the opening brace (`func refuse(` does, and that is a supported shape), so "opens no brace" is a
+// finding about the text rather than about the marker's spelling. It is read off the scan instead —
+// the enclosing scope closing first (`depth < 0`, which is reachable only from a marker that took no
+// brace), or the text running out with no brace ever having opened.
 struct UnbalancedBraces: Error, CustomStringConvertible {
     let marker: String
+    let markerOpensNoBrace: Bool
     // **What the marker opened, rather than "the declaration".** The marker may have named a branch
     // or a closure, and a reader who meets this sentence in a red run is reading the name of the
     // failure and this line, not the paragraphs above them.
     var description: String {
-        "no brace closes what `\(marker)` opened — the marker names something else now, "
-            + "or the file is truncated"
+        markerOpensNoBrace
+            ? "`\(marker)` opens no brace, so there is no brace for a window to end at — the marker "
+                + "names something else now, or something written without a pair of them"
+            : "no brace closes what `\(marker)` opened — the marker names something else now, "
+                + "or the file is truncated"
     }
 }
 
@@ -299,6 +312,9 @@ func bracedBody(openedBy text: some StringProtocol, _ marker: String) throws -> 
     // Read off the marker, because the text cannot answer it.
     let markerTookTheOpeningBrace = marker.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("{")
     var depth = markerTookTheOpeningBrace ? 1 : 0
+    // Which of the two failures a failure would be. A marker that took the brace has opened one by
+    // definition; otherwise it takes a `{` in the text to have opened anything.
+    var somethingOpened = markerTookTheOpeningBrace
     var scan = StringLiteralSkipping()
     for index in opened.indices {
         let character = opened[index]
@@ -306,17 +322,22 @@ func bracedBody(openedBy text: some StringProtocol, _ marker: String) throws -> 
         switch character {
         case "{":
             depth += 1
+            somethingOpened = true
         case "}":
             depth -= 1
             if depth == 0 { return String(opened[opened.startIndex..<index]) }
-            // Closing what was never opened: the marker opened no brace at all, or it named something
-            // whose brace the marker was expected to have taken and did not.
-            if depth < 0 { throw UnbalancedBraces(marker: marker) }
+            // Closing what was never opened: the scope the marker sits in ended before anything the
+            // marker names opened a brace. Only a marker that took no brace can reach this — from
+            // depth 1 the same `}` is the end of the window — so it is the first of the two failures.
+            if depth < 0 { throw UnbalancedBraces(marker: marker, markerOpensNoBrace: true) }
         default:
             break
         }
     }
-    throw UnbalancedBraces(marker: marker)
+    // Out of text. Which failure it is depends on whether a brace was ever opened: one that opened
+    // and did not close is a truncated or renamed body, and no brace at all is a marker that names
+    // nothing written with a pair of them.
+    throw UnbalancedBraces(marker: marker, markerOpensNoBrace: !somethingOpened)
 }
 
 // **The same window, ended by the other bracket.** The scans above anchor on something written with
@@ -329,7 +350,7 @@ func bracedBody(openedBy text: some StringProtocol, _ marker: String) throws -> 
 // **`bracedBody` cannot cut these.** Anchored on a call, the text begins inside an argument list, so
 // the next `}` it meets closes the scope the call sits in rather than anything the call opened — the
 // window it answers is the rest of the enclosing declaration, handed over as a body.
-// `aMarkerThatOpenedNoBraceIsAnErrorRatherThanAWindow` holds that, and it is why there are two
+// `aMarkerThatOpensNoBraceIsAnErrorRatherThanAWindow` holds that, and it is why there are two
 // functions here rather than one. **The bracket that ends a call is the `)` matching the one the
 // marker opened.**
 //
