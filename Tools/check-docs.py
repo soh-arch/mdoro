@@ -958,6 +958,33 @@ CASES = (
             "| **POL-003** | the row it points at, which also points back at POL-002 |\n"
         ),
     }, False),
+    # The VERBATIM exclusion, both halves, in nearly the words check_links asks them in -- the pair
+    # over there is the model, and this check reaches the same exclusion through markdown_files()
+    # while nothing held either side of it. The nine cases above all keep their fixtures outside
+    # `experiments/`, so deleting the exclusion and widening it to cover the index were both
+    # silent here (2026-09-22).
+    #
+    # Neither shape can come from this tree. Every POL number cited under docs/experiments/ is one
+    # the ledger files (374 rows, measured the same day), so THIS check is silent on the exclusion
+    # in a real run however it is written, and the cases are the only place it gets asked. Breaking
+    # the exclusion does turn a real run red -- on links, inline paths and requirement ids, the
+    # other readers of markdown_files() -- and that is their cases' business, not a reason for this
+    # check to have none. What the fixtures have to supply is a citation of a number nobody filed,
+    # once inside a frozen report and once inside the index over them.
+    #
+    # The report sits a directory down, the way the real ones do -- a run gets a dated directory
+    # and the reports go inside it. That is also what pins the exemption to `experiments` being
+    # anywhere in the path rather than to it being the parent: narrow the test to `f.parent.name`
+    # and a flat fixture goes on passing while every report this repository actually keeps stops
+    # being exempt.
+    (check_pols, "a report kept verbatim is exempt, however it cites the ledger", {
+        "docs/PUNCHLIST.md": "| **POL-001** | a |\n",
+        "docs/experiments/a-run/a-report.md": "the run was filed as POL-002 that afternoon\n",
+    }, False),
+    (check_pols, "but the index over those reports is ours", {
+        "docs/PUNCHLIST.md": "| **POL-001** | a |\n",
+        "docs/experiments/README.md": "the run was filed as POL-002 that afternoon\n",
+    }, True),
 
     (check_pol_free_swift, "a comment in Swift citing the ledger", {
         "Packages/MdoroCore/Sources/A.swift": "// POL-001: why this line is here\n",
@@ -1290,14 +1317,21 @@ SELF_TEST = (
 # check is not one question, and the polarity of the check is not the polarity of its arms.
 #
 # COVERAGE WOULD NOT HAVE FOUND IT. Measured on 2026-09-22, over the table as it stood and again
-# with the case below added: 38 of the 40 if-statements inside the checks are taken both ways, and
-# `if gaps:` was already one of the 38 -- its silent side ran on every case whose ledger held one
-# or two rows. What was missing is a shape of input, not a line of code. So the claim below is
-# written about the shape.
+# with each of the cases below added: 38 of the 40 if-statements inside the checks are taken both
+# ways, and `if gaps:` was already one of the 38 -- its silent side ran on every case whose ledger
+# held one or two rows. What was missing is a shape of input, not a line of code. So the claims
+# below are written about the shape.
 #
-# It asks about one arm of one check, which is narrower than anything else here and is meant as a
-# precedent rather than a pattern: the arms of the other ten checks are not held to this, and on
-# the same measurement two of them were reached only one way.
+# The second arm held this way, the VERBATIM exclusion, is further out of coverage's reach still:
+# it is a conditional expression inside a comprehension in markdown_files(), so it is not one of
+# the 40 at all, and there is no branch for a measurement to report as uncovered. Both arms were
+# found the same way instead -- by someone reading the cases and noticing which shapes of input
+# none of them had.
+#
+# Each asks about one arm of one check, which is narrower than anything else here. The 欠番 claim
+# was written as a precedent rather than a pattern, and this is the precedent being followed once:
+# the arms of the other ten checks are still not held to this, and on the same measurement two of
+# them were reached only one way.
 def _pol_numbers(files: dict[str, str]) -> list[int]:
     """The numbers a fixture ledger files, read the way check_pols reads them."""
     return sorted({int(n) for n in POL_ROW.findall(files.get("docs/PUNCHLIST.md", ""))})
@@ -1333,6 +1367,58 @@ def _the_numbering_arm_is_asked_both_ways(cases) -> list[str]:
     return wrong
 
 
+def _cites_an_unfiled_pol_under_verbatim(files: dict[str, str], *, index: bool) -> bool:
+    """Whether some fixture file under the exempt directory cites a number the fixture ledger lacks.
+
+    `index` picks which side of the exclusion is wanted: the README the exclusion reads back in,
+    or any other file under it. The citation has to be of an unfiled number, because a report
+    citing a filed one says nothing about being exempt -- check_pols is silent on it either way.
+
+    Read off the fixture's own path rather than through markdown_files(): a question about
+    whether the cases ask about the exclusion must not be answered by the exclusion. VERBATIM
+    itself is used, so that renaming the exempt directory without moving the fixtures leaves the
+    shape unasked and this says so.
+    """
+    filed = _pol_numbers(files)
+    for name, body in files.items():
+        path = Path(name)
+        if VERBATIM not in path.parts or (path.name == "README.md") != index:
+            continue
+        if any(int(n) not in filed for n in re.findall(r"POL-(\d+)", body)):
+            return True
+    return False
+
+
+def _the_verbatim_exclusion_is_asked_both_ways(cases) -> list[str]:
+    """Ask the case table for a frozen report that is exempt, and for an index that is not.
+
+    The same limit as the claim above: neither half can tell why a case complains or stays
+    silent, only that a fixture of each shape is in the table. And as there, both shapes are ones
+    only this table can supply -- every POL number cited under docs/experiments/ in this
+    repository is filed, so check_pols is silent on this exclusion in a real run however it is
+    written. Other checks reading markdown_files() do fire there; their cases answer for them.
+
+    A fixture moved out from under the exempt directory, or renamed to or from README.md, drops
+    out of the half it was serving and this then says so: the placing and the name ARE the
+    question here, which is why they are what gets looked at.
+    """
+    pols = [(files, must) for check, _, files, must in cases if check is check_pols]
+    wrong = []
+    if not any(_cites_an_unfiled_pol_under_verbatim(files, index=False)
+               for files, must in pols if not must):
+        wrong.append(
+            f"  check_pols has no exempt file under {VERBATIM}/ citing an unfiled POL that it must "
+            "let through, so an exclusion that had stopped exempting anything would pass this "
+            "check's cases -- and a real run of it, since every POL cited under there is filed")
+    if not any(_cites_an_unfiled_pol_under_verbatim(files, index=True)
+               for files, must in pols if must):
+        wrong.append(
+            f"  check_pols has no README.md under {VERBATIM}/ citing an unfiled POL that it must "
+            "catch, so an exclusion widened over the index as well would pass this check's cases "
+            "-- and the index is the one file under there that is ours")
+    return wrong
+
+
 META = (
     ("every check is in CHECKS", lambda cases: [
         f"  {check.__name__} is not in CHECKS, so a real run never calls it"
@@ -1347,6 +1433,7 @@ META = (
         for name, check in CHECKS if check not in {c for c, _, _, m in cases if not m}
     ]),
     ("the 欠番 arm is asked both ways", _the_numbering_arm_is_asked_both_ways),
+    ("the verbatim exclusion is asked both ways", _the_verbatim_exclusion_is_asked_both_ways),
 )
 
 
