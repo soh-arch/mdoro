@@ -15,6 +15,10 @@ forgotten:
     overridden, and an overridden check has stopped being a check,
   - and the tool itself broken, which must end in a problem and never in green.
 
+A fourth kind was added later, and it is about the report rather than the answer:
+what it says when it has printed only some of what it found, and what it says
+when it has printed all of it. Either line read like the other until #202.
+
 Each case builds a real repository: a bare one to be origin, a work clone beside
 it, a real Swift file committed and pushed, and a working tree that differs from
 it by one deliberate edit. Nothing is stubbed and no network is used -- origin is
@@ -118,6 +122,14 @@ class AgainstARealRepository(unittest.TestCase):
         """One deliberate edit to the specimen, asserted to have landed somewhere."""
         self.assertIn(was, SWIFT, "the case is editing something the specimen does not contain")
         self.now_reads(SWIFT.replace(was, now))
+
+    def instead_of_each(self, *edits: tuple[str, str]) -> None:
+        """Several edits at once, for the cases about how many differences get printed."""
+        text = SWIFT
+        for was, now in edits:
+            self.assertIn(was, text, "the case is editing something the specimen does not contain")
+            text = text.replace(was, now)
+        self.now_reads(text)
 
     def run_tool(self, *args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -258,6 +270,69 @@ class WhereTheTwoModesPartCompany(AgainstARealRepository):
     def test_the_two_modes_cannot_both_be_claimed(self) -> None:
         done = self.run_tool("--comments-only", "--words-only", WHERE)
         self.assertEqual(done.returncode, 2, done.stdout + done.stderr)
+
+
+class WhatTheReportSaysAboutItself(AgainstARealRepository):
+    '''Whether a reader can tell the sampled half of the report from the counted half.
+
+    Both halves used to read like a complete list. The red one prints the first three
+    differing runs of words and stopped there in silence, so #202's pull request said
+    "three non-comment changes" -- three being what came out -- and raising the cut found
+    six. The green one really is complete, and said nothing about that either, so the same
+    reader had no way to know that `ok` was not a spot check of its own.
+
+    The cut stays at three. What these cases ask is that the output own its own edge.
+    '''
+
+    # Four differing runs in the skeleton: the struct's name, the number, the operator, and
+    # the reordered tuple at the end. Three are printed, so exactly one is held back -- the
+    # smallest truncation there is, and the one a reader is least likely to suspect.
+    FOUR_RUNS = (
+        ("struct ANoticeTests {", "struct ANoticedTests {"),
+        ("let attempts = 3", "let attempts = 4"),
+        ("describe(name) ==", "describe(name) !="),
+        ("_ = (sample, raw, attempts)", "_ = (raw, sample, attempts)"),
+    )
+
+    def test_a_truncated_list_says_how_many_it_held_back(self) -> None:
+        self.instead_of_each(*self.FOUR_RUNS)
+        said = self.caught("--words-only", WHERE)
+        self.assertIn("1 more differing run(s) of words, not shown", said)
+        self.assertIn("4 in all", said)
+
+    def test_the_fourth_difference_is_counted_even_though_it_is_not_printed(self) -> None:
+        # The one that matters: the change the reader cannot see must still be in the total.
+        self.instead_of_each(*self.FOUR_RUNS)
+        said = self.caught("--words-only", WHERE)
+        self.assertEqual(said.count("at word "), 3, said)
+        self.assertIn("4 in all", said)
+        self.assertIn("the 3 above are the first", said)
+
+    def test_a_list_that_was_not_cut_says_nothing_about_being_cut(self) -> None:
+        # Exactly at the cut, which is where an off-by-one would print "and 0 more" and
+        # teach the reader to ignore the line that matters.
+        self.instead_of_each(*self.FOUR_RUNS[:3])
+        said = self.caught("--words-only", WHERE)
+        self.assertIn("!=", said)
+        self.assertNotIn("not shown", said)
+        self.assertNotIn("in all", said)
+
+    def test_one_difference_says_nothing_about_being_cut(self) -> None:
+        self.instead_of("let attempts = 3", "let attempts = 4")
+        said = self.caught("--words-only", WHERE)
+        self.assertNotIn("not shown", said)
+
+    def test_the_green_line_says_the_whole_skeleton_matched(self) -> None:
+        # Green is a census, and a reader with the red half in mind cannot know that from
+        # `ok — 1 file(s) compared`. Red is a sample and says so; green says it is not one.
+        self.instead_of('"Task.md is read only"', '"Task.md is opened read-only"')
+        said = self.let_through("--words-only", WHERE)
+        self.assertIn("end to end", said)
+        self.assertIn("not a sample", said)
+
+    def test_the_green_line_says_it_in_the_stricter_mode_too(self) -> None:
+        self.instead_of("told it once.", "told it once, in English.")
+        self.assertIn("not a sample", self.let_through("--comments-only", WHERE))
 
 
 class WhatTheSwiftActuallyIs(AgainstARealRepository):
@@ -443,14 +518,8 @@ class WhenTheToolCannotRead(AgainstARealRepository):
         self.assertIn("not in the working tree", self.caught("--comments-only", WHERE))
 
 
-class WhenTheToolItselfIsBroken(unittest.TestCase):
-    """The guards, asked directly.
-
-    They are unreachable through the command line on purpose -- the lexer is written so
-    that none of them can fire -- and a guard that is never exercised is a guard nobody
-    knows is broken. So these load the module and hand the guards the readings a broken
-    lexer would produce.
-    """
+class WithTheModuleLoaded(unittest.TestCase):
+    """For the parts no command line reaches: the tool imported rather than run."""
 
     def setUp(self) -> None:
         spec = importlib.util.spec_from_file_location("check_only_words_moved", TOOL)
@@ -460,6 +529,77 @@ class WhenTheToolItselfIsBroken(unittest.TestCase):
         sys.modules[spec.name] = self.tool
         self.addCleanup(sys.modules.pop, spec.name, None)
         spec.loader.exec_module(self.tool)
+
+
+class HowManyDifferencesGetTold(WithTheModuleLoaded):
+    """first_differences, asked with the counts a command line cannot arrange exactly.
+
+    Through the tool the number of runs depends on how difflib groups an edit, which is
+    fine for the cases above and no way to ask about the boundary itself. Here the lists
+    are made by hand, so five runs are five runs.
+    """
+
+    def told_about(self, runs: int) -> list[str]:
+        """Two word lists differing in exactly `runs` places, each kept apart by a match."""
+        before, after = [], []
+        for i in range(runs):
+            before += [f"was{i}", f"same{i}"]
+            after += [f"now{i}", f"same{i}"]
+        return self.tool.first_differences(before, after)
+
+    def test_five_differences_are_told_as_three_and_a_count(self) -> None:
+        told = self.told_about(5)
+        self.assertEqual(len(told), 4, told)
+        self.assertIn("2 more differing run(s) of words, not shown", told[-1])
+        self.assertIn("5 in all", told[-1])
+
+    def test_at_the_cut_nothing_is_said_about_a_cut(self) -> None:
+        told = self.told_about(3)
+        self.assertEqual(len(told), 3, told)
+        self.assertFalse(any("not shown" in line for line in told), told)
+
+    def test_under_the_cut_nothing_is_said_about_a_cut(self) -> None:
+        told = self.told_about(1)
+        self.assertEqual(len(told), 1, told)
+        self.assertNotIn("not shown", told[0])
+
+    def test_what_is_told_plus_what_is_withheld_is_what_there_was(self) -> None:
+        # The arithmetic, since the number is the whole point of the line: a total that
+        # counted only what it printed would be the silence again, wearing a figure.
+        for runs in range(1, 9):
+            told = self.told_about(runs)
+            shown = [line for line in told if line.startswith("at word ")]
+            cut = [line for line in told if "not shown" in line]
+            if runs <= 3:
+                self.assertEqual((len(shown), cut), (runs, []), told)
+            else:
+                self.assertEqual(len(shown), 3, told)
+                self.assertIn(f"{runs - 3} more", cut[0])
+                self.assertIn(f"{runs} in all", cut[0])
+
+    def test_one_long_stretch_rewritten_is_one_difference(self) -> None:
+        # The count is of runs, not of words: a whole rewritten expression is one place a
+        # reader has to go and look at, and calling it eight would cry truncation at a
+        # report that held nothing back.
+        told = self.tool.first_differences(
+            ["keep", "a", "b", "c", "d", "e", "f", "g", "h", "keep"],
+            ["keep", "z", "keep"],
+        )
+        self.assertEqual(len(told), 1, told)
+        self.assertNotIn("not shown", told[0])
+
+
+class WhenTheToolItselfIsBroken(WithTheModuleLoaded):
+    """The guards, asked directly.
+
+    They are unreachable through the command line on purpose -- the lexer is written so
+    that none of them can fire -- and a guard that is never exercised is a guard nobody
+    knows is broken. So these load the module and hand the guards the readings a broken
+    lexer would produce.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
         self.segments = self.tool.Lexer(SWIFT, WHERE).scan()
 
     def test_an_empty_skeleton_is_a_problem_even_from_an_empty_file(self) -> None:

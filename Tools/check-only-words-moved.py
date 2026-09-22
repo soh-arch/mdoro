@@ -76,6 +76,15 @@ silence is not an answer. And the ok line says how many files were compared, and
 every file prints its skeleton size and literal count, so that two runs over the
 same input can be held against each other by eye. `ok` on its own cannot be.
 
+WHICH HALF OF THE REPORT IS A SAMPLE. The red half is: a file that differs prints
+its first few differing runs of words and no more, because a wall of them helps
+nobody. So it says how many it held back -- a list that is cut says it was cut.
+#202's pull request read "three non-comment changes" because three is what this
+printed, and raising the cut found six. The green half is not a sample: a
+skeleton either matched end to end or it did not, and the ok line says so in
+those words. Reading a census as a sample costs a re-read; reading a sample as a
+census stops the reading altogether, and green is the half nobody goes back to.
+
 Output and exit status follow Tools/check-docs.py: one `ok — ...` line and 0, or
 `N problem(s):` and 1.
 """
@@ -518,17 +527,38 @@ def narrow(was: str, now: str, width: int = 90) -> tuple[str, str]:
 
 
 def first_differences(before: list[str], after: list[str], limit: int = 3) -> list[str]:
+    """The first few differing runs of words -- and, when there are more, how many more.
+
+    The limit is deliberate: a file whose skeleton was rewritten wholesale would otherwise
+    print a wall nobody reads, and three is enough to see what kind of change it was. What
+    was wrong is that the list stopped without saying it had stopped, so a sample read
+    exactly like a complete list -- #202's pull request said "three non-comment changes"
+    because three is what came out here, and raising the limit found six (three places,
+    each an inserted guard and a rewritten expression). The count was honest about what it
+    had printed and silent about what it had not.
+
+    So the runs are gathered first and counted, and the last line names what is missing.
+    The limit itself stays where it is: what was needed was not more output, it was output
+    that admits its own edge.
+    """
+    runs = [
+        (i1, i2, j1, j2)
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, before, after).get_opcodes()
+        if tag != "equal"
+    ]
     told = []
-    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, before, after).get_opcodes():
-        if tag == "equal":
-            continue
+    for i1, i2, j1, j2 in runs[:limit]:
         was, now = narrow(
             " ".join(readable(c) for c in before[i1:i2]),
             " ".join(readable(c) for c in after[j1:j2]),
         )
         told.append(f"at word {i1}: {was or '(nothing)'}  ->  {now or '(nothing)'}")
-        if len(told) == limit:
-            break
+    withheld = len(runs) - len(told)
+    if withheld:
+        told.append(
+            f"... and {withheld} more differing run(s) of words, not shown: "
+            f"{len(runs)} in all, of which the {len(told)} above are the first"
+        )
     return told
 
 
@@ -564,7 +594,14 @@ def report(read: list[tuple[str, int, int]], base: str, mode: str) -> int:
             print(f"  {f}")
         return 1
     moved = "only words moved" if mode == WORDS_ONLY else "only comments moved"
-    print(f"ok — {len(read)} file(s) compared against {base}, {moved}")
+    # Said out loud because the red half of this report *is* a sample (see first_differences)
+    # and the green half is not, and nothing in `ok — 15 file(s) compared` told the two
+    # apart. A reader who suspects green of being a sample re-reads the files by hand; the
+    # question came up over #202, where the red half had quietly been one.
+    print(
+        f"ok — {len(read)} file(s) compared against {base}, {moved} — "
+        f"each skeleton matched end to end, all of it and not a sample of it"
+    )
     return 0
 
 
