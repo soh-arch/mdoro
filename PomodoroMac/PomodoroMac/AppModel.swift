@@ -1329,6 +1329,13 @@ final class AppModel {
                 DiagnosticField("pending", result.pending),
                 DiagnosticField("file", DiagnosticRedaction.optionalDigest(settings.logFolderPath)),
                 DiagnosticField("why", result.lastError?.diagnosticSummary ?? "-"),
+                // REQ-ERR-004 / REQ-ERR-010: the numbers the notification is decided on, so a pasted
+                // log shows whether the threshold was reached and whether this attempt told the user.
+                // Reached with `notified=no` means the user was already told. Integers and a flag
+                // only (Decision 0018).
+                DiagnosticField("consecutiveFailures", result.consecutiveFailures),
+                DiagnosticField("recentFailures", result.recentFailures),
+                DiagnosticField("notified", result.shouldNotify),
             ])
             // REQ-ERR-004 / Decision 0039: notify once three writes have failed — three in a row,
             // or three of the last ten attempts.
@@ -1354,6 +1361,10 @@ final class AppModel {
                 DiagnosticField("written", 0),
                 DiagnosticField("pending", logQueue.pendingCount),
                 DiagnosticField("why", failure?.diagnosticSummary ?? ErrorCode(error).summary("unexpected")),
+                // REQ-ERR-004 / REQ-ERR-010: the same counts as the branch above.
+                DiagnosticField("consecutiveFailures", result.consecutiveFailures),
+                DiagnosticField("recentFailures", result.recentFailures),
+                DiagnosticField("notified", result.shouldNotify),
             ])
             if result.shouldNotify {
                 notifications.notifyLogWriteFailure()
