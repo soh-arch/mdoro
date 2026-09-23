@@ -149,6 +149,28 @@ final class MdoroClient {
         openConnection()
     }
 
+    // REQ-COM-003 / REQ-COM-004: **a Mac that was renamed is still the Mac being dialled.** The
+    // Bonjour instance name is rewritten when the user changes `displayName` and when mDNSResponder
+    // settles a collision, and the old registration then resolves to nothing — so a client that kept
+    // dialling it would climb the backoff for ever. What identifies the Mac is the TXT `id`, so a
+    // discovery result carrying the same `serverId` becomes the target, and the next dial the backoff
+    // makes goes to it. The ladder and the wait already running are left as they are: this is not a
+    // dial anybody asked for.
+    //
+    // Nothing moves while the old registration is still listed, nor for a target with no `serverId`
+    // (a version that predates it, which has nothing to be followed by).
+    func follow(_ found: [DiscoveredServer]) {
+        guard !isStopping, let current = target,
+              let successor = Self.successor(of: current, in: found) else { return }
+        target = successor
+    }
+
+    // The registration that stands for `target` in `found`, when `target` itself has gone.
+    static func successor(of target: DiscoveredServer, in found: [DiscoveredServer]) -> DiscoveredServer? {
+        guard let serverId = target.serverId, !found.contains(target) else { return nil }
+        return found.first { $0.serverId == serverId }
+    }
+
     func disconnect() {
         isStopping = true
         keepaliveTask?.cancel(); keepaliveTask = nil
