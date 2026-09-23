@@ -1,219 +1,46 @@
-# AGENTS.md — Mdoro
+# Mdoro — AGENTS.md
 
-Instructions for AI coding agents working in this repository.
-Humans: `README.md` is the place to start. Contributors' agents: read this file first.
+このファイルには、どのセッションのエージェントにも毎回守らせる指示だけを書く。事実・手順・経緯・現在の状態は書かず、それぞれを受け持つ文書に置く。
 
-## What Mdoro is
+| 知りたいこと | 参照先 |
+| :---- | :---- |
+| 要件（何を作るか） | `docs/SPEC.md` **唯一の正**（版数と要件数は SPEC 自身が持つ。ここに書き写さない） |
+| 現在有効な方針・制約・未決事項・作業状態 | `docs/CONTEXT.md` |
+| なぜそう決めたか | `docs/decisions/` |
+| ビルド手順・プロジェクト構成・環境 | `docs/DEVELOPMENT.md` |
+| いま何を潰すか（作業キュー） | `docs/PUNCHLIST.md` |
+| 毎回どう進めるか（手順） | `docs/ORCHESTRATION.md` |
+| Apple がどう振る舞うか | `docs/PLATFORM.md`（索引） / `docs/platform/`（調査そのもの） |
 
-A focus-session timer for macOS and iOS that stays inside your LAN.
-The Mac holds the timer state; the iPhone shows it and drives it.
-Mdoro reads a Markdown task file **read-only** and records finished sessions in a log file,
-inserting lines and never rewriting the ones already there.
-No cloud, no account, no telemetry.
+**役割を分ける。一人二役をしない。**
 
-- **Mac**: SwiftUI, macOS 26+. Menu bar item plus a main window. WebSocket server.
-- **iPhone**: SwiftUI, iOS 26+. Display and control. Live Activity.
-- **Transport**: Network.framework — Bonjour `_mdoro._tcp`, WebSocket, JSON.
+| 役 | 担当 |
+| :-- | :-- |
+| **Owner** | 仕様・設計の最終決定。PR の merge |
+| **オーケストレーター**（Owner と直接会話するAIエージェント） | `docs/` の編集、作業の分解と割り当て、結果の統合、commit と PR |
+| **実装役**（`.claude/agents/implementer.md`） | 指定された範囲の実装 |
+| **検証役**（`.claude/agents/reviewer.md`） | 1つの変更の差分を読み、指摘を列挙する。直さない |
+| **監査役**（`.claude/agents/spec-auditor.md`・`.claude/agents/repo-auditor.md`） | 変更に関わらず、指定された観点で `docs/SPEC.md` やリポジトリ全体を読み、問題を列挙する。直さない・起票しない |
+| **調査役**（`.claude/agents/platform-researcher.md`） | Apple のプラットフォームの振る舞いを一次情報で調べ、報告する。コードも文書も書かない |
 
-## Three rules that are never relaxed
+- **「サブエージェント」とは `.claude/agents/` の役を指す**（実装役・検証役・監査役・調査役）。**Owner とオーケストレーターは上の表では「役」だが、サブエージェントではない。**
+- **サブエージェントに完了承認の権限はない。** **「指摘なし」は merge の許可ではない**（[0041](docs/decisions/0041-a-role-answers-for-its-check.md)）。
+- **auto memory（Claude Code の自動記憶）は使わない。** 継続的に参照すべき指示は AGENTS.md に集約させる。
+- **ファイルを指すときは、「台帳」「手順書」のような呼び名を使わず、ファイル名で書く。**
+- **`docs/PUNCHLIST.md` に無い作業を始めない。**
+- **既存の PR に変更を足す前に、その PR が閉じられていないか確かめる。**
+- **利用者から見えるアプリの挙動が変わる判断で、解釈が一つに決まらないときは、実装せずに Owner に尋ねる。**
+- **`docs/SPEC.md` の要件を書き直したら、その要件を指すコードコメント・テスト名・フィクスチャ名も合わせて直す。**
+- **コードコメントと commit メッセージには、根拠となる `docs/SPEC.md` の要件IDを書く。コードコメントの根拠に、`docs/PUNCHLIST.md` の POL 番号を使わない。**
+- **検証を伴わない完了報告をしないこと。** テストを回さずに「完了」と言わない。落ちたテスト・省いた工程は、そのまま報告する。
 
-1. **Never write to the task file.** Sessions go into the log file by insertion only —
-   existing lines are never rewritten or deleted, and the insertion point is not always
-   the end of the file, because entries belong under the heading for their logical day. The bookmark for the task file is created with
-   `securityScopeAllowOnlyReadAccess`, which stops writes **through that bookmark** - but the log
-   folder is bookmarked read-write, and it is often the same folder. What actually holds is that
-   no code path writes to the task file, and `LogWriter.validate` refuses a destination equal to
-   it. Treat it as a rule to keep, not a wall that will catch you.
-2. **The Mac owns the state.** The iPhone may interpolate the countdown for display, but it
-   must never decide that a session has ended. Loop counting and log writing happen on the Mac.
-3. **Time is absolute.** Remaining seconds are never synced. The Mac broadcasts `sessionEndAt`
-   and each device derives the rest — a monotonic clock for the countdown, the wall clock for
-   generating `sessionEndAt` and for log timestamps.
+## 運用文書に書くこと
 
-Breaking any of these damages either the user's own files or the consistency of the state.
-
-## Build and test
-
-The shared package is where the rules live, and it builds without Xcode. Start there.
-**It targets macOS 26 / iOS 26**, so `swift test` needs macOS 26 or later even though it
-needs no Xcode project.
-
-```bash
-(cd Packages/MdoroCore && swift test)
-```
-
-**`xcbeautify` is optional.** It only makes the log readable; the build is the same without
-it. Install it with `brew install xcbeautify`, or drop the `| xcbeautify` from these
-commands — a fresh machine does not have it, and leaving the pipe in gives
-`command not found`, which is the exit status of the whole command because xcbeautify is
-its last stage. (`set -o pipefail` is there for the other direction: a failing
-`xcodebuild` behind a formatter that exits cleanly.)
-
-macOS app:
-
-```bash
-set -o pipefail && xcodebuild -project ./PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroMac -destination 'platform=macOS' build | xcbeautify
-```
-
-iOS app on the simulator:
-
-```bash
-set -o pipefail && xcodebuild -project ./PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroiOS -destination 'platform=iOS Simulator,name=iPhone 17' build | xcbeautify
-```
-
-The Mac app's own tests. This is the same selection CI runs on every pull request:
-
-```bash
-set -o pipefail && xcodebuild test -project ./PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroMac -destination 'platform=macOS' -only-testing:MdoroMacTests CODE_SIGNING_ALLOWED=NO | xcbeautify
-```
-
-**Keep `CODE_SIGNING_ALLOWED=NO`.** Without a signing team, dropping it makes the run fail
-with `Early unexpected exit ... while preparing to run tests` (exit 65) having run no test at
-all. The build still succeeds, so it looks like the tests are broken rather than the signature:
-the suite is hosted by `MdoroMac.app`, and an ad-hoc host is where it stops. These tests reach
-the Keychain and the notification centre through injected seams, so no real signature is
-needed. **Running them launches `MdoroMac.app`** — do not run them on a Mac that is using
-Mdoro right now.
-
-The iOS app's tests, on the simulator. CI does not run these; this command is the only thing
-that does:
-
-```bash
-set -o pipefail && xcodebuild test -project ./PomodoroMac/PomodoroMac.xcodeproj -scheme MdoroiOS -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:MdoroiOSTests | xcbeautify
-```
-
-**The target is `MdoroiOSTests`; the folder it lives in is `PomodoroiOSTests`.** Naming the
-folder in `-only-testing:` runs nothing and still reports success.
-
-**`xcodebuild` prints `TEST SUCCEEDED` having run nothing at all**, so read the count rather
-than the line. Add `-resultBundlePath /tmp/mdoro-test.xcresult` (delete it first — it refuses
-an existing bundle) and read `totalTestCount` back with:
-
-```bash
-xcrun xcresulttool get test-results summary --path /tmp/mdoro-test.xcresult --format json
-```
-
-The keys to read are `result`, `totalTestCount` and `passedTests`. A `totalTestCount` of zero
-means nothing ran, whatever the build said.
-
-**Always pass `-destination`.** Without it, `xcodebuild` picks a generic iOS device, builds for
-`Debug-iphoneos`, and installs onto whatever iPhone is plugged in — replacing the app on someone's
-own phone. Nothing in the command says that is what happened.
-
-**The Simulator cannot exercise the connection.** It does not implement local network privacy
-at all, so the permission prompt this app depends on never appears and never denies — Apple's
-own guidance is to test that behaviour on a real device (`docs/PLATFORM.md`). The Simulator
-builds and runs the UI; **pairing a Mac and an iPhone has to happen on hardware.**
-
-Xcode 26 or later. It is built with Xcode 27.0 and Swift 6.4 today, and every
-target compiled under 26.6 and Swift 6.3 before that. To build the apps, put your
-signing team in
-`Config/Signing.local.xcconfig`, which git ignores:
-
-```
-DEVELOPMENT_TEAM = ABCDE12345
-```
-
-Nothing else is needed, and nothing you do there shows up in a diff. Without a team the apps
-still build and run locally — macOS signs them ad-hoc, which is enough to launch and not enough
-to notify.
-
-**Set a team before you touch anything to do with notifications.** Local notifications need no
-capability, but they do need a real signature, and an ad-hoc build fails in a way that looks
-like nothing at all: `requestAuthorization` never resolves the permission, which stays
-`notDetermined`; `add()` reports success and delivers nothing; and the app never appears in
-System Settings, so there is no setting to go and check. If you are staring at a silent build,
-run `codesign -dv` on the bundle — `Signature=adhoc` with an `Identifier` that does not match
-the bundle ID is this and nothing else.
-
-**A free Apple ID stops the app on the phone after seven days.** Build and install it again
-from Xcode. That is Apple's limit on free provisioning, not a choice Mdoro makes.
-
-**A notification that does not arrive during Focus is not a bug.** The switch that sends it as
-time sensitive is per preset (*Notify during Focus modes*) and is **on** by default, so asking
-is not the thing that is missing. **This project carries no entitlements file**, and without the
-Time Sensitive Notifications capability the request is only a request: measured on a device on
-2026-08-27, `interruptionLevel = .timeSensitive` set and nothing delivered until Focus ended
-(REQ-NTF-005). The capability is not something a build flag adds — it is an Xcode operation on
-the project, and Apple grants it to paid programme accounts. The session itself still ends on
-time; only the notice waits.
-
-**If the app will not launch and a rebuild will not go through either, the phone may have
-stopped trusting the developer account.** Unlike the seven-day case, rebuilding does not clear
-this one: someone has to open Settings → General → VPN & Device Management on the phone, pick
-the account and trust it again. You cannot do that from here — say so and hand it over. The
-message naming the trust arrives late, after several minutes and a few attempts, so a build
-that fails without saying why is what you see first. This has turned up right after an iOS
-update, though nothing shows that an update causes it.
-
-## Where code goes
-
-- **Anything shared goes in `MdoroCore`.** The state machine, the wire protocol and the data
-  models must not exist twice, once for the Mac and once for iOS (REQ-PRT-001).
-- **Never edit `.xcodeproj` by hand.** The targets use buildable folders: dropping a `.swift`
-  file on disk is enough. Changes that a folder cannot express — capabilities, build settings,
-  signing, linking a target — are a human's job in Xcode. Stop and say so.
-- **No colour literals in views.** Refer to roles: `sessionFocus`, `warning`, `danger`,
-  `textPrimary`. The palette is generated and contrast-tested.
-- Folder names still say `Pomodoro`; target names say `Mdoro`. That is known, not a mistake
-  to fix in passing.
-
-## Style
-
-- **Everything this project ships is written in English**: identifiers, code comments, and
-  every string the app itself produces. Strings read from the user's files and strings the
-  user typed are passed through untouched — never translated, never normalised.
-- **The language you write your commits and pull requests in is your own.** Cite the
-  requirement ID; the words around it are yours.
-- Keep comments short. Do not explain what the code already says. No commented-out code,
-  no notes about what used to be there.
-- Cite the requirement ID that justifies non-obvious behaviour:
-  `// REQ-TIM-035: the only way out of FINISHED is IDLE`.
-- **A comment says what the clause requires, not what the OS does.** Platform facts live in
-  `docs/PLATFORM.md`, with the research behind them in `docs/platform/`. State one in a comment
-  only where leaving it out would mislead — an API whose name suggests a wider effect than it
-  has — and point at `docs/PLATFORM.md` when you do. An unsourced assertion about the OS is
-  what goes stale without anyone noticing.
-
-## Requirements and decisions
-
-`docs/SPEC.md` is the single source of truth for what Mdoro does: 243 requirements, each with
-an ID like `REQ-TIM-035`. `docs/decisions/` records why things were decided the way they were.
-
-**Those documents are written in Japanese.** You do not need to read Japanese to contribute —
-**the requirement IDs are the shared language.** Cite the ID your change rests on and a
-maintainer can check it. If a requirement seems wrong, say so; do not quietly work around it.
-
-If the spec allows two reasonable readings and the decision records do not settle it, **stop
-and ask.** Do not guess. A guess that ships becomes a requirement nobody chose.
-
-## Pull requests
-
-- Branch per change. **One PR does one thing.**
-- **Conventional Commits.** Subject line is `type: summary`. The types in use are `feat`,
-  `fix`, `docs`, `refactor`, `test`, `chore`, `build`. **No scope** — this repo has never
-  used one. Write the summary as a statement, not a label.
-- **Name the requirement ID your change rests on**, in the commit body. A `Refs REQ-TIM-035`
-  trailer at the end keeps the history greppable. This is the part that matters: it is how a
-  maintainer checks a change against `docs/SPEC.md` without reconstructing your reasoning,
-  and `docs/` is in Japanese, so the ID may be the only thing you and the maintainer both read.
-- `swift test` must pass. CI runs it on every pull request, together with the
-  Mac app's unit tests and the mechanical checks over the documents. What CI
-  cannot run is what needs a machine or a person: the simulator, a device, and
-  mutation testing. **So the iOS tests are yours to run** — nothing else will.
-- A human merges. Nothing lands on `main` directly.
-
-## Out of scope
-
-These will not be accepted. Please do not open PRs for them.
-
-- Cloud sync, accounts, push notifications
-- Ads, in-app purchases, analytics or any usage tracking
-- UI languages other than English
-- Editing the task file — creating and completing tasks belongs to the user's Markdown editor
-- iPad, Apple Watch, multiple simultaneous clients, connections from outside the LAN
-
-## License
-
-MIT (see [LICENSE](LICENSE)). **What you contribute ships under it too** — worth knowing
-before you open a pull request.
+- **事故が起きていない箇所は、推奨も禁止もせず、書かずにおく。** 指示は簡潔にする
+- **サブエージェント以外のエージェント（オーケストレーターや後のセッション）に恒久の制約を設けるときは、Owner に確認を取ること**
+- **セッションごとの固有ルールを AGENTS.md に一般化するときは、Owner に確認を取ること**
+- **Owner の指示であるかのように代弁する記述は、書き込む際に確認を取ること**
+- **このファイルに、事実を宣言する記述や、それを含む記述をしてはならない**
+- 書き手が決まらない一人称の文（「私が」「このセッションで」「次は」）を残さない
+- **AGENTS.md・README.md を変更するときは、Owner の表現を、そのファイルの中の表現に合わせて積極的に言い換える。言い換えたときは、必ず Owner に申告する**
+- **AGENTS.md は、明示的に指示されたとき、または確認を取って承認されたときにだけ変更する**

@@ -42,7 +42,7 @@ VERBATIM = "experiments"
 
 
 def markdown_files() -> list[Path]:
-    files = [ROOT / "CLAUDE.md", ROOT / "AGENTS.md", ROOT / "README.md"]
+    files = [ROOT / "AGENTS.md", ROOT / "README.md"]
     files += sorted((ROOT / "docs").rglob("*.md"))
     files += sorted((ROOT / ".claude").rglob("*.md"))
     kept = [f for f in files if f.exists()]
@@ -1772,7 +1772,7 @@ def _asks_a_write_outside_the_throwaway_tree_is_refused(asking: Asking) -> None:
     asking.that(not escaped.exists(), f"the refused fixture was written anyway, and is at {escaped}")
     _asks_put_back(asking, real, "after refusing a write outside it")
     with tempfile.TemporaryDirectory() as tree:
-        for name, path in (("SPEC", real[1]), ("PUNCH", real[2]), ("CLAUDE.md", real[0] / "CLAUDE.md")):
+        for name, path in (("SPEC", real[1]), ("PUNCH", real[2]), ("AGENTS.md", real[0] / "AGENTS.md")):
             with asking.refuses(f"the guard let a write through to the real {name} at {path}"):
                 _under_the_throwaway_tree(path, Path(tree))
         # The edge itself: a path that IS the tree. `parents` does not contain the path it was
