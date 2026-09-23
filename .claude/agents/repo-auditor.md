@@ -14,7 +14,7 @@ description: コード・README・リポジトリの体裁を軸ごとに監査�
 
 ## 読むもの
 
-1. `CLAUDE.md` / グローバルの `~/.claude/CLAUDE.md`
+1. `AGENTS.md` / グローバルの `~/.claude/CLAUDE.md`
 2. `docs/CONTEXT.md`（§1 原則、§2 壊しやすい6箇所、§3 プラットフォームの確定事項）
 3. `accepted` の Decision Record
 4. `docs/SPEC.md` の該当条文

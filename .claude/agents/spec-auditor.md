@@ -13,7 +13,7 @@ description: 仕様書（docs/SPEC.md）を軸ごとに通読し、方針転換�
 
 ## 読むもの
 
-1. `CLAUDE.md` / グローバルの `~/.claude/CLAUDE.md`
+1. `AGENTS.md` / グローバルの `~/.claude/CLAUDE.md`
 2. `docs/CONTEXT.md`（§1 原則、§5 未決事項、§6 現在の作業状態）
 3. `accepted` の Decision Record 全件（`docs/decisions/`）
 4. `docs/SPEC.md` **全文**（0章の改訂履歴を含む）
