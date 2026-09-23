@@ -119,10 +119,18 @@ public enum TaskTextNormalizer {
             // ordinary digit. Digits belong in the text, so what is dropped is the sequence itself,
             // never a bare digit -- and the cluster is then treated like any other an emoji stands
             // on, so that anything else caught in it is judged the same way.
-            guard let base = scalars.first else { continue }
-            let keycap = isKeycapCluster(scalars)
+            //
+            // A Prepend character (UAX #29 GB9b) joins whatever follows it into its cluster, so a
+            // cluster can open on one and only then reach its base. The base is the first scalar
+            // after any Prepend characters. The Prepend characters themselves were typed before
+            // the base and are not part of it; they are kept as the text they are.
+            let baseIndex = scalars.firstIndex { !isPrepend($0) } ?? scalars.count
+            for scalar in scalars[..<baseIndex] { result.append(scalar) }
+            let body = Array(scalars[baseIndex...])
+            guard let base = body.first else { continue }
+            let keycap = isKeycapCluster(body)
             let standsOnAnEmoji = keycap || isEmojiScalar(base)
-            for (index, scalar) in scalars.enumerated() {
+            for (index, scalar) in body.enumerated() {
                 // The digit a keycap is built on. The rest of the sequence, the variation selector
                 // and U+20E3, `isEmojiScalar` takes below.
                 if keycap, index == 0 { continue }
@@ -155,6 +163,17 @@ public enum TaskTextNormalizer {
         default:
             return true
         }
+    }
+
+    // Whether a scalar is Grapheme_Cluster_Break=Prepend. Swift exposes no such property, so the
+    // segmentation that built the cluster is asked directly: only GB9b joins a scalar to a
+    // following plain letter. Asking it keeps this in step with the Unicode version the clusters
+    // were cut with, where a list would freeze one.
+    private static func isPrepend(_ scalar: Unicode.Scalar) -> Bool {
+        var probe = String.UnicodeScalarView()
+        probe.append(scalar)
+        probe.append("a")
+        return String(probe).count == 1
     }
 
     // A base of "#", "*" or a digit, then U+20E3, possibly across a variation selector.

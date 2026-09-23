@@ -155,6 +155,24 @@ struct TaskParsingEdgeTests {
         #expect(TaskParser.parse(decorated).items[0].normalizedText == "Corrigir a fase")
     }
 
+    // REQ-TSK-022: a Prepend character (UAX #29 GB9b) joins the emoji after it into one grapheme
+    // cluster, so the cluster no longer starts on the emoji. What goes with the emoji is still
+    // decided by the emoji: its tag letters, variation selector and combining mark go, the keycap
+    // digit goes, and the Prepend character itself, which was typed before the emoji and is not
+    // part of it, stays as it did before.
+    @Test func aPrependCharacterInFrontOfAnEmojiDoesNotShelterWhatTheEmojiCarries() {
+        let flag = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}"
+        // U+0600 ARABIC NUMBER SIGN (format) and U+0D4E MALAYALAM LETTER DOT REPH (a letter) are
+        // both Prepend, and Swift's segmentation joins each of them to the emoji that follows.
+        for prepend in ["\u{0600}", "\u{0D4E}"] {
+            #expect(TaskParser.parse("- [ ] Revisar \(prepend)\(flag)").items[0].normalizedText == "Revisar \(prepend)",
+                    "a tag letter survived behind \(prepend)")
+            #expect(TaskParser.parse("- [ ] Revisar \(prepend)\u{2764}\u{FE0F}").items[0].normalizedText == "Revisar \(prepend)")
+            #expect(TaskParser.parse("- [ ] Revisar \(prepend)\u{1F600}\u{0301}").items[0].normalizedText == "Revisar \(prepend)")
+            #expect(TaskParser.parse("- [ ] Revisar \(prepend)1\u{FE0F}\u{20E3}").items[0].normalizedText == "Revisar \(prepend)")
+        }
+    }
+
     // REQ-TSK-022 (4) then (6): a word written in decomposed form keeps every letter and every
     // mark, and the NFKC step puts them back together. Removing an emoji beside it must not reach
     // inside those clusters.
