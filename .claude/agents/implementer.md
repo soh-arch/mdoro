@@ -9,7 +9,7 @@ description: 仕様書と Decision Record に基づいて MdoroCore / Mac / iOS 
 
 必ず次を読んでから着手する。
 
-1. `CLAUDE.md`
+1. `AGENTS.md`
 2. `docs/CONTEXT.md`
 3. **タスクに関連する `accepted` 状態の Decision Record**（`docs/decisions/`）
 4. `docs/SPEC.md` の該当章

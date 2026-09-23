@@ -237,8 +237,8 @@ def check_pols() -> None:
     # the ledger only *defines* POL rows, filed_pols() reads it for that above, and defining a
     # row is not citing one. So the densest POL prose in the repository was the one place where
     # a citation of nothing passed -- and it did: a row was written saying 続きは別の行に起票した,
-    # naming a number nobody had filed yet, and this printed ok (2026-09-21). CLAUDE.md sends the
-    # reader here for exactly that question ("存在しない POL-nnn は Tools/check-docs.py が見る"),
+    # naming a number nobody had filed yet, and this printed ok (2026-09-21). docs/ORCHESTRATION.md §5
+    # sends the reader here for exactly that question,
     # and until now the answer stopped at the ledger's door.
     #
     # A row head is a definition and matches the pattern too, so those pass by being filed --
@@ -252,11 +252,10 @@ def check_pols() -> None:
 
 
 # --- the punch list stays out of the code -------------------------------------
-# CLAUDE.md: コメントの根拠に POL-nnn を使わない. The ledger is an operational document that
+# AGENTS.md: do not cite a POL number as the basis of a code comment. The ledger is an operational document that
 # moves -- rows are renumbered, closed and folded into one another -- and the anchors meant to
 # last are a requirement id or a record in docs/decisions/. A citation of it inside the product
-# sends whoever reads the code next to a document they may not have, and outside contributors
-# read AGENTS.md rather than the ledger at all.
+# sends whoever reads the code next to a document they may not have.
 #
 # Everywhere in a .swift file, not only its comments. The four passes that cleared this out
 # ended in the string literals on purpose: a `@Suite` name and an `#expect` message are printed
@@ -1660,7 +1659,7 @@ class Asking:
     said nothing about a point deleted from inside one. `a write outside the throwaway tree is
     refused` asks about a dozen-odd separate things -- the ok line carries the figure, so it is
     not written down here as well -- and before this, deleting all but one of them left the ok
-    line identical, which is the shape CLAUDE.md names: a check can be broken and the screen
+    line identical, which is the shape docs/ORCHESTRATION.md §4 names: a check can be broken and the screen
     still reads like success. So each claim now reports how many points it asked, and the ok
     line prints it beside the name, the way CHECKS already prints `links (8)`.
 
@@ -1756,7 +1755,7 @@ def _asks_a_write_outside_the_throwaway_tree_is_refused(asking: Asking) -> None:
 
     Asked three ways. End to end, with a name that climbs out of the tree, because that goes
     through a_repository's own write and so answers whether the guard is actually wired into
-    it. Of the guard alone, handed this repository's real SPEC, ledger and CLAUDE.md
+    it. Of the guard alone, handed this repository's real SPEC, ledger and AGENTS.md
     against a throwaway tree, because that is the shape the accident took -- ROOT still on the
     real tree while tempfile had made another one -- and reproducing *that* through
     a_repository would mean breaking the rebinding, which is the accident itself. And at the
