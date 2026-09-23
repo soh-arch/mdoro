@@ -282,7 +282,9 @@ final class AppModel {
         guard !hasStarted else { return }
         hasStarted = true
         diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
-        diagnostics.write("app.start")
+        // REQ-ERR-010: a session restored from disk carries its end time on this line, since no
+        // action line follows a relaunch during RUNNING until the user does something.
+        diagnostics.write("app.start", SessionEndDiagnostics.fields(after: timer))
         adoptStoredDeviceTokens()
         writeStartupDiagnostics()
         Task {
@@ -555,6 +557,8 @@ final class AppModel {
         // Redraw with the time at the instant of the action. Left stale, a value larger than the length
         // shows up right after a start.
         displayNow = now
+        // REQ-TIM-040: an accepted extension adds the active preset's length as it stood before the action.
+        let extendSeconds = presets.activePreset?.extendSeconds
         switch TimerEngine.reduce(action: action, context: timer, presets: presets, settings: settings, now: now) {
         case let .success(reduction):
             let previousState = timer.runState
@@ -564,6 +568,7 @@ final class AppModel {
             syncSideEffectsToState()
             persist()
             broadcastState()
+            // REQ-ERR-010: every accepted action carries the end time the iPhone now counts toward.
             diagnostics.write("action", [
                 DiagnosticField("do", action.diagnosticName),
                 DiagnosticField("from", previousState.rawValue),
@@ -571,7 +576,10 @@ final class AppModel {
                 DiagnosticField("type", timer.sessionType.rawValue),
                 DiagnosticField("loop", timer.loopCount),
                 DiagnosticField("task", timer.sessionTaskSnapshot == nil ? "none" : "set"),
-            ])
+            ] + SessionEndDiagnostics.fields(
+                after: timer,
+                extendedBy: action == .extend ? extendSeconds : nil
+            ))
             return nil
         case let .failure(failure):
             // REQ-LOG-018: even when the action is refused, the log committed by the preceding tick is not lost.
