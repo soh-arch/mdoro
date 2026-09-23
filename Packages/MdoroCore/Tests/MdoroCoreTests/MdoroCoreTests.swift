@@ -294,7 +294,7 @@ struct CommitIdempotencyTests {
     }
 
     @Test func startWorkResetAbortAllFinalizeOnlyOnceFromFinished() throws {
-        // CLAUDE.md: check, as three independent scenarios, that aborting, starting the next
+        // Check, as three independent scenarios, that aborting, starting the next
         // session, and resetting while a break sits in FINISHED do not record twice.
         let preset = makePreset()
         let presets = makePresetContext(preset)

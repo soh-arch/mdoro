@@ -117,7 +117,7 @@ import MdoroCore
 //
 // **The first CI run failed all four and said nothing about why.** Nothing matching the check
 // mark, `Issue` or `recorded` reached the log — only the `failed on` lines and their durations —
-// and `CLAUDE.md` warns that `xcodebuild` output loses the start of a line. Multi-line comments
+// and `docs/ORCHESTRATION.md` warns that `xcodebuild` output loses the start of a line. Multi-line comments
 // on `#expect` were the worst possible shape for that.
 //
 // So every failure here goes out three ways: a **single line**, with a token in front of it to

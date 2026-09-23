@@ -16,7 +16,7 @@ This is not a sandbox. Nothing here stops a command that writes to an absolute
 path, and a role determined to edit the repository can still reach it. What
 this does is give the role a checkout of its own that dies at the end, and then
 say -- of that checkout and of this repository -- which tracked files moved.
-CLAUDE.md does not forbid a role from touching the working tree; it requires
+.claude/agents/implementer.md does not forbid a role from touching the working tree; it requires
 the role to declare it. This makes the declaration mechanical, so it no longer
 depends on the role remembering.
 

@@ -9,7 +9,7 @@ import Foundation
 // folder of the user's — their vault, their notes, whatever they chose — and removes files from it.
 // A pattern one condition short takes their notes with it. So the sweep is asserted twice over:
 // once for what it clears, and once, at greater length, for everything standing next to it that it
-// must walk past. `Task.md` is the first principle (`CLAUDE.md`), and `MdoroLog.md` is the record
+// must walk past. `Task.md` is the first principle (`docs/CONTEXT.md`), and `MdoroLog.md` is the record
 // the whole app exists to keep.
 
 private let logFileName = "MdoroLog.md"

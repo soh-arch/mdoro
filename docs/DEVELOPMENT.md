@@ -1,6 +1,6 @@
 # DEVELOPMENT — プロジェクト構成・ビルド・環境
 
-運用上の規律は `CLAUDE.md`、現在有効な方針は `docs/CONTEXT.md` を参照する。
+運用上の規律は `AGENTS.md`、現在有効な方針は `docs/CONTEXT.md` を参照する。
 このファイルは**手順と環境の事実**だけを置く。
 
 ---
@@ -9,7 +9,6 @@
 
 ```
 Pomodoro_Timer/                        # プロジェクトルート
-├── CLAUDE.md                          # 運用憲法
 ├── docs/
 │   ├── SPEC.md                        # 要件の正本（版数は SPEC 自身が持つ）
 │   ├── CONTEXT.md                     # 現在有効な方針の要約
@@ -18,7 +17,7 @@ Pomodoro_Timer/                        # プロジェクトルート
 │   ├── PLATFORM.md                    # Apple がどう振る舞うか（索引）
 │   ├── platform/                      # 調査そのもの（1件1ファイル）
 │   └── decisions/                     # Decision Record
-├── AGENTS.md                          # 外部の貢献者とそのエージェント向け（英語）
+├── AGENTS.md                          # エージェントへの指示
 ├── .claude/agents/                    # implementer / reviewer / spec-auditor / repo-auditor
 ├── buildServer.json                   # ⚠ git に入れていない。初回 clone には無い（下記）
 ├── Packages/MdoroCore/             # 共有コード。ここが主戦場
@@ -224,7 +223,7 @@ xcrun simctl list devices available
 | :---- | :---- |
 | **Keychain** | 項目の ACL は**作成したアプリの署名 identity** に結びつく。別人が読みに来た扱いになり、**起動のたびに login キーチェーンのパスワードを訊かれる**（`DeviceTokenStore` は起動時に読む） |
 | **ローカルネットワーク許可** | 許可の同一性が保たれない（下記・REQ-PLT-009） |
-| **通知** | 実署名が要る。`AGENTS.md` に、届かないときの見分け方がある |
+| **通知** | 実署名が要る。`docs/CONTEXT.md` に、届かないときの見分け方がある |
 
 **2026-09-16 に実測**: clone を作り直したあと、`MdoroMac` が
 `com.sohta.Mdoro.issuedDeviceTokens` を読もうとしてダイアログを出した。
@@ -264,7 +263,7 @@ xcode-build-server config -project PomodoroMac/PomodoroMac.xcodeproj -scheme Mdo
   **リリースまで macOS 26.7 に留まるという判断は、この実測の上に立っている。**
 - 署名は無償の Personal Team。**iPhone 実機のアプリは7日で失効する**ので、切れたら再ビルドして入れ直す。
 - **起動もビルドも通らなくなったら、開発者信頼が外れていることがある。** 7日失効と違い、**再ビルドでは直らない。** iPhone の 設定 > 一般 > VPN とデバイス管理 でアカウントを信頼し直してからビルドする。**原因を名指す案内は、数回の試行と数分の後に出る**ので、先に見えるのは起動失敗のほうである。**OS の更新の直後に起きた例があるが、更新が原因だとは分かっていない**（[platform/0013](platform/0013-the-trust-was-gone-after-an-os-update.md)）。
-- **上の2項目（7日失効と再信頼）は、手順として3箇所に書いてある** —— ここと `README.md`（**利用者**が読む）と `AGENTS.md`（**貢献者のエージェント**が読む）。**読む相手が違うので3つに意味がある。1つを変えたら、残り2つを必ず見る。** **数えたのは「手順を書いているもの」である** —— 事実として触れているだけの記録（`docs/PLATFORM.md`・`docs/platform/`・`docs/decisions/`・`docs/PUNCHLIST.md`・`docs/CONTEXT.md`）は写しに数えない。
+- **上の2項目（7日失効と再信頼）は、手順として2箇所に書いてある** —— ここと `README.md`（**利用者**が読む）。**読む相手が違うので2つに意味がある。1つを変えたら、もう1つを必ず見る。** **数えたのは「手順を書いているもの」である** —— 事実として触れているだけの記録（`docs/PLATFORM.md`・`docs/platform/`・`docs/decisions/`・`docs/PUNCHLIST.md`・`docs/CONTEXT.md`）は写しに数えない。
 - **`Tools/*.py` は文書の道具で、Mdoro のビルドには要らない。** 対応する Python の範囲は `.github/workflows/tests.yml` の `tools` ジョブが持つ（**数字をここに書き写さない**）。
 - Push 通知と iCloud は Personal Team では使えないが、本仕様は使わない（ローカル通知に capability は不要）。
 - **Xcode を開くのは、ターゲット追加・capability 追加・実機デバッグ・Instruments のときだけ。**
