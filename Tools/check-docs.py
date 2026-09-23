@@ -252,7 +252,7 @@ def check_pols() -> None:
 
 
 # --- the punch list stays out of the code -------------------------------------
-# AGENTS.md: do not cite a POL number as the basis of a code comment. The ledger is an operational document that
+# A code comment does not cite a POL number as its basis. The ledger is an operational document that
 # moves -- rows are renumbered, closed and folded into one another -- and the anchors meant to
 # last are a requirement id or a record in docs/decisions/. A citation of it inside the product
 # sends whoever reads the code next to a document they may not have.
