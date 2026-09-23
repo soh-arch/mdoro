@@ -282,7 +282,9 @@ final class AppModel {
         guard !hasStarted else { return }
         hasStarted = true
         diagnostics.open(preset: presets.activePreset ?? Preset.standard(), settings: settings)
-        diagnostics.write("app.start")
+        // REQ-ERR-010: a session restored from disk carries its end time on this line, since no
+        // action line follows a relaunch during RUNNING until the user does something.
+        diagnostics.write("app.start", SessionEndDiagnostics.fields(after: timer))
         adoptStoredDeviceTokens()
         writeStartupDiagnostics()
         Task {
@@ -566,7 +568,7 @@ final class AppModel {
             syncSideEffectsToState()
             persist()
             broadcastState()
-            // REQ-ERR-010 / REQ-COM-009: every accepted action carries the end time the iPhone now counts toward.
+            // REQ-ERR-010: every accepted action carries the end time the iPhone now counts toward.
             diagnostics.write("action", [
                 DiagnosticField("do", action.diagnosticName),
                 DiagnosticField("from", previousState.rawValue),

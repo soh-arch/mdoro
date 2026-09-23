@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import MdoroCore
 
-// REQ-ERR-010 / REQ-COM-009: a pasted log shows the end time the iPhone was counting toward,
+// REQ-ERR-010: a pasted log shows the end time the iPhone was counting toward (REQ-COM-009),
 // including after an extension, a preset switch and a confirmed restore.
 
 @Suite("The diagnostic log carries sessionEndAt (REQ-ERR-010)")
@@ -55,5 +55,19 @@ struct SessionEndDiagnosticsTests {
         let line = body[start.lowerBound..<end.lowerBound]
         #expect(line.contains("SessionEndDiagnostics.fields("))
         #expect(line.contains("action == .extend"))
+    }
+
+    // A relaunch during RUNNING restores `sessionEndAt` from disk with no action taken, so the
+    // `app.start` line is the one that says what the restored session is counting toward.
+    @Test func theMacStartLineCarriesTheRestoredEndTime() throws {
+        let path = "PomodoroMac/PomodoroMac/AppModel.swift"
+        let body = withoutComments(try source(path))
+        let anchor = "diagnostics.write(\"app.start\""
+        guard let start = body.range(of: anchor) else { throw MissingAnchor(path: path, anchor: anchor) }
+        guard let end = body[start.upperBound...].range(of: "adoptStoredDeviceTokens()") else {
+            throw MissingAnchor(path: path, anchor: "adoptStoredDeviceTokens() after \(anchor)")
+        }
+        let line = body[start.lowerBound..<end.lowerBound]
+        #expect(line.contains("SessionEndDiagnostics.fields(after: timer)"))
     }
 }

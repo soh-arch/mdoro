@@ -1,9 +1,9 @@
 import Foundation
 
-// REQ-ERR-010 / REQ-COM-009: the end time the iPhone is counting toward, as the diagnostic log carries it.
+// REQ-ERR-010: the end time the iPhone is counting toward, as the diagnostic log carries it.
 //
-// The iPhone derives its countdown from `sessionEndAt` alone, so a pasted log has to show that value
-// wherever it is set or moved — a start, a resume, an extension, a restored session confirmed.
+// The iPhone derives its countdown from `sessionEndAt` alone (REQ-COM-009), so a pasted log has to show that value
+// wherever it is set or moved — a start, a resume, an extension, a restored session confirmed, a relaunch.
 // Rebuilding it from the start line and the header's lengths breaks as soon as an extension, a
 // preset switch or a restore happens in between. Only times and counts go in (Decision 0018).
 public enum SessionEndDiagnostics {
