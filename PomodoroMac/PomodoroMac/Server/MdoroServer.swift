@@ -160,6 +160,11 @@ final class MdoroServer {
         let askingLine = pendingApproval?.connection
         pendingApproval = nil
         askingLine?.cancel()
+        // REQ-SEC-004: the hello the Authenticator is holding goes with the question, as it does in
+        // `foldPendingApproval`, so no later answer can be settled against it. Only when a question
+        // was standing: with none, the callback would clear a banner nobody put up. No
+        // `approval.withdrawn` is written — the server going down is logged as `server.stop`.
+        if askingLine != nil { _ = callbacks?.resolveApproval(false) }
         // REQ-ERR-010: **this fold is the one ending that makes no callback at all.** The cancel
         // below reaches `handleDisconnect` only after `connection` has been let go of, so its echo
         // is refused by the guard and `connectionChanged` is never called — which is why

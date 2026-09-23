@@ -2162,6 +2162,28 @@ struct PendingApprovalEndingTests {
               "REQ-SEC-004: pressing Allow on a question that is no longer there settled something (\(bench.upstream.approvalsAsked)). The Authenticator's held hello went with the line; issuing against it now would hand a token to a device that is gone.")
     }
 
+    // REQ-SEC-004: **the server going down folds the question, and the held hello goes with it.**
+    // `stop()` lets `pendingApproval` go before it hangs up, so the echo of that hang-up finds nothing
+    // for `foldPendingApproval` to fold; the hello the Authenticator is holding has to be let go of
+    // by `stop()` itself, through the same `resolveApproval(false)` the other folds make.
+    @Test func stoppingTheServerLetsTheHeldHelloGo() async throws {
+        let recording = Recording()
+        defer { recording.discard() }
+        let reads = HeldReads()
+        let bench = try await raiseServer(reads: reads, diagnostics: recording.log)
+        defer { bench.server.stop() }
+        defer { for opened in reads.lines { opened.cancel() } }
+
+        let question = try await aQuestionWaitingOn(bench, reads: reads, from: "iPhone asking as the Mac stops")
+        defer { question.asking.cancel() }
+
+        bench.server.stop()
+        holds(!bench.server.hasPendingApproval,
+              "REQ-SEC-004: the question is still waiting after the server stopped.")
+        holds(bench.upstream.approvalsAsked == [false],
+              "REQ-SEC-004: stopping the server settled the question as \(bench.upstream.approvalsAsked) rather than a single refusal. Without it the Authenticator goes on holding the hello of a phone whose line is gone.")
+    }
+
     // **The other way a line ends, and the one a fix aimed at the read loop would miss.** The
     // transport moves the connection to `.cancelled` and tells the state handler `accept` installed;
     // no read is ever answered here, so the `.end` arm is not reached at all.
@@ -2241,7 +2263,7 @@ struct PendingApprovalEndingTests {
               "REQ-SEC-004: **the connection is held open while it waits**, and the line the question is waiting on was hung up on by a hello that arrived on it. An Allow pressed now lands on a finished line — which is the fault the two tests above this one are about, arriving by a route that needs no network at all.")
         // **This moves only with the observation above it, so it is one fault written twice.**
         // `pendingApproval` is let go of in `foldPendingApproval`, in `resolvePendingApproval` and in
-        // `stop()`; the first two both call `resolveApproval`, which is the very thing
+        // `stop()`; all three call `resolveApproval`, which is the very thing
         // `waitsForApprovalSettled` above is watching, and `stop()` is in this test's `defer`. So a
         // question that has gone has already failed that line. **What it adds is the side it is read
         // from** — the server's own record rather than upstream's — which is worth having in the
