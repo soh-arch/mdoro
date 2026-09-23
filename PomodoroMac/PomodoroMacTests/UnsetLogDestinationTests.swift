@@ -306,6 +306,22 @@ struct UnreachableLogFolderTests {
                 "REQ-ERR-004: two failures are under the threshold")
     }
 
+    // REQ-ERR-004 / REQ-ERR-010: each `log.write` line carries the counts the notification is
+    // decided on, and whether that attempt told the user — so a pasted log tells "not reached yet"
+    // apart from "reached, already told".
+    @Test func eachFailedAttemptLogsTheCountsTheNotificationIsDecidedOn() {
+        let harness = Harness(logFolder: Harness.unreachableFolder, saved: savedQueue())
+        defer { harness.cleanUp() }
+
+        for _ in 0 ..< 4 { harness.model.flushLogQueue() }
+
+        let lines = harness.lines("log.write")
+        #expect(lines.map { $0.fields["consecutiveFailures"] } == ["1", "2", "3", "4"])
+        #expect(lines.map { $0.fields["recentFailures"] } == ["1", "2", "3", "4"])
+        #expect(lines.map { $0.fields["notified"] } == ["no", "no", "yes", "no"],
+                "REQ-ERR-004: told on the third, and not again while the trouble stands")
+    }
+
     // REQ-LOG-005: nothing was written, so nothing may be dropped. `committedAt` is already set on
     // these sessions — lose them here and they are never written at all.
     @Test func nothingLeavesTheQueueWhenTheFolderCannotBeReached() {
