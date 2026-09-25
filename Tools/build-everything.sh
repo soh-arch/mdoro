@@ -264,7 +264,7 @@ announce "MdoroMac, and MdoroMacTests"
 echo "this launches MdoroMac.app as the test host"
 stage_started=$(date +%s)
 # -destination is never omitted: without it xcodebuild builds Debug-iphoneos and installs onto
-# whatever iPhone is plugged in (docs/ORCHESTRATION.md §3).
+# whatever iPhone is plugged in (.claude/orchestrator.md §3).
 #
 # -only-testing: is here for a second reason. Both schemes' test actions still name UI test
 # targets that do not exist -- `UITests` appears nowhere in project.pbxproj, and the blueprint

@@ -9,7 +9,7 @@
 | なぜそう決めたか | `docs/decisions/` |
 | ビルド手順・プロジェクト構成・環境 | `docs/DEVELOPMENT.md` |
 | いま何を潰すか（作業キュー） | `docs/PUNCHLIST.md` |
-| 毎回どう進めるか（手順） | `docs/ORCHESTRATION.md` |
+| 毎回どう進めるか（手順） | `.claude/orchestrator.md` |
 | Apple がどう振る舞うか | `docs/PLATFORM.md`（索引） / `docs/platform/`（調査そのもの） |
 
 **役割を分ける。一人二役をしない。**

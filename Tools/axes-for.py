@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The floor of the review axes, read from what the diff touches.
 
-docs/ORCHESTRATION.md keeps the table; this script only applies it, so the
+.claude/orchestrator.md keeps the table; this script only applies it, so the
 document stays the single copy and the two cannot drift. Every row is there
 because something once got through, and the point of a tool is that noticing
 is no longer part of the job.
@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve()
-RUNBOOK = "docs/ORCHESTRATION.md"
+RUNBOOK = ".claude/orchestrator.md"
 FLOOR_HEADING = "### 床"
 CEILING_HEADING = "### 天井"
 
@@ -79,7 +79,7 @@ def git(tree: Path, *args: str) -> str:
 
 def changed_files(tree: Path, base: str) -> list[str]:
     files = set(git(tree, "diff", "--name-only", f"{base}...HEAD").split())
-    for line in git(tree, "status", "--porcelain").splitlines():
+    for line in git(tree, "status", "--porcelain", "--untracked-files=all").splitlines():
         if line[3:]:
             files.add(line[3:].split(" -> ")[-1])
     return sorted(files)

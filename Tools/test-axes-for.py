@@ -29,7 +29,7 @@ import unittest
 from pathlib import Path
 
 TOOL = Path(__file__).resolve().parent / "axes-for.py"
-RUNBOOK = "docs/ORCHESTRATION.md"
+RUNBOOK = ".claude/orchestrator.md"
 
 # The shape the tool parses, reduced to what the parser reads: the two headings, a header
 # row it skips, and two-cell rows whose first cell holds the paths in backticks. `rows` is

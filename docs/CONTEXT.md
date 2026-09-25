@@ -336,7 +336,7 @@ Git に入っていないため、失われると復元できない。
 | Decision Record の番号 | `docs/decisions/` 自身 | 同上（欠番も見る） |
 | Apple の事実の番号 | `docs/PLATFORM.md`（索引）と `docs/platform/` | 同上 |
 | 作業の一覧と状態 | `docs/PUNCHLIST.md` | **行の数**は `grep -c '^| \*\*POL-' docs/PUNCHLIST.md`。**番号の数**は `grep -o '^| \*\*POL-[0-9]*\*\*' docs/PUNCHLIST.md \| sort -u \| wc -l`。⚠ **この2つは違う数を返す** —— **6つの番号が行頭に2度現れる**（POL-004 / 009 / 018 / 020 / 043 / 051。POL-355）。**どちらを数えたのかを書かずに総数を主張しない** |
-| `MdoroCore` のテスト | —— | `cd Packages/MdoroCore && swift test`。**CI が PR ごとに macOS ランナーで走らせる**ので、クラウドからでも結果は返る。**CI は `MdoroMacTests` も走らせる**（2026-09-12 から。署名は切る。POL-225）。**⚠ 本数と秒数はここに書かない** —— この節の冒頭が「**この節に数を書き写さない。写しは必ず腐る**」と定めており、**実際に腐った**: 「48本」と書いた写しは、POL-235 で4本、POL-106 で3本増えて合わなくなった（2026-09-14）。**数えるのは上のコマンド自身である。****走らせないのは、機械か人間を要するものだけである** —— iOS 側のテスト（シミュレータ）・変異テスト（手作業）・実機。**UI テストは存在しない** —— scheme が参照しているだけで、ターゲットが無い（POL-248）。**線の引き方は `docs/ORCHESTRATION.md` §8** |
+| `MdoroCore` のテスト | —— | `cd Packages/MdoroCore && swift test`。**CI が PR ごとに macOS ランナーで走らせる**ので、クラウドからでも結果は返る。**CI は `MdoroMacTests` も走らせる**（2026-09-12 から。署名は切る。POL-225）。**⚠ 本数と秒数はここに書かない** —— この節の冒頭が「**この節に数を書き写さない。写しは必ず腐る**」と定めており、**実際に腐った**: 「48本」と書いた写しは、POL-235 で4本、POL-106 で3本増えて合わなくなった（2026-09-14）。**数えるのは上のコマンド自身である。****走らせないのは、機械か人間を要するものだけである** —— iOS 側のテスト（シミュレータ）・変異テスト（手作業）・実機。**UI テストは存在しない** —— scheme が参照しているだけで、ターゲットが無い（POL-248）。**線の引き方は `.claude/orchestrator.md` §8** |
 | Mac / iOS のテスト | —— | **`xcodebuild test` が要る。Mac のスイートは `MdoroMac.app` にホストされるので、走らせるとアプリが起動する。** 利用者が実機で使用中のときは実行しない（POL-158） |
 
 **サブエージェントは5つ**（`.claude/agents/`）: implementer / reviewer / spec-auditor / repo-auditor / platform-researcher。
@@ -352,14 +352,14 @@ Git に入っていないため、失われると復元できない。
 （2026-09-03、クラウドへ引き継いだセッションが、要約に引きずられて進行中の筋を1本見失った。）
 
 
-1. `AGENTS.md`（規律）→ **このファイル**（いまの状態）→ `docs/PUNCHLIST.md`（作業）→ `docs/ORCHESTRATION.md`（手順）
+1. `AGENTS.md`（規律）→ **このファイル**（いまの状態）→ `docs/PUNCHLIST.md`（作業）→ `.claude/orchestrator.md`（手順）
 2. `python3 Tools/check-docs.py` —— 文書が壊れていないことを先に確かめる
 3. 作業を始めたら `python3 Tools/axes-for.py <base>` —— 差分から必ず立てる軸が出る
 4. **クラウドのセッションでは `swift test` が走らない。** `MdoroCore` は `SwiftUI` / `CryptoKit` /
    `ActivityKit` を import しており、Linux では通らない（Swift 自体が入っていない）。
    **ただし CI が macOS のランナーで走らせる** —— **PR を出せばテストの結果は返る。**
    **この Mac でなければ動かないのは、変異テストと `xcodebuild` と実機である。**
-   どの工程がどこで走るかは `docs/ORCHESTRATION.md` §8
+   どの工程がどこで走るかは `.claude/orchestrator.md` §8
 
 **クラウドから見えるのは GitHub のクローンである。** 切り替える前に push する。
 **push していない変更は、次のセッションにとって存在しない。**
@@ -375,7 +375,7 @@ Git に入っていないため、失われると復元できない。
    **残っているのは、条文が `POL-nnn` を引くのに台帳から条文への逆向きが無いこと**（POL-255。**いま14行が該当**）。
    **その日のうちに74行を3体で突き合わせ、57行はまだ成り立ち、16行を直した。**
 2. **クラウドで書いた Swift は、利用者の Mac に届くまで一度もコンパイルされない**（POL-243）。
-   **裁定は (a)** —— **`Tools/build-everything.sh` を1回通すのを恒久の工程にした**（`docs/ORCHESTRATION.md` §6）。
+   **裁定は (a)** —— **`Tools/build-everything.sh` を1回通すのを恒久の工程にした**（`.claude/orchestrator.md` §6）。
    **実測で1分未満**（増分。**建てるだけの数字**）。⚠ **2026-09-15 から2段はテストを走らせる**（POL-263）——**初回（`-derivedDataPath` が冷えた状態）で 0m22s。**内訳は `MdoroMac` 0m17s / `MdoroiOS` 0m02s / 残りが `MdoroCore`。**`MdoroMacTests` は 58本走って全部通った。****穴は2つあった** —— **Actions の実行時間の上限に達したこと**（POL-239）と、
    **CI が iPhone 側の18ファイルをどのランナーでも建てないこと**（POL-249。**分が戻っても閉じない**）。
 3. **公開前の文書とコード。** `docs/PUNCHLIST.md` の open な major を見る。
@@ -541,7 +541,7 @@ OSS の README として質が足りず、**作者自身の活用例が無い。
 「いまの README のどこが嘘か」ではなく、**「新しい README が述べるべき事実は何か」**である。
 `docs/images/` のスクリーンショット7枚も、README の作り直しに合わせて軸 I で確認する。
 
-**並列にしてよいのは読み取り専用の監査だけである**（`docs/ORCHESTRATION.md` §3「並列にしてよいもの」）。
+**並列にしてよいのは読み取り専用の監査だけである**（`.claude/orchestrator.md` §3「並列にしてよいもの」）。
 
 #### 工程9 — 名前と立ち位置
 
