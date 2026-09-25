@@ -16,7 +16,7 @@ import MdoroCore
 //
 // **What moved out**: the decision one read off the line carries. `LineRead.of` is shared with the
 // Mac now (REQ-PRT-001), and `MdoroCoreTests/LineReadTests` asks it there — where `swift test` runs
-// it on every pull request, which nothing in CI does for this suite (`docs/ORCHESTRATION.md` §8).
+// it on every pull request, which nothing in CI does for this suite (`.claude/orchestrator.md` §8).
 //
 // **What it cannot keep**: anything inside `WebSocketLink` itself. `NWConnection` cannot be stood
 // in for — it dials the moment it is started — so nothing here executes the read loop, and four

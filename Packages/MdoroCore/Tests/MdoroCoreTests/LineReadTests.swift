@@ -10,7 +10,7 @@ import MdoroCore
 // and a Mac read loop that lets every ending through is a failure this can see.
 //
 // **It also has to be somewhere that runs.** The iOS suites need a simulator and nothing in CI
-// starts one (`docs/ORCHESTRATION.md` §8); `swift test` runs on every pull request.
+// starts one (`.claude/orchestrator.md` §8); `swift test` runs on every pull request.
 //
 // What hangs on the answers: on the iPhone the reconnect hangs off the line's ending and nothing
 // else reaches it (REQ-COM-004), and on the Mac an ending not heard here is a connection believed

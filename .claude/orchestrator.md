@@ -1,4 +1,4 @@
-# ORCHESTRATION — オーケストレーターの手順書
+# orchestrator.md — オーケストレーターの手順
 
 **`AGENTS.md` は規律を、このファイルは手順を書く。**
 規律は「なぜそうするか」、手順は「毎回何をするか」である。
@@ -23,7 +23,7 @@ Mdoro 固有なのは、**§2 の床の表・§3 の環境の制約・§4 のテ
 
 | 委譲してよい | 委譲してはいけない |
 | :---- | :---- |
-| 指示書の組み立て（軸と成果物が決まった後） | **採否の判断**（[0041](decisions/0041-a-role-answers-for-its-check.md)） |
+| 指示書の組み立て（軸と成果物が決まった後） | **採否の判断**（[0041](../docs/decisions/0041-a-role-answers-for-its-check.md)） |
 | 報告の裏取り（コマンドで決まる部分） | **`docs/PUNCHLIST.md` の更新**（台帳は正本） |
 | 軸の提案（下の「天井」） | **人間への報告**（責任の所在が曖昧になる） |
 
@@ -450,7 +450,7 @@ POL-297 は状態が `done` でありながら、PR 欄が枝の名前のまま�
 | ~~UI テスト~~ | — | **存在しない。**`MdoroMac.xcscheme` / `MdoroiOS.xcscheme` が `PomodoroMacUITests` / `PomodoroiOSUITests` を参照しているが、**`project.pbxproj` にその名前は1度も出てこない**（2026-09-14 に実測）。**scheme に残った切れた参照である**（POL-248） |
 | **変異テスト** | **ローカル** | **手作業。**1行壊して走らせる工程で、道具が無い |
 | ビルドの確認・実機での確認 | **ローカル** | `xcodebuild`・シミュレータ・実機・DerivedData は**単一**で、この Mac にしかない |
-| capability・署名・ターゲットへのリンク | **人間** | Xcode の操作（[0013](decisions/0013-pbxproj-is-owned-by-xcode.md)） |
+| capability・署名・ターゲットへのリンク | **人間** | Xcode の操作（[0013](../docs/decisions/0013-pbxproj-is-owned-by-xcode.md)） |
 
 **ローカルに残る理由は4つしかない** —— **手作業である**（変異テスト）／**機械が要る**（シミュレータ・実機）／
 **人間が要る**（Xcode の操作）／**利用者がその Mac で Mdoro を使用中である**（アプリを起動しない・LAN に触れない）。

@@ -87,7 +87,7 @@ Tools/build-everything.sh
 
 **クラウドのセッションは Swift を1行もコンパイルできない。** そして **CI が建てるのは
 `MdoroCore` と `MdoroMac` の側だけで、iPhone 側の19ファイルはどのランナーでも建たない**（POL-249）。
-**Swift を触った PR には、この1回が要る**（POL-243。`docs/ORCHESTRATION.md` §6）。
+**Swift を触った PR には、この1回が要る**（POL-243。`.claude/orchestrator.md` §6）。
 
 ### 共有パッケージ
 
@@ -161,7 +161,7 @@ set -o pipefail && xcodebuild test \
   -only-testing:MdoroiOSTests
 ```
 
-**CI はこれを走らせない。** シミュレータが要るためである（`ORCHESTRATION.md` §8）。
+**CI はこれを走らせない。** シミュレータが要るためである（`.claude/orchestrator.md` §8）。
 **したがって、iOS 側のテストを守っているのはこのコマンドだけである。**
 
 ### 何本走ったかを確かめる

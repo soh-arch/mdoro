@@ -28,7 +28,7 @@ What these cases hold:
   - a python3 that is present and will not run is not reported as a compile
     failure either
   - no xcodebuild call omits -destination; omitting it builds Debug-iphoneos and
-    installs onto whatever iPhone is plugged in (docs/ORCHESTRATION.md §3)
+    installs onto whatever iPhone is plugged in (.claude/orchestrator.md §3)
 
 What they cannot hold: nothing is compiled here and no test is run. swift,
 xcodebuild and xcrun are stubs on PATH, every result bundle is text this file

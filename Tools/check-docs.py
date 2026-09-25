@@ -181,7 +181,7 @@ def filed_pols() -> set[int]:
 # THIS USED TO ASK THE OPPOSITE QUESTION: that the numbering has no gap in it. The judgement
 # cost more than it held. A number can only be chosen once it is certain nobody else is taking
 # it, so a run of work that files anything had to be serialised behind whichever branch merged
-# first -- docs/ORCHESTRATION.md carried a line of discipline for this check alone, and on
+# first -- .claude/orchestrator.md carried a line of discipline for this check alone, and on
 # 2026-09-22 three pieces of work waited on it and a fourth went out with a hole in the
 # numbering and turned the check red.
 #
@@ -237,7 +237,7 @@ def check_pols() -> None:
     # the ledger only *defines* POL rows, filed_pols() reads it for that above, and defining a
     # row is not citing one. So the densest POL prose in the repository was the one place where
     # a citation of nothing passed -- and it did: a row was written saying 続きは別の行に起票した,
-    # naming a number nobody had filed yet, and this printed ok (2026-09-21). docs/ORCHESTRATION.md §5
+    # naming a number nobody had filed yet, and this printed ok (2026-09-21). .claude/orchestrator.md §5
     # sends the reader here for exactly that question,
     # and until now the answer stopped at the ledger's door.
     #
@@ -1659,7 +1659,7 @@ class Asking:
     said nothing about a point deleted from inside one. `a write outside the throwaway tree is
     refused` asks about a dozen-odd separate things -- the ok line carries the figure, so it is
     not written down here as well -- and before this, deleting all but one of them left the ok
-    line identical, which is the shape docs/ORCHESTRATION.md §4 names: a check can be broken and the screen
+    line identical, which is the shape .claude/orchestrator.md §4 names: a check can be broken and the screen
     still reads like success. So each claim now reports how many points it asked, and the ok
     line prints it beside the name, the way CHECKS already prints `links (8)`.
 
